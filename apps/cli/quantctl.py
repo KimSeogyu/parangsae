@@ -28,12 +28,14 @@ from packages.reporting.real_run_report import (
     build_manifest,
     prepare_output_dir,
     write_failure_report,
+    write_risk_success_report,
     write_success_report,
 )
 from packages.research.backtest_engine import (
     MeaningGateError,
     assert_meaningful_run,
     broker_settings_dict,
+    run_risk_candidate_search,
     run_strategy_backtest,
     split_chronological,
     strategy_settings_dict,
@@ -135,6 +137,14 @@ def _validate_canonical_real_run(symbol: str, interval: str, months: tuple[str, 
             "create a separate research command for alternate symbols/windows"
         )
 
+
+def _failure_payload(report_dir: Path | None, failed_gate: str, reason: str) -> str:
+    payload = {"status": "failed", "failed_gate": failed_gate, "reason": reason}
+    if report_dir is not None:
+        payload["report_dir"] = str(report_dir)
+    return json.dumps(payload, indent=2, sort_keys=True)
+
+
 def cmd_real_run(args: argparse.Namespace) -> int:
     symbol = CANONICAL_SYMBOL
     interval = CANONICAL_INTERVAL
@@ -215,13 +225,13 @@ def cmd_real_run(args: argparse.Namespace) -> int:
             reason=exc.reason,
             observed=exc.observed,
         )
-        print(json.dumps({"status": "failed", "report_dir": str(output_dir), "failed_gate": exc.failed_gate, "reason": exc.reason}, indent=2, sort_keys=True))
+        print(_failure_payload(output_dir, exc.failed_gate, exc.reason))
         return 2
     except (BinanceVisionError, DataValidationError, requests.RequestException, ValueError, FileExistsError) as exc:
         if output_dir is None and not isinstance(exc, FileExistsError):
             output_dir = prepare_output_dir(reports_root=args.reports_root)
         if output_dir is None:
-            print(json.dumps({"status": "failed", "failed_gate": "output_dir", "reason": str(exc)}, indent=2, sort_keys=True))
+            print(_failure_payload(None, "output_dir", str(exc)))
             return 2
         manifest = build_manifest(
             bundle=bundle,
@@ -238,8 +248,118 @@ def cmd_real_run(args: argparse.Namespace) -> int:
             reason=str(exc),
             observed={"symbol": symbol, "interval": interval, "months": months},
         )
-        print(json.dumps({"status": "failed", "report_dir": str(output_dir), "failed_gate": type(exc).__name__, "reason": str(exc)}, indent=2, sort_keys=True))
+        print(_failure_payload(output_dir, type(exc).__name__, str(exc)))
         return 2
+
+
+def cmd_risk_run(args: argparse.Namespace) -> int:
+    symbol = CANONICAL_SYMBOL
+    interval = CANONICAL_INTERVAL
+    months = CANONICAL_MONTHS
+    bundle = None
+    output_dir: Path | None = None
+    product_family = ProductFamily.SPOT_CRYPTO
+    try:
+        output_dir = prepare_output_dir(
+            reports_root=args.reports_root,
+            output_dir=args.output_dir,
+            overwrite=args.overwrite,
+            run_prefix="risk-run",
+        )
+        product_family = ProductFamily(args.product_family)
+        product_policy = load_product_policies(PRODUCTS_CONFIG)[product_family]
+        symbol = validate_symbol(args.symbol)
+        interval = validate_interval(args.interval)
+        months = _parse_months(args.months)
+        _validate_canonical_real_run(symbol, interval, months)
+        bundle = load_market_data_bundle(
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            cache_dir=args.cache_dir,
+        )
+        risk_result = run_risk_candidate_search(
+            bundle.frame,
+            product_family=product_family,
+            short_allowed=product_policy.short_allowed,
+        )
+        manifest = build_manifest(
+            bundle=bundle,
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            split_index=risk_result.split.metadata["train_end_index"],
+            project_root=ROOT,
+        )
+        metrics = write_risk_success_report(
+            output_dir=output_dir,
+            manifest=manifest,
+            risk_result=risk_result,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "report_dir": str(output_dir),
+                    "product_family": product_family.value,
+                    "selection_objective": metrics["selection_objective"],
+                    "candidate_count": metrics["candidate_count"],
+                    "selected_candidate_id": metrics["selected_candidate_id"],
+                    "selected_settings": metrics["selected_settings"],
+                    "holdout_used_for_selection": False,
+                    "claim_boundary": metrics["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except MeaningGateError as exc:
+        if output_dir is None:
+            output_dir = prepare_output_dir(reports_root=args.reports_root, run_prefix="risk-run")
+        manifest = build_manifest(
+            bundle=bundle,
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            split_index=None,
+            project_root=ROOT,
+        )
+        write_failure_report(
+            output_dir=output_dir,
+            manifest=manifest,
+            failed_gate=exc.failed_gate,
+            reason=exc.reason,
+            observed=exc.observed,
+            run_type="risk-run",
+        )
+        print(_failure_payload(output_dir, exc.failed_gate, exc.reason))
+        return 2
+    except (BinanceVisionError, DataValidationError, requests.RequestException, ValueError, FileExistsError) as exc:
+        if output_dir is None and not isinstance(exc, FileExistsError):
+            output_dir = prepare_output_dir(reports_root=args.reports_root, run_prefix="risk-run")
+        if output_dir is None:
+            print(_failure_payload(None, "output_dir", str(exc)))
+            return 2
+        manifest = build_manifest(
+            bundle=bundle,
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            split_index=None,
+            project_root=ROOT,
+        )
+        write_failure_report(
+            output_dir=output_dir,
+            manifest=manifest,
+            failed_gate=type(exc).__name__,
+            reason=str(exc),
+            observed={"symbol": symbol, "interval": interval, "months": months, "product_family": product_family.value},
+            run_type="risk-run",
+        )
+        print(_failure_payload(output_dir, type(exc).__name__, str(exc)))
+        return 2
+
 
 def cmd_kill_switch(args: argparse.Namespace) -> int:
     path = (ROOT / ".runtime" / "KILL_SWITCH").resolve()
@@ -287,6 +407,17 @@ def build_parser() -> argparse.ArgumentParser:
     real.add_argument("--output-dir")
     real.add_argument("--overwrite", action="store_true")
     real.set_defaults(func=cmd_real_run)
+
+    risk = sub.add_parser("risk-run")
+    risk.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")
+    risk.add_argument("--interval", default=CANONICAL_INTERVAL, help="canonical validation only; non-1h is rejected")
+    risk.add_argument("--months", default=",".join(CANONICAL_MONTHS), help="canonical validation only; must be 2024-01..2024-06")
+    risk.add_argument("--product-family", default=ProductFamily.SPOT_CRYPTO.value, choices=[item.value for item in ProductFamily])
+    risk.add_argument("--cache-dir", default="data/binance-vision")
+    risk.add_argument("--reports-root", default="reports")
+    risk.add_argument("--output-dir")
+    risk.add_argument("--overwrite", action="store_true")
+    risk.set_defaults(func=cmd_risk_run)
 
     kill = sub.add_parser("kill-switch")
     kill.add_argument("action", choices=["enable", "disable"])

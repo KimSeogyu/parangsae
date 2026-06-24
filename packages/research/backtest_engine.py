@@ -10,6 +10,8 @@ import pandas as pd
 from backtesting import Strategy
 from backtesting.lib import FractionalBacktest, crossover
 
+from packages.core.contracts import ProductFamily
+
 
 @dataclass(frozen=True)
 class StrategySettings:
@@ -19,6 +21,7 @@ class StrategySettings:
     stop_atr: float = 2.5
     take_profit_atr: float = 4.0
     risk_fraction: float = 0.95
+    allow_short: bool = True
 
 
 @dataclass(frozen=True)
@@ -44,11 +47,69 @@ class MeaningGateConfig:
 
 
 @dataclass(frozen=True)
+class RiskMeaningGateConfig:
+    min_total_bars: int = 720
+    min_train_bars: int = 480
+    min_validation_bars: int = 168
+    min_holdout_bars: int = 168
+    min_train_closed_trades: int = 1
+    min_validation_closed_trades: int = 1
+    min_holdout_closed_trades: int = 1
+    max_validation_drawdown_abs_pct: float = 35.0
+
+
+@dataclass(frozen=True)
 class BacktestResult:
     label: str
     metrics: dict[str, Any]
     trades: pd.DataFrame
     equity: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class ThreeWaySplit:
+    train: pd.DataFrame
+    validation: pd.DataFrame
+    holdout: pd.DataFrame
+    metadata: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class CandidateEvaluation:
+    candidate_id: str
+    settings: StrategySettings
+    train: BacktestResult
+    validation: BacktestResult
+    score: float
+    eligible: bool
+    rejection_reasons: tuple[str, ...]
+
+    def to_record(self) -> dict[str, Any]:
+        return {
+            "candidate_id": self.candidate_id,
+            "eligible": self.eligible,
+            "score": self.score,
+            "rejection_reasons": ";".join(self.rejection_reasons),
+            **{f"settings_{key}": value for key, value in asdict(self.settings).items()},
+            "train_sharpe": self.train.metrics.get("Sharpe_Ratio"),
+            "validation_sharpe": self.validation.metrics.get("Sharpe_Ratio"),
+            "train_max_drawdown_pct": self.train.metrics.get("Max_Drawdown_pct"),
+            "validation_max_drawdown_pct": self.validation.metrics.get("Max_Drawdown_pct"),
+            "train_return_pct": self.train.metrics.get("Return_pct"),
+            "validation_return_pct": self.validation.metrics.get("Return_pct"),
+            "train_closed_trades": self.train.metrics.get("closed_trades"),
+            "validation_closed_trades": self.validation.metrics.get("closed_trades"),
+        }
+
+
+@dataclass(frozen=True)
+class RiskRunResult:
+    product_family: ProductFamily
+    split: ThreeWaySplit
+    candidates: tuple[CandidateEvaluation, ...]
+    selected: CandidateEvaluation
+    holdout: BacktestResult
+    meaning: dict[str, Any]
 
 
 class MeaningGateError(RuntimeError):
@@ -62,6 +123,13 @@ class MeaningGateError(RuntimeError):
 CANONICAL_STRATEGY = StrategySettings()
 CANONICAL_BROKER = BrokerSettings()
 MEANING_GATES = MeaningGateConfig()
+RISK_MEANING_GATES = RiskMeaningGateConfig()
+RISK_SELECTION_OBJECTIVE = "risk_adjusted_score_v1"
+RISK_SELECTION_FORMULA = (
+    "validation_sharpe - abs(validation_max_drawdown_pct)/25 "
+    "- abs(train_sharpe-validation_sharpe)*0.25 "
+    "- max(0, validation_closed_trades-40)*0.01"
+)
 
 
 def _sma(values: np.ndarray, window: int) -> np.ndarray:
@@ -91,6 +159,7 @@ class SmaAtrBracketStrategy(Strategy):
     stop_atr = CANONICAL_STRATEGY.stop_atr
     take_profit_atr = CANONICAL_STRATEGY.take_profit_atr
     risk_fraction = CANONICAL_STRATEGY.risk_fraction
+    allow_short = CANONICAL_STRATEGY.allow_short
 
     def init(self) -> None:
         self.fast = self.I(_sma, self.data.Close, self.fast_sma, overlay=False)
@@ -111,11 +180,14 @@ class SmaAtrBracketStrategy(Strategy):
                 tp=price + self.take_profit_atr * atr,
             )
         elif crossover(self.slow, self.fast):
-            self.sell(
-                size=self.risk_fraction,
-                sl=price + self.stop_atr * atr,
-                tp=max(price - self.take_profit_atr * atr, 1e-8),
-            )
+            if self.allow_short:
+                self.sell(
+                    size=self.risk_fraction,
+                    sl=price + self.stop_atr * atr,
+                    tp=max(price - self.take_profit_atr * atr, 1e-8),
+                )
+            elif self.position:
+                self.position.close()
 
 
 def _jsonable(value: Any) -> Any:
@@ -228,6 +300,69 @@ def split_chronological(frame: pd.DataFrame, train_fraction: float = 0.70) -> tu
     return train, holdout, split_index
 
 
+def _index_iso(frame: pd.DataFrame, position: int) -> str | None:
+    if frame.empty:
+        return None
+    value = frame.index[position]
+    return value.isoformat().replace("+00:00", "Z") if hasattr(value, "isoformat") else str(value)
+
+
+def split_train_validation_holdout(
+    frame: pd.DataFrame,
+    *,
+    train_fraction: float = 0.50,
+    validation_fraction: float = 0.20,
+) -> ThreeWaySplit:
+    if not 0 < train_fraction < 1:
+        raise ValueError("train_fraction must be between 0 and 1")
+    if not 0 < validation_fraction < 1:
+        raise ValueError("validation_fraction must be between 0 and 1")
+    if train_fraction + validation_fraction >= 1:
+        raise ValueError("train_fraction + validation_fraction must be less than 1")
+    train_end = int(len(frame) * train_fraction)
+    validation_end = int(len(frame) * (train_fraction + validation_fraction))
+    train = frame.iloc[:train_end].copy()
+    validation = frame.iloc[train_end:validation_end].copy()
+    holdout = frame.iloc[validation_end:].copy()
+    if train.empty or validation.empty or holdout.empty:
+        raise MeaningGateError(
+            "split_integrity",
+            "train, validation, and holdout segments must all contain rows",
+            {
+                "total_bars": len(frame),
+                "train_end_index": train_end,
+                "validation_end_index": validation_end,
+            },
+        )
+    if not (train.index[-1] < validation.index[0] < validation.index[-1] < holdout.index[0]):
+        raise MeaningGateError(
+            "split_integrity",
+            "chronological segments must be strictly ordered and non-overlapping",
+            {
+                "train_end": _index_iso(train, -1),
+                "validation_start": _index_iso(validation, 0),
+                "validation_end": _index_iso(validation, -1),
+                "holdout_start": _index_iso(holdout, 0),
+            },
+        )
+    metadata = {
+        "chronological_split_verified": True,
+        "total_bars": len(frame),
+        "train_bars": len(train),
+        "validation_bars": len(validation),
+        "holdout_bars": len(holdout),
+        "train_end_index": train_end,
+        "validation_end_index": validation_end,
+        "train_start": _index_iso(train, 0),
+        "train_end": _index_iso(train, -1),
+        "validation_start": _index_iso(validation, 0),
+        "validation_end": _index_iso(validation, -1),
+        "holdout_start": _index_iso(holdout, 0),
+        "holdout_end": _index_iso(holdout, -1),
+    }
+    return ThreeWaySplit(train=train, validation=validation, holdout=holdout, metadata=metadata)
+
+
 def assert_meaningful_run(
     *,
     total_bars: int,
@@ -256,6 +391,196 @@ def assert_meaningful_run(
         if actual < minimum:
             raise MeaningGateError(name, f"{name} {actual} below required minimum {minimum}", observed)
     return {"status": "passed", **observed}
+
+
+def _metric_as_float(metrics: dict[str, Any], key: str, default: float = 0.0) -> float:
+    value = metrics.get(key)
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    return result if math.isfinite(result) else default
+
+
+def risk_adjusted_score_v1(train_metrics: dict[str, Any], validation_metrics: dict[str, Any]) -> float:
+    train_sharpe = _metric_as_float(train_metrics, "Sharpe_Ratio")
+    validation_sharpe = _metric_as_float(validation_metrics, "Sharpe_Ratio")
+    validation_drawdown = _metric_as_float(validation_metrics, "Max_Drawdown_pct")
+    validation_closed_trades = int(validation_metrics.get("closed_trades", 0) or 0)
+    return (
+        validation_sharpe
+        - abs(validation_drawdown) / 25
+        - abs(train_sharpe - validation_sharpe) * 0.25
+        - max(0, validation_closed_trades - 40) * 0.01
+    )
+
+
+def _candidate_rejection_reasons(
+    *,
+    train: BacktestResult,
+    validation: BacktestResult,
+    gates: RiskMeaningGateConfig,
+) -> tuple[str, ...]:
+    reasons: list[str] = []
+    if train.metrics["closed_trades"] < gates.min_train_closed_trades:
+        reasons.append("train_closed_trades_below_minimum")
+    if validation.metrics["closed_trades"] < gates.min_validation_closed_trades:
+        reasons.append("validation_closed_trades_below_minimum")
+    validation_drawdown_raw = validation.metrics.get("Max_Drawdown_pct")
+    try:
+        validation_drawdown = float(validation_drawdown_raw)
+    except (TypeError, ValueError):
+        validation_drawdown = math.nan
+    if not math.isfinite(validation_drawdown):
+        reasons.append("validation_drawdown_not_finite")
+    elif abs(validation_drawdown) > gates.max_validation_drawdown_abs_pct:
+        reasons.append("validation_drawdown_above_gate")
+    return tuple(reasons)
+
+
+def default_risk_candidate_grid(
+    product_family: ProductFamily,
+    *,
+    short_allowed: bool,
+) -> tuple[StrategySettings, ...]:
+    del product_family  # Direction authority is supplied by central product policy.
+    return (
+        StrategySettings(12, 48, 14, 2.0, 3.0, 0.25, allow_short=short_allowed),
+        StrategySettings(12, 48, 14, 2.5, 4.0, 0.25, allow_short=short_allowed),
+        StrategySettings(18, 72, 14, 2.0, 3.0, 0.25, allow_short=short_allowed),
+        StrategySettings(18, 72, 14, 2.5, 4.0, 0.40, allow_short=short_allowed),
+        StrategySettings(24, 96, 14, 2.5, 4.0, 0.25, allow_short=short_allowed),
+        StrategySettings(24, 96, 14, 3.0, 5.0, 0.40, allow_short=short_allowed),
+    )
+
+
+def _candidate_id(index: int, settings: StrategySettings) -> str:
+    direction = "short-ok" if settings.allow_short else "long-only"
+    return f"c{index:03d}-f{settings.fast_sma}-s{settings.slow_sma}-{direction}"
+
+
+def assert_risk_meaningful_run(
+    *,
+    split: ThreeWaySplit,
+    candidate_count: int,
+    train_closed_trades: int,
+    validation_closed_trades: int,
+    holdout_closed_trades: int,
+    gates: RiskMeaningGateConfig = RISK_MEANING_GATES,
+) -> dict[str, Any]:
+    observed = {
+        "status": "passed",
+        "holdout_used_for_selection": False,
+        "candidate_count": candidate_count,
+        "selection_objective": RISK_SELECTION_OBJECTIVE,
+        "selection_formula": RISK_SELECTION_FORMULA,
+        "minimum_trade_gates_passed": True,
+        **split.metadata,
+        "train_closed_trades": train_closed_trades,
+        "validation_closed_trades": validation_closed_trades,
+        "holdout_closed_trades": holdout_closed_trades,
+        "required": asdict(gates),
+    }
+    checks = [
+        ("total_bars", split.metadata["total_bars"], gates.min_total_bars),
+        ("train_bars", split.metadata["train_bars"], gates.min_train_bars),
+        ("validation_bars", split.metadata["validation_bars"], gates.min_validation_bars),
+        ("holdout_bars", split.metadata["holdout_bars"], gates.min_holdout_bars),
+        ("candidate_count", candidate_count, 1),
+        ("train_closed_trades", train_closed_trades, gates.min_train_closed_trades),
+        ("validation_closed_trades", validation_closed_trades, gates.min_validation_closed_trades),
+        ("holdout_closed_trades", holdout_closed_trades, gates.min_holdout_closed_trades),
+    ]
+    for name, actual, minimum in checks:
+        if actual < minimum:
+            raise MeaningGateError(name, f"{name} {actual} below required minimum {minimum}", observed)
+    return observed
+
+
+def run_risk_candidate_search(
+    frame: pd.DataFrame,
+    *,
+    product_family: ProductFamily = ProductFamily.SPOT_CRYPTO,
+    short_allowed: bool,
+    candidate_grid: tuple[StrategySettings, ...] | None = None,
+    broker_settings: BrokerSettings = CANONICAL_BROKER,
+    gates: RiskMeaningGateConfig = RISK_MEANING_GATES,
+) -> RiskRunResult:
+    split = split_train_validation_holdout(frame)
+    candidates_settings = candidate_grid or default_risk_candidate_grid(
+        product_family,
+        short_allowed=short_allowed,
+    )
+    if not candidates_settings:
+        raise MeaningGateError("candidate_count", "candidate grid must not be empty", split.metadata)
+    evaluations: list[CandidateEvaluation] = []
+    for index, settings in enumerate(candidates_settings, start=1):
+        train = run_strategy_backtest(
+            split.train,
+            label=f"{_candidate_id(index, settings)}_train",
+            strategy_settings=settings,
+            broker_settings=broker_settings,
+        )
+        validation = run_strategy_backtest(
+            split.validation,
+            label=f"{_candidate_id(index, settings)}_validation",
+            strategy_settings=settings,
+            broker_settings=broker_settings,
+        )
+        reasons = _candidate_rejection_reasons(train=train, validation=validation, gates=gates)
+        evaluations.append(
+            CandidateEvaluation(
+                candidate_id=_candidate_id(index, settings),
+                settings=settings,
+                train=train,
+                validation=validation,
+                score=risk_adjusted_score_v1(train.metrics, validation.metrics),
+                eligible=not reasons,
+                rejection_reasons=reasons,
+            )
+        )
+    eligible = [candidate for candidate in evaluations if candidate.eligible]
+    if not eligible:
+        raise MeaningGateError(
+            "candidate_selection",
+            "no candidate passed risk selection gates",
+            {
+                **split.metadata,
+                "candidate_count": len(evaluations),
+                "candidates": [candidate.to_record() for candidate in evaluations],
+            },
+        )
+    selected = sorted(
+        eligible,
+        key=lambda candidate: (
+            candidate.score,
+            -abs(_metric_as_float(candidate.validation.metrics, "Max_Drawdown_pct")),
+            candidate.validation.metrics.get("closed_trades", 0),
+        ),
+        reverse=True,
+    )[0]
+    holdout = run_strategy_backtest(
+        split.holdout,
+        label="holdout_paper",
+        strategy_settings=selected.settings,
+        broker_settings=broker_settings,
+    )
+    meaning = assert_risk_meaningful_run(
+        split=split,
+        candidate_count=len(evaluations),
+        train_closed_trades=selected.train.metrics["closed_trades"],
+        validation_closed_trades=selected.validation.metrics["closed_trades"],
+        holdout_closed_trades=holdout.metrics["closed_trades"],
+        gates=gates,
+    )
+    return RiskRunResult(
+        product_family=product_family,
+        split=split,
+        candidates=tuple(evaluations),
+        selected=selected,
+        holdout=holdout,
+        meaning=meaning,
+    )
 
 
 def strategy_settings_dict(settings: StrategySettings = CANONICAL_STRATEGY) -> dict[str, Any]:

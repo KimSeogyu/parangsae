@@ -34,8 +34,21 @@ Milestone 1 implements adapters and guards, but verification uses dry-run/test e
 
 ```bash
 uv run python -m apps.cli.quantctl real-run
+uv run python -m apps.cli.quantctl risk-run
 ```
 
 This downloads public Binance Vision BTCUSDT USDⓈ-M Futures 1h klines for 2024-01..2024-06, runs a `backtesting.py`/`FractionalBacktest` SMA/ATR strategy, runs the holdout as bar-based paper simulation, and writes a durable report under `reports/`. See `docs/backtesting-paper-trading.md`.
 
 Latest verified report: `reports/real-run-20260624T165402Z/` (strict meaning gates passed; canonical holdout return was negative, so this is evidence, not a profit promise).
+
+`risk-run` is the risk-adjusted research harness. It preserves the fixed `real-run` baseline, then uses a small predeclared product-family-aware grid, chronological train/validation/holdout selection, frozen `risk_adjusted_score_v1`, and report fields for Sharpe, MDD, candidate count, selected settings, and `holdout_used_for_selection:false`. The canonical BTCUSDT one-window result is still a research/comparison artifact, not proof of durable stable live returns.
+
+Latest verified risk-run: `reports/risk-run-20260624T220620Z/`.
+
+- Selected candidate: `c006-f24-s96-long-only`
+- Holdout return: -1.232121126590955%
+- Holdout Sharpe: -1.6176381689108235
+- Holdout MDD: -2.4270383165800102%
+- Baseline `real-run` holdout for the same window: return -13.111998074857983%, Sharpe -8.039068250214187, MDD -14.19746725941865%
+
+This is a lower-drawdown/lower-loss research outcome for this window, not a profit guarantee.

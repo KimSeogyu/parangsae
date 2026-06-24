@@ -43,6 +43,7 @@ def args(tmp_path: Path) -> Namespace:
         reports_root=str(tmp_path / "reports"),
         output_dir=None,
         overwrite=False,
+        product_family="spot_crypto",
     )
 
 
@@ -95,6 +96,56 @@ def test_real_run_rejects_noncanonical_window_with_failure_artifact(tmp_path):
     a = args(tmp_path)
     a.months = "2024-02"
     assert quantctl.cmd_real_run(a) == 2
+    report_dirs = list((tmp_path / "reports").iterdir())
+    assert len(report_dirs) == 1
+    assert (report_dirs[0] / "failure.json").exists()
+    assert not (report_dirs[0] / "report.md").exists()
+
+
+def test_risk_run_only_uses_canonical_binance_vision_gets(monkeypatch, tmp_path):
+    allowed = set(canonical_urls("BTCUSDT", "1h", CANONICAL_MONTHS))
+    calls = []
+
+    def fake_request(self, method, url, **kwargs):
+        calls.append((method, url))
+        assert method == "GET"
+        assert url in allowed
+        return FakeResponse(zip_payload())
+
+    monkeypatch.setattr("requests.sessions.Session.request", fake_request)
+    rc = quantctl.cmd_risk_run(args(tmp_path))
+    assert rc == 2
+    assert calls == [("GET", url) for url in canonical_urls("BTCUSDT", "1h", CANONICAL_MONTHS)]
+    report_dirs = list((tmp_path / "reports").iterdir())
+    assert len(report_dirs) == 1
+    assert report_dirs[0].name.startswith("risk-run-")
+    assert (report_dirs[0] / "failure.json").exists()
+    assert not (report_dirs[0] / "report.md").exists()
+
+
+def test_risk_run_does_not_read_binance_credentials_or_import_ccxt(monkeypatch, tmp_path):
+    monkeypatch.setenv("BINANCE_API_KEY", "SHOULD_NOT_BE_READ")
+    monkeypatch.setenv("BINANCE_API_SECRET", "SHOULD_NOT_BE_READ")
+    real_getenv = os.getenv
+
+    def guarded_getenv(key, default=None):
+        if key in {"BINANCE_API_KEY", "BINANCE_API_SECRET"}:
+            raise AssertionError(f"risk-run must not read {key}")
+        return real_getenv(key, default)
+
+    monkeypatch.setattr(os, "getenv", guarded_getenv)
+    monkeypatch.setitem(__import__("sys").modules, "ccxt", None)
+    monkeypatch.setattr("requests.sessions.Session.request", lambda self, method, url, **kwargs: FakeResponse(zip_payload()))
+    assert quantctl.cmd_risk_run(args(tmp_path)) == 2
+
+
+def test_risk_run_invalid_product_family_writes_failure_artifact(tmp_path, capsys):
+    a = args(tmp_path)
+    a.product_family = "not_a_family"
+    assert quantctl.cmd_risk_run(a) == 2
+    captured = capsys.readouterr().out
+    assert "not_a_family" in captured
+    assert "Traceback" not in captured
     report_dirs = list((tmp_path / "reports").iterdir())
     assert len(report_dirs) == 1
     assert (report_dirs[0] / "failure.json").exists()

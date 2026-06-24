@@ -12,17 +12,54 @@ import pandas as pd
 from packages.marketdata.binance_vision import MarketDataBundle, canonical_urls, sha256_file
 from packages.research.backtest_engine import (
     BacktestResult,
+    RiskRunResult,
+    RISK_SELECTION_FORMULA,
+    RISK_SELECTION_OBJECTIVE,
     broker_settings_dict,
     strategy_settings_dict,
 )
 
 DEPENDENCIES = ("backtesting", "ccxt", "pandas", "numpy", "requests")
 SUCCESS_FILES = {"report.md", "metrics.json", "trades.csv", "equity.csv", "manifest.json"}
+RISK_SUCCESS_FILES = SUCCESS_FILES | {"candidates.csv"}
 FAILURE_FILES = {"failure.md", "failure.json", "manifest.json"}
+KNOWN_RUN_TYPES = {"real-run", "risk-run"}
 
 
 def utc_timestamp_for_path() -> str:
     return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
+def report_file_set(run_type: str) -> set[str]:
+    return RISK_SUCCESS_FILES if run_type == "risk-run" else SUCCESS_FILES
+
+
+def _json_run_type(path: Path) -> str | None:
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    run_type = data.get("run_type")
+    return run_type if run_type in KNOWN_RUN_TYPES else None
+
+
+def existing_report_type(path: Path) -> str | None:
+    manifest_type = _json_run_type(path / "manifest.json")
+    if manifest_type:
+        return manifest_type
+    failure_type = _json_run_type(path / "failure.json")
+    if failure_type:
+        return failure_type
+    if path.name.startswith("risk-run-"):
+        return "risk-run"
+    if path.name.startswith("real-run-"):
+        return "real-run"
+    names = {child.name for child in path.iterdir()} if path.exists() and path.is_dir() else set()
+    if "candidates.csv" in names:
+        return "risk-run"
+    if names & (SUCCESS_FILES | FAILURE_FILES):
+        return "real-run"
+    return None
 
 
 def prepare_output_dir(
@@ -30,6 +67,7 @@ def prepare_output_dir(
     reports_root: str | Path = "reports",
     output_dir: str | Path | None = None,
     overwrite: bool = False,
+    run_prefix: str = "real-run",
 ) -> Path:
     if output_dir is not None:
         path = Path(output_dir)
@@ -38,7 +76,12 @@ def prepare_output_dir(
                 raise FileExistsError(f"output directory already exists: {path}")
             if not path.is_dir():
                 raise FileExistsError(f"output path exists and is not a directory: {path}")
-            allowed = SUCCESS_FILES | FAILURE_FILES
+            existing_type = existing_report_type(path)
+            if existing_type is not None and existing_type != run_prefix:
+                raise FileExistsError(
+                    f"refusing to overwrite {existing_type} report with {run_prefix}: {path}"
+                )
+            allowed = report_file_set(run_prefix) | FAILURE_FILES
             unexpected = [child.name for child in path.iterdir() if child.name not in allowed]
             if unexpected:
                 raise FileExistsError(
@@ -55,7 +98,7 @@ def prepare_output_dir(
     stamp = utc_timestamp_for_path()
     for i in range(1000):
         suffix = stamp if i == 0 else f"{stamp}-{i:03d}"
-        candidate = root / f"real-run-{suffix}"
+        candidate = root / f"{run_prefix}-{suffix}"
         try:
             candidate.mkdir(parents=False, exist_ok=False)
             return candidate
@@ -186,6 +229,96 @@ def write_success_report(
     return metrics
 
 
+def write_risk_success_report(
+    *,
+    output_dir: str | Path,
+    manifest: dict[str, Any],
+    risk_result: RiskRunResult,
+) -> dict[str, Any]:
+    out = Path(output_dir)
+    selected = risk_result.selected
+    split = risk_result.split.metadata
+    metrics = {
+        "status": "success",
+        "run_type": "risk-run",
+        "product_family": risk_result.product_family.value,
+        "data_venue": "binance_usds_futures_public_klines",
+        "strategy_family": "sma_atr_bracket",
+        "selected_candidate_id": selected.candidate_id,
+        "selected_settings": strategy_settings_dict(selected.settings),
+        "broker": broker_settings_dict(),
+        "selection_objective": RISK_SELECTION_OBJECTIVE,
+        "selection_formula": RISK_SELECTION_FORMULA,
+        "candidate_count": len(risk_result.candidates),
+        "holdout_used_for_selection": False,
+        "claim_boundary": (
+            "canonical BTCUSDT 1h Jan-Jun 2024 risk-run is a reproducible research "
+            "harness and comparison report, not proof of durable stable live returns"
+        ),
+        "funding_assumption": "funding fees excluded; limitation, not hidden alpha",
+        "paper_semantics": "bar-based holdout simulation; not exchange matching, not live fill proof, not a profit guarantee",
+        "meaning_gate": risk_result.meaning,
+        "split": split,
+        "data_quality": manifest.get("data_quality", {}),
+        "train": selected.train.metrics,
+        "validation": selected.validation.metrics,
+        "holdout_paper": risk_result.holdout.metrics,
+        "risk_adjusted_research_gate": {
+            "chronological_split_verified": bool(split["chronological_split_verified"]),
+            "holdout_used_for_selection": False,
+            "candidate_count": len(risk_result.candidates),
+            "selection_objective": RISK_SELECTION_OBJECTIVE,
+            "selection_formula": RISK_SELECTION_FORMULA,
+            "selected_settings": strategy_settings_dict(selected.settings),
+            "train_metrics_present": True,
+            "validation_metrics_present": True,
+            "holdout_metrics_present": True,
+            "max_drawdown_present": all(
+                "Max_Drawdown_pct" in segment
+                for segment in (selected.train.metrics, selected.validation.metrics, risk_result.holdout.metrics)
+            ),
+            "sharpe_present": all(
+                "Sharpe_Ratio" in segment
+                for segment in (selected.train.metrics, selected.validation.metrics, risk_result.holdout.metrics)
+            ),
+            "minimum_trade_gates_passed": True,
+            "no_profit_guarantee_disclaimer_present": True,
+            "live_orders_submitted": False,
+        },
+    }
+    manifest = {
+        **manifest,
+        "run_type": "risk-run",
+        "product_family": risk_result.product_family.value,
+        "selection_objective": RISK_SELECTION_OBJECTIVE,
+        "selection_formula": RISK_SELECTION_FORMULA,
+        "split": split,
+        "selected_candidate_id": selected.candidate_id,
+    }
+    write_json(out / "manifest.json", manifest)
+    write_json(out / "metrics.json", metrics)
+    pd.DataFrame([candidate.to_record() for candidate in risk_result.candidates]).to_csv(out / "candidates.csv", index=False)
+    trades = pd.concat(
+        [
+            selected.train.trades.assign(segment="train", candidate_id=selected.candidate_id),
+            selected.validation.trades.assign(segment="validation", candidate_id=selected.candidate_id),
+            risk_result.holdout.trades.assign(segment="holdout_paper", candidate_id=selected.candidate_id),
+        ],
+        ignore_index=True,
+    )
+    trades.to_csv(out / "trades.csv", index=False)
+    equity = pd.concat(
+        [
+            selected.train.equity.assign(segment="train", candidate_id=selected.candidate_id),
+            selected.validation.equity.assign(segment="validation", candidate_id=selected.candidate_id),
+            risk_result.holdout.equity.assign(segment="holdout_paper", candidate_id=selected.candidate_id),
+        ]
+    )
+    _write_dataframe(out / "equity.csv", equity)
+    (out / "report.md").write_text(render_risk_report(manifest=manifest, metrics=metrics))
+    return metrics
+
+
 def render_report(*, manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
     backtest = metrics["backtest"]
     holdout = metrics["holdout_paper"]
@@ -249,6 +382,74 @@ def render_report(*, manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_risk_report(*, manifest: dict[str, Any], metrics: dict[str, Any]) -> str:
+    train = metrics["train"]
+    validation = metrics["validation"]
+    holdout = metrics["holdout_paper"]
+    meaning = metrics["meaning_gate"]
+    source_urls = manifest.get("source_urls", [])
+    lines = [
+        "# Binance Vision Risk-Adjusted Research Run Report",
+        "",
+        "## Status",
+        "- status: success",
+        "- run type: risk-run",
+        "- no profit guarantee: true",
+        "- live orders submitted: false",
+        "- holdout used for selection: false",
+        f"- claim boundary: {metrics['claim_boundary']}",
+        "",
+        "## Data",
+        f"- symbol: {manifest['symbol']}",
+        f"- interval: {manifest['interval']}",
+        f"- months: {', '.join(manifest['months'])}",
+        f"- product family: {metrics['product_family']}",
+        f"- data venue: {metrics['data_venue']}",
+        f"- rows: {manifest.get('row_count')}",
+        f"- first timestamp: {manifest.get('first_timestamp')}",
+        f"- last timestamp: {manifest.get('last_timestamp')}",
+        "",
+        "## Source URLs",
+    ]
+    lines.extend(f"- {url}" for url in source_urls)
+    lines.extend(
+        [
+            "",
+            "## Selection",
+            f"- selected candidate: {metrics['selected_candidate_id']}",
+            f"- candidate count: {metrics['candidate_count']}",
+            f"- objective: {metrics['selection_objective']}",
+            f"- formula: `{metrics['selection_formula']}`",
+            f"- selected settings: `{json.dumps(metrics['selected_settings'], sort_keys=True)}`",
+            "",
+            "## Split / Meaning Gate",
+            f"- chronological split verified: {meaning['chronological_split_verified']}",
+            f"- train bars: {meaning['train_bars']}",
+            f"- validation bars: {meaning['validation_bars']}",
+            f"- holdout bars: {meaning['holdout_bars']}",
+            f"- train closed trades: {meaning['train_closed_trades']}",
+            f"- validation closed trades: {meaning['validation_closed_trades']}",
+            f"- holdout closed trades: {meaning['holdout_closed_trades']}",
+            "",
+            "## Risk Metrics",
+            "| segment | return pct | Sharpe | max drawdown pct | closed trades |",
+            "| --- | ---: | ---: | ---: | ---: |",
+            f"| train | {train.get('Return_pct')} | {train.get('Sharpe_Ratio')} | {train.get('Max_Drawdown_pct')} | {train.get('closed_trades')} |",
+            f"| validation | {validation.get('Return_pct')} | {validation.get('Sharpe_Ratio')} | {validation.get('Max_Drawdown_pct')} | {validation.get('closed_trades')} |",
+            f"| holdout/paper | {holdout.get('Return_pct')} | {holdout.get('Sharpe_Ratio')} | {holdout.get('Max_Drawdown_pct')} | {holdout.get('closed_trades')} |",
+            "",
+            "## Limitations",
+            "- This is a historical bar-based simulation, not Binance exchange matching.",
+            "- This is not live fill proof and not a profit guarantee.",
+            "- Sharpe annualization can be misleading under serial correlation or non-normal returns.",
+            "- The canonical one-window BTCUSDT result is not proof of durable stable live returns.",
+            "- Funding fees are excluded and recorded as a limitation.",
+            "- No Binance API key was used; no testnet/live order was submitted.",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
 def write_failure_report(
     *,
     output_dir: str | Path,
@@ -256,10 +457,12 @@ def write_failure_report(
     failed_gate: str,
     reason: str,
     observed: dict[str, Any] | None = None,
+    run_type: str = "real-run",
 ) -> dict[str, Any]:
     out = Path(output_dir)
     failure = {
         "status": "failed",
+        "run_type": run_type,
         "failed_gate": failed_gate,
         "reason": reason,
         "observed": observed or {},
@@ -275,10 +478,10 @@ def write_failure_report(
     write_json(out / "manifest.json", manifest)
     write_json(out / "failure.json", failure)
     (out / "failure.md").write_text(
-        "# Binance Vision Real-Run Failure\n\n"
+        f"# Binance Vision {run_type} Failure\n\n"
         f"- status: failed\n- failed gate: {failed_gate}\n- reason: {reason}\n\n"
         "No success report was created because the run did not meet the strict meaningful-result contract.\n"
     )
-    for filename in SUCCESS_FILES - {"manifest.json"}:
+    for filename in report_file_set(run_type) - {"manifest.json"}:
         (out / filename).unlink(missing_ok=True)
     return failure
