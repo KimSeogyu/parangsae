@@ -3,7 +3,14 @@ name = "parangsae-unified-quant"
 version = "0.1.0"
 description = "Personal Binance-only quant app, live-ready but default-disabled."
 requires-python = ">=3.12"
-dependencies = ["pyyaml>=6.0"]
+dependencies = [
+    "backtesting>=0.6.5",
+    "ccxt>=4.4.0",
+    "numpy>=2.0.0",
+    "pandas>=2.2.0",
+    "pyyaml>=6.0",
+    "requests>=2.32.0",
+]
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
@@ -18,3 +25,9 @@ pythonpath = ["."]
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.15.19",
+]

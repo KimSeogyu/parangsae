@@ -2,6 +2,12 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
+EXCLUDED_PREFIXES = (".venv/", ".git/", ".codegraph/", ".omx/")
+
+
+def is_repo_source_path(path: Path) -> bool:
+    rel = path.relative_to(ROOT).as_posix()
+    return not rel.startswith(EXCLUDED_PREFIXES)
 NAMES = [
     "ProductFamily",
     "ProductCapability",
@@ -19,7 +25,7 @@ NAMES = [
 
 def test_no_duplicate_core_contract_definitions():
     violations = []
-    for path in ROOT.rglob("*.py"):
+    for path in (p for p in ROOT.rglob("*.py") if is_repo_source_path(p)):
         rel = path.relative_to(ROOT).as_posix()
         if rel == "packages/core/contracts.py" or rel.startswith("tests/"):
             continue
@@ -32,7 +38,8 @@ def test_no_duplicate_core_contract_definitions():
 
 def test_exact_live_ack_text_only_in_docs_and_code():
     bad = []
-    for path in list(ROOT.rglob("*.py")) + list((ROOT / "docs").rglob("*.md")) + list(ROOT.rglob("*.yaml")):
+    paths = list(ROOT.rglob("*.py")) + list((ROOT / "docs").rglob("*.md")) + list(ROOT.rglob("*.yaml"))
+    for path in (p for p in paths if is_repo_source_path(p)):
         rel = path.relative_to(ROOT).as_posix()
         text = path.read_text()
         if rel == "tests/test_static_contracts.py":

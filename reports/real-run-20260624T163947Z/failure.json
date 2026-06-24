@@ -1,0 +1,50 @@
+{
+  "broker": {
+    "cash": 10000.0,
+    "commission": 0.0004,
+    "exclusive_orders": true,
+    "finalize_trades": true,
+    "hedging": false,
+    "margin": 1.0,
+    "spread": 0.0002,
+    "trade_on_close": false
+  },
+  "canonical_window": {
+    "interval": "1h",
+    "months": [
+      "2024-01",
+      "2024-02",
+      "2024-03",
+      "2024-04",
+      "2024-05",
+      "2024-06"
+    ],
+    "symbol": "BTCUSDT"
+  },
+  "failed_gate": "backtest_closed_trades",
+  "manifest_available": true,
+  "observed": {
+    "backtest_closed_trades": 0,
+    "holdout_bars": 1311,
+    "holdout_closed_trades": 0,
+    "required": {
+      "min_backtest_closed_trades": 3,
+      "min_holdout_bars": 168,
+      "min_holdout_closed_trades": 2,
+      "min_total_bars": 720,
+      "min_train_bars": 480
+    },
+    "total_bars": 4368,
+    "train_bars": 3057
+  },
+  "reason": "backtest_closed_trades 0 below required minimum 3",
+  "status": "failed",
+  "strategy": {
+    "atr_window": 14,
+    "fast_sma": 12,
+    "risk_fraction": 0.95,
+    "slow_sma": 48,
+    "stop_atr": 2.5,
+    "take_profit_atr": 4.0
+  }
+}

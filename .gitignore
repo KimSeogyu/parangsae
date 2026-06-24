@@ -32,3 +32,6 @@ target/
 # runtime/workflow state
 .omx/
 .runtime/
+
+# local code intelligence
+.codegraph/

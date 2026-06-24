@@ -29,3 +29,13 @@ Real order submission requires all gates:
 - Risk approval is `APPROVED` for the exact order intent.
 
 Milestone 1 implements adapters and guards, but verification uses dry-run/test endpoints or mocks only.
+
+## Real Binance Vision run
+
+```bash
+uv run python -m apps.cli.quantctl real-run
+```
+
+This downloads public Binance Vision BTCUSDT USDⓈ-M Futures 1h klines for 2024-01..2024-06, runs a `backtesting.py`/`FractionalBacktest` SMA/ATR strategy, runs the holdout as bar-based paper simulation, and writes a durable report under `reports/`. See `docs/backtesting-paper-trading.md`.
+
+Latest verified report: `reports/real-run-20260624T165402Z/` (strict meaning gates passed; canonical holdout return was negative, so this is evidence, not a profit promise).
