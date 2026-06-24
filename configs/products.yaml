@@ -1,0 +1,19 @@
+product_families:
+  spot_crypto:
+    venue: BINANCE_SPOT
+    short_allowed: false
+    requires_capability: true
+    live_allowed: true
+  crypto_perp:
+    venue: BINANCE_USDS_FUTURES
+    short_allowed: true
+    requires_capability: true
+    live_allowed: true
+  tradfi_perp:
+    venue: BINANCE_USDS_FUTURES
+    short_allowed: true
+    requires_capability: true
+    requires_tradfi_agreement_state: true
+    requires_trading_schedule: true
+    fail_closed_on_hidden_constituents: true
+    live_allowed: false

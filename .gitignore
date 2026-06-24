@@ -1,0 +1,34 @@
+# secrets
+.env
+.env.*
+!.env.example
+.secrets/
+*secret*
+*credentials*
+
+# python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# data/build artifacts
+data/**
+!data/.gitkeep
+logs/**
+!logs/.gitkeep
+*.parquet
+*.feather
+*.sqlite
+*.db
+node_modules/
+dist/
+target/
+
+# OS/editor
+.DS_Store
+
+# runtime/workflow state
+.omx/
+.runtime/

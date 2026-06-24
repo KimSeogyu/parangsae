@@ -1,0 +1,36 @@
+profile: balanced
+kill_switch_path: .runtime/KILL_SWITCH
+portfolio:
+  daily_loss_stop_pct: 0.02
+  rolling_7d_drawdown_reduce_only_pct: 0.05
+  hard_drawdown_kill_switch_pct: 0.10
+  max_open_orders_total: 10
+  max_open_orders_per_symbol: 3
+  max_hourly_turnover_pct: 0.10
+  max_daily_turnover_pct: 0.50
+product_families:
+  spot_crypto:
+    max_leverage: 1.0
+    gross_exposure_cap_pct: 0.70
+    net_exposure_cap_pct: 0.70
+    max_order_notional_pct: 0.05
+    position_caps_pct:
+      BTC: 0.20
+      ETH: 0.15
+      OTHER: 0.07
+  crypto_perp:
+    max_leverage: 2.0
+    gross_exposure_cap_pct: 1.00
+    net_exposure_cap_pct: 0.20
+    max_order_notional_pct: 0.05
+    position_caps_pct:
+      BTC: 0.10
+      ETH: 0.10
+      OTHER: 0.05
+  tradfi_perp:
+    max_leverage: 1.0
+    gross_exposure_cap_pct: 0.30
+    net_exposure_cap_pct: 0.10
+    max_order_notional_pct: 0.02
+    position_caps_pct:
+      OTHER: 0.03
