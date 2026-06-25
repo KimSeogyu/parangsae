@@ -7,6 +7,8 @@ This milestone adds a no-credential `real-run` workflow for a meaningful histori
 ```bash
 uv run python -m apps.cli.quantctl real-run
 uv run python -m apps.cli.quantctl risk-run
+uv run python -m apps.cli.quantctl readiness-run
+uv run python -m apps.cli.quantctl forward-paper-run
 ```
 
 Default canonical dataset:
@@ -36,6 +38,56 @@ A success report is written only when all gates pass:
 
 Failed runs write only `failure.md`, `failure.json`, and `manifest.json`; they do not write a success `report.md`.
 
+## Regime protocol artifacts
+
+Successful `real-run` and `risk-run` reports include a deterministic regime protocol overlay:
+
+- `regime.csv` has one row per OHLCV bar with segment, close, causal rolling features, regime label, protocol action, risk multiplier, and reason.
+- `regime.json` records schema version, fixed thresholds, protocol map, paper-backed regime axes, claim boundary, and summary.
+- `metrics.json.regime_summary` mirrors `regime.json.summary` for automated checks.
+
+`regime.json.schema_version == 1` is the frozen v1 report contract. Consumers can rely on the v1 columns and labels staying stable; any breaking change to columns, thresholds, labels, or protocol semantics must use a new schema version and include a migration note. The realized-volatility columns are horizon-scaled (`24h` by `sqrt(24)`, `168h` by `sqrt(168)`), while `vol_ratio` is the unscaled 24h rolling return standard deviation divided by the unscaled 168h rolling return standard deviation.
+
+The classifier is intentionally simple and causal: each timestamp may use only OHLCV rows available at or before that timestamp. It does not read PnL, selected-candidate performance, holdout outcomes, credentials, or execution/order state.
+
+Protocol labels are used as a risk/permission overlay:
+
+- `normal_trend`: trend-following is permitted at baseline research size.
+- `high_vol_trend`: trend exists but risk should be reduced.
+- `chop` / `high_vol_chop`: trend-following is paused unless a separate mean-reversion strategy is validated.
+- `liquidity_stress`: trend-following is paused because volume/illiquidity stress overrides signal permission.
+- `insufficient_data`: no permission until enough causal history is available.
+
+This layer comes from the research protocol: standard/null baselines, switching regimes, change-point awareness, volatility/correlation models, trend-vs-chop diagnostics, liquidity/funding stress, and overfit controls. It is not an alpha signal, not a live-fill proof, and not a profit guarantee.
+
+## Alpha Signal Factory artifacts
+
+Successful `real-run` and `risk-run` reports also include an Alpha Signal Factory v1 overlay:
+
+- `signals.csv` has one row per timestamp/signal. The frozen v1 columns are `Timestamp`, `signal_id`, `asset`, `timeframe`, `category`, `family`, `role`, `lookback`, `segment`, `regime`, `value`, `direction`, `confidence`, `expiry_bars`, `normalized_value`, `weight`, `weighted_score`, and `description`.
+- `signals.json` records schema version, method details, config, computed/catalog-only category catalog, scoring weights, claim boundary, and summary.
+- `metrics.json.signal_summary` mirrors `signals.json.summary`.
+- `report.md` includes `## Alpha Signal Factory` with the latest direction, entry, risk, exit, final score, diagnostic decision, signal count, family count, duplicate-family counts, and execution-boundary text.
+
+`signals.json.schema_version == 1` freezes the v1 report contract. Breaking changes to columns, top-level JSON keys, scoring semantics, or computed category meanings require a schema-version bump and migration note.
+
+V1 computes only deterministic OHLCV-backed diagnostics:
+
+- trend / moving average distance, slope, and stack,
+- momentum ROC and RSI state,
+- mean-reversion z-score,
+- volatility ATR% and realized-volatility ratio,
+- volume z-score confirmation,
+- Donchian structure breakouts,
+- regime permission bridge from the regime protocol,
+- exit/trailing diagnostics.
+
+The broader signal taxonomy is preserved as catalog-only until data sources exist. Derivatives/funding/OI, orderbook/orderflow, on-chain, options, macro/events, sentiment/news, and execution/slippage categories are marked `not_computed_without_data_source` in `signals.json`.
+
+The signal scores are duplicate-aware diagnostics: individual rows normalize to `[-1, 1]`, then summary scores aggregate by `family` and `role` so many similar indicators cannot dominate only because there are more of them. This is still a heuristic screening artifact, not trading advice, not proof of predictive alpha, not live-fill proof, and not a profit guarantee.
+
+`signal_summary.latest.decision` is intentionally diagnostic. It is not an executable order intent, target allocation, or portfolio instruction; any paper/live execution use requires a separate approved strategy adapter plus validation protocol.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:
@@ -46,6 +98,8 @@ Failed runs write only `failure.md`, `failure.json`, and `manifest.json`; they d
 - frozen `risk_adjusted_score_v1`,
 - `candidate_count`, all candidate train/validation rows, selected settings, and `holdout_used_for_selection:false`,
 - train, validation, and holdout/paper Sharpe and max drawdown (MDD),
+- regime protocol artifacts (`regime.csv`, `regime.json`, `metrics.json.regime_summary`),
+- alpha signal factory artifacts (`signals.csv`, `signals.json`, `metrics.json.signal_summary`),
 - explicit one-window claim boundary and no-profit/no-live-fill disclaimers.
 
 Frozen score formula:
@@ -61,6 +115,108 @@ The holdout segment is evaluated only after candidate selection. A good holdout 
 
 Sharpe ratio is reported because it is useful, but it is statistically noisy; annualized Sharpe can be misleading when returns are serially correlated or non-normal. MDD is reported as a risk constraint and penalty, not as a guarantee that future losses are capped.
 
+## Destructive readiness validation
+
+`readiness-run` is the deliberately adversarial validation layer for the current Regime Protocol + Alpha Signal Factory stack. It does not try to present a good single-period result. It tries to break the claim before any live expansion by writing `reports/readiness-run-*` with:
+
+- walk-forward train / validation / holdout windows;
+- OOS holdout metrics after candidate selection;
+- cash-null and buy-and-hold baselines;
+- stress commission, spread, dynamic OHLCV execution-cost proxy, and public/no-key Binance USDⓈ-M funding-history drag when available;
+- regime split of holdout trades;
+- signal-family ablation using 24-bar forward-return IC;
+- duplicate/correlation risk across signal families;
+- selected-candidate switch-rate as an overfit/data-snooping warning;
+- prefix-invariance lookahead probes for regime, signal, and ablation-prefix rows;
+- permanent live blockers and no-profit/no-live disclaimers.
+
+Frozen readiness artifacts:
+
+- `readiness.json` — schema version, method, config, compute profile, validation-depth gates, summaries, blockers, and claim boundary.
+- `readiness_windows.csv` — exact per-window train/validation/holdout, selected candidate, baseline, stress, funding, and pass/fail fields.
+- `readiness_ablation.csv` — signal-family IC and drop-one-family deltas.
+- `readiness_regime.csv` — holdout trade PnL grouped by causal entry-time regime.
+- `report.md` — human-readable readiness report: what passed, what failed, and what is still required before real trading.
+
+`readiness.json.schema_version == 2` freezes the v2 top-level keys and CSV schemas.
+The v2 migration adds `compute_profile` and `validation_depth` so fast runs are
+explicitly classified as smoke/prototype/research-grade by workload depth rather
+than by wall-clock time. `elapsed_seconds` is diagnostic only. Breaking changes
+require another schema-version bump and migration note.
+
+The readiness verdict enum is intentionally limited:
+
+```text
+NOT_READY
+CONDITIONALLY_READY_FOR_PAPER_ONLY
+BLOCKED
+```
+
+There is no live-ready verdict. A CLI exit code of `0` only means validation artifacts were written. It does not mean the strategy is profitable, robust, or authorized for live trading.
+
+Stress math is explicit:
+
+```text
+slippage_drag_pct = closed_trades * 2 * dynamic_slippage_proxy_bps / 100
+funding_drag_pct = exposure_time_pct / 100 * bars / 8 * funding_rate_per_8h * 100
+```
+
+By default `readiness-run` downloads public Binance USDⓈ-M funding-rate history through the no-key `/fapi/v1/fundingRate` market-data endpoint and records source URL, docs URL, row count, date range, normalized hash, and the per-window funding rate used for drag. This closes the prior “funding sensitivity only” report issue for public exchange funding history, but it still does not validate account-specific funding cashflows. `--funding-source sensitivity` keeps the older sensitivity-only mode explicit.
+
+Slippage is still a conservative post-metric proxy. The dynamic proxy combines a base bps assumption, median OHLCV high-low range, and closed-trade count. It is not exchange matching, not order-book simulation, and not live-fill proof.
+
+The readiness candidate set includes the fixed SMA/ATR bracket candidates plus a predeclared Alpha Signal Factory + Regime Protocol paper-strategy adapter. Candidate selection remains train/validation-only; holdout rows are not used for tuning. If the median stress-vs-cash gate still fails, the correct output remains `NOT_READY` rather than retuning the same run until it passes.
+
+## Live-market forward paper run
+
+`forward-paper-run` is a public-data forward paper workflow for observing the current system without submitting orders:
+
+```bash
+uv run python -m apps.cli.quantctl forward-paper-run --lookback-bars 720
+```
+
+`--lookback-bars` means saved output bars. With the default closed-bar filter, `720`
+therefore writes 720 fully closed `1h` bars, roughly one month; the exchange request
+uses one extra kline to absorb the latest still-open bar.
+
+It differs from `real-run`/`risk-run`/`readiness-run`:
+
+- Data source: recent public Binance USDⓈ-M Futures REST klines, not Binance Vision monthly archives.
+- Default symbol/timeframe: `BTCUSDT` / `1h`.
+- Default funding: public Binance funding history over the same window; if unavailable, the command fails rather than silently assuming zero. `--funding-source none` is an explicit operator choice and is written to the report.
+- Default bar handling: the latest still-open kline is dropped. `--include-open-bar` is explicit and recorded in `manifest.json`.
+- Default lookback: 720 closed `1h` bars, not 719 bars after dropping an open candle.
+- Strategy adapter: diagnostic signal rows are converted by a separate paper adapter, not by the live order-intent path.
+
+The exact v1 exposure formula is fixed:
+
+```text
+raw_score = 0.45 * direction_score + 0.25 * entry_score + 0.20 * risk_score - 0.10 * max(exit_score, 0)
+target_exposure = long/flat threshold result scaled by regime risk_multiplier
+applied_exposure[t] = target_exposure[t-1]
+```
+
+Costs are bar-level accounting:
+
+```text
+fee_cost = abs(delta_exposure) * equity_after_gross * fee_rate
+slippage_cost = abs(delta_exposure) * equity_after_gross * slippage_bps / 10000
+funding_cost = equity_after_gross * applied_exposure * sum(funding_rate events in (prev_bar, current_bar])
+```
+
+Positive funding reduces a long paper position; negative funding increases it. This is not account-specific funding cashflow validation.
+
+Success artifacts under `reports/forward-paper-run-*`:
+
+- `manifest.json`: public source URL/docs URL, request params, closed-bar flag, row counts, normalized OHLCV hash, funding metadata, no-order/no-key booleans.
+- `positions.csv`: per-bar score, regime, target/applied exposure, costs, equity, drawdown.
+- `equity.csv`: compact equity/cost curve.
+- `trades.csv`: closed/open paper trade audit rows.
+- `regime.csv/json` and `signals.csv/json`: same diagnostic artifacts used by the existing research reports.
+- `report.md`: human-readable paper report and limitations.
+
+This command is meant for forward paper observation. It does not submit testnet or live orders, does not read Binance credentials, does not use signed/account endpoints, does not prove exchange fills, does not prove profitability, and does not promote the readiness verdict.
+
 ## Current executed result
 
 Successful run directory:
@@ -68,6 +224,7 @@ Successful run directory:
 - `reports/real-run-20260624T165402Z/`
 - `reports/real-run-20260624T220621Z/` (regression re-run after adding risk-run)
 - `reports/risk-run-20260624T220620Z/`
+- `reports/readiness-run-20260625T053627Z/`
 
 Summary:
 
@@ -92,6 +249,25 @@ Latest risk-run comparison for the same canonical window:
 
 This is a lower-risk/lower-loss result for this one canonical holdout, not proof of durable stable future returns.
 
+Latest readiness-run result for the same canonical window:
+
+- Verdict: `NOT_READY`
+- Walk-forward windows: 5
+- Candidate count: 8
+- Candidate-window evaluations: 40
+- Validation depth grade: `prototype`
+- Research-grade workload: false
+- Failed gates: `median_stress_return_beats_cash_null`, `max_selected_candidate_switch_rate`, `validation_depth_research_grade`
+- Median base holdout return: -0.2821323674864984%
+- Median stress/funding/slippage-adjusted holdout return: -1.359232104497523%
+- Funding source: public Binance USDⓈ-M funding history, 546 observed rows
+- Execution proxy: OHLCV range + volume participation + trade count; not live-fill proof
+- Lookahead probe: passed
+- Duplicate high-correlation family pairs: 3
+- Live orders submitted: false
+
+This is an evidence package, not a success claim. The stack survived artifact generation and causal checks, but failed the median stress-return-vs-cash gate, the selected-candidate stability gate, and the research-grade validation-depth gate. More predeclared paper-only research on untouched OOS data is required before any live trading discussion.
+
 Initial failed diagnostic preserved:
 
 - `reports/real-run-20260624T163947Z/`
@@ -100,6 +276,6 @@ That failed run is intentionally retained because the default integer-unit `Back
 
 ## Credential boundary
 
-`real-run` does not read `BINANCE_API_KEY` or `BINANCE_API_SECRET`, does not import `ccxt`, and performs no Binance API/demo/testnet/order calls. It only downloads public Binance Vision zip files and writes local reports.
+`real-run`, `risk-run`, and `readiness-run` do not read `BINANCE_API_KEY` or `BINANCE_API_SECRET`, do not import `ccxt` in their command paths, and perform no Binance API/demo/testnet/order calls. They only download public Binance Vision zip files and write local reports.
 
 Creating Binance API keys, logging into Binance demo/testnet pages, or submitting testnet/live orders remains manual and credential-gated. Any future submit path must require explicit `allow_submit=True`, credentials, sandbox mode, the exact live-risk acknowledgment, product policy, kill-switch checks, and `LiveTradingGuard` approval.

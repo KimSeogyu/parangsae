@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 
 import pandas as pd
 import pytest
@@ -24,10 +25,12 @@ from packages.research.backtest_engine import (
     ThreeWaySplit,
     assert_meaningful_run,
 )
+from packages.research.regime import REGIME_CSV_COLUMNS, build_regime_report
+from packages.research.signals import EXECUTION_BOUNDARY, SIGNAL_CSV_COLUMNS, SIGNAL_JSON_TOP_LEVEL_KEYS, build_signal_report
 
 
-def frame(rows: int = 4) -> pd.DataFrame:
-    idx = pd.date_range("2024-01-01", periods=rows, freq="1h", tz="UTC")
+def frame(rows: int = 4, start: str = "2024-01-01") -> pd.DataFrame:
+    idx = pd.date_range(start, periods=rows, freq="1h", tz="UTC")
     return pd.DataFrame({"Open": 100.0, "High": 101.0, "Low": 99.0, "Close": 100.5, "Volume": 10.0}, index=idx)
 
 
@@ -55,14 +58,106 @@ def result(label: str) -> BacktestResult:
     )
 
 
+def regime_report(frame: pd.DataFrame, split_index: int = 2):
+    segments = pd.Series(["backtest"] * len(frame), index=frame.index, dtype="object")
+    segments.iloc[split_index:] = "holdout_paper"
+    return build_regime_report(frame, segments=segments)
+
+
+def signal_report(frame: pd.DataFrame, split_index: int = 2):
+    segments = pd.Series(["backtest"] * len(frame), index=frame.index, dtype="object")
+    segments.iloc[split_index:] = "holdout_paper"
+    regimes = build_regime_report(frame, segments=segments).rows["regime_label"]
+    return build_signal_report(frame, segments=segments, regimes=regimes)
+
+
+def risk_regime_report(risk: RiskRunResult):
+    frames = [risk.split.train, risk.split.validation, risk.split.holdout]
+    labels = ["train", "validation", "holdout_paper"]
+    combined = pd.concat(frames)
+    segments = pd.Series(
+        [label for frame, label in zip(frames, labels, strict=True) for _ in range(len(frame))],
+        index=combined.index,
+        dtype="object",
+    )
+    return build_regime_report(combined, segments=segments)
+
+
+def risk_signal_report(risk: RiskRunResult):
+    frames = [risk.split.train, risk.split.validation, risk.split.holdout]
+    labels = ["train", "validation", "holdout_paper"]
+    combined = pd.concat(frames)
+    segments = pd.Series(
+        [label for frame, label in zip(frames, labels, strict=True) for _ in range(len(frame))],
+        index=combined.index,
+        dtype="object",
+    )
+    regimes = build_regime_report(combined, segments=segments).rows["regime_label"]
+    return build_signal_report(combined, segments=segments, regimes=regimes)
+
+
+def assert_regime_artifact_schema(out):
+    metrics = json.loads((out / "metrics.json").read_text())
+    regime = json.loads((out / "regime.json").read_text())
+    regime_csv = pd.read_csv(out / "regime.csv")
+    assert list(regime_csv.columns) == REGIME_CSV_COLUMNS
+    assert set(regime) == {
+        "schema_version",
+        "method",
+        "thresholds",
+        "protocols",
+        "paper_axes",
+        "claim_boundary",
+        "summary",
+    }
+    assert regime["schema_version"] == 1
+    assert regime["method"]["schema_version_policy"].startswith("schema_version 1 is frozen")
+    assert regime["method"]["volatility_scaling"]["realized_vol_168h"].endswith("sqrt(168)")
+    assert metrics["regime_summary"] == regime["summary"]
+    json.dumps(regime)
+
+
+def assert_signal_artifact_schema(out):
+    metrics = json.loads((out / "metrics.json").read_text())
+    signals = json.loads((out / "signals.json").read_text())
+    signals_csv = pd.read_csv(out / "signals.csv")
+    assert list(signals_csv.columns) == SIGNAL_CSV_COLUMNS
+    assert set(signals) == set(SIGNAL_JSON_TOP_LEVEL_KEYS)
+    assert signals["schema_version"] == 1
+    assert signals["method"]["rows_schema"] == SIGNAL_CSV_COLUMNS
+    assert signals["method"]["schema_version_policy"].startswith("schema_version 1 is frozen")
+    assert signals["method"]["execution_boundary"] == EXECUTION_BOUNDARY
+    assert signals["catalog"]["catalog_only_categories"]["derivatives"]["status"] == "not_computed_without_data_source"
+    assert metrics["signal_summary"] == signals["summary"]
+    assert signals["summary"]["execution_boundary"] == EXECUTION_BOUNDARY
+    assert signals["summary"]["latest"]["decision"] in {"long_bias", "short_bias", "hold", "risk_off"}
+    assert signals["summary"]["latest"]["decision_boundary"] == EXECUTION_BOUNDARY
+    json.dumps(signals)
+
+
 def test_success_and_failure_artifact_contracts(tmp_path):
     b = bundle()
     manifest = build_manifest(bundle=b, symbol="BTCUSDT", interval="1h", months=("2024-01",), split_index=2, project_root=".")
     out = prepare_output_dir(output_dir=tmp_path / "success")
     meaning = assert_meaningful_run(total_bars=720, train_bars=480, holdout_bars=240, backtest_closed_trades=3, holdout_closed_trades=2)
-    write_success_report(output_dir=out, manifest=manifest, meaning=meaning, backtest=result("backtest"), holdout=result("holdout_paper"))
+    write_success_report(
+        output_dir=out,
+        manifest=manifest,
+        meaning=meaning,
+        backtest=result("backtest"),
+        holdout=result("holdout_paper"),
+        regime_report=regime_report(b.frame, split_index=2),
+        signal_report=signal_report(b.frame, split_index=2),
+    )
     assert {p.name for p in out.iterdir()} == SUCCESS_FILES
-    assert "backtesting.py" not in (out / "report.md").read_text()  # report is output, ADR stays in docs
+    assert_regime_artifact_schema(out)
+    assert_signal_artifact_schema(out)
+    report_text = (out / "report.md").read_text()
+    assert "Regime Protocol" in report_text
+    assert "Alpha Signal Factory" in report_text
+    assert "diagnostic decision (not executable)" in report_text
+    assert "execution boundary:" in report_text
+    assert "backtesting.py" not in report_text  # report is output, ADR stays in docs
     failed = prepare_output_dir(output_dir=tmp_path / "failed")
     write_failure_report(output_dir=failed, manifest=manifest, failed_gate="backtest_closed_trades", reason="too few", observed={"backtest_closed_trades": 1})
     assert {p.name for p in failed.iterdir()} == FAILURE_FILES
@@ -113,12 +208,21 @@ def test_overwrite_refuses_cross_run_report_types(tmp_path):
         meaning=meaning,
         backtest=result("backtest"),
         holdout=result("holdout_paper"),
+        regime_report=regime_report(b.frame, split_index=2),
+        signal_report=signal_report(b.frame, split_index=2),
     )
     with pytest.raises(FileExistsError, match="refusing to overwrite real-run report with risk-run"):
         prepare_output_dir(output_dir=real_out, overwrite=True, run_prefix="risk-run")
 
     risk_out = prepare_output_dir(output_dir=tmp_path / "risk-run-abc", run_prefix="risk-run")
-    write_risk_success_report(output_dir=risk_out, manifest=manifest, risk_result=risk_result())
+    risk = risk_result()
+    write_risk_success_report(
+        output_dir=risk_out,
+        manifest=manifest,
+        risk_result=risk,
+        regime_report=risk_regime_report(risk),
+        signal_report=risk_signal_report(risk),
+    )
     with pytest.raises(FileExistsError, match="refusing to overwrite risk-run report with real-run"):
         prepare_output_dir(output_dir=risk_out, overwrite=True, run_prefix="real-run")
 
@@ -129,9 +233,9 @@ def risk_result() -> RiskRunResult:
     validation = result("validation")
     holdout = result("holdout_paper")
     split = ThreeWaySplit(
-        train=frame(500),
-        validation=frame(200),
-        holdout=frame(300),
+        train=frame(500, "2024-01-01T00:00:00Z"),
+        validation=frame(200, "2024-01-21T20:00:00Z"),
+        holdout=frame(300, "2024-01-30T04:00:00Z"),
         metadata={
             "chronological_split_verified": True,
             "total_bars": 1000,
@@ -175,8 +279,24 @@ def test_risk_success_artifact_contract(tmp_path):
         project_root=".",
     )
     out = prepare_output_dir(output_dir=tmp_path / "risk-success", run_prefix="risk-run")
-    metrics = write_risk_success_report(output_dir=out, manifest=manifest, risk_result=risk_result())
+    risk = risk_result()
+    metrics = write_risk_success_report(
+        output_dir=out,
+        manifest=manifest,
+        risk_result=risk,
+        regime_report=risk_regime_report(risk),
+        signal_report=risk_signal_report(risk),
+    )
     assert {p.name for p in out.iterdir()} == RISK_SUCCESS_FILES
+    assert_regime_artifact_schema(out)
+    assert_signal_artifact_schema(out)
+    report_text = (out / "report.md").read_text()
+    assert "Regime Protocol" in report_text
+    assert "Alpha Signal Factory" in report_text
+    assert "diagnostic decision (not executable)" in report_text
+    assert "execution boundary:" in report_text
+    assert "regime_summary" in metrics
+    assert "signal_summary" in metrics
     assert metrics["holdout_used_for_selection"] is False
     assert metrics["selection_objective"] == "risk_adjusted_score_v1"
     assert metrics["candidate_count"] == 1

@@ -1,7 +1,7 @@
 [project]
 name = "parangsae-unified-quant"
 version = "0.1.0"
-description = "Personal Binance-only quant app, live-ready but default-disabled."
+description = "Personal Binance-only quant app for paper/dry-run research with gated live execution disabled by default."
 requires-python = ">=3.12"
 dependencies = [
     "backtesting>=0.6.5",

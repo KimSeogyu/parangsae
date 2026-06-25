@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+import pandas as pd
 import requests
 
 from packages.core.capabilities import fixture_capability
@@ -24,10 +25,24 @@ from packages.marketdata.binance_vision import (
     validate_interval,
     validate_symbol,
 )
+from packages.marketdata.binance_funding import (
+    BinanceFundingError,
+    FundingDataValidationError,
+    fetch_funding_rate_history,
+    funding_metadata_for_report,
+)
+from packages.marketdata.binance_live import (
+    BinanceLiveKlineError,
+    LiveKlineValidationError,
+    fetch_recent_klines,
+)
 from packages.reporting.real_run_report import (
+    build_forward_paper_manifest,
     build_manifest,
     prepare_output_dir,
+    write_forward_paper_success_report,
     write_failure_report,
+    write_readiness_success_report,
     write_risk_success_report,
     write_success_report,
 )
@@ -40,6 +55,10 @@ from packages.research.backtest_engine import (
     split_chronological,
     strategy_settings_dict,
 )
+from packages.research.forward_paper import ForwardPaperConfig, run_forward_paper
+from packages.research.regime import build_regime_report
+from packages.research.readiness import build_readiness_report
+from packages.research.signals import build_signal_report
 from packages.execution.portfolio import intents_from_target, target_from_signals
 from packages.research.fixtures import FIXTURE_PRICES
 from packages.research.strategies import crypto_residual_ridge_placeholder, trend_risk_signals
@@ -145,6 +164,28 @@ def _failure_payload(report_dir: Path | None, failed_gate: str, reason: str) -> 
     return json.dumps(payload, indent=2, sort_keys=True)
 
 
+def _two_way_regime_segments(frame: pd.DataFrame, split_index: int) -> pd.Series:
+    segments = pd.Series(["backtest"] * len(frame), index=frame.index, dtype="object")
+    segments.iloc[split_index:] = "holdout_paper"
+    return segments
+
+
+def _risk_regime_frame_and_segments(risk_result) -> tuple[pd.DataFrame, pd.Series]:
+    frames = [
+        risk_result.split.train,
+        risk_result.split.validation,
+        risk_result.split.holdout,
+    ]
+    labels = ["train", "validation", "holdout_paper"]
+    combined = pd.concat(frames)
+    segments = pd.Series(
+        [label for frame, label in zip(frames, labels, strict=True) for _ in range(len(frame))],
+        index=combined.index,
+        dtype="object",
+    )
+    return combined, segments
+
+
 def cmd_real_run(args: argparse.Namespace) -> int:
     symbol = CANONICAL_SYMBOL
     interval = CANONICAL_INTERVAL
@@ -186,12 +227,23 @@ def cmd_real_run(args: argparse.Namespace) -> int:
             split_index=split_index,
             project_root=ROOT,
         )
+        segments = _two_way_regime_segments(bundle.frame, split_index)
+        regime_report = build_regime_report(bundle.frame, segments=segments)
+        signal_report = build_signal_report(
+            bundle.frame,
+            segments=segments,
+            regimes=regime_report.rows["regime_label"],
+            asset=symbol,
+            timeframe=interval,
+        )
         write_success_report(
             output_dir=output_dir,
             manifest=manifest,
             meaning=meaning,
             backtest=backtest,
             holdout=holdout_result,
+            regime_report=regime_report,
+            signal_report=signal_report,
         )
         print(
             json.dumps(
@@ -283,6 +335,15 @@ def cmd_risk_run(args: argparse.Namespace) -> int:
             product_family=product_family,
             short_allowed=product_policy.short_allowed,
         )
+        regime_frame, regime_segments = _risk_regime_frame_and_segments(risk_result)
+        regime_report = build_regime_report(regime_frame, segments=regime_segments)
+        signal_report = build_signal_report(
+            regime_frame,
+            segments=regime_segments,
+            regimes=regime_report.rows["regime_label"],
+            asset=symbol,
+            timeframe=interval,
+        )
         manifest = build_manifest(
             bundle=bundle,
             symbol=symbol,
@@ -295,6 +356,8 @@ def cmd_risk_run(args: argparse.Namespace) -> int:
             output_dir=output_dir,
             manifest=manifest,
             risk_result=risk_result,
+            regime_report=regime_report,
+            signal_report=signal_report,
         )
         print(
             json.dumps(
@@ -361,6 +424,240 @@ def cmd_risk_run(args: argparse.Namespace) -> int:
         return 2
 
 
+def cmd_readiness_run(args: argparse.Namespace) -> int:
+    symbol = CANONICAL_SYMBOL
+    interval = CANONICAL_INTERVAL
+    months = CANONICAL_MONTHS
+    bundle = None
+    output_dir: Path | None = None
+    product_family = ProductFamily.SPOT_CRYPTO
+    try:
+        output_dir = prepare_output_dir(
+            reports_root=args.reports_root,
+            output_dir=args.output_dir,
+            overwrite=args.overwrite,
+            run_prefix="readiness-run",
+        )
+        product_family = ProductFamily(args.product_family)
+        product_policy = load_product_policies(PRODUCTS_CONFIG)[product_family]
+        symbol = validate_symbol(args.symbol)
+        interval = validate_interval(args.interval)
+        months = _parse_months(args.months)
+        _validate_canonical_real_run(symbol, interval, months)
+        bundle = load_market_data_bundle(
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            cache_dir=args.cache_dir,
+        )
+        funding_bundle = None
+        funding_metadata = None
+        if args.funding_source == "public-binance":
+            funding_bundle = fetch_funding_rate_history(
+                symbol=symbol,
+                start_time=bundle.frame.index[0],
+                end_time=bundle.frame.index[-1],
+                cache_dir=args.funding_cache_dir,
+            )
+            funding_metadata = funding_metadata_for_report(funding_bundle)
+        readiness_report = build_readiness_report(
+            bundle.frame,
+            product_family=product_family,
+            short_allowed=product_policy.short_allowed,
+            funding_frame=funding_bundle.frame if funding_bundle is not None else None,
+            funding_metadata=funding_metadata,
+        )
+        manifest = build_manifest(
+            bundle=bundle,
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            split_index=None,
+            project_root=ROOT,
+        )
+        manifest["product_family"] = product_family.value
+        metrics = write_readiness_success_report(
+            output_dir=output_dir,
+            manifest=manifest,
+            readiness_report=readiness_report,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "report_dir": str(output_dir),
+                    "run_type": "readiness-run",
+                    "readiness_verdict": metrics["verdict"],
+                    "failed_gates": metrics["failed_gates"],
+                    "window_count": metrics["window_count"],
+                    "live_orders_submitted": False,
+                    "claim_boundary": metrics["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (
+        BinanceVisionError,
+        BinanceFundingError,
+        DataValidationError,
+        FundingDataValidationError,
+        requests.RequestException,
+        ValueError,
+        FileExistsError,
+    ) as exc:
+        if output_dir is None and not isinstance(exc, FileExistsError):
+            output_dir = prepare_output_dir(reports_root=args.reports_root, run_prefix="readiness-run")
+        if output_dir is None:
+            print(_failure_payload(None, "output_dir", str(exc)))
+            return 2
+        manifest = build_manifest(
+            bundle=bundle,
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            split_index=None,
+            project_root=ROOT,
+        )
+        manifest["product_family"] = product_family.value
+        write_failure_report(
+            output_dir=output_dir,
+            manifest=manifest,
+            failed_gate=type(exc).__name__,
+            reason=str(exc),
+            observed={"symbol": symbol, "interval": interval, "months": months, "product_family": product_family.value},
+            run_type="readiness-run",
+        )
+        print(_failure_payload(output_dir, type(exc).__name__, str(exc)))
+        return 2
+
+
+def cmd_forward_paper_run(args: argparse.Namespace) -> int:
+    symbol = CANONICAL_SYMBOL
+    interval = CANONICAL_INTERVAL
+    kline_bundle = None
+    funding_metadata = None
+    output_dir: Path | None = None
+    try:
+        output_dir = prepare_output_dir(
+            reports_root=args.reports_root,
+            output_dir=args.output_dir,
+            overwrite=args.overwrite,
+            run_prefix="forward-paper-run",
+        )
+        symbol = validate_symbol(args.symbol)
+        interval = validate_interval(args.interval)
+        kline_bundle = fetch_recent_klines(
+            symbol=symbol,
+            interval=interval,
+            limit=args.lookback_bars,
+            include_open_bar=args.include_open_bar,
+        )
+        funding_bundle = None
+        if args.funding_source == "public-binance":
+            funding_bundle = fetch_funding_rate_history(
+                symbol=symbol,
+                start_time=kline_bundle.frame.index[0],
+                end_time=kline_bundle.frame.index[-1],
+                cache_dir=args.funding_cache_dir,
+            )
+            funding_metadata = funding_metadata_for_report(funding_bundle)
+        else:
+            funding_metadata = {
+                "source": "none",
+                "rows": 0,
+                "limitation": "funding disabled by explicit operator flag; reported paper costs exclude funding cashflows",
+            }
+        config = ForwardPaperConfig(
+            initial_cash=args.initial_cash,
+            fee_rate=args.fee_rate,
+            slippage_bps=args.slippage_bps,
+            entry_threshold=args.entry_threshold,
+            exit_threshold=args.exit_threshold,
+            max_exposure=args.max_exposure,
+            funding_source=args.funding_source,
+        )
+        result = run_forward_paper(
+            kline_bundle.frame,
+            config=config,
+            funding_frame=funding_bundle.frame if funding_bundle is not None else None,
+            symbol=symbol,
+            interval=interval,
+        )
+        manifest = build_forward_paper_manifest(
+            kline_bundle=kline_bundle,
+            funding_metadata=funding_metadata,
+            symbol=symbol,
+            interval=interval,
+            project_root=ROOT,
+        )
+        metrics = write_forward_paper_success_report(
+            output_dir=output_dir,
+            manifest=manifest,
+            result=result,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "forward-paper-run",
+                    "report_dir": str(output_dir),
+                    "symbol": symbol,
+                    "interval": interval,
+                    "final_equity": metrics["final_equity"],
+                    "return_pct": metrics["return_pct"],
+                    "max_drawdown_pct": metrics["max_drawdown_pct"],
+                    "live_orders_submitted": False,
+                    "claim_boundary": metrics["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (
+        BinanceLiveKlineError,
+        LiveKlineValidationError,
+        BinanceFundingError,
+        FundingDataValidationError,
+        DataValidationError,
+        requests.RequestException,
+        ValueError,
+        FileExistsError,
+    ) as exc:
+        if output_dir is None and not isinstance(exc, FileExistsError):
+            output_dir = prepare_output_dir(reports_root=args.reports_root, run_prefix="forward-paper-run")
+        if output_dir is None:
+            print(_failure_payload(None, "output_dir", str(exc)))
+            return 2
+        manifest = {
+            "run_type": "forward-paper-run",
+            "symbol": symbol,
+            "interval": interval,
+            "live_orders_submitted": False,
+            "api_keys_required": False,
+        }
+        if kline_bundle is not None:
+            manifest = build_forward_paper_manifest(
+                kline_bundle=kline_bundle,
+                funding_metadata=funding_metadata,
+                symbol=symbol,
+                interval=interval,
+                project_root=ROOT,
+            )
+        write_failure_report(
+            output_dir=output_dir,
+            manifest=manifest,
+            failed_gate=type(exc).__name__,
+            reason=str(exc),
+            observed={"symbol": symbol, "interval": interval, "lookback_bars": args.lookback_bars},
+            run_type="forward-paper-run",
+        )
+        print(_failure_payload(output_dir, type(exc).__name__, str(exc)))
+        return 2
+
+
 def cmd_kill_switch(args: argparse.Namespace) -> int:
     path = (ROOT / ".runtime" / "KILL_SWITCH").resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -418,6 +715,37 @@ def build_parser() -> argparse.ArgumentParser:
     risk.add_argument("--output-dir")
     risk.add_argument("--overwrite", action="store_true")
     risk.set_defaults(func=cmd_risk_run)
+
+    readiness = sub.add_parser("readiness-run")
+    readiness.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")
+    readiness.add_argument("--interval", default=CANONICAL_INTERVAL, help="canonical validation only; non-1h is rejected")
+    readiness.add_argument("--months", default=",".join(CANONICAL_MONTHS), help="canonical validation only; must be 2024-01..2024-06")
+    readiness.add_argument("--product-family", default=ProductFamily.SPOT_CRYPTO.value, choices=[item.value for item in ProductFamily])
+    readiness.add_argument("--cache-dir", default="data/binance-vision")
+    readiness.add_argument("--funding-source", default="public-binance", choices=["public-binance", "sensitivity"])
+    readiness.add_argument("--funding-cache-dir", default="data/binance-funding")
+    readiness.add_argument("--reports-root", default="reports")
+    readiness.add_argument("--output-dir")
+    readiness.add_argument("--overwrite", action="store_true")
+    readiness.set_defaults(func=cmd_readiness_run)
+
+    forward = sub.add_parser("forward-paper-run")
+    forward.add_argument("--symbol", default=CANONICAL_SYMBOL)
+    forward.add_argument("--interval", default=CANONICAL_INTERVAL)
+    forward.add_argument("--lookback-bars", type=int, default=720, help="saved output bars; default is 720 closed 1h bars")
+    forward.add_argument("--initial-cash", type=float, default=10000.0)
+    forward.add_argument("--fee-rate", type=float, default=0.0004)
+    forward.add_argument("--slippage-bps", type=float, default=5.0)
+    forward.add_argument("--entry-threshold", type=float, default=0.20)
+    forward.add_argument("--exit-threshold", type=float, default=0.05)
+    forward.add_argument("--max-exposure", type=float, default=1.0)
+    forward.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    forward.add_argument("--funding-cache-dir", default="data/binance-funding")
+    forward.add_argument("--include-open-bar", action="store_true")
+    forward.add_argument("--reports-root", default="reports")
+    forward.add_argument("--output-dir")
+    forward.add_argument("--overwrite", action="store_true")
+    forward.set_defaults(func=cmd_forward_paper_run)
 
     kill = sub.add_parser("kill-switch")
     kill.add_argument("action", choices=["enable", "disable"])
