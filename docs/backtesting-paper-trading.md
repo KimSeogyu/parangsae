@@ -9,6 +9,7 @@ uv run quantctl real-run
 uv run quantctl risk-run
 uv run quantctl readiness-run
 uv run quantctl data-depth-run
+uv run quantctl tsmom-run
 uv run quantctl forward-paper-run
 ```
 
@@ -158,6 +159,73 @@ funding-aware net return, drawdown, and tail loss under unclaimed
 strategy/performance gates until a later pre-registered paper-only
 strategy/validation loop. Do not use this command to retune TSMOM parameters or
 promote live readiness.
+
+## TSMOM paper-only strategy/validation loop
+
+`tsmom-run` implements the pre-registered
+`TSMOM_VOL_TARGET_FUNDING_AWARE_V1` loop. It is the first paper-only strategy
+loop after `DATA_DEPTH_RESEARCH_GRADE_V1`; it does not replace or mutate the
+canonical `readiness-run` baseline:
+
+```bash
+uv run quantctl tsmom-run
+```
+
+Default data scope:
+
+- Symbol/timeframe: `BTCUSDT` / `1h`
+- OHLCV source: public Binance Vision USDⓈ-M Futures monthly klines
+- Months: `2024-01` through `2025-12`
+- Funding source: public Binance USDⓈ-M funding-rate history over the OHLCV UTC
+  range; `--funding-source none` makes the funding-aware gate unclaimed/failed
+- Live/testnet/account/API-key/order/fill data: not used for performance claims
+
+Required loop artifacts are written under
+`reports/loops/<YYYYMMDD>-tsmom-vol-target-funding-aware-v1/`:
+
+- `loop.json`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+- `tsmom_windows.csv`
+- `tsmom_candidates.csv`
+
+The frozen candidate grid has 48 long-only candidates:
+
+- `lookback_bars=(168, 336, 672)`
+- `vol_window_bars=(168, 336)`
+- `target_annual_volatility=(0.25, 0.40)`
+- `max_exposure=(0.50, 0.80)`
+- `funding_abs_rate_limit=(0.00025, 0.00050)`
+
+Selection is train/validation-only via `risk_adjusted_score_v1`. Tie-breakers
+are higher validation return, smaller absolute validation drawdown, lower
+validation trade/turnover proxy, then lexicographically smaller candidate ID.
+Holdout does not participate in selection.
+
+The loop records these hard gates:
+
+- `candidate_count`
+- `candidate_window_evaluations`
+- `bars_processed_estimate`
+- `median_stress_return_beats_cash_null`
+- `selected_candidate_switch_rate`
+- `funding_aware_net_return`
+- `max_drawdown_abs_pct`
+- `tail_loss_cvar_pct`
+
+Funding is causal: public funding events are forward-filled only after the event
+timestamp and shifted one decision bar; they are never backfilled into earlier
+bars. Missing public funding coverage means the funding-aware gate is not
+claimable.
+
+`tsmom_loop_verdict` is loop-only and uses
+`tsmom_loop_verdict_namespace:
+tsmom_strategy_validation_only_not_live_readiness`. It is not a readiness
+verdict. The committed readiness baseline remains separately recorded as
+`readiness_baseline_verdict: NOT_READY` unless a separate readiness report passes
+all readiness gates. Allowed TSMOM loop verdicts are `BLOCKED`, `WATCH`, and
+`PASS_PAPER_ONLY`; none of these are live-readiness verdicts.
 
 ## Risk-adjusted research run
 

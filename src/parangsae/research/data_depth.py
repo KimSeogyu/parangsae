@@ -10,6 +10,7 @@ import pandas as pd
 
 from parangsae.marketdata.binance_funding import FundingRateBundle
 from parangsae.marketdata.binance_vision import MarketDataBundle
+from parangsae.research.loop_artifacts import prepare_loop_output_dir
 
 DATA_DEPTH_LOOP_ID = "DATA_DEPTH_RESEARCH_GRADE_V1"
 DATA_DEPTH_SCHEMA_VERSION = 2
@@ -65,23 +66,12 @@ def default_data_depth_output_dir(*, root: str | Path = "reports/loops", today: 
 
 
 def prepare_data_depth_output_dir(output_dir: str | Path, *, overwrite: bool = False) -> Path:
-    path = Path(output_dir)
-    if path.exists():
-        if not overwrite:
-            raise FileExistsError(f"output directory already exists: {path}")
-        if not path.is_dir():
-            raise FileExistsError(f"output path exists and is not a directory: {path}")
-        unexpected = [child.name for child in path.iterdir() if child.name not in DATA_DEPTH_KNOWN_FILES]
-        if unexpected:
-            raise FileExistsError(
-                f"refusing to overwrite data-depth loop directory with unknown files: {path} contains {unexpected}"
-            )
-        for child in path.iterdir():
-            if child.is_file() and child.name in DATA_DEPTH_KNOWN_FILES:
-                child.unlink()
-        return path
-    path.mkdir(parents=True, exist_ok=False)
-    return path
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="data-depth-run",
+        known_files=DATA_DEPTH_KNOWN_FILES,
+        overwrite=overwrite,
+    )
 
 
 def build_data_depth_loop_payload(

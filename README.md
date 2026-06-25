@@ -42,10 +42,11 @@ uv run quantctl real-run
 uv run quantctl risk-run
 uv run quantctl readiness-run
 uv run quantctl data-depth-run
+uv run quantctl tsmom-run
 uv run quantctl forward-paper-run
 ```
 
-`real-run`, `risk-run`, and `readiness-run` download public Binance Vision BTCUSDT USDⓈ-M Futures 1h klines for 2024-01..2024-06, run the current research harnesses, and write durable reports under `reports/`. `data-depth-run` is a separate wider data-authority loop described below. See `docs/backtesting-paper-trading.md`.
+`real-run`, `risk-run`, and `readiness-run` download public Binance Vision BTCUSDT USDⓈ-M Futures 1h klines for 2024-01..2024-06, run the current research harnesses, and write durable reports under `reports/`. `data-depth-run` and `tsmom-run` are separate wider public-data loop workflows described below. See `docs/backtesting-paper-trading.md`.
 
 Latest verified report: `reports/real-run-20260624T165402Z/` (strict meaning gates passed; canonical holdout return was negative, so this is evidence, not a profit promise).
 
@@ -82,6 +83,35 @@ as `readiness_baseline_verdict: NOT_READY`. Candidate-count, candidate-window,
 median stress return vs cash/null, candidate-switch-rate, funding-aware net
 return, drawdown, and tail-loss gates remain under unclaimed strategy/performance
 gates until a later pre-registered paper-only strategy/validation loop.
+
+`tsmom-run` implements the pre-registered paper-only
+`TSMOM_VOL_TARGET_FUNDING_AWARE_V1` strategy/validation loop. It is isolated from
+the canonical `readiness-run` baseline and writes loop artifacts under
+`reports/loops/<YYYYMMDD>-tsmom-vol-target-funding-aware-v1/`:
+
+- `loop.json`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+- `tsmom_windows.csv`
+- `tsmom_candidates.csv`
+
+The frozen TSMOM grid has 48 causal long-only candidates across lookback,
+realized-volatility window, target annual volatility, max exposure, and public
+funding-rate throttle settings. Selection uses train/validation only with the
+frozen `risk_adjusted_score_v1`; holdout is evaluated once per selected
+candidate/window. Hard gates include candidate count, candidate-window
+evaluations, bars processed estimate, median stress return vs cash/null,
+selected-candidate switch rate, funding-aware net return, max drawdown, and 5%
+tail-loss CVaR.
+
+`tsmom_loop_verdict: WATCH`, when present, is loop-only and uses the namespace
+`tsmom_strategy_validation_only_not_live_readiness`. It is not a readiness
+verdict, not trading advice, not a profit guarantee, and not permission for live
+orders. The readiness baseline remains separately recorded as
+`readiness_baseline_verdict: NOT_READY` unless a separate readiness run passes
+all readiness gates. Allowed TSMOM loop verdicts are `BLOCKED`, `WATCH`, and
+`PASS_PAPER_ONLY`; none of these are live-readiness verdicts.
 
 Success reports now include a regime protocol layer:
 
