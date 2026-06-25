@@ -4,7 +4,7 @@ import json
 
 import pandas as pd
 
-from packages.marketdata.binance_funding import (
+from parangsae.marketdata.binance_funding import (
     BINANCE_USDM_FUNDING_RATE_URL,
     FundingDataValidationError,
     fetch_funding_rate_history,

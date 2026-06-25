@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
-from packages.core.contracts import EventEnvelope, ExecutionEvent, envelope
+from parangsae.core.contracts import EventEnvelope, ExecutionEvent, envelope
 
 
 class EventLog:

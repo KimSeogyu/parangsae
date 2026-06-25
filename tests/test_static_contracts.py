@@ -27,7 +27,7 @@ def test_no_duplicate_core_contract_definitions():
     violations = []
     for path in (p for p in ROOT.rglob("*.py") if is_repo_source_path(p)):
         rel = path.relative_to(ROOT).as_posix()
-        if rel == "packages/core/contracts.py" or rel.startswith("tests/"):
+        if rel == "src/parangsae/core/contracts.py" or rel.startswith("tests/"):
             continue
         text = path.read_text()
         for name in NAMES:

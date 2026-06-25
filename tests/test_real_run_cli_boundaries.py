@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from apps.cli import quantctl
-from packages.marketdata.binance_funding import BINANCE_USDM_FUNDING_RATE_URL
-from packages.marketdata.binance_vision import CANONICAL_MONTHS, canonical_urls
-from packages.research.readiness import (
+from parangsae.apps.cli import quantctl
+from parangsae.marketdata.binance_funding import BINANCE_USDM_FUNDING_RATE_URL
+from parangsae.marketdata.binance_vision import CANONICAL_MONTHS, canonical_urls
+from parangsae.research.readiness import (
     READINESS_ABLATION_COLUMNS,
     READINESS_JSON_TOP_LEVEL_KEYS,
     READINESS_REGIME_COLUMNS,
@@ -290,7 +290,7 @@ def test_real_run_does_not_read_binance_credentials_or_import_ccxt(monkeypatch, 
 
 
 def test_real_run_static_source_has_no_order_or_credential_path():
-    source = Path("apps/cli/quantctl.py").read_text()
+    source = Path("src/parangsae/apps/cli/quantctl.py").read_text()
     real_run_source = source[source.index("def cmd_real_run") : source.index("def cmd_kill_switch")]
     assert "ccxt" not in real_run_source
     assert "create_order" not in real_run_source

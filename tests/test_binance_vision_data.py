@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from packages.marketdata.binance_vision import (
+from parangsae.marketdata.binance_vision import (
     download_monthly_klines,
     CANONICAL_MONTHS,
     DataValidationError,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from packages.research.forward_paper import (
+from parangsae.research.forward_paper import (
     EQUITY_COLUMNS,
     POSITIONS_COLUMNS,
     TRADES_COLUMNS,
@@ -12,8 +12,8 @@ from packages.research.forward_paper import (
     run_forward_paper,
     simulate_forward_positions,
 )
-from packages.research.regime import RegimeReport
-from packages.research.signals import SignalReport
+from parangsae.research.regime import RegimeReport
+from parangsae.research.signals import SignalReport
 
 
 def frame() -> pd.DataFrame:

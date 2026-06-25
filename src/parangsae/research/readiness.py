@@ -8,8 +8,8 @@ from typing import Any
 
 import pandas as pd
 
-from packages.core.contracts import ProductFamily
-from packages.research.backtest_engine import (
+from parangsae.core.contracts import ProductFamily
+from parangsae.research.backtest_engine import (
     BacktestResult,
     BrokerSettings,
     StrategySettings,
@@ -18,8 +18,8 @@ from packages.research.backtest_engine import (
     risk_adjusted_score_v1,
     run_strategy_backtest,
 )
-from packages.research.regime import build_regime_report
-from packages.research.signals import build_signal_report
+from parangsae.research.regime import build_regime_report
+from parangsae.research.signals import build_signal_report
 
 READINESS_SCHEMA_VERSION = 2
 COMPUTE_PROFILE_SCHEMA_VERSION = 1

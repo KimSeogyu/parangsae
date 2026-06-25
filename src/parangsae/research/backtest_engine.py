@@ -10,7 +10,7 @@ import pandas as pd
 from backtesting import Strategy
 from backtesting.lib import FractionalBacktest, crossover
 
-from packages.core.contracts import ProductFamily
+from parangsae.core.contracts import ProductFamily
 
 
 @dataclass(frozen=True)

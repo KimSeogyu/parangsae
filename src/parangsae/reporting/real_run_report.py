@@ -9,8 +9,8 @@ from typing import Any
 
 import pandas as pd
 
-from packages.marketdata.binance_vision import MarketDataBundle, canonical_urls, sha256_file
-from packages.research.backtest_engine import (
+from parangsae.marketdata.binance_vision import MarketDataBundle, canonical_urls, sha256_file
+from parangsae.research.backtest_engine import (
     BacktestResult,
     RiskRunResult,
     RISK_SELECTION_FORMULA,
@@ -18,16 +18,16 @@ from packages.research.backtest_engine import (
     broker_settings_dict,
     strategy_settings_dict,
 )
-from packages.research.regime import RegimeReport
-from packages.research.readiness import READINESS_SCHEMA_VERSION, READINESS_SUCCESS_FILES, ReadinessReport
-from packages.research.forward_paper import (
+from parangsae.research.regime import RegimeReport
+from parangsae.research.readiness import READINESS_SCHEMA_VERSION, READINESS_SUCCESS_FILES, ReadinessReport
+from parangsae.research.forward_paper import (
     EQUITY_CSV_COLUMNS,
     FORWARD_PAPER_SCHEMA_VERSION,
     POSITIONS_CSV_COLUMNS,
     TRADES_COLUMNS,
     ForwardPaperResult,
 )
-from packages.research.signals import SignalReport
+from parangsae.research.signals import SignalReport
 
 DEPENDENCIES = ("backtesting", "ccxt", "pandas", "numpy", "requests")
 SUCCESS_FILES = {

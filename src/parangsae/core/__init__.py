@@ -1,4 +1,4 @@
-from packages.core.contracts import (
+from parangsae.core.contracts import (
     CapabilityRejected,
     EventEnvelope,
     ExecutionEvent,

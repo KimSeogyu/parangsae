@@ -8,8 +8,8 @@
 
 ## Kill switch
 ```bash
-python -m apps.cli.quantctl kill-switch enable
-python -m apps.cli.quantctl kill-switch disable
+uv run quantctl kill-switch enable
+uv run quantctl kill-switch disable
 ```
 
 ## Live mode reminder
@@ -20,7 +20,7 @@ Milestone 1 should not submit real orders. Live mode requires explicit flags, ex
 Run:
 
 ```bash
-uv run python -m apps.cli.quantctl real-run
+uv run quantctl real-run
 ```
 
 Inspect `reports/<run-id>/report.md`, `metrics.json`, `trades.csv`, `equity.csv`, and `manifest.json`. A failed meaningfulness gate creates `failure.md`/`failure.json` instead of a success report. Do not treat either backtest or paper/holdout output as a profit guarantee.

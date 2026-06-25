@@ -1,7 +1,7 @@
-from packages.core.capabilities import fixture_capability
-from packages.core.config import LIVE_ACK_ENV, LIVE_ACK_VALUE, load_product_policies, load_risk_config
-from packages.core.contracts import OrderIntent, OrderSide, OrderType, ProductFamily, Venue
-from packages.core.risk import LiveTradingGuard, RuntimeLiveContext
+from parangsae.core.capabilities import fixture_capability
+from parangsae.core.config import LIVE_ACK_ENV, LIVE_ACK_VALUE, load_product_policies, load_risk_config
+from parangsae.core.contracts import OrderIntent, OrderSide, OrderType, ProductFamily, Venue
+from parangsae.core.risk import LiveTradingGuard, RuntimeLiveContext
 
 
 def _order(family=ProductFamily.SPOT_CRYPTO, leverage=1.0, notional=0.01):
@@ -75,8 +75,8 @@ def test_kill_switch_blocks(monkeypatch, tmp_path):
 
 
 def test_tradfi_live_disabled_by_product_config_even_when_runtime_allows(monkeypatch, tmp_path):
-    from packages.core.config import load_product_policies
-    from packages.core.contracts import ProductCapability
+    from parangsae.core.config import load_product_policies
+    from parangsae.core.contracts import ProductCapability
 
     cfg = _risk()
     object.__setattr__(cfg, "kill_switch_path", tmp_path / "KILL_SWITCH")
@@ -108,7 +108,7 @@ def test_missing_product_policy_fails_closed_for_live_intent(monkeypatch, tmp_pa
     monkeypatch.setenv(LIVE_ACK_ENV, LIVE_ACK_VALUE)
     monkeypatch.setenv("BINANCE_API_KEY", "x")
     monkeypatch.setenv("BINANCE_API_SECRET", "x")
-    from packages.core.contracts import ProductCapability
+    from parangsae.core.contracts import ProductCapability
 
     cap = ProductCapability(
         ProductFamily.TRADFI_PERP,

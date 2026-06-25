@@ -6,7 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from packages.research.regime import (
+from parangsae.research.regime import (
     CLAIM_BOUNDARY,
     REGIME_ROW_COLUMNS,
     build_regime_report,
@@ -97,10 +97,10 @@ def test_regime_features_are_causal_prefix_invariant_under_future_shock():
 
 
 def test_regime_and_reporting_import_boundaries_do_not_enter_live_scope():
-    forbidden_import_roots = {"ccxt", "packages.execution"}
+    forbidden_import_roots = {"ccxt", "parangsae.execution"}
     for path in [
-        Path("packages/research/regime.py"),
-        Path("packages/reporting/real_run_report.py"),
+        Path("src/parangsae/research/regime.py"),
+        Path("src/parangsae/reporting/real_run_report.py"),
     ]:
         source = path.read_text()
         tree = ast.parse(source)

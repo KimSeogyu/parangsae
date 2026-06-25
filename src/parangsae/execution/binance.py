@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from packages.core.contracts import OrderIntent, OrderType, ProductFamily, ProtectiveOrderIntent
+from parangsae.core.contracts import OrderIntent, OrderType, ProductFamily, ProtectiveOrderIntent
 
 
 class HttpClient(Protocol):

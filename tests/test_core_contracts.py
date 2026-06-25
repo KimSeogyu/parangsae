@@ -1,4 +1,4 @@
-from packages.core.contracts import (
+from parangsae.core.contracts import (
     ExecutionEvent,
     ExecutionEventType,
     ProductFamily,

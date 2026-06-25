@@ -1,5 +1,5 @@
-from packages.core.capabilities import fixture_capability
-from packages.core.contracts import ProductFamily
+from parangsae.core.capabilities import fixture_capability
+from parangsae.core.contracts import ProductFamily
 
 
 def test_tradfi_perp_fixture_fails_closed_until_capability_known():

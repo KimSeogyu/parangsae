@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from packages.core.contracts import ProductCapability, ProductFamily, Venue
+from parangsae.core.contracts import ProductCapability, ProductFamily, Venue
 
 
 def fixture_capability(symbol: str, family: ProductFamily) -> ProductCapability:

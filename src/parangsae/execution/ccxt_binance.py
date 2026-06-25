@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Protocol, cast
 
-from packages.core.contracts import OrderIntent, ProductCapability, RiskDecisionStatus
-from packages.core.risk import LiveTradingGuard, RuntimeLiveContext
+from parangsae.core.contracts import OrderIntent, ProductCapability, RiskDecisionStatus
+from parangsae.core.risk import LiveTradingGuard, RuntimeLiveContext
 
 
 class CcxtSubmissionError(PermissionError):

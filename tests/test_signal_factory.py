@@ -6,8 +6,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from packages.research.regime import build_regime_report
-from packages.research.signals import (
+from parangsae.research.regime import build_regime_report
+from parangsae.research.signals import (
     CLAIM_BOUNDARY,
     EXECUTION_BOUNDARY,
     SIGNAL_CSV_COLUMNS,
@@ -141,10 +141,10 @@ def test_signal_features_are_causal_prefix_invariant_under_future_shock():
 
 
 def test_signal_reporting_import_boundaries_do_not_enter_live_scope():
-    forbidden_import_roots = {"ccxt", "packages.execution"}
+    forbidden_import_roots = {"ccxt", "parangsae.execution"}
     for path in [
-        Path("packages/research/signals.py"),
-        Path("packages/reporting/real_run_report.py"),
+        Path("src/parangsae/research/signals.py"),
+        Path("src/parangsae/reporting/real_run_report.py"),
     ]:
         source = path.read_text()
         tree = ast.parse(source)
@@ -166,7 +166,7 @@ def test_signal_reporting_import_boundaries_do_not_enter_live_scope():
 
 
 def test_execution_package_does_not_import_signal_report_decisions():
-    for path in Path("packages/execution").glob("*.py"):
+    for path in Path("src/parangsae/execution").glob("*.py"):
         source = path.read_text()
         tree = ast.parse(source)
         imports = []
@@ -175,6 +175,6 @@ def test_execution_package_does_not_import_signal_report_decisions():
                 imports.extend(alias.name for alias in node.names)
             elif isinstance(node, ast.ImportFrom) and node.module:
                 imports.append(node.module)
-        assert "packages.research.signals" not in imports
+        assert "parangsae.research.signals" not in imports
         assert "SignalReport" not in source
         assert "signal_summary" not in source

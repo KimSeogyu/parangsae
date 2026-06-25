@@ -6,8 +6,8 @@ from typing import Any
 
 import pandas as pd
 
-from packages.research.regime import RegimeReport, build_regime_report
-from packages.research.signals import SignalReport, build_signal_report
+from parangsae.research.regime import RegimeReport, build_regime_report
+from parangsae.research.signals import SignalReport, build_signal_report
 
 FORWARD_PAPER_SCHEMA_VERSION = 1
 POSITIONS_COLUMNS = [

@@ -1,5 +1,5 @@
-from packages.core.contracts import OrderIntent, OrderSide, OrderType, ProductFamily, ProtectiveOrderIntent, Venue
-from packages.execution.binance import BinanceFuturesBroker, BinanceSpotBroker, RecordingHttpClient
+from parangsae.core.contracts import OrderIntent, OrderSide, OrderType, ProductFamily, ProtectiveOrderIntent, Venue
+from parangsae.execution.binance import BinanceFuturesBroker, BinanceSpotBroker, RecordingHttpClient
 
 
 def test_spot_dry_run_uses_order_test_endpoint_only():

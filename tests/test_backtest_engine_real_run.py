@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from packages.research.backtest_engine import (
+from parangsae.research.backtest_engine import (
     BacktestResult,
     CANONICAL_BROKER,
     CANONICAL_STRATEGY,
@@ -18,7 +18,7 @@ from packages.research.backtest_engine import (
     split_train_validation_holdout,
     strategy_settings_dict,
 )
-from packages.core.contracts import ProductFamily
+from parangsae.core.contracts import ProductFamily
 
 
 def test_canonical_strategy_and_broker_settings_are_fixed():
@@ -75,7 +75,7 @@ def test_split_chronological_fails_when_train_and_holdout_overlap():
 
 
 def test_engine_uses_fractional_backtest_and_non_overlay_indicators():
-    source = __import__("pathlib").Path("packages/research/backtest_engine.py").read_text()
+    source = __import__("pathlib").Path("src/parangsae/research/backtest_engine.py").read_text()
     assert "FractionalBacktest" in source
     assert "fractional_unit=broker_settings.fractional_unit" in source
     assert source.count("overlay=False") >= 3
@@ -145,7 +145,7 @@ def test_risk_candidate_selection_uses_validation_not_holdout(monkeypatch):
             pd.DataFrame({"Equity": [10000.0]}, index=pd.date_range("2024-01-01", periods=1, tz="UTC")),
         )
 
-    monkeypatch.setattr("packages.research.backtest_engine.run_strategy_backtest", fake_backtest)
+    monkeypatch.setattr("parangsae.research.backtest_engine.run_strategy_backtest", fake_backtest)
     result = run_risk_candidate_search(
         frame,
         product_family=ProductFamily.SPOT_CRYPTO,

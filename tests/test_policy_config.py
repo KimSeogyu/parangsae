@@ -1,7 +1,7 @@
 import pytest
 
-from packages.core.config import load_product_policies, load_strategy_policies
-from packages.core.contracts import ProductFamily
+from parangsae.core.config import load_product_policies, load_strategy_policies
+from parangsae.core.contracts import ProductFamily
 
 
 def test_product_policies_are_runtime_owned():
@@ -17,7 +17,7 @@ def test_strategy_policies_gate_family_use():
 
 
 def test_cli_strategy_gate_rejects_wrong_family():
-    from apps.cli.quantctl import _signals
+    from parangsae.apps.cli.quantctl import _signals
 
     with pytest.raises(ValueError):
         _signals("crypto-residual-ridge", ProductFamily.SPOT_CRYPTO)

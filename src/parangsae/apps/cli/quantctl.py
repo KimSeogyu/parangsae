@@ -7,14 +7,14 @@ from pathlib import Path
 import pandas as pd
 import requests
 
-from packages.core.capabilities import fixture_capability
-from packages.core.config import load_product_policies, load_risk_config, load_strategy_policies
-from packages.core.contracts import ProductFamily
-from packages.core.events import EventLog, read_events, replay_positions
-from packages.core.risk import LiveTradingGuard, RuntimeLiveContext
-from packages.execution.binance import BinanceFuturesBroker, BinanceSpotBroker, RecordingHttpClient
-from packages.execution.paper import run_paper_loop
-from packages.marketdata.binance_vision import (
+from parangsae.core.capabilities import fixture_capability
+from parangsae.core.config import load_product_policies, load_risk_config, load_strategy_policies
+from parangsae.core.contracts import ProductFamily
+from parangsae.core.events import EventLog, read_events, replay_positions
+from parangsae.core.risk import LiveTradingGuard, RuntimeLiveContext
+from parangsae.execution.binance import BinanceFuturesBroker, BinanceSpotBroker, RecordingHttpClient
+from parangsae.execution.paper import run_paper_loop
+from parangsae.marketdata.binance_vision import (
     CANONICAL_INTERVAL,
     CANONICAL_MONTHS,
     CANONICAL_SYMBOL,
@@ -25,18 +25,18 @@ from packages.marketdata.binance_vision import (
     validate_interval,
     validate_symbol,
 )
-from packages.marketdata.binance_funding import (
+from parangsae.marketdata.binance_funding import (
     BinanceFundingError,
     FundingDataValidationError,
     fetch_funding_rate_history,
     funding_metadata_for_report,
 )
-from packages.marketdata.binance_live import (
+from parangsae.marketdata.binance_live import (
     BinanceLiveKlineError,
     LiveKlineValidationError,
     fetch_recent_klines,
 )
-from packages.reporting.real_run_report import (
+from parangsae.reporting.real_run_report import (
     build_forward_paper_manifest,
     build_manifest,
     prepare_output_dir,
@@ -46,7 +46,7 @@ from packages.reporting.real_run_report import (
     write_risk_success_report,
     write_success_report,
 )
-from packages.research.backtest_engine import (
+from parangsae.research.backtest_engine import (
     MeaningGateError,
     assert_meaningful_run,
     broker_settings_dict,
@@ -55,15 +55,22 @@ from packages.research.backtest_engine import (
     split_chronological,
     strategy_settings_dict,
 )
-from packages.research.forward_paper import ForwardPaperConfig, run_forward_paper
-from packages.research.regime import build_regime_report
-from packages.research.readiness import build_readiness_report
-from packages.research.signals import build_signal_report
-from packages.execution.portfolio import intents_from_target, target_from_signals
-from packages.research.fixtures import FIXTURE_PRICES
-from packages.research.strategies import crypto_residual_ridge_placeholder, trend_risk_signals
+from parangsae.research.forward_paper import ForwardPaperConfig, run_forward_paper
+from parangsae.research.regime import build_regime_report
+from parangsae.research.readiness import build_readiness_report
+from parangsae.research.signals import build_signal_report
+from parangsae.execution.portfolio import intents_from_target, target_from_signals
+from parangsae.research.fixtures import FIXTURE_PRICES
+from parangsae.research.strategies import crypto_residual_ridge_placeholder, trend_risk_signals
 
-ROOT = Path(__file__).resolve().parents[2]
+def _find_repo_root(start: Path) -> Path:
+    for candidate in (start, *start.parents):
+        if (candidate / "pyproject.toml").exists() and (candidate / "configs").is_dir():
+            return candidate
+    raise RuntimeError(f"could not locate repository root from {start}")
+
+
+ROOT = _find_repo_root(Path(__file__).resolve())
 RISK_CONFIG = ROOT / "configs" / "risk.balanced.yaml"
 PRODUCTS_CONFIG = ROOT / "configs" / "products.yaml"
 STRATEGIES_CONFIG = ROOT / "configs" / "strategies.yaml"

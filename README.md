@@ -1,4 +1,4 @@
-# Parangsae Unified Quant
+# Parangsae
 
 A personal Binance-only quant trading app assembled from `parangsae`, `parangsae-engine`, and `parangsae-quant`.
 
@@ -7,15 +7,19 @@ The app is **paper/dry-run first and live-gated**: it can build signals, run fix
 ## Quick smoke
 
 ```bash
-python -m apps.cli.quantctl backtest --fixture --strategy trend-risk
-python -m apps.cli.quantctl paper-run --fixture --ticks 10 --event-log logs/paper-events.jsonl
-python -m apps.cli.quantctl replay --event-log logs/paper-events.jsonl
-python -m apps.cli.quantctl live-dry-run --fixture
-python -m apps.cli.quantctl kill-switch enable
-python -m apps.cli.quantctl live-dry-run --fixture
-python -m apps.cli.quantctl kill-switch disable
-python -m apps.cli.quantctl forward-paper-run --lookback-bars 240 --funding-source none
+uv run quantctl backtest --fixture --strategy trend-risk
+uv run quantctl paper-run --fixture --ticks 10 --event-log logs/paper-events.jsonl
+uv run quantctl replay --event-log logs/paper-events.jsonl
+uv run quantctl live-dry-run --fixture
+uv run quantctl kill-switch enable
+uv run quantctl live-dry-run --fixture
+uv run quantctl kill-switch disable
+uv run quantctl forward-paper-run --lookback-bars 240 --funding-source none
 ```
+
+## Quant loop engineering
+
+Research and strategy improvements should follow the repo-local constitution in `AGENTS.md`: pre-register one hypothesis, make a minimal change, run harsh validation, preserve failures, and promote only on net OOS evidence.
 
 ## Live safety contract
 
@@ -34,10 +38,10 @@ Milestone 1 implements adapters and guards, but verification uses dry-run/test e
 ## Real Binance Vision run
 
 ```bash
-uv run python -m apps.cli.quantctl real-run
-uv run python -m apps.cli.quantctl risk-run
-uv run python -m apps.cli.quantctl readiness-run
-uv run python -m apps.cli.quantctl forward-paper-run
+uv run quantctl real-run
+uv run quantctl risk-run
+uv run quantctl readiness-run
+uv run quantctl forward-paper-run
 ```
 
 This downloads public Binance Vision BTCUSDT USDⓈ-M Futures 1h klines for 2024-01..2024-06, runs a `backtesting.py`/`FractionalBacktest` SMA/ATR strategy, runs the holdout as bar-based paper simulation, and writes a durable report under `reports/`. See `docs/backtesting-paper-trading.md`.
@@ -110,7 +114,7 @@ Latest verified readiness-run: `reports/readiness-run-20260625T053627Z/` — ver
 ## Live-market forward paper run
 
 ```bash
-uv run python -m apps.cli.quantctl forward-paper-run
+uv run quantctl forward-paper-run
 ```
 
 `forward-paper-run` is the safe way to watch current/recent market behavior without placing orders. It pulls public Binance USDⓈ-M Futures recent klines (`/fapi/v1/klines`) and, by default, public funding history (`/fapi/v1/fundingRate`), then runs a long/flat paper adapter over the existing Regime Protocol + Alpha Signal Factory diagnostics.

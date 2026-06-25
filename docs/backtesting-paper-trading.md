@@ -5,10 +5,10 @@ This milestone adds a no-credential `real-run` workflow for a meaningful histori
 ## Command
 
 ```bash
-uv run python -m apps.cli.quantctl real-run
-uv run python -m apps.cli.quantctl risk-run
-uv run python -m apps.cli.quantctl readiness-run
-uv run python -m apps.cli.quantctl forward-paper-run
+uv run quantctl real-run
+uv run quantctl risk-run
+uv run quantctl readiness-run
+uv run quantctl forward-paper-run
 ```
 
 Default canonical dataset:
@@ -21,7 +21,7 @@ Default canonical dataset:
 ## Engine and order-surface choices
 
 - Backtesting/paper simulation engine: `backtesting.py` with `backtesting.lib.FractionalBacktest` for fractional BTC sizing.
-- Exchange/order integration surface: `ccxt`, isolated in `packages/execution/ccxt_binance.py` and not imported by `real-run`.
+- Exchange/order integration surface: `ccxt`, isolated in `src/parangsae/execution/ccxt_binance.py` and not imported by `real-run`.
 
 License note: `ccxt` is MIT. `backtesting.py` is AGPL-3.0; this is acceptable for this personal local artifact, but must be reevaluated before distribution, commercial packaging, or SaaS/network-service release.
 
@@ -172,7 +172,7 @@ The readiness candidate set includes the fixed SMA/ATR bracket candidates plus a
 `forward-paper-run` is a public-data forward paper workflow for observing the current system without submitting orders:
 
 ```bash
-uv run python -m apps.cli.quantctl forward-paper-run --lookback-bars 720
+uv run quantctl forward-paper-run --lookback-bars 720
 ```
 
 `--lookback-bars` means saved output bars. With the default closed-bar filter, `720`

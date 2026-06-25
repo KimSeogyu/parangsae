@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-from packages.core.capabilities import fixture_capability
-from packages.core.config import RiskConfig
-from packages.core.contracts import (
+from parangsae.core.capabilities import fixture_capability
+from parangsae.core.config import RiskConfig
+from parangsae.core.contracts import (
     ExecutionEvent,
     ExecutionEventType,
     OrderIntent,
     RiskDecisionStatus,
     SignalFrame,
 )
-from packages.core.events import EventLog
-from packages.core.risk import LiveTradingGuard, RuntimeLiveContext
-from packages.execution.portfolio import intents_from_target, target_from_signals
+from parangsae.core.events import EventLog
+from parangsae.core.risk import LiveTradingGuard, RuntimeLiveContext
+from parangsae.execution.portfolio import intents_from_target, target_from_signals
 
 
 def run_paper_loop(signals: list[SignalFrame], risk: RiskConfig, event_log: EventLog) -> dict:

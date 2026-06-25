@@ -3,8 +3,8 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 
-from packages.core.config import LIVE_ACK_ENV, LIVE_ACK_VALUE, RiskConfig, kill_switch_active
-from packages.core.contracts import OrderIntent, ProductCapability, RiskDecision, RiskDecisionStatus
+from parangsae.core.config import LIVE_ACK_ENV, LIVE_ACK_VALUE, RiskConfig, kill_switch_active
+from parangsae.core.contracts import OrderIntent, ProductCapability, RiskDecision, RiskDecisionStatus
 
 
 @dataclass(frozen=True)

@@ -11,7 +11,7 @@ from typing import Any
 import pandas as pd
 import requests
 
-from packages.marketdata.binance_vision import validate_symbol
+from parangsae.marketdata.binance_vision import validate_symbol
 
 BINANCE_USDM_FUNDING_RATE_URL = "https://fapi.binance.com/fapi/v1/fundingRate"
 BINANCE_USDM_FUNDING_RATE_DOCS = (

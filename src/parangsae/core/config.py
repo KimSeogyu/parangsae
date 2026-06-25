@@ -5,7 +5,7 @@ from pathlib import Path
 import os
 import yaml
 
-from packages.core.contracts import ProductFamily
+from parangsae.core.contracts import ProductFamily
 
 LIVE_ACK_ENV = "PARANGSAE_LIVE_TRADING_ACK"
 LIVE_ACK_VALUE = "I_UNDERSTAND_THIS_CAN_LOSE_MONEY"

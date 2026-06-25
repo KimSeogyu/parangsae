@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from packages.core.contracts import (
+from parangsae.core.contracts import (
     OrderIntent,
     OrderSide,
     OrderType,

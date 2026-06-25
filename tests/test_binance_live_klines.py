@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from packages.marketdata.binance_live import (
+from parangsae.marketdata.binance_live import (
     BINANCE_USDM_KLINES_URL,
     LiveKlineValidationError,
     fetch_recent_klines,

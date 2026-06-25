@@ -7,11 +7,11 @@ from pathlib import Path
 
 import pandas as pd
 
-from packages.core.contracts import ProductFamily
-from packages.reporting.real_run_report import build_manifest, prepare_output_dir, write_readiness_success_report
-from packages.research import readiness as readiness_module
-from packages.research.backtest_engine import BacktestResult, StrategySettings
-from packages.research.readiness import (
+from parangsae.core.contracts import ProductFamily
+from parangsae.reporting.real_run_report import build_manifest, prepare_output_dir, write_readiness_success_report
+from parangsae.research import readiness as readiness_module
+from parangsae.research.backtest_engine import BacktestResult, StrategySettings
+from parangsae.research.readiness import (
     READINESS_ABLATION_COLUMNS,
     READINESS_JSON_TOP_LEVEL_KEYS,
     READINESS_REGIME_COLUMNS,
@@ -303,14 +303,14 @@ def test_readiness_success_artifact_contract(monkeypatch, tmp_path) -> None:
 
 
 def test_readiness_research_static_source_has_no_live_order_or_credential_path() -> None:
-    for path in [Path("packages/research/readiness.py"), Path("packages/reporting/real_run_report.py")]:
+    for path in [Path("src/parangsae/research/readiness.py"), Path("src/parangsae/reporting/real_run_report.py")]:
         source = path.read_text()
         tree = ast.parse(source)
         assert not any(isinstance(node, ast.Import) and any(alias.name == "ccxt" for alias in node.names) for node in ast.walk(tree))
         assert "create_order" not in source
         assert "BINANCE_API_KEY" not in source
         assert "BINANCE_API_SECRET" not in source
-    cli_source = Path("apps/cli/quantctl.py").read_text()
+    cli_source = Path("src/parangsae/apps/cli/quantctl.py").read_text()
     readiness_slice = cli_source[cli_source.index("def cmd_readiness_run") : cli_source.index("def cmd_kill_switch")]
     assert "ccxt" not in readiness_slice
     assert "create_order" not in readiness_slice

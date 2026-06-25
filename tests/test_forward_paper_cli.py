@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from apps.cli import quantctl
-from packages.marketdata.binance_funding import BINANCE_USDM_FUNDING_RATE_URL
-from packages.marketdata.binance_live import BINANCE_USDM_KLINES_URL
-from packages.research.forward_paper import EQUITY_CSV_COLUMNS, POSITIONS_CSV_COLUMNS, TRADES_COLUMNS
+from parangsae.apps.cli import quantctl
+from parangsae.marketdata.binance_funding import BINANCE_USDM_FUNDING_RATE_URL
+from parangsae.marketdata.binance_live import BINANCE_USDM_KLINES_URL
+from parangsae.research.forward_paper import EQUITY_CSV_COLUMNS, POSITIONS_CSV_COLUMNS, TRADES_COLUMNS
 
 
 class FakeResponse:
@@ -201,12 +201,12 @@ def test_forward_paper_public_funding_unavailable_fails_but_explicit_none_succee
 
 
 def test_forward_paper_static_source_has_no_order_or_credential_path() -> None:
-    source = Path("apps/cli/quantctl.py").read_text()
+    source = Path("src/parangsae/apps/cli/quantctl.py").read_text()
     command_source = source[source.index("def cmd_forward_paper_run") : source.index("def cmd_kill_switch")]
     scanned = {
-        "apps/cli/quantctl.py::cmd_forward_paper_run": command_source,
-        "packages/marketdata/binance_live.py": Path("packages/marketdata/binance_live.py").read_text(),
-        "packages/research/forward_paper.py": Path("packages/research/forward_paper.py").read_text(),
+        "src/parangsae/apps/cli/quantctl.py::cmd_forward_paper_run": command_source,
+        "src/parangsae/marketdata/binance_live.py": Path("src/parangsae/marketdata/binance_live.py").read_text(),
+        "src/parangsae/research/forward_paper.py": Path("src/parangsae/research/forward_paper.py").read_text(),
     }
     banned = [
         "ccxt",

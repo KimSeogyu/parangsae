@@ -5,9 +5,9 @@ import json
 import pandas as pd
 import pytest
 
-from packages.marketdata.binance_vision import DownloadRecord, MarketDataBundle, normalized_ohlcv_sha256, validate_ohlcv
-from packages.core.contracts import ProductFamily
-from packages.reporting.real_run_report import (
+from parangsae.marketdata.binance_vision import DownloadRecord, MarketDataBundle, normalized_ohlcv_sha256, validate_ohlcv
+from parangsae.core.contracts import ProductFamily
+from parangsae.reporting.real_run_report import (
     FAILURE_FILES,
     RISK_SUCCESS_FILES,
     SUCCESS_FILES,
@@ -17,7 +17,7 @@ from packages.reporting.real_run_report import (
     write_risk_success_report,
     write_success_report,
 )
-from packages.research.backtest_engine import (
+from parangsae.research.backtest_engine import (
     BacktestResult,
     CandidateEvaluation,
     RiskRunResult,
@@ -25,8 +25,8 @@ from packages.research.backtest_engine import (
     ThreeWaySplit,
     assert_meaningful_run,
 )
-from packages.research.regime import REGIME_CSV_COLUMNS, build_regime_report
-from packages.research.signals import EXECUTION_BOUNDARY, SIGNAL_CSV_COLUMNS, SIGNAL_JSON_TOP_LEVEL_KEYS, build_signal_report
+from parangsae.research.regime import REGIME_CSV_COLUMNS, build_regime_report
+from parangsae.research.signals import EXECUTION_BOUNDARY, SIGNAL_CSV_COLUMNS, SIGNAL_JSON_TOP_LEVEL_KEYS, build_signal_report
 
 
 def frame(rows: int = 4, start: str = "2024-01-01") -> pd.DataFrame:

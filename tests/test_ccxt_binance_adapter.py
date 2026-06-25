@@ -3,10 +3,10 @@ from __future__ import annotations
 import pytest
 from typing import Any, cast
 
-from packages.core.config import PortfolioRisk, ProductPolicy, ProductRisk, RiskConfig
-from packages.core.contracts import OrderIntent, OrderSide, OrderType, ProductCapability, ProductFamily, RiskDecision, RiskDecisionStatus, Venue
-from packages.execution.ccxt_binance import CcxtSubmissionError, build_binance_futures_sandbox_client, submit_order_sandbox
-from packages.core.risk import LiveTradingGuard, RuntimeLiveContext
+from parangsae.core.config import PortfolioRisk, ProductPolicy, ProductRisk, RiskConfig
+from parangsae.core.contracts import OrderIntent, OrderSide, OrderType, ProductCapability, ProductFamily, RiskDecision, RiskDecisionStatus, Venue
+from parangsae.execution.ccxt_binance import CcxtSubmissionError, build_binance_futures_sandbox_client, submit_order_sandbox
+from parangsae.core.risk import LiveTradingGuard, RuntimeLiveContext
 
 
 class FakeExchange:

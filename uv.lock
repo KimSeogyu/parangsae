@@ -902,9 +902,9 @@ wheels = [
 ]
 
 [[package]]
-name = "parangsae-unified-quant"
+name = "parangsae"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "backtesting" },
     { name = "ccxt" },

@@ -10,7 +10,7 @@ from typing import Any
 import pandas as pd
 import requests
 
-from packages.marketdata.binance_vision import (
+from parangsae.marketdata.binance_vision import (
     CANONICAL_INTERVAL,
     CANONICAL_SYMBOL,
     DataValidationError,

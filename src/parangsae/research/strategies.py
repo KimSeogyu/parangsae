@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from packages.core.contracts import ProductFamily, SignalFrame, utc_now_iso
+from parangsae.core.contracts import ProductFamily, SignalFrame, utc_now_iso
 
 
 def trend_risk_signals(prices: dict[str, list[float]], family: ProductFamily) -> list[SignalFrame]:
