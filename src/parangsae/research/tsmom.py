@@ -44,6 +44,32 @@ TSMOM_REQUIRED_FILES = (
     "tsmom_candidates.csv",
 )
 TSMOM_KNOWN_FILES = set(TSMOM_REQUIRED_FILES)
+TSMOM_DIAGNOSTIC_LOOP_ID = "TSMOM_STRESS_SWITCH_FUNDING_DIAGNOSTIC_V1"
+TSMOM_DIAGNOSTIC_SCHEMA_VERSION = 1
+TSMOM_DIAGNOSTIC_LOOP_TYPE = "diagnostic"
+TSMOM_DIAGNOSTIC_LOOP_SLUG = "tsmom-stress-switch-funding-diagnostic-v1"
+TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE = "tsmom_stress_switch_funding_diagnostic_only_not_readiness"
+TSMOM_DIAGNOSTIC_COMPLETE = "DIAGNOSTIC_COMPLETE"
+TSMOM_DIAGNOSTIC_BLOCKED = "BLOCKED"
+TSMOM_DIAGNOSTIC_ALLOWED_VERDICTS = (
+    TSMOM_DIAGNOSTIC_BLOCKED,
+    TSMOM_DIAGNOSTIC_COMPLETE,
+)
+TSMOM_DIAGNOSTIC_REQUIRED_FILES = (
+    "diagnostic.json",
+    "report.md",
+    "failed_windows.csv",
+    "candidate_switches.csv",
+    "funding_decomposition.csv",
+    "commands.txt",
+    "changed_files.txt",
+)
+TSMOM_DIAGNOSTIC_KNOWN_FILES = set(TSMOM_DIAGNOSTIC_REQUIRED_FILES)
+TSMOM_FAILED_GATE_DIAGNOSTIC_NAMES = (
+    "median_stress_return_beats_cash_null",
+    "selected_candidate_switch_rate",
+    "funding_aware_net_return",
+)
 HARD_GATE_NAMES = (
     "candidate_count",
     "candidate_window_evaluations",
@@ -122,6 +148,11 @@ class TsmomCandidateEvaluation:
 def default_tsmom_output_dir(*, root: str | Path = "reports/loops", today: str | None = None) -> Path:
     stamp = today or datetime.now(UTC).strftime("%Y%m%d")
     return Path(root) / f"{stamp}-{TSMOM_LOOP_SLUG}"
+
+
+def default_tsmom_diagnostic_output_dir(*, root: str | Path = "reports/loops", today: str | None = None) -> Path:
+    stamp = today or datetime.now(UTC).strftime("%Y%m%d")
+    return Path(root) / f"{stamp}-{TSMOM_DIAGNOSTIC_LOOP_SLUG}"
 
 
 def tsmom_candidate_grid() -> tuple[TsmomCandidateSettings, ...]:
@@ -538,6 +569,304 @@ def prepare_tsmom_output_dir(output_dir: str | Path, *, overwrite: bool = False)
     )
 
 
+def build_tsmom_diagnostic_payload(
+    *,
+    bundle: MarketDataBundle,
+    funding_bundle: FundingRateBundle | None = None,
+    funding_metadata: dict[str, Any] | None = None,
+    config: TsmomLoopConfig = TsmomLoopConfig(),
+    commands: Iterable[str] = (),
+    changed_files: Iterable[str] = (),
+) -> dict[str, Any]:
+    source_payload = build_tsmom_loop_payload(
+        bundle=bundle,
+        funding_bundle=funding_bundle,
+        funding_metadata=funding_metadata,
+        config=config,
+        commands=commands,
+        changed_files=changed_files,
+    )
+    data = _validate_ohlcv_frame(bundle.frame)
+    funding_frame = funding_bundle.frame if funding_bundle is not None else None
+    grid = tsmom_candidate_grid()
+    windows = _generate_windows(data, config)
+    selected_by_window = {
+        str(row["window_id"]): row
+        for row in source_payload.get("walk_forward", {}).get("rows", [])
+        if isinstance(row, dict)
+    }
+    funding_rows: list[dict[str, Any]] = []
+    switch_rows: list[dict[str, Any]] = []
+    previous_selected: dict[str, Any] | None = None
+    previous_settings: TsmomCandidateSettings | None = None
+
+    for window in windows:
+        row = selected_by_window.get(window.window_id)
+        if row is None:
+            continue
+        selected_settings = _settings_from_window_row(row)
+        rankings = _rank_candidate_evaluations(
+            window.train,
+            window.validation,
+            grid,
+            funding_frame=funding_frame,
+        )
+        runner_up = rankings[1] if len(rankings) > 1 else None
+        decisions = build_tsmom_decision_frame(
+            window.holdout,
+            settings=selected_settings,
+            funding_frame=funding_frame,
+        )
+        regime = _window_regime_diagnostics(window.holdout, decisions, funding_frame, config=config)
+        decomposition = {
+            "window_id": window.window_id,
+            "holdout_start": row["holdout_start"],
+            "holdout_end": row["holdout_end"],
+            "selected_candidate_id": row["selected_candidate_id"],
+            "market_regime": regime["market_regime"],
+            "volatility_regime": regime["volatility_regime"],
+            "stress_window": False,
+            "funding_regime": regime["funding_regime"],
+            "gross_return_pct": row["base_holdout_return_pct"],
+            "stress_raw_return_pct": row["stress_holdout_raw_return_pct"],
+            "funding_cost_drag_pct": row["stress_funding_drag_pct"],
+            "slippage_drag_pct": row["stress_slippage_drag_pct"],
+            "funding_aware_net_return_pct": row["funding_aware_net_return_pct"],
+            "cash_null_return_pct": row["cash_null_return_pct"],
+            "cash_null_failure": bool(float(row["funding_aware_net_return_pct"]) <= 0.0),
+            "max_drawdown_pct": row["stress_holdout_max_drawdown_pct"],
+            "mean_funding_rate": regime["mean_funding_rate"],
+            "mean_abs_funding_rate": regime["mean_abs_funding_rate"],
+            "exposure_time_pct": regime["exposure_time_pct"],
+            "diagnosed_primary_failure": _funding_failure_reason(row, regime),
+        }
+        funding_rows.append(decomposition)
+        switched = (
+            previous_selected is not None
+            and previous_selected.get("selected_candidate_id") != row["selected_candidate_id"]
+        )
+        switch_causes = (
+            _candidate_switch_causes(
+                previous_settings,
+                selected_settings,
+                score_gap=_score_gap(rankings),
+                funding_cost_drag_pct=float(row["stress_funding_drag_pct"]),
+            )
+            if switched
+            else []
+        )
+        switch_rows.append(
+            {
+                "window_id": window.window_id,
+                "holdout_start": row["holdout_start"],
+                "holdout_end": row["holdout_end"],
+                "previous_candidate_id": previous_selected.get("selected_candidate_id") if previous_selected else None,
+                "selected_candidate_id": row["selected_candidate_id"],
+                "switched": switched,
+                "switch_causes": ";".join(switch_causes) if switch_causes else "no_switch",
+                "selected_lookback_bars": selected_settings.lookback_bars,
+                "selected_vol_window_bars": selected_settings.vol_window_bars,
+                "selected_target_annual_volatility": selected_settings.target_annual_volatility,
+                "selected_max_exposure": selected_settings.max_exposure,
+                "selected_funding_abs_rate_limit": selected_settings.funding_abs_rate_limit,
+                "selected_validation_score": row["validation_score"],
+                "runner_up_candidate_id": runner_up.candidate_id if runner_up is not None else None,
+                "runner_up_validation_score": runner_up.score if runner_up is not None else None,
+                "score_gap_to_runner_up": _score_gap(rankings),
+            }
+        )
+        previous_selected = row
+        previous_settings = selected_settings
+
+    funding_rows = _mark_stress_windows(funding_rows)
+    failed_windows = [row for row in funding_rows if row["cash_null_failure"]]
+    switch_summary = _candidate_switch_summary(switch_rows)
+    stress_summary = _stress_return_distribution(funding_rows, config)
+    funding_summary = _funding_decomposition_summary(funding_rows)
+    regime_summary = _regime_decomposition_summary(funding_rows)
+    verdict = TSMOM_DIAGNOSTIC_COMPLETE if funding_rows else TSMOM_DIAGNOSTIC_BLOCKED
+    loop_id = f"{datetime.now(UTC).strftime('%Y%m%d')}-{TSMOM_DIAGNOSTIC_LOOP_SLUG}"
+    return {
+        "schema_version": TSMOM_DIAGNOSTIC_SCHEMA_VERSION,
+        "loop_id": loop_id,
+        "status": "IMPLEMENTED" if funding_rows else "BLOCKED",
+        "loop_type": TSMOM_DIAGNOSTIC_LOOP_TYPE,
+        "diagnostic_family": TSMOM_DIAGNOSTIC_LOOP_ID,
+        "source_strategy_family": TSMOM_LOOP_ID,
+        "baseline": BASELINE_ARTIFACT,
+        "source_loop_artifact": "reports/loops/20260625-tsmom-vol-target-funding-aware-v1/",
+        "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+        "tsmom_diagnostic_loop_verdict": verdict,
+        "tsmom_diagnostic_loop_verdict_namespace": TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE,
+        "loop_contract": {
+            "allowed_diagnostic_loop_verdicts": list(TSMOM_DIAGNOSTIC_ALLOWED_VERDICTS),
+            "diagnostic_loop_verdict_namespace": TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE,
+            "readiness_verdict": False,
+            "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+            "claim_boundary": _diagnostic_claim_boundary(),
+        },
+        "hypothesis": (
+            "The failed TSMOM stress, switch-rate, and funding-aware net-return gates can be "
+            "explained without retuning by decomposing selected walk-forward holdouts by regime, "
+            "funding drag, and candidate-selection instability."
+        ),
+        "analyzed_failed_gates": list(TSMOM_FAILED_GATE_DIAGNOSTIC_NAMES),
+        "source_tsmom_loop": {
+            "tsmom_loop_verdict": source_payload["tsmom_loop_verdict"],
+            "tsmom_loop_decision": source_payload["tsmom_loop_decision"],
+            "readiness_baseline_verdict": source_payload["readiness_baseline_verdict"],
+            "failed_gates": source_payload["failed_gates"],
+            "hard_gates": {
+                name: source_payload["hard_gates"][name]
+                for name in TSMOM_FAILED_GATE_DIAGNOSTIC_NAMES
+                if name in source_payload["hard_gates"]
+            },
+        },
+        "data_scope": source_payload["data_scope"],
+        "dataset_provenance": source_payload["dataset_provenance"],
+        "funding_coverage": source_payload["funding_coverage"],
+        "selection_inputs": source_payload["selection_inputs"],
+        "selection_excludes": source_payload["selection_excludes"],
+        "diagnostic_summary": {
+            "stress_return_distribution": stress_summary,
+            "candidate_switch_summary": switch_summary,
+            "funding_decomposition_summary": funding_summary,
+            "regime_decomposition_summary": regime_summary,
+            "cash_null_failure_window_count": len(failed_windows),
+            "window_count": len(funding_rows),
+        },
+        "failed_windows": failed_windows,
+        "candidate_switches": switch_rows,
+        "funding_decomposition": funding_rows,
+        "safety_gates": {
+            "live_orders_submitted": False,
+            "testnet_orders_submitted": False,
+            "api_keys_required_for_research": False,
+            "account_or_fill_data_used": False,
+            "holdout_used_for_selection": False,
+            "profit_or_live_ready_claim": False,
+            "strategy_parameters_retuned": False,
+        },
+        "validation_commands": list(commands),
+        "evidence_artifacts": list(TSMOM_DIAGNOSTIC_REQUIRED_FILES),
+        "changed_files": list(changed_files),
+        "claim_boundary": _diagnostic_claim_boundary(),
+        "tsmom_diagnostic_loop_decision": "DIAGNOSTIC_ONLY_NO_PROMOTION",
+        "next_pre_registered_loop_recommendation": (
+            "Pre-register a risk/cost loop that reduces candidate-switch instability and "
+            "explicitly tests whether funding drag should throttle exposure before holdout, "
+            "without relaxing gates or claiming readiness."
+        ),
+    }
+
+
+def write_tsmom_diagnostic_artifacts(
+    output_dir: str | Path,
+    payload: dict[str, Any],
+    *,
+    overwrite: bool = False,
+) -> Path:
+    out = prepare_tsmom_diagnostic_output_dir(output_dir, overwrite=overwrite)
+    artifact_payload = dict(payload)
+    if out.name.endswith(TSMOM_DIAGNOSTIC_LOOP_SLUG):
+        artifact_payload["loop_id"] = out.name
+    _write_json(out / "diagnostic.json", artifact_payload)
+    _atomic_write_text(out / "report.md", render_tsmom_diagnostic_report(artifact_payload))
+    pd.DataFrame(artifact_payload.get("failed_windows", [])).to_csv(out / "failed_windows.csv", index=False)
+    pd.DataFrame(artifact_payload.get("candidate_switches", [])).to_csv(out / "candidate_switches.csv", index=False)
+    pd.DataFrame(artifact_payload.get("funding_decomposition", [])).to_csv(
+        out / "funding_decomposition.csv",
+        index=False,
+    )
+    _atomic_write_text(out / "commands.txt", "\n".join(artifact_payload.get("validation_commands", [])) + "\n")
+    _atomic_write_text(out / "changed_files.txt", "\n".join(artifact_payload.get("changed_files", [])) + "\n")
+    return out
+
+
+def prepare_tsmom_diagnostic_output_dir(output_dir: str | Path, *, overwrite: bool = False) -> Path:
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="tsmom-diagnostic-run",
+        known_files=TSMOM_DIAGNOSTIC_KNOWN_FILES,
+        overwrite=overwrite,
+    )
+
+
+def render_tsmom_diagnostic_report(payload: dict[str, Any]) -> str:
+    summary = payload["diagnostic_summary"]
+    stress = summary["stress_return_distribution"]
+    switch = summary["candidate_switch_summary"]
+    funding = summary["funding_decomposition_summary"]
+    source = payload["source_tsmom_loop"]
+    lines = [
+        f"# Quant Loop Report: {payload['loop_id']}",
+        "",
+        "## Hypothesis",
+        payload["hypothesis"],
+        "",
+        "## Claim boundary",
+        f"- tsmom_diagnostic_loop_verdict: {payload['tsmom_diagnostic_loop_verdict']}",
+        f"- namespace: {payload['tsmom_diagnostic_loop_verdict_namespace']}",
+        f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+        f"- This is diagnostic-only, not readiness; claim_boundary: {payload['claim_boundary']}",
+        "",
+        "## Source failed gates",
+        f"- source_tsmom_loop_verdict: {source['tsmom_loop_verdict']}",
+        f"- source_tsmom_loop_decision: {source['tsmom_loop_decision']}",
+        f"- analyzed_failed_gates: {', '.join(payload['analyzed_failed_gates'])}",
+        "",
+        "## Median stress return vs cash/null",
+        f"- count: {stress['count']}",
+        f"- median_net_return_pct: {stress['median_net_return_pct']}",
+        f"- mean_net_return_pct: {stress['mean_net_return_pct']}",
+        f"- worst_net_return_pct: {stress['worst_net_return_pct']}",
+        f"- cvar_tail_net_return_pct: {stress['cvar_tail_net_return_pct']}",
+        f"- failed_window_count: {summary['cash_null_failure_window_count']}",
+        "",
+        "## Candidate switch diagnostic",
+        f"- switch_count: {switch['switch_count']}",
+        f"- switch_rate: {switch['switch_rate']}",
+        f"- top_switch_causes: {', '.join(switch['top_switch_causes']) if switch['top_switch_causes'] else 'none'}",
+        "",
+        "## Funding-aware net return diagnostic",
+        f"- median_gross_return_pct: {funding['median_gross_return_pct']}",
+        f"- median_funding_cost_drag_pct: {funding['median_funding_cost_drag_pct']}",
+        f"- median_slippage_drag_pct: {funding['median_slippage_drag_pct']}",
+        f"- median_net_return_pct: {funding['median_net_return_pct']}",
+        f"- primary_failure_modes: {', '.join(funding['primary_failure_modes']) if funding['primary_failure_modes'] else 'none'}",
+        "",
+        "## Regime decomposition",
+    ]
+    for regime, values in summary["regime_decomposition_summary"].items():
+        lines.append(
+            f"- {regime}: count={values['count']}, median_net={values['median_net_return_pct']}, "
+            f"failure_rate={values['cash_null_failure_rate']}"
+        )
+    lines.extend(
+        [
+            "",
+            "## Artifacts",
+            "- diagnostic.json",
+            "- failed_windows.csv",
+            "- candidate_switches.csv",
+            "- funding_decomposition.csv",
+            "- commands.txt",
+            "- changed_files.txt",
+            "",
+            "## Safety",
+            "- live_orders_submitted: false",
+            "- testnet_orders_submitted: false",
+            "- api_keys_required_for_research: false",
+            "- account_or_fill_data_used: false",
+            "- strategy_parameters_retuned: false",
+            "",
+            "## Next pre-registered loop recommendation",
+            payload["next_pre_registered_loop_recommendation"],
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
 def render_tsmom_report(payload: dict[str, Any]) -> str:
     data_scope = payload["data_scope"]
     hard_gates = payload["hard_gates"]
@@ -625,6 +954,201 @@ def render_tsmom_report(payload: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _diagnostic_claim_boundary() -> str:
+    return (
+        "TSMOM_STRESS_SWITCH_FUNDING_DIAGNOSTIC_V1 is a paper-only diagnostic loop, "
+        "not readiness or live readiness, not trading advice, not a profit guarantee, "
+        "not strategy parameter optimization, not permission for live orders or testnet orders, "
+        "and it uses no account, API-key, order, or fill data for performance claims"
+    )
+
+
+def _settings_from_window_row(row: dict[str, Any]) -> TsmomCandidateSettings:
+    return TsmomCandidateSettings(
+        lookback_bars=int(row["selected_lookback_bars"]),
+        vol_window_bars=int(row["selected_vol_window_bars"]),
+        target_annual_volatility=float(row["selected_target_annual_volatility"]),
+        max_exposure=float(row["selected_max_exposure"]),
+        funding_abs_rate_limit=float(row["selected_funding_abs_rate_limit"]),
+        allow_short=False,
+    )
+
+
+def _window_regime_diagnostics(
+    holdout: pd.DataFrame,
+    decisions: pd.DataFrame,
+    funding_frame: pd.DataFrame | None,
+    *,
+    config: TsmomLoopConfig,
+) -> dict[str, Any]:
+    close_return = _close_to_close_return_pct(holdout)
+    market_regime = "bull" if close_return > 2.0 else "bear" if close_return < -2.0 else "sideways"
+    close = _float_series(holdout["Close"], index=holdout.index)
+    returns = _float_series(close.pct_change(), index=holdout.index).fillna(0.0)
+    realized_vol_pct = _finite_float(cast(Any, returns.std())) * math.sqrt(24 * 365) * 100.0
+    volatility_regime = "high-vol" if realized_vol_pct >= 80.0 else "low-vol" if realized_vol_pct <= 35.0 else "normal-vol"
+    funding_rate = align_public_funding_to_decision_bars(_datetime_index(holdout), funding_frame)
+    mean_funding = _finite_float(cast(Any, funding_rate.mean()))
+    mean_abs_funding = _finite_float(cast(Any, funding_rate.abs().mean()))
+    high_cost_threshold = max(float(config.stress_funding_rate_per_8h), 0.00025)
+    if mean_abs_funding >= high_cost_threshold:
+        funding_regime = "high-funding-cost"
+    elif mean_funding > 0.0:
+        funding_regime = "positive-funding"
+    elif mean_funding < 0.0:
+        funding_regime = "negative-funding"
+    else:
+        funding_regime = "flat-or-missing-funding"
+    position = _float_series(decisions["position"], index=decisions.index)
+    exposure_time_pct = _finite_float(cast(Any, (position.abs() > 0.0).mean())) * 100.0
+    return {
+        "market_regime": market_regime,
+        "volatility_regime": volatility_regime,
+        "funding_regime": funding_regime,
+        "mean_funding_rate": mean_funding,
+        "mean_abs_funding_rate": mean_abs_funding,
+        "realized_volatility_pct": realized_vol_pct,
+        "exposure_time_pct": exposure_time_pct,
+    }
+
+
+def _funding_failure_reason(row: dict[str, Any], regime: dict[str, Any]) -> str:
+    gross = float(row["base_holdout_return_pct"])
+    raw = float(row["stress_holdout_raw_return_pct"])
+    funding_drag = float(row["stress_funding_drag_pct"])
+    net = float(row["funding_aware_net_return_pct"])
+    if net > 0.0:
+        return "passed_cash_null"
+    if gross <= 0.0 and raw <= 0.0:
+        return f"low_or_wrong_direction_gross_edge_{regime['market_regime']}"
+    if funding_drag > abs(raw) * 0.5:
+        return "funding_cost_drag_dominates_raw_edge"
+    if float(regime["exposure_time_pct"]) > 60.0 and funding_drag > 0.0:
+        return "excessive_holding_under_funding_drag"
+    if raw <= 0.0:
+        return "stress_costs_erased_edge"
+    return "low_gross_edge_after_funding_and_slippage"
+
+
+def _score_gap(rankings: list[TsmomCandidateEvaluation]) -> float | None:
+    if len(rankings) < 2:
+        return None
+    return float(rankings[0].score - rankings[1].score)
+
+
+def _candidate_switch_causes(
+    previous: TsmomCandidateSettings | None,
+    selected: TsmomCandidateSettings,
+    *,
+    score_gap: float | None,
+    funding_cost_drag_pct: float,
+) -> list[str]:
+    if previous is None:
+        return []
+    causes: list[str] = []
+    if previous.lookback_bars != selected.lookback_bars:
+        causes.append("lookback_sensitivity")
+    if previous.vol_window_bars != selected.vol_window_bars or previous.target_annual_volatility != selected.target_annual_volatility:
+        causes.append("volatility_target_change")
+    if previous.max_exposure != selected.max_exposure:
+        causes.append("exposure_cap_change")
+    if previous.funding_abs_rate_limit != selected.funding_abs_rate_limit:
+        causes.append("funding_threshold_change")
+    if score_gap is not None and abs(score_gap) < 0.05:
+        causes.append("unstable_near_tie_candidates")
+    if funding_cost_drag_pct > 0.25:
+        causes.append("funding_drag_pressure")
+    return causes or ["unclassified_parameter_switch"]
+
+
+def _mark_stress_windows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not rows:
+        return rows
+    returns = sorted(float(row["funding_aware_net_return_pct"]) for row in rows)
+    cutoff_index = max(0, math.ceil(len(returns) * 0.2) - 1)
+    stress_cutoff = returns[cutoff_index]
+    updated: list[dict[str, Any]] = []
+    for row in rows:
+        copy = dict(row)
+        copy["stress_window"] = bool(float(copy["funding_aware_net_return_pct"]) <= stress_cutoff)
+        updated.append(copy)
+    return updated
+
+
+def _candidate_switch_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    switched = [row for row in rows if bool(row.get("switched"))]
+    cause_counts: dict[str, int] = {}
+    for row in switched:
+        for cause in str(row.get("switch_causes", "")).split(";"):
+            if cause and cause != "no_switch":
+                cause_counts[cause] = cause_counts.get(cause, 0) + 1
+    return {
+        "switch_count": len(switched),
+        "switch_rate": float(len(switched) / max(1, len(rows) - 1)) if len(rows) > 1 else 0.0,
+        "top_switch_causes": [
+            cause
+            for cause, _ in sorted(cause_counts.items(), key=lambda item: (-item[1], item[0]))[:5]
+        ],
+        "cause_counts": cause_counts,
+    }
+
+
+def _stress_return_distribution(rows: list[dict[str, Any]], config: TsmomLoopConfig) -> dict[str, Any]:
+    values = [float(row["funding_aware_net_return_pct"]) for row in rows]
+    return {
+        "count": len(values),
+        "median_net_return_pct": _median_float(values),
+        "mean_net_return_pct": _mean_float(values),
+        "worst_net_return_pct": min(values) if values else None,
+        "cvar_tail_net_return_pct": _tail_loss_cvar(values, config),
+        "cash_null_return_pct": 0.0,
+    }
+
+
+def _funding_decomposition_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    failure_modes = sorted({str(row["diagnosed_primary_failure"]) for row in rows if bool(row["cash_null_failure"])})
+    return {
+        "median_gross_return_pct": _median_float([float(row["gross_return_pct"]) for row in rows]),
+        "median_stress_raw_return_pct": _median_float([float(row["stress_raw_return_pct"]) for row in rows]),
+        "median_funding_cost_drag_pct": _median_float([float(row["funding_cost_drag_pct"]) for row in rows]),
+        "median_slippage_drag_pct": _median_float([float(row["slippage_drag_pct"]) for row in rows]),
+        "median_net_return_pct": _median_float([float(row["funding_aware_net_return_pct"]) for row in rows]),
+        "primary_failure_modes": failure_modes,
+    }
+
+
+def _regime_decomposition_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        for key in ("market_regime", "volatility_regime", "funding_regime"):
+            label = f"{key}:{row[key]}"
+            grouped.setdefault(label, []).append(row)
+    return {
+        label: {
+            "count": len(items),
+            "median_net_return_pct": _median_float([float(item["funding_aware_net_return_pct"]) for item in items]),
+            "cash_null_failure_rate": float(
+                sum(1 for item in items if bool(item["cash_null_failure"])) / max(1, len(items))
+            ),
+        }
+        for label, items in sorted(grouped.items())
+    }
+
+
+def _median_float(values: list[float]) -> float | None:
+    if not values:
+        return None
+    value = _float_series(values).median()
+    return float(value) if not pd.isna(value) else None
+
+
+def _mean_float(values: list[float]) -> float | None:
+    if not values:
+        return None
+    value = _float_series(values).mean()
+    return float(value) if not pd.isna(value) else None
+
+
 def _generate_windows(frame: pd.DataFrame, config: TsmomLoopConfig) -> tuple[TsmomWindow, ...]:
     total = len(frame)
     span = config.train_bars + config.validation_bars + config.holdout_bars
@@ -653,6 +1177,22 @@ def _select_candidate(
     funding_frame: pd.DataFrame | None,
 ) -> TsmomCandidateEvaluation:
     del config
+    evaluations = _rank_candidate_evaluations(
+        train,
+        validation,
+        grid,
+        funding_frame=funding_frame,
+    )
+    return evaluations[0]
+
+
+def _rank_candidate_evaluations(
+    train: pd.DataFrame,
+    validation: pd.DataFrame,
+    grid: tuple[TsmomCandidateSettings, ...],
+    *,
+    funding_frame: pd.DataFrame | None,
+) -> list[TsmomCandidateEvaluation]:
     evaluations: list[TsmomCandidateEvaluation] = []
     for index, settings in enumerate(grid, start=1):
         candidate_id = _candidate_id(index, settings)
@@ -685,7 +1225,7 @@ def _select_candidate(
             )
         )
     candidates = [candidate for candidate in evaluations if candidate.eligible] or evaluations
-    return min(
+    return sorted(
         candidates,
         key=lambda candidate: (
             -candidate.score,

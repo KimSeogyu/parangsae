@@ -28,6 +28,14 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             return "data-depth-run"
         if "tsmom_loop_verdict" in payload:
             return "tsmom-run"
+    diagnostic_json = path / "diagnostic.json"
+    if diagnostic_json.exists():
+        try:
+            payload = json.loads(diagnostic_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "tsmom_diagnostic_loop_verdict" in payload:
+            return "tsmom-diagnostic-run"
     return None
 
 

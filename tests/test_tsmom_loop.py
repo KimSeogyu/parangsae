@@ -15,15 +15,19 @@ from parangsae.marketdata.binance_vision import MarketDataBundle
 from parangsae.research.readiness import READINESS_CANDIDATE_REGISTRY, READINESS_CANDIDATE_REGISTRY_VERSION
 from parangsae.research.tsmom import (
     TSMOM_ALLOWED_LOOP_VERDICTS,
+    TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE,
     TSMOM_LOOP_VERDICT_NAMESPACE,
     TsmomCandidateSettings,
     TsmomLoopConfig,
     align_public_funding_to_decision_bars,
+    build_tsmom_diagnostic_payload,
     build_tsmom_decision_frame,
     build_tsmom_loop_payload,
+    default_tsmom_diagnostic_output_dir,
     default_tsmom_output_dir,
     render_tsmom_report,
     tsmom_candidate_grid,
+    write_tsmom_diagnostic_artifacts,
     write_tsmom_loop_artifacts,
 )
 
@@ -263,3 +267,149 @@ def test_tsmom_cli_writes_paper_only_loop_artifacts_without_credentials(monkeypa
     assert (output_dir / "report.md").exists()
     assert (output_dir / "commands.txt").read_text().strip() == "uv run pytest tests/test_tsmom_loop.py -q"
     assert default_tsmom_output_dir(root=tmp_path / "reports" / "loops", today="20260625") == output_dir
+
+
+def test_tsmom_diagnostic_cli_writes_namespaced_artifacts_without_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    frame = synthetic_frame(360)
+    funding = funding_bundle(funding_frame(frame.index))
+    monkeypatch.setattr(quantctl, "load_market_data_bundle", lambda **kwargs: market_bundle(frame))
+    monkeypatch.setattr(quantctl, "fetch_funding_rate_history", lambda **kwargs: funding)
+    monkeypatch.setattr(
+        quantctl,
+        "funding_metadata_for_report",
+        lambda bundle: {"source": "public_binance_usdm_funding_history", "rows": len(bundle.frame)},
+    )
+    monkeypatch.setenv("BINANCE_API_KEY", "SHOULD_NOT_BE_READ")
+    monkeypatch.setenv("BINANCE_API_SECRET", "SHOULD_NOT_BE_READ")
+    real_getenv = os.getenv
+
+    def guarded_getenv(key: str, default: str | None = None) -> str | None:
+        if key in {"BINANCE_API_KEY", "BINANCE_API_SECRET"}:
+            raise AssertionError(f"tsmom-diagnostic-run must not read {key}")
+        return real_getenv(key, default)
+
+    monkeypatch.setattr(os, "getenv", guarded_getenv)
+    output_dir = tmp_path / "reports" / "loops" / "20260626-tsmom-stress-switch-funding-diagnostic-v1"
+    parser = quantctl.build_parser()
+    parsed = parser.parse_args(
+        [
+            "tsmom-diagnostic-run",
+            "--symbol",
+            "BTCUSDT",
+            "--interval",
+            "1h",
+            "--months",
+            "2024-01",
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            "--funding-source",
+            "public-binance",
+            "--funding-cache-dir",
+            str(tmp_path / "funding"),
+            "--reports-root",
+            str(tmp_path / "reports"),
+            "--output-dir",
+            str(output_dir),
+            "--command",
+            "uv run pytest tests/test_tsmom_loop.py -q",
+            "--changed-file",
+            "src/parangsae/research/tsmom.py",
+        ]
+    )
+    assert parsed.func is quantctl.cmd_tsmom_diagnostic_run
+    assert quantctl.cmd_tsmom_diagnostic_run(parsed) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert "verdict" not in cli_payload
+    assert "loop_verdict" not in cli_payload
+    assert cli_payload["tsmom_diagnostic_loop_verdict_namespace"] == TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE
+    assert cli_payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert cli_payload["live_orders_submitted"] is False
+    assert cli_payload["testnet_orders_submitted"] is False
+    diagnostic = json.loads((output_dir / "diagnostic.json").read_text())
+    assert "verdict" not in diagnostic
+    assert "loop_verdict" not in diagnostic
+    assert "decision" not in diagnostic
+    assert diagnostic["readiness_baseline_verdict"] == "NOT_READY"
+    assert diagnostic["tsmom_diagnostic_loop_verdict_namespace"] == TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE
+    assert diagnostic["safety_gates"]["account_or_fill_data_used"] is False
+    assert diagnostic["safety_gates"]["api_keys_required_for_research"] is False
+    assert "API-key" in diagnostic["claim_boundary"]
+    assert (output_dir / "failed_windows.csv").exists()
+    assert (output_dir / "candidate_switches.csv").exists()
+    assert (output_dir / "funding_decomposition.csv").exists()
+    assert default_tsmom_diagnostic_output_dir(
+        root=tmp_path / "reports" / "loops",
+        today="20260626",
+    ) == output_dir
+
+
+def test_tsmom_diagnostic_payload_is_namespaced_and_preserves_failed_gate_boundary() -> None:
+    frame = synthetic_frame(420)
+    funding = funding_bundle(funding_frame(frame.index))
+    payload = build_tsmom_diagnostic_payload(
+        bundle=market_bundle(frame),
+        funding_bundle=funding,
+        config=small_config(),
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/tsmom.py"],
+    )
+    assert "verdict" not in payload
+    assert "loop_verdict" not in payload
+    assert "decision" not in payload
+    assert payload["tsmom_diagnostic_loop_verdict_namespace"] == TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert payload["loop_contract"]["readiness_verdict"] is False
+    assert payload["source_tsmom_loop"]["readiness_baseline_verdict"] == "NOT_READY"
+    assert set(payload["analyzed_failed_gates"]) == {
+        "median_stress_return_beats_cash_null",
+        "selected_candidate_switch_rate",
+        "funding_aware_net_return",
+    }
+    assert payload["source_tsmom_loop"]["failed_gates"]
+    assert payload["funding_decomposition"]
+    assert payload["candidate_switches"]
+    assert payload["diagnostic_summary"]["stress_return_distribution"]["count"] > 0
+    assert payload["diagnostic_summary"]["candidate_switch_summary"]["switch_rate"] >= 0.0
+    assert all(value is False for value in payload["safety_gates"].values())
+    assert "not readiness" in payload["claim_boundary"]
+    assert "not a profit guarantee" in payload["claim_boundary"]
+
+
+def test_tsmom_diagnostic_artifacts_are_generated_and_report_is_safe(tmp_path: Path) -> None:
+    payload = build_tsmom_diagnostic_payload(
+        bundle=market_bundle(synthetic_frame(420)),
+        funding_bundle=None,
+        config=small_config(),
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/tsmom.py"],
+    )
+    output_dir = tmp_path / "reports" / "loops" / "20260626-tsmom-stress-switch-funding-diagnostic-v1"
+    written = write_tsmom_diagnostic_artifacts(output_dir, payload)
+    assert written == output_dir
+    expected = {
+        "diagnostic.json",
+        "report.md",
+        "failed_windows.csv",
+        "candidate_switches.csv",
+        "funding_decomposition.csv",
+        "commands.txt",
+        "changed_files.txt",
+    }
+    assert {path.name for path in output_dir.iterdir()} == expected
+    diagnostic = json.loads((output_dir / "diagnostic.json").read_text())
+    assert "verdict" not in diagnostic
+    assert "loop_verdict" not in diagnostic
+    assert diagnostic["readiness_baseline_verdict"] == "NOT_READY"
+    assert "funding_aware_net_return" in diagnostic["analyzed_failed_gates"]
+    report = (output_dir / "report.md").read_text()
+    assert "diagnostic-only, not readiness" in report
+    assert "not permission for live orders" in report
+    assert "profit guarantee" in report
+    assert "## Funding-aware net return diagnostic" in report
+    assert "## Candidate switch diagnostic" in report
+    assert "live_orders_submitted: false" in report
+    assert "testnet_orders_submitted: false" in report

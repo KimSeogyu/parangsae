@@ -227,6 +227,43 @@ verdict. The committed readiness baseline remains separately recorded as
 all readiness gates. Allowed TSMOM loop verdicts are `BLOCKED`, `WATCH`, and
 `PASS_PAPER_ONLY`; none of these are live-readiness verdicts.
 
+## TSMOM failed-gate diagnostic loop
+
+`tsmom-diagnostic-run` is the diagnostic-only follow-up for a `WATCH`
+`TSMOM_VOL_TARGET_FUNDING_AWARE_V1` loop. It does not select a new strategy,
+retune parameters, relax gates, or promote the repo to readiness. It reruns the
+same frozen public-data TSMOM grid and writes
+`reports/loops/<YYYYMMDD>-tsmom-stress-switch-funding-diagnostic-v1/` with:
+
+- `diagnostic.json`
+- `report.md`
+- `failed_windows.csv`
+- `candidate_switches.csv`
+- `funding_decomposition.csv`
+- `commands.txt`
+- `changed_files.txt`
+
+The diagnostic contract is scoped to
+`TSMOM_STRESS_SWITCH_FUNDING_DIAGNOSTIC_V1`. Its namespaced
+`tsmom_diagnostic_loop_verdict` explains the previously failed
+stress-vs-cash, selected-candidate switch-rate, and funding-aware net-return
+gates by regime, stress window, public funding drag, and candidate instability.
+It must not be rendered as a generic `verdict` or `loop_verdict`, and the
+readiness baseline remains separately recorded as
+`readiness_baseline_verdict: NOT_READY`.
+
+The diagnostic artifacts decompose each holdout window by bull/bear/sideways
+market regime, high/normal/low volatility regime, stress-window status, and
+positive/negative/high-cost funding regime where public funding data is
+available. `failed_windows.csv` records the stress-window return distribution
+against cash/null, `candidate_switches.csv` records the selected candidate per
+window plus inferable switch causes, and `funding_decomposition.csv` separates
+gross return, funding cost, stress cost, slippage cost, and net return.
+
+This loop remains paper-only and public-data-only. It is not trading advice, not
+a profitability claim, not live readiness, and not permission for live/testnet
+orders or account/API-key/fill data use.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

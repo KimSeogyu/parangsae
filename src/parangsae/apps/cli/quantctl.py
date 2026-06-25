@@ -67,8 +67,11 @@ from parangsae.research.regime import build_regime_report
 from parangsae.research.readiness import build_readiness_report
 from parangsae.research.signals import build_signal_report
 from parangsae.research.tsmom import (
+    build_tsmom_diagnostic_payload,
     build_tsmom_loop_payload,
+    default_tsmom_diagnostic_output_dir,
     default_tsmom_output_dir,
+    write_tsmom_diagnostic_artifacts,
     write_tsmom_loop_artifacts,
 )
 from parangsae.execution.portfolio import intents_from_target, target_from_signals
@@ -214,6 +217,22 @@ def _default_tsmom_command(args: argparse.Namespace) -> str:
         f"--funding-source {args.funding_source}",
         f"--funding-cache-dir {args.funding_cache_dir}",
         f"--output-dir {args.output_dir or default_tsmom_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_tsmom_diagnostic_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl tsmom-diagnostic-run",
+        f"--symbol {args.symbol}",
+        f"--interval {args.interval}",
+        f"--months {args.months}",
+        f"--cache-dir {args.cache_dir}",
+        f"--funding-source {args.funding_source}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--output-dir {args.output_dir or default_tsmom_diagnostic_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
     if args.overwrite:
         command.append("--overwrite")
@@ -395,6 +414,99 @@ def cmd_tsmom_run(args: argparse.Namespace) -> int:
                 {
                     "status": "failed",
                     "run_type": "tsmom-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "symbol": symbol,
+                    "interval": interval,
+                    "months": months,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
+def cmd_tsmom_diagnostic_run(args: argparse.Namespace) -> int:
+    symbol = CANONICAL_SYMBOL
+    interval = CANONICAL_INTERVAL
+    months = default_data_depth_months()
+    output_dir = Path(args.output_dir) if args.output_dir else default_tsmom_diagnostic_output_dir(
+        root=Path(args.reports_root) / "loops"
+    )
+    try:
+        symbol = validate_symbol(args.symbol)
+        interval = validate_interval(args.interval)
+        months = _parse_months(args.months)
+        bundle = load_market_data_bundle(
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            cache_dir=args.cache_dir,
+        )
+        funding_bundle = None
+        funding_metadata = {
+            "source": "none",
+            "rows": 0,
+            "limitation": "funding disabled by explicit operator flag; funding-aware diagnostic remains public-data-only",
+        }
+        if args.funding_source == "public-binance":
+            funding_bundle = fetch_funding_rate_history(
+                symbol=symbol,
+                start_time=_datetime_index_endpoint(bundle.frame.index, 0),
+                end_time=_datetime_index_endpoint(bundle.frame.index, -1),
+                cache_dir=args.funding_cache_dir,
+            )
+            funding_metadata = funding_metadata_for_report(funding_bundle)
+        commands = args.command or [_default_tsmom_diagnostic_command(args)]
+        changed_files = args.changed_file or []
+        payload = build_tsmom_diagnostic_payload(
+            bundle=bundle,
+            funding_bundle=funding_bundle,
+            funding_metadata=funding_metadata,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_tsmom_diagnostic_artifacts(output_dir, payload, overwrite=args.overwrite)
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "tsmom-diagnostic-run",
+                    "output_dir": str(written),
+                    "tsmom_diagnostic_loop_verdict": payload["tsmom_diagnostic_loop_verdict"],
+                    "tsmom_diagnostic_loop_verdict_namespace": payload[
+                        "tsmom_diagnostic_loop_verdict_namespace"
+                    ],
+                    "readiness_baseline_verdict": payload["readiness_baseline_verdict"],
+                    "analyzed_failed_gates": payload["analyzed_failed_gates"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (
+        BinanceVisionError,
+        BinanceFundingError,
+        DataValidationError,
+        FundingDataValidationError,
+        requests.RequestException,
+        ValueError,
+        FileExistsError,
+    ) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "tsmom-diagnostic-run",
                     "failed_gate": type(exc).__name__,
                     "reason": str(exc),
                     "output_dir": str(output_dir),
@@ -996,6 +1108,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     tsmom.set_defaults(func=cmd_tsmom_run)
+
+    tsmom_diag = sub.add_parser("tsmom-diagnostic-run")
+    tsmom_diag.add_argument("--symbol", default=CANONICAL_SYMBOL)
+    tsmom_diag.add_argument("--interval", default=CANONICAL_INTERVAL)
+    tsmom_diag.add_argument(
+        "--months",
+        default=",".join(default_data_depth_months()),
+        help="public Binance Vision months; default is 2024-01..2025-12 for TSMOM diagnostics",
+    )
+    tsmom_diag.add_argument("--cache-dir", default="data/binance-vision")
+    tsmom_diag.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    tsmom_diag.add_argument("--funding-cache-dir", default="data/binance-funding")
+    tsmom_diag.add_argument("--reports-root", default="reports")
+    tsmom_diag.add_argument("--output-dir")
+    tsmom_diag.add_argument("--overwrite", action="store_true")
+    tsmom_diag.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    tsmom_diag.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    tsmom_diag.set_defaults(func=cmd_tsmom_diagnostic_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")

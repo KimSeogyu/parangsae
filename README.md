@@ -113,6 +113,23 @@ orders. The readiness baseline remains separately recorded as
 all readiness gates. Allowed TSMOM loop verdicts are `BLOCKED`, `WATCH`, and
 `PASS_PAPER_ONLY`; none of these are live-readiness verdicts.
 
+When the TSMOM loop is `WATCH`, run the diagnostic-only follow-up:
+
+```bash
+uv run quantctl tsmom-diagnostic-run
+```
+
+`TSMOM_STRESS_SWITCH_FUNDING_DIAGNOSTIC_V1` writes
+`reports/loops/<YYYYMMDD>-tsmom-stress-switch-funding-diagnostic-v1/` with
+`diagnostic.json`, `report.md`, `failed_windows.csv`,
+`candidate_switches.csv`, `funding_decomposition.csv`, `commands.txt`, and
+`changed_files.txt`. Its `tsmom_diagnostic_loop_verdict` is diagnostic-only:
+it explains failed stress-vs-cash, selected-candidate switch-rate, and
+funding-aware net-return gates by regime, stress window, funding drag, and
+candidate instability. It does not retune parameters, relax gates, imply
+profitability, imply live readiness, authorize live/testnet execution, or use
+account/API-key/order/fill data for performance claims.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.
