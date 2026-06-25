@@ -8,6 +8,7 @@ This milestone adds a no-credential `real-run` workflow for a meaningful histori
 uv run quantctl real-run
 uv run quantctl risk-run
 uv run quantctl readiness-run
+uv run quantctl data-depth-run
 uv run quantctl forward-paper-run
 ```
 
@@ -17,6 +18,12 @@ Default canonical dataset:
 - Interval: `1h`
 - Months: `2024-01` through `2024-06`
 - Source: Binance Vision monthly futures klines under `https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/`
+
+`data-depth-run` intentionally uses a wider default archive window, 2024-01
+through 2025-12, because its only purpose is to close the data-depth blocker
+before serious TSMOM candidate selection. It writes loop artifacts under
+`reports/loops/<YYYYMMDD>-data-depth-research-grade/` rather than replacing the
+canonical readiness baseline.
 
 ## Engine and order-surface choices
 
@@ -87,6 +94,50 @@ The broader signal taxonomy is preserved as catalog-only until data sources exis
 The signal scores are duplicate-aware diagnostics: individual rows normalize to `[-1, 1]`, then summary scores aggregate by `family` and `role` so many similar indicators cannot dominate only because there are more of them. This is still a heuristic screening artifact, not trading advice, not proof of predictive alpha, not live-fill proof, and not a profit guarantee.
 
 `signal_summary.latest.decision` is intentionally diagnostic. It is not an executable order intent, target allocation, or portfolio instruction; any paper/live execution use requires a separate approved strategy adapter plus validation protocol.
+
+## Data-depth research-grade loop
+
+`data-depth-run` implements the `DATA_DEPTH_RESEARCH_GRADE_V1` loop. It is a
+public/no-key data governance and validation-depth workflow, not a
+strategy-performance loop:
+
+```bash
+uv run quantctl data-depth-run
+```
+
+Default data scope:
+
+- Symbol/timeframe: `BTCUSDT` / `1h`
+- OHLCV source: public Binance Vision USDⓈ-M Futures monthly klines
+- Months: `2024-01` through `2025-12`
+- Funding source: public Binance USDⓈ-M funding-rate history over the OHLCV UTC
+  range; `--funding-source none` records the explicit omission
+- Bar handling: closed monthly archive bars only; `close_time` must equal
+  `open_time + interval - 1ms`
+
+Required loop artifacts:
+
+- `loop.json`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+The payload records source URLs/downloads, symbol, product family, timeframe,
+UTC range, row count, closed/open bar status, normalized OHLCV hash, gap policy,
+duplicate policy, optional funding coverage/hash, funding causal-alignment
+policy, and no-order/no-key/no-account safety gates. Its `data_depth_contract`
+is a frozen data-loop snapshot rather than a live import of `readiness-run`
+defaults, so later readiness tuning does not silently change the meaning of this
+artifact. Source-verified Binance Vision archive rows may include zero-volume
+closed bars; those are recorded as quality flags and are not deleted or treated
+as live execution evidence.
+
+This loop can pass the public data bar/window portions of the research-grade
+depth requirements. It deliberately leaves candidate count, candidate-window
+evaluations, bars processed by a candidate grid, stress-return, and candidate
+stability as unclaimed or still failing until a later pre-registered paper-only
+strategy/validation loop. Do not use this command to retune TSMOM parameters or
+promote live readiness.
 
 ## Risk-adjusted research run
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import cast
 
 import pandas as pd
 import requests
@@ -54,6 +55,12 @@ from parangsae.research.backtest_engine import (
     run_strategy_backtest,
     split_chronological,
     strategy_settings_dict,
+)
+from parangsae.research.data_depth import (
+    build_data_depth_loop_payload,
+    default_data_depth_months,
+    default_data_depth_output_dir,
+    write_data_depth_loop_artifacts,
 )
 from parangsae.research.forward_paper import ForwardPaperConfig, run_forward_paper
 from parangsae.research.regime import build_regime_report
@@ -171,6 +178,125 @@ def _failure_payload(report_dir: Path | None, failed_gate: str, reason: str) -> 
     return json.dumps(payload, indent=2, sort_keys=True)
 
 
+def _datetime_index_endpoint(index: object, position: int) -> pd.Timestamp:
+    datetime_index = pd.DatetimeIndex(index)
+    return cast(pd.Timestamp, datetime_index[position])
+
+
+def _default_data_depth_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl data-depth-run",
+        f"--symbol {args.symbol}",
+        f"--interval {args.interval}",
+        f"--months {args.months}",
+        f"--cache-dir {args.cache_dir}",
+        f"--funding-source {args.funding_source}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--output-dir {args.output_dir or default_data_depth_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def cmd_data_depth_run(args: argparse.Namespace) -> int:
+    symbol = CANONICAL_SYMBOL
+    interval = CANONICAL_INTERVAL
+    months = default_data_depth_months()
+    output_dir = Path(args.output_dir) if args.output_dir else default_data_depth_output_dir(
+        root=Path(args.reports_root) / "loops"
+    )
+    try:
+        symbol = validate_symbol(args.symbol)
+        interval = validate_interval(args.interval)
+        months = _parse_months(args.months)
+        bundle = load_market_data_bundle(
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            cache_dir=args.cache_dir,
+        )
+        funding_bundle = None
+        funding_metadata = {
+            "source": "none",
+            "rows": 0,
+            "limitation": (
+                "funding disabled by explicit operator flag; data-depth evidence records "
+                "OHLCV provenance only"
+            ),
+        }
+        if args.funding_source == "public-binance":
+            funding_bundle = fetch_funding_rate_history(
+                symbol=symbol,
+                start_time=_datetime_index_endpoint(bundle.frame.index, 0),
+                end_time=_datetime_index_endpoint(bundle.frame.index, -1),
+                cache_dir=args.funding_cache_dir,
+            )
+            funding_metadata = funding_metadata_for_report(funding_bundle)
+        commands = args.command or [_default_data_depth_command(args)]
+        changed_files = args.changed_file or []
+        payload = build_data_depth_loop_payload(
+            bundle=bundle,
+            funding_bundle=funding_bundle,
+            funding_metadata=funding_metadata,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_data_depth_loop_artifacts(
+            output_dir,
+            payload,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "data-depth-run",
+                    "output_dir": str(written),
+                    "data_only_research_grade_depth_passed": payload["validation_depth"][
+                        "data_only_research_grade_depth_passed"
+                    ],
+                    "failed_gates": payload["failed_gates"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (
+        BinanceVisionError,
+        BinanceFundingError,
+        DataValidationError,
+        FundingDataValidationError,
+        requests.RequestException,
+        ValueError,
+        FileExistsError,
+    ) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "data-depth-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "symbol": symbol,
+                    "interval": interval,
+                    "months": months,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def _two_way_regime_segments(frame: pd.DataFrame, split_index: int) -> pd.Series:
     segments = pd.Series(["backtest"] * len(frame), index=frame.index, dtype="object")
     segments.iloc[split_index:] = "holdout_paper"
@@ -236,10 +362,11 @@ def cmd_real_run(args: argparse.Namespace) -> int:
         )
         segments = _two_way_regime_segments(bundle.frame, split_index)
         regime_report = build_regime_report(bundle.frame, segments=segments)
+        regime_labels = cast(pd.Series, regime_report.rows["regime_label"])
         signal_report = build_signal_report(
             bundle.frame,
             segments=segments,
-            regimes=regime_report.rows["regime_label"],
+            regimes=regime_labels,
             asset=symbol,
             timeframe=interval,
         )
@@ -344,10 +471,11 @@ def cmd_risk_run(args: argparse.Namespace) -> int:
         )
         regime_frame, regime_segments = _risk_regime_frame_and_segments(risk_result)
         regime_report = build_regime_report(regime_frame, segments=regime_segments)
+        regime_labels = cast(pd.Series, regime_report.rows["regime_label"])
         signal_report = build_signal_report(
             regime_frame,
             segments=regime_segments,
-            regimes=regime_report.rows["regime_label"],
+            regimes=regime_labels,
             asset=symbol,
             timeframe=interval,
         )
@@ -462,8 +590,8 @@ def cmd_readiness_run(args: argparse.Namespace) -> int:
         if args.funding_source == "public-binance":
             funding_bundle = fetch_funding_rate_history(
                 symbol=symbol,
-                start_time=bundle.frame.index[0],
-                end_time=bundle.frame.index[-1],
+                start_time=_datetime_index_endpoint(bundle.frame.index, 0),
+                end_time=_datetime_index_endpoint(bundle.frame.index, -1),
                 cache_dir=args.funding_cache_dir,
             )
             funding_metadata = funding_metadata_for_report(funding_bundle)
@@ -565,8 +693,8 @@ def cmd_forward_paper_run(args: argparse.Namespace) -> int:
         if args.funding_source == "public-binance":
             funding_bundle = fetch_funding_rate_history(
                 symbol=symbol,
-                start_time=kline_bundle.frame.index[0],
-                end_time=kline_bundle.frame.index[-1],
+                start_time=_datetime_index_endpoint(kline_bundle.frame.index, 0),
+                end_time=_datetime_index_endpoint(kline_bundle.frame.index, -1),
                 cache_dir=args.funding_cache_dir,
             )
             funding_metadata = funding_metadata_for_report(funding_bundle)
@@ -701,6 +829,32 @@ def build_parser() -> argparse.ArgumentParser:
     dry.add_argument("--product-family", default="spot_crypto")
     dry.set_defaults(func=cmd_live_dry_run)
 
+
+    data_depth = sub.add_parser("data-depth-run")
+    data_depth.add_argument("--symbol", default=CANONICAL_SYMBOL)
+    data_depth.add_argument("--interval", default=CANONICAL_INTERVAL)
+    data_depth.add_argument(
+        "--months",
+        default=",".join(default_data_depth_months()),
+        help="public Binance Vision months; default is 2024-01..2025-12 for data-depth evidence",
+    )
+    data_depth.add_argument("--cache-dir", default="data/binance-vision")
+    data_depth.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    data_depth.add_argument("--funding-cache-dir", default="data/binance-funding")
+    data_depth.add_argument("--reports-root", default="reports")
+    data_depth.add_argument("--output-dir")
+    data_depth.add_argument("--overwrite", action="store_true")
+    data_depth.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    data_depth.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    data_depth.set_defaults(func=cmd_data_depth_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")

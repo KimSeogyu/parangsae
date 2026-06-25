@@ -36,6 +36,7 @@ RAW_COLUMNS = (
 )
 OHLCV_COLUMNS = ("Open", "High", "Low", "Close", "Volume")
 _INTERVAL_SECONDS = {"1h": 3600}
+_INTERVAL_MILLISECONDS = {key: value * 1000 for key, value in _INTERVAL_SECONDS.items()}
 _MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
 
 
@@ -202,7 +203,8 @@ def _csv_bytes_from_zip(path: str | Path) -> bytes:
         return zf.read(csv_names[0])
 
 
-def parse_monthly_zip(path: str | Path) -> pd.DataFrame:
+def parse_monthly_zip(path: str | Path, *, interval: str = CANONICAL_INTERVAL) -> pd.DataFrame:
+    interval = validate_interval(interval)
     payload = _csv_bytes_from_zip(path)
     sample = payload[:256].decode("utf-8", errors="replace")
     first_cell = next(csv.reader(io.StringIO(sample)))[0].strip() if sample.strip() else ""
@@ -214,12 +216,29 @@ def parse_monthly_zip(path: str | Path) -> pd.DataFrame:
     )
     if has_header:
         raw.columns = [str(c).strip() for c in raw.columns]
-    missing = [col for col in RAW_COLUMNS[:6] if col not in raw.columns]
+    missing = [col for col in RAW_COLUMNS[:7] if col not in raw.columns]
     if missing:
         raise DataValidationError(f"missing required kline columns: {missing}")
+    open_time_ms = pd.to_numeric(raw["open_time"], errors="coerce")
+    close_time_ms = pd.to_numeric(raw["close_time"], errors="coerce")
+    if open_time_ms.isna().any():
+        raise DataValidationError("open_time contains missing/non-numeric values")
+    if close_time_ms.isna().any():
+        raise DataValidationError("close_time contains missing/non-numeric values")
+    open_time_ms_int = open_time_ms.astype("int64")
+    close_time_ms_int = close_time_ms.astype("int64")
+    expected_close_time = open_time_ms_int + _INTERVAL_MILLISECONDS[interval] - 1
+    mismatched_close_time = close_time_ms_int != expected_close_time
+    if mismatched_close_time.any():
+        row_index = int(mismatched_close_time[mismatched_close_time].index[0])
+        raise DataValidationError(
+            "monthly kline is not a closed bar: "
+            f"row {row_index} close_time={int(close_time_ms_int.iloc[row_index])} "
+            f"expected={int(expected_close_time.iloc[row_index])}"
+        )
     frame = pd.DataFrame(
         {
-            "Timestamp": pd.to_datetime(raw["open_time"], unit="ms", utc=True),
+            "Timestamp": pd.to_datetime(open_time_ms_int.to_numpy(), unit="ms", utc=True),
             "Open": pd.to_numeric(raw["open"], errors="coerce"),
             "High": pd.to_numeric(raw["high"], errors="coerce"),
             "Low": pd.to_numeric(raw["low"], errors="coerce"),
@@ -227,14 +246,33 @@ def parse_monthly_zip(path: str | Path) -> pd.DataFrame:
             "Volume": pd.to_numeric(raw["volume"], errors="coerce"),
         }
     )
-    return frame.set_index("Timestamp")
+    frame = frame.set_index("Timestamp")
+    frame.attrs["closed_bar_only"] = True
+    frame.attrs["open_bar_included"] = False
+    frame.attrs["close_time_policy"] = (
+        f"binance_monthly_close_time_equals_open_time_plus_{interval}_minus_1ms"
+    )
+    frame.attrs["allow_zero_volume_bars"] = True
+    return frame
 
 
 def load_downloaded_klines(records: Iterable[DownloadRecord], *, interval: str = CANONICAL_INTERVAL) -> pd.DataFrame:
-    frames = [parse_monthly_zip(record.cache_path) for record in records]
+    frames = [parse_monthly_zip(record.cache_path, interval=interval) for record in records]
     if not frames:
         raise DataValidationError("no downloaded kline files to parse")
     frame = pd.concat(frames, axis=0)
+    frame.attrs["closed_bar_only"] = all(
+        bool(item.attrs.get("closed_bar_only", False)) for item in frames
+    )
+    frame.attrs["open_bar_included"] = any(
+        bool(item.attrs.get("open_bar_included", True)) for item in frames
+    )
+    frame.attrs["close_time_policy"] = (
+        f"binance_monthly_close_time_equals_open_time_plus_{interval}_minus_1ms"
+    )
+    frame.attrs["allow_zero_volume_bars"] = all(
+        bool(item.attrs.get("allow_zero_volume_bars", False)) for item in frames
+    )
     validate_ohlcv(frame, interval=interval)
     return frame
 
@@ -270,8 +308,17 @@ def validate_ohlcv(frame: pd.DataFrame, *, interval: str = CANONICAL_INTERVAL) -
             raise DataValidationError(f"{col} contains missing/non-numeric values")
         if not values[col].map(math.isfinite).all():
             raise DataValidationError(f"{col} contains non-finite values")
+    for col in ("Open", "High", "Low", "Close"):
         if (values[col] <= 0).any():
             raise DataValidationError(f"{col} must be strictly positive")
+    zero_volume_bars = int((values["Volume"] == 0).sum())
+    allow_zero_volume_bars = bool(frame.attrs.get("allow_zero_volume_bars", False))
+    if (values["Volume"] < 0).any():
+        raise DataValidationError("Volume must be non-negative")
+    if zero_volume_bars and not allow_zero_volume_bars:
+        raise DataValidationError(
+            "Volume must be strictly positive unless source-specific zero-volume policy is set"
+        )
     if (values["High"] < values[["Open", "Close"]].max(axis=1)).any():
         raise DataValidationError("High must be >= max(Open, Close)")
     if (values["Low"] > values[["Open", "Close"]].min(axis=1)).any():
@@ -281,6 +328,21 @@ def validate_ohlcv(frame: pd.DataFrame, *, interval: str = CANONICAL_INTERVAL) -
         "first_timestamp": frame.index[0].isoformat().replace("+00:00", "Z"),
         "last_timestamp": frame.index[-1].isoformat().replace("+00:00", "Z"),
         "interval": interval,
+        "closed_bar_only": bool(frame.attrs.get("closed_bar_only", False)),
+        "open_bar_included": bool(
+            frame.attrs.get("open_bar_included", not bool(frame.attrs.get("closed_bar_only", False)))
+        ),
+        "close_time_policy": frame.attrs.get(
+            "close_time_policy",
+            "unknown_unverified_close_time",
+        ),
+        "volume_policy": (
+            "source_allows_zero_volume_bars_recorded_as_quality_flag"
+            if allow_zero_volume_bars
+            else "strictly_positive_volume_required"
+        ),
+        "zero_volume_bars": zero_volume_bars,
+        "zero_volume_bars_allowed": allow_zero_volume_bars,
         "expected_gap_seconds": _INTERVAL_SECONDS[interval],
         "gap_tolerance_seconds": 0,
         "duplicates": 0,

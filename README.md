@@ -41,12 +41,38 @@ Milestone 1 implements adapters and guards, but verification uses dry-run/test e
 uv run quantctl real-run
 uv run quantctl risk-run
 uv run quantctl readiness-run
+uv run quantctl data-depth-run
 uv run quantctl forward-paper-run
 ```
 
-This downloads public Binance Vision BTCUSDT USDⓈ-M Futures 1h klines for 2024-01..2024-06, runs a `backtesting.py`/`FractionalBacktest` SMA/ATR strategy, runs the holdout as bar-based paper simulation, and writes a durable report under `reports/`. See `docs/backtesting-paper-trading.md`.
+`real-run`, `risk-run`, and `readiness-run` download public Binance Vision BTCUSDT USDⓈ-M Futures 1h klines for 2024-01..2024-06, run the current research harnesses, and write durable reports under `reports/`. `data-depth-run` is a separate wider data-authority loop described below. See `docs/backtesting-paper-trading.md`.
 
 Latest verified report: `reports/real-run-20260624T165402Z/` (strict meaning gates passed; canonical holdout return was negative, so this is evidence, not a profit promise).
+
+`data-depth-run` is a pre-strategy data authority loop for the
+`DATA_DEPTH_RESEARCH_GRADE_V1` milestone. It deliberately does not optimize
+strategy parameters, select a TSMOM candidate, retune on holdout, or improve
+profitability metrics. By default it fetches public/no-key Binance Vision
+BTCUSDT USDⓈ-M Futures `1h` closed-bar monthly klines for 2024-01..2025-12 and
+public/no-key Binance USDⓈ-M funding history over the same UTC range, then writes
+the required loop evidence under `reports/loops/<YYYYMMDD>-data-depth-research-grade/`:
+
+- `loop.json`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+The loop records source URLs, symbol, product family, timeframe, UTC range, row
+count, normalized OHLCV/funding hashes, closed-bar status, close-time policy,
+gap/duplicate policy, funding coverage, causal funding alignment, and safety
+gates showing no live/testnet orders, no API keys, and no account/signed
+endpoints. The data-depth contract is frozen in `loop.json.data_depth_contract`
+so later readiness tuning does not silently redefine this milestone. Binance
+Vision archive rows may include zero-volume closed bars; those are source-scoped
+quality flags, not silently dropped data. Passing the bar/window data-depth gates
+is not a readiness or profit claim: candidate-count, candidate-window,
+stress-return, and candidate-stability gates remain for later pre-registered
+strategy/validation loops.
 
 Success reports now include a regime protocol layer:
 

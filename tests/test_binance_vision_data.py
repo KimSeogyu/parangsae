@@ -50,7 +50,66 @@ def test_parse_zip_to_utc_ohlcv_and_hash(tmp_path):
     assert list(frame.columns) == ["Open", "High", "Low", "Close", "Volume"]
     assert str(frame.index.tz) == "UTC"  # pyright: ignore[reportAttributeAccessIssue]
     assert quality["rows"] == 2
+    assert quality["closed_bar_only"] is True
+    assert quality["open_bar_included"] is False
+    assert quality["close_time_policy"] == "binance_monthly_close_time_equals_open_time_plus_1h_minus_1ms"
+    assert quality["volume_policy"] == "source_allows_zero_volume_bars_recorded_as_quality_flag"
+    assert quality["zero_volume_bars"] == 0
+    assert quality["zero_volume_bars_allowed"] is True
     assert len(normalized_ohlcv_sha256(frame)) == 64
+
+
+def test_parse_zip_records_zero_volume_archive_bars(tmp_path) -> None:
+    base = 1704067200000
+    path = write_zip(tmp_path / "BTCUSDT-1h-2024-01.zip", [row(base, volume=0.0)], header=True)
+    frame = parse_monthly_zip(path)
+    quality = validate_ohlcv(frame)
+    assert quality["zero_volume_bars"] == 1
+    assert quality["zero_volume_bars_allowed"] is True
+    assert quality["volume_policy"] == "source_allows_zero_volume_bars_recorded_as_quality_flag"
+
+
+def test_validate_ohlcv_rejects_zero_volume_without_source_policy() -> None:
+    idx = pd.date_range("2024-01-01", periods=2, freq="1h", tz="UTC")
+    frame = pd.DataFrame(
+        {
+            "Open": [100.0, 101.0],
+            "High": [101.0, 102.0],
+            "Low": [99.0, 100.0],
+            "Close": [100.5, 101.5],
+            "Volume": [10.0, 0.0],
+        },
+        index=idx,
+    )
+    with pytest.raises(DataValidationError, match="strictly positive"):
+        validate_ohlcv(frame)
+
+
+def test_validate_ohlcv_does_not_claim_closed_bars_without_close_time_policy() -> None:
+    idx = pd.date_range("2024-01-01", periods=2, freq="1h", tz="UTC")
+    frame = pd.DataFrame(
+        {
+            "Open": [100.0, 101.0],
+            "High": [101.0, 102.0],
+            "Low": [99.0, 100.0],
+            "Close": [100.5, 101.5],
+            "Volume": [10.0, 11.0],
+        },
+        index=idx,
+    )
+    quality = validate_ohlcv(frame)
+    assert quality["closed_bar_only"] is False
+    assert quality["open_bar_included"] is True
+    assert quality["close_time_policy"] == "unknown_unverified_close_time"
+
+
+def test_parse_zip_rejects_non_closed_kline_close_time(tmp_path):
+    base = 1704067200000
+    bad = row(base)
+    bad[6] = base + 3600000
+    path = write_zip(tmp_path / "BTCUSDT-1h-2024-01.zip", [bad], header=True)
+    with pytest.raises(DataValidationError, match="closed bar"):
+        parse_monthly_zip(path)
 
 
 @pytest.mark.parametrize(
