@@ -1,20 +1,457 @@
 {
   "baseline": "reports/readiness-run-20260625T053627Z/",
   "changed_files": [
-    "src/parangsae/marketdata/binance_vision.py",
-    "src/parangsae/research/data_depth.py",
-    "src/parangsae/apps/cli/quantctl.py",
-    "tests/test_binance_vision_data.py",
-    "tests/test_data_depth_loop.py",
     "README.md",
     "docs/backtesting-paper-trading.md",
+    "src/parangsae/apps/cli/quantctl.py",
+    "src/parangsae/research/data_depth.py",
+    "tests/test_data_depth_loop.py",
     "reports/loops/20260625-data-depth-research-grade/loop.json",
     "reports/loops/20260625-data-depth-research-grade/report.md",
     "reports/loops/20260625-data-depth-research-grade/commands.txt",
     "reports/loops/20260625-data-depth-research-grade/changed_files.txt"
   ],
   "claim_boundary": "DATA_DEPTH_RESEARCH_GRADE_V1 is a public-data provenance/depth loop, not a strategy-performance validation, not live-fill proof, not trading advice, not a profit guarantee, and not permission for live orders",
-  "created_at": "2026-06-25T07:51:18Z",
+  "coverage_analysis": {
+    "funding_regimes": {
+      "abs_rate_75pct_threshold": 0.0001,
+      "account_cashflows_validated": false,
+      "coverage_status": "validated_public_data",
+      "first_timestamp": "2024-01-01T00:00:00Z",
+      "high_abs_funding_count": 867,
+      "last_timestamp": "2025-12-31T16:00:00.001000Z",
+      "negative_count": 233,
+      "positive_count": 1960,
+      "rows": 2193,
+      "zero_count": 0
+    },
+    "stress_periods": {
+      "context_only_not_strategy_pnl": true,
+      "high_vol_bar_count": 5782,
+      "max_underlying_drawdown_pct": -34.763624529709645,
+      "return_series": "hourly_close_pct_change",
+      "stress_bar_count": 6091,
+      "stress_rule": "high_vol_regime_or_hourly_return_at_or_below_5th_percentile",
+      "tail_loss_cvar_5_pct": -1.2713440581365616,
+      "worst_24h_return_pct": -18.41984532704155
+    },
+    "volatility_regimes": {
+      "high_count": 5782,
+      "high_threshold": 0.005117749561302827,
+      "insufficient_history_count": 24,
+      "low_count": 5782,
+      "low_threshold": 0.0034137117456426165,
+      "method": "24_bar_rolling_std_of_hourly_close_returns",
+      "normal_count": 5956,
+      "total_bars": 17544
+    },
+    "walk_forward_windows": [
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-03-27T23:00:00Z",
+        "holdout_start": "2024-03-07T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-02-14T23:00:00Z",
+        "train_start": "2024-01-01T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-03-06T23:00:00Z",
+        "validation_start": "2024-02-15T00:00:00Z",
+        "window_id": "W001"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-04-17T23:00:00Z",
+        "holdout_start": "2024-03-28T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-03-06T23:00:00Z",
+        "train_start": "2024-01-22T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-03-27T23:00:00Z",
+        "validation_start": "2024-03-07T00:00:00Z",
+        "window_id": "W002"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-05-08T23:00:00Z",
+        "holdout_start": "2024-04-18T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-03-27T23:00:00Z",
+        "train_start": "2024-02-12T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-04-17T23:00:00Z",
+        "validation_start": "2024-03-28T00:00:00Z",
+        "window_id": "W003"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-05-29T23:00:00Z",
+        "holdout_start": "2024-05-09T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-04-17T23:00:00Z",
+        "train_start": "2024-03-04T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-05-08T23:00:00Z",
+        "validation_start": "2024-04-18T00:00:00Z",
+        "window_id": "W004"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-06-19T23:00:00Z",
+        "holdout_start": "2024-05-30T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-05-08T23:00:00Z",
+        "train_start": "2024-03-25T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-05-29T23:00:00Z",
+        "validation_start": "2024-05-09T00:00:00Z",
+        "window_id": "W005"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-07-10T23:00:00Z",
+        "holdout_start": "2024-06-20T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-05-29T23:00:00Z",
+        "train_start": "2024-04-15T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-06-19T23:00:00Z",
+        "validation_start": "2024-05-30T00:00:00Z",
+        "window_id": "W006"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-07-31T23:00:00Z",
+        "holdout_start": "2024-07-11T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-06-19T23:00:00Z",
+        "train_start": "2024-05-06T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-07-10T23:00:00Z",
+        "validation_start": "2024-06-20T00:00:00Z",
+        "window_id": "W007"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-08-21T23:00:00Z",
+        "holdout_start": "2024-08-01T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-07-10T23:00:00Z",
+        "train_start": "2024-05-27T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-07-31T23:00:00Z",
+        "validation_start": "2024-07-11T00:00:00Z",
+        "window_id": "W008"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-09-11T23:00:00Z",
+        "holdout_start": "2024-08-22T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-07-31T23:00:00Z",
+        "train_start": "2024-06-17T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-08-21T23:00:00Z",
+        "validation_start": "2024-08-01T00:00:00Z",
+        "window_id": "W009"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-10-02T23:00:00Z",
+        "holdout_start": "2024-09-12T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-08-21T23:00:00Z",
+        "train_start": "2024-07-08T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-09-11T23:00:00Z",
+        "validation_start": "2024-08-22T00:00:00Z",
+        "window_id": "W010"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-10-23T23:00:00Z",
+        "holdout_start": "2024-10-03T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-09-11T23:00:00Z",
+        "train_start": "2024-07-29T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-10-02T23:00:00Z",
+        "validation_start": "2024-09-12T00:00:00Z",
+        "window_id": "W011"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-11-13T23:00:00Z",
+        "holdout_start": "2024-10-24T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-10-02T23:00:00Z",
+        "train_start": "2024-08-19T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-10-23T23:00:00Z",
+        "validation_start": "2024-10-03T00:00:00Z",
+        "window_id": "W012"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-12-04T23:00:00Z",
+        "holdout_start": "2024-11-14T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-10-23T23:00:00Z",
+        "train_start": "2024-09-09T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-11-13T23:00:00Z",
+        "validation_start": "2024-10-24T00:00:00Z",
+        "window_id": "W013"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2024-12-25T23:00:00Z",
+        "holdout_start": "2024-12-05T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-11-13T23:00:00Z",
+        "train_start": "2024-09-30T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-12-04T23:00:00Z",
+        "validation_start": "2024-11-14T00:00:00Z",
+        "window_id": "W014"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-01-15T23:00:00Z",
+        "holdout_start": "2024-12-26T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-12-04T23:00:00Z",
+        "train_start": "2024-10-21T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2024-12-25T23:00:00Z",
+        "validation_start": "2024-12-05T00:00:00Z",
+        "window_id": "W015"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-02-05T23:00:00Z",
+        "holdout_start": "2025-01-16T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2024-12-25T23:00:00Z",
+        "train_start": "2024-11-11T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-01-15T23:00:00Z",
+        "validation_start": "2024-12-26T00:00:00Z",
+        "window_id": "W016"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-02-26T23:00:00Z",
+        "holdout_start": "2025-02-06T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-01-15T23:00:00Z",
+        "train_start": "2024-12-02T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-02-05T23:00:00Z",
+        "validation_start": "2025-01-16T00:00:00Z",
+        "window_id": "W017"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-03-19T23:00:00Z",
+        "holdout_start": "2025-02-27T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-02-05T23:00:00Z",
+        "train_start": "2024-12-23T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-02-26T23:00:00Z",
+        "validation_start": "2025-02-06T00:00:00Z",
+        "window_id": "W018"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-04-09T23:00:00Z",
+        "holdout_start": "2025-03-20T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-02-26T23:00:00Z",
+        "train_start": "2025-01-13T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-03-19T23:00:00Z",
+        "validation_start": "2025-02-27T00:00:00Z",
+        "window_id": "W019"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-04-30T23:00:00Z",
+        "holdout_start": "2025-04-10T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-03-19T23:00:00Z",
+        "train_start": "2025-02-03T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-04-09T23:00:00Z",
+        "validation_start": "2025-03-20T00:00:00Z",
+        "window_id": "W020"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-05-21T23:00:00Z",
+        "holdout_start": "2025-05-01T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-04-09T23:00:00Z",
+        "train_start": "2025-02-24T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-04-30T23:00:00Z",
+        "validation_start": "2025-04-10T00:00:00Z",
+        "window_id": "W021"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-06-11T23:00:00Z",
+        "holdout_start": "2025-05-22T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-04-30T23:00:00Z",
+        "train_start": "2025-03-17T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-05-21T23:00:00Z",
+        "validation_start": "2025-05-01T00:00:00Z",
+        "window_id": "W022"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-07-02T23:00:00Z",
+        "holdout_start": "2025-06-12T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-05-21T23:00:00Z",
+        "train_start": "2025-04-07T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-06-11T23:00:00Z",
+        "validation_start": "2025-05-22T00:00:00Z",
+        "window_id": "W023"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-07-23T23:00:00Z",
+        "holdout_start": "2025-07-03T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-06-11T23:00:00Z",
+        "train_start": "2025-04-28T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-07-02T23:00:00Z",
+        "validation_start": "2025-06-12T00:00:00Z",
+        "window_id": "W024"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-08-13T23:00:00Z",
+        "holdout_start": "2025-07-24T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-07-02T23:00:00Z",
+        "train_start": "2025-05-19T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-07-23T23:00:00Z",
+        "validation_start": "2025-07-03T00:00:00Z",
+        "window_id": "W025"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-09-03T23:00:00Z",
+        "holdout_start": "2025-08-14T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-07-23T23:00:00Z",
+        "train_start": "2025-06-09T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-08-13T23:00:00Z",
+        "validation_start": "2025-07-24T00:00:00Z",
+        "window_id": "W026"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-09-24T23:00:00Z",
+        "holdout_start": "2025-09-04T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-08-13T23:00:00Z",
+        "train_start": "2025-06-30T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-09-03T23:00:00Z",
+        "validation_start": "2025-08-14T00:00:00Z",
+        "window_id": "W027"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-10-15T23:00:00Z",
+        "holdout_start": "2025-09-25T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-09-03T23:00:00Z",
+        "train_start": "2025-07-21T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-09-24T23:00:00Z",
+        "validation_start": "2025-09-04T00:00:00Z",
+        "window_id": "W028"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-11-05T23:00:00Z",
+        "holdout_start": "2025-10-16T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-09-24T23:00:00Z",
+        "train_start": "2025-08-11T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-10-15T23:00:00Z",
+        "validation_start": "2025-09-25T00:00:00Z",
+        "window_id": "W029"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-11-26T23:00:00Z",
+        "holdout_start": "2025-11-06T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-10-15T23:00:00Z",
+        "train_start": "2025-09-01T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-11-05T23:00:00Z",
+        "validation_start": "2025-10-16T00:00:00Z",
+        "window_id": "W030"
+      },
+      {
+        "complete": true,
+        "holdout_bars": 504,
+        "holdout_end": "2025-12-17T23:00:00Z",
+        "holdout_start": "2025-11-27T00:00:00Z",
+        "train_bars": 1080,
+        "train_end": "2025-11-05T23:00:00Z",
+        "train_start": "2025-09-22T00:00:00Z",
+        "validation_bars": 504,
+        "validation_end": "2025-11-26T23:00:00Z",
+        "validation_start": "2025-11-06T00:00:00Z",
+        "window_id": "W031"
+      }
+    ]
+  },
+  "created_at": "2026-06-25T14:09:15Z",
   "data_depth_contract": {
     "holdout_bars": 504,
     "min_research_grade_bars_processed_estimate": 500000,
@@ -26,6 +463,8 @@
     "train_bars": 1080,
     "validation_bars": 504
   },
+  "data_depth_loop_verdict": "WATCH",
+  "data_depth_loop_verdict_namespace": "data_depth_only_not_readiness",
   "data_scope": {
     "close_time_policy": "binance_monthly_close_time_equals_open_time_plus_1h_minus_1ms",
     "closed_bar_only": true,
@@ -33,73 +472,73 @@
       {
         "bytes": 38890,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-01.zip",
-        "downloaded_at": "2026-06-24T23:54:32Z",
-        "etag": "\"3121383dca64431295a31ec20c9a7b73\"",
+        "downloaded_at": "2026-06-25T14:09:15Z",
+        "etag": null,
         "from_cache": true,
-        "http_status": 200,
-        "last_modified": "Sun, 18 Feb 2024 13:55:42 GMT",
+        "http_status": null,
+        "last_modified": null,
         "sha256": "bf673f3d10804a951e8bac56dd2473486f113025971d43ebe5258ec40f9bfeb3",
         "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-01.zip"
       },
       {
         "bytes": 36374,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-02.zip",
-        "downloaded_at": "2026-06-24T23:54:32Z",
-        "etag": "\"f63f8dd4c88766c26b9360c79b384321\"",
+        "downloaded_at": "2026-06-25T14:09:15Z",
+        "etag": null,
         "from_cache": true,
-        "http_status": 200,
-        "last_modified": "Sun, 17 Mar 2024 15:30:57 GMT",
+        "http_status": null,
+        "last_modified": null,
         "sha256": "655ff5ac0fc570956756944c7afef4895c9bd149342f1e437de97292cbd1fe22",
         "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-02.zip"
       },
       {
         "bytes": 39301,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-03.zip",
-        "downloaded_at": "2026-06-24T23:54:32Z",
-        "etag": "\"a20318b81292bdbf1a882ff5f9c1b3d3\"",
+        "downloaded_at": "2026-06-25T14:09:15Z",
+        "etag": null,
         "from_cache": true,
-        "http_status": 200,
-        "last_modified": "Wed, 17 Apr 2024 19:24:58 GMT",
+        "http_status": null,
+        "last_modified": null,
         "sha256": "8138642b757ddf5a42207130277be4569afb4c581a0a1817be9f5f35a4415498",
         "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-03.zip"
       },
       {
         "bytes": 37804,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-04.zip",
-        "downloaded_at": "2026-06-24T23:54:33Z",
-        "etag": "\"127a85af4cbe3744b2ec28fa29b60aac\"",
+        "downloaded_at": "2026-06-25T14:09:15Z",
+        "etag": null,
         "from_cache": true,
-        "http_status": 200,
-        "last_modified": "Fri, 17 May 2024 14:15:15 GMT",
+        "http_status": null,
+        "last_modified": null,
         "sha256": "4bf3ca3574e0075c1b79f5b22c4253e26f6260f3621943205e3a8016c4c12318",
         "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-04.zip"
       },
       {
         "bytes": 38427,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-05.zip",
-        "downloaded_at": "2026-06-24T23:54:33Z",
-        "etag": "\"cccacd6247677017d0c742ef2619cded\"",
+        "downloaded_at": "2026-06-25T14:09:15Z",
+        "etag": null,
         "from_cache": true,
-        "http_status": 200,
-        "last_modified": "Mon, 17 Jun 2024 13:42:53 GMT",
+        "http_status": null,
+        "last_modified": null,
         "sha256": "1d607e3b26e6886ba742477bc97687f0b86c4c26ac564325dc5f1667e0362d35",
         "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-05.zip"
       },
       {
         "bytes": 36794,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-06.zip",
-        "downloaded_at": "2026-06-24T23:54:33Z",
-        "etag": "\"117636df8930013e288dfc880e42030d\"",
+        "downloaded_at": "2026-06-25T14:09:15Z",
+        "etag": null,
         "from_cache": true,
-        "http_status": 200,
-        "last_modified": "Wed, 17 Jul 2024 14:15:02 GMT",
+        "http_status": null,
+        "last_modified": null,
         "sha256": "7dba8642e56641fca2c7f3f363050ae88bf0d6c87d28e14b747fbd3267d4d3a8",
         "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-06.zip"
       },
       {
         "bytes": 38700,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-07.zip",
-        "downloaded_at": "2026-06-25T07:28:06Z",
+        "downloaded_at": "2026-06-25T10:07:16Z",
         "etag": "\"d2e7852e41b91f96a44aab72ff5d4ace\"",
         "from_cache": true,
         "http_status": 200,
@@ -110,7 +549,7 @@
       {
         "bytes": 38718,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-08.zip",
-        "downloaded_at": "2026-06-25T07:28:06Z",
+        "downloaded_at": "2026-06-25T10:07:16Z",
         "etag": "\"33444bf176d3231d63e97a26cf70184a\"",
         "from_cache": true,
         "http_status": 200,
@@ -121,7 +560,7 @@
       {
         "bytes": 37266,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-09.zip",
-        "downloaded_at": "2026-06-25T07:28:06Z",
+        "downloaded_at": "2026-06-25T10:07:16Z",
         "etag": "\"049163b8af79b12f7678b94bd54ddf5b\"",
         "from_cache": true,
         "http_status": 200,
@@ -132,7 +571,7 @@
       {
         "bytes": 38285,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-10.zip",
-        "downloaded_at": "2026-06-25T07:28:06Z",
+        "downloaded_at": "2026-06-25T10:07:16Z",
         "etag": "\"1fc17d209cd9a8317919340f9f141fe8\"",
         "from_cache": true,
         "http_status": 200,
@@ -143,7 +582,7 @@
       {
         "bytes": 37741,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-11.zip",
-        "downloaded_at": "2026-06-25T07:28:06Z",
+        "downloaded_at": "2026-06-25T10:07:16Z",
         "etag": "\"c2d4ff7035040f6b66081a921fc7ba15\"",
         "from_cache": true,
         "http_status": 200,
@@ -154,7 +593,7 @@
       {
         "bytes": 38950,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-12.zip",
-        "downloaded_at": "2026-06-25T07:28:06Z",
+        "downloaded_at": "2026-06-25T10:07:16Z",
         "etag": "\"eae3b2a3e99d4d8efa17f03142ca06ff\"",
         "from_cache": true,
         "http_status": 200,
@@ -165,7 +604,7 @@
       {
         "bytes": 38915,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-01.zip",
-        "downloaded_at": "2026-06-25T07:28:07Z",
+        "downloaded_at": "2026-06-25T10:07:17Z",
         "etag": "\"46b37e62d03caf800e89f29ca0f9b53a\"",
         "from_cache": true,
         "http_status": 200,
@@ -176,7 +615,7 @@
       {
         "bytes": 34861,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-02.zip",
-        "downloaded_at": "2026-06-25T07:28:07Z",
+        "downloaded_at": "2026-06-25T10:07:17Z",
         "etag": "\"a10587147efac9581788a70e27a9231f\"",
         "from_cache": true,
         "http_status": 200,
@@ -187,7 +626,7 @@
       {
         "bytes": 38723,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-03.zip",
-        "downloaded_at": "2026-06-25T07:28:07Z",
+        "downloaded_at": "2026-06-25T10:07:17Z",
         "etag": "\"19aed3ffd7d65e8a263d73909e5ab134\"",
         "from_cache": true,
         "http_status": 200,
@@ -198,7 +637,7 @@
       {
         "bytes": 37389,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-04.zip",
-        "downloaded_at": "2026-06-25T07:28:07Z",
+        "downloaded_at": "2026-06-25T10:07:17Z",
         "etag": "\"1d58657ed84e2a6e52e46c038bdd18cc\"",
         "from_cache": true,
         "http_status": 200,
@@ -209,7 +648,7 @@
       {
         "bytes": 38805,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-05.zip",
-        "downloaded_at": "2026-06-25T07:28:07Z",
+        "downloaded_at": "2026-06-25T10:07:17Z",
         "etag": "\"af32d0cb57ad88ab15410993c3888d35\"",
         "from_cache": true,
         "http_status": 200,
@@ -220,7 +659,7 @@
       {
         "bytes": 37374,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-06.zip",
-        "downloaded_at": "2026-06-25T07:28:07Z",
+        "downloaded_at": "2026-06-25T10:07:17Z",
         "etag": "\"83dfecc7d03c01573196d0eedc972035\"",
         "from_cache": true,
         "http_status": 200,
@@ -231,7 +670,7 @@
       {
         "bytes": 38443,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-07.zip",
-        "downloaded_at": "2026-06-25T07:28:08Z",
+        "downloaded_at": "2026-06-25T10:07:18Z",
         "etag": "\"d22cddc79841e907fa430a7a45de6996\"",
         "from_cache": true,
         "http_status": 200,
@@ -242,7 +681,7 @@
       {
         "bytes": 38617,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-08.zip",
-        "downloaded_at": "2026-06-25T07:28:08Z",
+        "downloaded_at": "2026-06-25T10:07:18Z",
         "etag": "\"a185ab84a4c2ed5d028fb620ad28eae0\"",
         "from_cache": true,
         "http_status": 200,
@@ -253,7 +692,7 @@
       {
         "bytes": 37022,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-09.zip",
-        "downloaded_at": "2026-06-25T07:28:08Z",
+        "downloaded_at": "2026-06-25T10:07:18Z",
         "etag": "\"3e3d2ef9d19f5583598421b45abb254f\"",
         "from_cache": true,
         "http_status": 200,
@@ -264,7 +703,7 @@
       {
         "bytes": 38885,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-10.zip",
-        "downloaded_at": "2026-06-25T07:28:08Z",
+        "downloaded_at": "2026-06-25T10:07:18Z",
         "etag": "\"7c915f8379a6d5a85eee937d0987ccbb\"",
         "from_cache": true,
         "http_status": 200,
@@ -275,7 +714,7 @@
       {
         "bytes": 37564,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-11.zip",
-        "downloaded_at": "2026-06-25T07:28:08Z",
+        "downloaded_at": "2026-06-25T10:07:18Z",
         "etag": "\"ba625e8f8ad0a083d1df673395647b27\"",
         "from_cache": true,
         "http_status": 200,
@@ -286,7 +725,7 @@
       {
         "bytes": 38148,
         "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-12.zip",
-        "downloaded_at": "2026-06-25T07:28:08Z",
+        "downloaded_at": "2026-06-25T10:07:18Z",
         "etag": "\"bdb8bc17a6dc3f4cd3c229441302891b\"",
         "from_cache": true,
         "http_status": 200,
@@ -369,6 +808,416 @@
     "volume_policy": "source_allows_zero_volume_bars_recorded_as_quality_flag",
     "zero_volume_bars": 1
   },
+  "dataset_provenance": [
+    {
+      "account_or_signed_data_used": false,
+      "closed_bar_only": true,
+      "dataset": "ohlcv",
+      "downloads": [
+        {
+          "bytes": 38890,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-01.zip",
+          "downloaded_at": "2026-06-25T14:09:15Z",
+          "etag": null,
+          "from_cache": true,
+          "http_status": null,
+          "last_modified": null,
+          "sha256": "bf673f3d10804a951e8bac56dd2473486f113025971d43ebe5258ec40f9bfeb3",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-01.zip"
+        },
+        {
+          "bytes": 36374,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-02.zip",
+          "downloaded_at": "2026-06-25T14:09:15Z",
+          "etag": null,
+          "from_cache": true,
+          "http_status": null,
+          "last_modified": null,
+          "sha256": "655ff5ac0fc570956756944c7afef4895c9bd149342f1e437de97292cbd1fe22",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-02.zip"
+        },
+        {
+          "bytes": 39301,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-03.zip",
+          "downloaded_at": "2026-06-25T14:09:15Z",
+          "etag": null,
+          "from_cache": true,
+          "http_status": null,
+          "last_modified": null,
+          "sha256": "8138642b757ddf5a42207130277be4569afb4c581a0a1817be9f5f35a4415498",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-03.zip"
+        },
+        {
+          "bytes": 37804,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-04.zip",
+          "downloaded_at": "2026-06-25T14:09:15Z",
+          "etag": null,
+          "from_cache": true,
+          "http_status": null,
+          "last_modified": null,
+          "sha256": "4bf3ca3574e0075c1b79f5b22c4253e26f6260f3621943205e3a8016c4c12318",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-04.zip"
+        },
+        {
+          "bytes": 38427,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-05.zip",
+          "downloaded_at": "2026-06-25T14:09:15Z",
+          "etag": null,
+          "from_cache": true,
+          "http_status": null,
+          "last_modified": null,
+          "sha256": "1d607e3b26e6886ba742477bc97687f0b86c4c26ac564325dc5f1667e0362d35",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-05.zip"
+        },
+        {
+          "bytes": 36794,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-06.zip",
+          "downloaded_at": "2026-06-25T14:09:15Z",
+          "etag": null,
+          "from_cache": true,
+          "http_status": null,
+          "last_modified": null,
+          "sha256": "7dba8642e56641fca2c7f3f363050ae88bf0d6c87d28e14b747fbd3267d4d3a8",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-06.zip"
+        },
+        {
+          "bytes": 38700,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-07.zip",
+          "downloaded_at": "2026-06-25T10:07:16Z",
+          "etag": "\"d2e7852e41b91f96a44aab72ff5d4ace\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Sat, 17 Aug 2024 13:29:19 GMT",
+          "sha256": "920aacb84b2745ee8f31806a753cdc5b2d672e6814d9c50c0bf524ad45eb5611",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-07.zip"
+        },
+        {
+          "bytes": 38718,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-08.zip",
+          "downloaded_at": "2026-06-25T10:07:16Z",
+          "etag": "\"33444bf176d3231d63e97a26cf70184a\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Tue, 17 Sep 2024 13:56:10 GMT",
+          "sha256": "8d8465eb4c8a4fd05ebc0126e4c14a217edb2039441546bf095229e975268de6",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-08.zip"
+        },
+        {
+          "bytes": 37266,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-09.zip",
+          "downloaded_at": "2026-06-25T10:07:16Z",
+          "etag": "\"049163b8af79b12f7678b94bd54ddf5b\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Thu, 17 Oct 2024 15:47:40 GMT",
+          "sha256": "0a8118b3601f18ddad04a8afcf887fdc01661f66824a0ce49e0419be1f97f907",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-09.zip"
+        },
+        {
+          "bytes": 38285,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-10.zip",
+          "downloaded_at": "2026-06-25T10:07:16Z",
+          "etag": "\"1fc17d209cd9a8317919340f9f141fe8\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Thu, 21 Nov 2024 21:56:40 GMT",
+          "sha256": "e3dcb9fe9d70fea19dfbdc5294044da69b9061c6f7411e99468825fac1ce8d61",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-10.zip"
+        },
+        {
+          "bytes": 37741,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-11.zip",
+          "downloaded_at": "2026-06-25T10:07:16Z",
+          "etag": "\"c2d4ff7035040f6b66081a921fc7ba15\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Tue, 17 Dec 2024 13:51:49 GMT",
+          "sha256": "0675e55056748489b8750cf6088a666f65dd4fd932d7ca5bd30491f5996b5f3d",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-11.zip"
+        },
+        {
+          "bytes": 38950,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-12.zip",
+          "downloaded_at": "2026-06-25T10:07:16Z",
+          "etag": "\"eae3b2a3e99d4d8efa17f03142ca06ff\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Fri, 17 Jan 2025 13:29:11 GMT",
+          "sha256": "b072f3147b3e390c81dcbf35830a12ff7d53a73236aa44a9eea78199502529cb",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-12.zip"
+        },
+        {
+          "bytes": 38915,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-01.zip",
+          "downloaded_at": "2026-06-25T10:07:17Z",
+          "etag": "\"46b37e62d03caf800e89f29ca0f9b53a\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Mon, 17 Feb 2025 13:27:55 GMT",
+          "sha256": "9ebc05c9b3d5ab3591edf65bc5c7e5dbc2f96c1efc4adc4ea198c651a99a41b1",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-01.zip"
+        },
+        {
+          "bytes": 34861,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-02.zip",
+          "downloaded_at": "2026-06-25T10:07:17Z",
+          "etag": "\"a10587147efac9581788a70e27a9231f\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Mon, 17 Mar 2025 13:35:18 GMT",
+          "sha256": "077d761098eb5f2dbde65457833b9edab41ea6475284a77fcce0d4bec1bfb5cf",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-02.zip"
+        },
+        {
+          "bytes": 38723,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-03.zip",
+          "downloaded_at": "2026-06-25T10:07:17Z",
+          "etag": "\"19aed3ffd7d65e8a263d73909e5ab134\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Thu, 17 Apr 2025 13:41:56 GMT",
+          "sha256": "08043384c3336b0fa3eeee06e113a6f1eceb6d3fbe7b2971e9b9fa83625fdfb9",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-03.zip"
+        },
+        {
+          "bytes": 37389,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-04.zip",
+          "downloaded_at": "2026-06-25T10:07:17Z",
+          "etag": "\"1d58657ed84e2a6e52e46c038bdd18cc\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Sat, 17 May 2025 13:45:38 GMT",
+          "sha256": "2adf7c1be412e43b04a128e997f4cb1e5e7f895f55b6e1bf66621807f221f274",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-04.zip"
+        },
+        {
+          "bytes": 38805,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-05.zip",
+          "downloaded_at": "2026-06-25T10:07:17Z",
+          "etag": "\"af32d0cb57ad88ab15410993c3888d35\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Mon, 02 Jun 2025 09:16:12 GMT",
+          "sha256": "2e736b9e792d5ae9d4607d7426e4530020762cb898d580b18d3fb0faf9d2ba8e",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-05.zip"
+        },
+        {
+          "bytes": 37374,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-06.zip",
+          "downloaded_at": "2026-06-25T10:07:17Z",
+          "etag": "\"83dfecc7d03c01573196d0eedc972035\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Thu, 17 Jul 2025 14:13:00 GMT",
+          "sha256": "d1d9d5dbc540c19dd882305937f864f59ffffe3f5449a6b05b3f95efe7ca4fbc",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-06.zip"
+        },
+        {
+          "bytes": 38443,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-07.zip",
+          "downloaded_at": "2026-06-25T10:07:18Z",
+          "etag": "\"d22cddc79841e907fa430a7a45de6996\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Sat, 02 Aug 2025 08:58:24 GMT",
+          "sha256": "3f471677b97cd3c5c21e9c1420bd7d58c1fe4041a3d2e195369277298ca01ea2",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-07.zip"
+        },
+        {
+          "bytes": 38617,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-08.zip",
+          "downloaded_at": "2026-06-25T10:07:18Z",
+          "etag": "\"a185ab84a4c2ed5d028fb620ad28eae0\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Tue, 02 Sep 2025 11:16:31 GMT",
+          "sha256": "a240d3f766cd5c3db4e0702cf660ae54e327ec67aba169dda55abc90cae055f2",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-08.zip"
+        },
+        {
+          "bytes": 37022,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-09.zip",
+          "downloaded_at": "2026-06-25T10:07:18Z",
+          "etag": "\"3e3d2ef9d19f5583598421b45abb254f\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Thu, 02 Oct 2025 09:11:51 GMT",
+          "sha256": "b15817c45e6ca13a907772591664a57e00b711fecbd4285f2a16ced3c7023019",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-09.zip"
+        },
+        {
+          "bytes": 38885,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-10.zip",
+          "downloaded_at": "2026-06-25T10:07:18Z",
+          "etag": "\"7c915f8379a6d5a85eee937d0987ccbb\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Sun, 02 Nov 2025 09:50:43 GMT",
+          "sha256": "b173469216acad36058ecfb0a5432471ec58b3c49032246d4d687dd3af8ae34a",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-10.zip"
+        },
+        {
+          "bytes": 37564,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-11.zip",
+          "downloaded_at": "2026-06-25T10:07:18Z",
+          "etag": "\"ba625e8f8ad0a083d1df673395647b27\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Tue, 02 Dec 2025 09:35:27 GMT",
+          "sha256": "75c4069b8ff93aa5e4064e885077426fd60f1cf6239a728b2d4ca543c0210d5a",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-11.zip"
+        },
+        {
+          "bytes": 38148,
+          "cache_path": "data/binance-vision/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-12.zip",
+          "downloaded_at": "2026-06-25T10:07:18Z",
+          "etag": "\"bdb8bc17a6dc3f4cd3c229441302891b\"",
+          "from_cache": true,
+          "http_status": 200,
+          "last_modified": "Fri, 02 Jan 2026 10:44:36 GMT",
+          "sha256": "41e977a06b7806ce1398aca5f9075befffd1e6303db891795f3b179c762709ec",
+          "url": "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-12.zip"
+        }
+      ],
+      "duplicate_policy": {
+        "duplicates": 0,
+        "duplicates_allowed": false
+      },
+      "first_timestamp": "2024-01-01T00:00:00Z",
+      "gap_policy": {
+        "expected_gap_seconds": 3600,
+        "gap_tolerance_seconds": 0,
+        "missing_bars_allowed": false
+      },
+      "last_timestamp": "2025-12-31T23:00:00Z",
+      "live_or_testnet_data_used": false,
+      "months": [
+        "2024-01",
+        "2024-02",
+        "2024-03",
+        "2024-04",
+        "2024-05",
+        "2024-06",
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "2024-10",
+        "2024-11",
+        "2024-12",
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05",
+        "2025-06",
+        "2025-07",
+        "2025-08",
+        "2025-09",
+        "2025-10",
+        "2025-11",
+        "2025-12"
+      ],
+      "no_key_public_data": true,
+      "normalized_sha256": "afd05e75d20344e0cfd96923490e90a9ac3569a88392954d08f7a09b718461de",
+      "open_bar_included": false,
+      "product_family": "crypto_perp_public_market_data",
+      "row_count": 17544,
+      "source_name": "Binance Vision public USDⓈ-M Futures monthly klines",
+      "source_urls": [
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-01.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-02.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-03.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-04.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-05.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-06.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-07.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-08.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-09.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-10.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-11.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2024-12.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-01.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-02.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-03.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-04.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-05.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-06.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-07.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-08.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-09.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-10.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-11.zip",
+        "https://data.binance.vision/data/futures/um/monthly/klines/BTCUSDT/1h/BTCUSDT-1h-2025-12.zip"
+      ],
+      "symbol": "BTCUSDT",
+      "timeframe": "1h",
+      "timezone": "UTC"
+    },
+    {
+      "account_or_signed_data_used": false,
+      "alignment_policy": "Public funding events are aligned causally to the first OHLCV bar whose timestamp is greater than or equal to the funding timestamp; funding is never forward-filled into earlier decision bars. This validates public metadata alignment only, not account-specific funding cashflows.",
+      "causal_alignment_checked": true,
+      "coverage_status": "validated_public_data",
+      "dataset": "funding",
+      "downloads": [
+        {
+          "cache_path": "data/binance-funding/futures/um/fundingRate/BTCUSDT/BTCUSDT-1704067200000-1767222000000.json",
+          "downloaded_at": "2026-06-25T10:07:19Z",
+          "from_cache": true,
+          "http_status": null,
+          "params": {
+            "endTime": 1767222000000,
+            "limit": 1000,
+            "startTime": 1704067200000,
+            "symbol": "BTCUSDT"
+          },
+          "rows": 2193,
+          "sha256": "0164f27335508545094461ac9c6208a0209e4d985498c337e93f0b81aad23680",
+          "url": "https://fapi.binance.com/fapi/v1/fundingRate"
+        }
+      ],
+      "first_timestamp": "2024-01-01T00:00:00Z",
+      "last_timestamp": "2025-12-31T16:00:00.001000Z",
+      "live_or_testnet_data_used": false,
+      "months": [
+        "2024-01",
+        "2024-02",
+        "2024-03",
+        "2024-04",
+        "2024-05",
+        "2024-06",
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "2024-10",
+        "2024-11",
+        "2024-12",
+        "2025-01",
+        "2025-02",
+        "2025-03",
+        "2025-04",
+        "2025-05",
+        "2025-06",
+        "2025-07",
+        "2025-08",
+        "2025-09",
+        "2025-10",
+        "2025-11",
+        "2025-12"
+      ],
+      "no_key_public_data": true,
+      "normalized_sha256": "bbe246bc37c90cc1ed987047eecc8d16a9400a6a3bbbd91adcd94954da51cc70",
+      "product_family": "crypto_perp_public_funding_data",
+      "row_count": 2193,
+      "source_name": "public_binance_usdm_funding_history",
+      "source_urls": [
+        "https://fapi.binance.com/fapi/v1/fundingRate"
+      ],
+      "symbol": "BTCUSDT",
+      "timeframe": "8h_funding_events",
+      "timezone": "UTC"
+    }
+  ],
   "decision": "PROMOTE_TO_NEXT_LOOP",
   "evidence_artifacts": [
     "loop.json",
@@ -384,7 +1233,12 @@
   "failed_gates": [
     "candidate_count",
     "candidate_window_evaluations",
-    "bars_processed_estimate"
+    "bars_processed_estimate",
+    "median_stress_return_beats_cash_null",
+    "selected_candidate_switch_rate",
+    "funding_aware_net_return",
+    "max_drawdown_abs_pct",
+    "tail_loss_cvar_pct"
   ],
   "funding_coverage": {
     "account_cashflows_validated": false,
@@ -398,7 +1252,7 @@
       "downloads": [
         {
           "cache_path": "data/binance-funding/futures/um/fundingRate/BTCUSDT/BTCUSDT-1704067200000-1767222000000.json",
-          "downloaded_at": "2026-06-25T07:29:39Z",
+          "downloaded_at": "2026-06-25T10:07:19Z",
           "from_cache": true,
           "http_status": null,
           "params": {
@@ -435,6 +1289,45 @@
   "loop_type": "data",
   "next_loop": "Narrow paper-only TSMOM_VOL_TARGET_FUNDING_AWARE_V1 strategy loop after data-depth evidence is durable.",
   "pre_registered_grid": {},
+  "readiness_baseline_verdict": "NOT_READY",
+  "report_artifact_provenance": [
+    {
+      "account_or_signed_data_used": false,
+      "artifact": "loop.json",
+      "generated_by": "write_data_depth_loop_artifacts",
+      "live_or_testnet_data_used": false,
+      "path": "loop.json",
+      "schema_version": 2,
+      "source": "DATA_DEPTH_RESEARCH_GRADE_V1 public-data loop payload"
+    },
+    {
+      "account_or_signed_data_used": false,
+      "artifact": "report.md",
+      "generated_by": "write_data_depth_loop_artifacts",
+      "live_or_testnet_data_used": false,
+      "path": "report.md",
+      "schema_version": null,
+      "source": "DATA_DEPTH_RESEARCH_GRADE_V1 public-data loop payload"
+    },
+    {
+      "account_or_signed_data_used": false,
+      "artifact": "commands.txt",
+      "generated_by": "write_data_depth_loop_artifacts",
+      "live_or_testnet_data_used": false,
+      "path": "commands.txt",
+      "schema_version": null,
+      "source": "DATA_DEPTH_RESEARCH_GRADE_V1 public-data loop payload"
+    },
+    {
+      "account_or_signed_data_used": false,
+      "artifact": "changed_files.txt",
+      "generated_by": "write_data_depth_loop_artifacts",
+      "live_or_testnet_data_used": false,
+      "path": "changed_files.txt",
+      "schema_version": null,
+      "source": "DATA_DEPTH_RESEARCH_GRADE_V1 public-data loop payload"
+    }
+  ],
   "safety_gates": {
     "api_keys_required_for_research": false,
     "holdout_used_for_selection": false,
@@ -443,7 +1336,7 @@
     "signed_or_account_endpoints_used": false,
     "testnet_orders_submitted": false
   },
-  "schema_version": 1,
+  "schema_version": 2,
   "selection_excludes": [
     "holdout",
     "live_orders",
@@ -461,10 +1354,11 @@
   "validation_commands": [
     "uv --version",
     "uv sync --dev",
+    "uv run pytest tests/test_data_depth_loop.py -q",
     "uv run pytest tests/test_binance_vision_data.py tests/test_data_depth_loop.py tests/test_readiness_validation.py -q",
     "uv run pytest -q",
     "uv run ruff check .",
-    "uvx pyright --pythonpath .venv/bin/python src/parangsae/apps/cli/quantctl.py src/parangsae/research/data_depth.py src/parangsae/marketdata/binance_vision.py tests/test_binance_vision_data.py tests/test_data_depth_loop.py",
+    "uvx pyright --pythonpath .venv/bin/python src/parangsae/research/data_depth.py src/parangsae/apps/cli/quantctl.py tests/test_data_depth_loop.py",
     "uv run quantctl data-depth-run --output-dir reports/loops/20260625-data-depth-research-grade --overwrite"
   ],
   "validation_depth": {
@@ -487,10 +1381,31 @@
         "status": "out_of_scope_for_data_depth_loop",
         "threshold": 300
       },
+      "minimum_sample_depth": {
+        "passed": true,
+        "projected_window_count": {
+          "observed": 31,
+          "passed": true,
+          "threshold": 12
+        },
+        "status": "passed",
+        "total_input_bars": {
+          "observed": 17544,
+          "passed": true,
+          "threshold": 17520
+        }
+      },
       "total_input_bars": {
         "observed": 17544,
         "passed": true,
         "threshold": 17520
+      },
+      "walk_forward_coverage": {
+        "candidate_or_performance_stability_claimed": false,
+        "observed": 31,
+        "passed": true,
+        "status": "data_only_projected_window_coverage",
+        "threshold": 12
       },
       "window_count": {
         "observed": 31,
@@ -508,6 +1423,43 @@
       "window_count": 31
     },
     "strategy_grid_depth_unclaimed": true,
+    "strategy_performance_gates_unclaimed": {
+      "funding_aware_net_return": {
+        "claim_boundary": "DATA_DEPTH_RESEARCH_GRADE_V1 records the gate but cannot satisfy it without a pre-registered paper strategy validation.",
+        "observed": null,
+        "passed": false,
+        "status": "blocked_until_strategy_validation",
+        "threshold": "public-funding-adjusted net strategy return must beat declared baseline"
+      },
+      "max_drawdown_abs_pct": {
+        "claim_boundary": "DATA_DEPTH_RESEARCH_GRADE_V1 records the gate but cannot satisfy it without a pre-registered paper strategy validation.",
+        "observed": null,
+        "passed": false,
+        "status": "blocked_until_strategy_validation",
+        "threshold": "pre-registered strategy drawdown threshold required"
+      },
+      "median_stress_return_beats_cash_null": {
+        "claim_boundary": "DATA_DEPTH_RESEARCH_GRADE_V1 records the gate but cannot satisfy it without a pre-registered paper strategy validation.",
+        "observed": null,
+        "passed": false,
+        "status": "blocked_until_strategy_validation",
+        "threshold": "median stress-adjusted strategy return > 0.0 cash/null return"
+      },
+      "selected_candidate_switch_rate": {
+        "claim_boundary": "DATA_DEPTH_RESEARCH_GRADE_V1 records the gate but cannot satisfy it without a pre-registered paper strategy validation.",
+        "observed": null,
+        "passed": false,
+        "status": "blocked_until_strategy_validation",
+        "threshold": "readiness max selected-candidate switch rate <= 0.75"
+      },
+      "tail_loss_cvar_pct": {
+        "claim_boundary": "DATA_DEPTH_RESEARCH_GRADE_V1 records the gate but cannot satisfy it without a pre-registered paper strategy validation.",
+        "observed": null,
+        "passed": false,
+        "status": "blocked_until_strategy_validation",
+        "threshold": "pre-registered strategy CVaR/tail-loss threshold required"
+      }
+    },
     "thresholds": {
       "bars_processed_estimate": 500000,
       "candidate_count": 25,

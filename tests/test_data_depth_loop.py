@@ -24,8 +24,10 @@ from parangsae.research.data_depth import (
     build_data_depth_loop_payload,
     default_data_depth_months,
     prepare_data_depth_output_dir,
+    render_data_depth_report,
     write_data_depth_loop_artifacts,
 )
+from parangsae.research.readiness import READINESS_VERDICTS
 
 
 def synthetic_ohlcv(rows: int = 300) -> pd.DataFrame:
@@ -142,7 +144,13 @@ def test_data_depth_payload_records_provenance_safety_and_unclaimed_strategy_gat
     assert payload["data_scope"]["row_count"] == 300
     assert payload["data_scope"]["closed_bar_only"] is True
     assert payload["data_scope"]["open_bar_included"] is False
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
+    assert "verdict" not in payload
+    assert "loop_verdict" not in payload
+    assert payload["data_depth_loop_verdict"] == "WATCH"
+    assert payload["data_depth_loop_verdict"] not in READINESS_VERDICTS
+    assert payload["data_depth_loop_verdict_namespace"] == "data_depth_only_not_readiness"
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
     assert payload["data_depth_contract"]["min_research_grade_total_input_bars"] == 300
     assert payload["data_scope"]["volume_policy"] == "strictly_positive_volume_required"
     assert payload["data_scope"]["zero_volume_bars"] == 0
@@ -153,9 +161,62 @@ def test_data_depth_payload_records_provenance_safety_and_unclaimed_strategy_gat
     assert payload["funding_coverage"]["account_cashflows_validated"] is False
     assert payload["validation_depth"]["data_only_research_grade_depth_passed"] is True
     assert payload["validation_depth"]["strategy_grid_depth_unclaimed"] is True
+    data_gates = payload["validation_depth"]["data_depth_gates"]
+    assert data_gates["minimum_sample_depth"]["passed"] is True
+    assert data_gates["minimum_sample_depth"]["total_input_bars"]["observed"] == 300
+    assert data_gates["minimum_sample_depth"]["projected_window_count"]["observed"] == 3
+    assert data_gates["walk_forward_coverage"]["passed"] is True
+    strategy_gates = payload["validation_depth"]["strategy_performance_gates_unclaimed"]
+    for gate_name in [
+        "median_stress_return_beats_cash_null",
+        "selected_candidate_switch_rate",
+        "funding_aware_net_return",
+        "max_drawdown_abs_pct",
+        "tail_loss_cvar_pct",
+    ]:
+        assert strategy_gates[gate_name]["passed"] is False
+        assert strategy_gates[gate_name]["status"] == "blocked_until_strategy_validation"
+        assert gate_name in payload["failed_gates"]
     assert "candidate_count" in payload["failed_gates"]
     assert "candidate_window_evaluations" in payload["failed_gates"]
     assert payload["decision"] == "PROMOTE_TO_NEXT_LOOP"
+
+    datasets = payload["dataset_provenance"]
+    assert [dataset["dataset"] for dataset in datasets] == ["ohlcv", "funding"]
+    assert datasets[0]["normalized_sha256"] == payload["data_scope"]["normalized_ohlcv_sha256"]
+    assert datasets[0]["no_key_public_data"] is True
+    assert datasets[0]["account_or_signed_data_used"] is False
+    assert datasets[1]["normalized_sha256"] == payload["funding_coverage"]["normalized_funding_sha256"]
+    assert datasets[1]["causal_alignment_checked"] is True
+
+    coverage = payload["coverage_analysis"]
+    assert len(coverage["walk_forward_windows"]) == 3
+    assert coverage["walk_forward_windows"][0]["window_id"] == "W001"
+    assert coverage["walk_forward_windows"][0]["train_bars"] == 100
+    assert coverage["walk_forward_windows"][0]["validation_bars"] == 50
+    assert coverage["walk_forward_windows"][0]["holdout_bars"] == 50
+    vol = coverage["volatility_regimes"]
+    assert (
+        vol["low_count"]
+        + vol["normal_count"]
+        + vol["high_count"]
+        + vol["insufficient_history_count"]
+        == 300
+    )
+    stress = coverage["stress_periods"]
+    assert stress["context_only_not_strategy_pnl"] is True
+    assert stress["stress_bar_count"] >= stress["high_vol_bar_count"]
+    funding_regimes = coverage["funding_regimes"]
+    assert funding_regimes["positive_count"] == 2
+    assert funding_regimes["negative_count"] == 1
+    assert funding_regimes["account_cashflows_validated"] is False
+
+    report = render_data_depth_report(payload)
+    assert "data_depth_loop_verdict: WATCH" in report
+    assert "WATCH is data-depth-only" in report
+    assert "not a readiness verdict" in report
+    assert "readiness baseline verdict: NOT_READY" in report
+    assert "strategy_performance_gates_unclaimed" in report
 
 
 def test_data_depth_payload_does_not_claim_closed_bars_without_quality_metadata() -> None:

@@ -253,6 +253,9 @@ def cmd_data_depth_run(args: argparse.Namespace) -> int:
                     "status": "success",
                     "run_type": "data-depth-run",
                     "output_dir": str(written),
+                    "data_depth_loop_verdict": payload["data_depth_loop_verdict"],
+                    "data_depth_loop_verdict_namespace": payload["data_depth_loop_verdict_namespace"],
+                    "readiness_baseline_verdict": payload["readiness_baseline_verdict"],
                     "data_only_research_grade_depth_passed": payload["validation_depth"][
                         "data_only_research_grade_depth_passed"
                     ],

@@ -66,13 +66,22 @@ The loop records source URLs, symbol, product family, timeframe, UTC range, row
 count, normalized OHLCV/funding hashes, closed-bar status, close-time policy,
 gap/duplicate policy, funding coverage, causal funding alignment, and safety
 gates showing no live/testnet orders, no API keys, and no account/signed
-endpoints. The data-depth contract is frozen in `loop.json.data_depth_contract`
-so later readiness tuning does not silently redefine this milestone. Binance
-Vision archive rows may include zero-volume closed bars; those are source-scoped
-quality flags, not silently dropped data. Passing the bar/window data-depth gates
-is not a readiness or profit claim: candidate-count, candidate-window,
-stress-return, and candidate-stability gates remain for later pre-registered
-strategy/validation loops.
+endpoints. `loop.json.schema_version == 2` also records explicit
+`dataset_provenance`, `report_artifact_provenance`, and data-only
+`coverage_analysis` for projected walk-forward windows, volatility regimes,
+public funding regimes, and stress/tail market context. The data-depth contract
+is frozen in `loop.json.data_depth_contract` so later readiness tuning does not
+silently redefine this milestone. Binance Vision archive rows may include
+zero-volume closed bars; those are source-scoped quality flags, not silently
+dropped data.
+
+Passing the bar/window data-depth gates is not a readiness or profit claim.
+`data_depth_loop_verdict: WATCH`, when present, is data-depth-only and is not a
+readiness verdict. The committed readiness baseline remains recorded separately
+as `readiness_baseline_verdict: NOT_READY`. Candidate-count, candidate-window,
+median stress return vs cash/null, candidate-switch-rate, funding-aware net
+return, drawdown, and tail-loss gates remain under unclaimed strategy/performance
+gates until a later pre-registered paper-only strategy/validation loop.
 
 Success reports now include a regime protocol layer:
 

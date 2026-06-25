@@ -132,10 +132,30 @@ artifact. Source-verified Binance Vision archive rows may include zero-volume
 closed bars; those are recorded as quality flags and are not deleted or treated
 as live execution evidence.
 
+`loop.json.schema_version == 2` adds explicit provenance and coverage fields:
+
+- `dataset_provenance` for OHLCV and public funding inputs, including URLs,
+  hashes, UTC ranges, row counts, and no-key/no-account boundaries.
+- `report_artifact_provenance` for the generated loop artifacts.
+- `coverage_analysis.walk_forward_windows` for frozen-contract projected
+  train/validation/holdout windows.
+- `coverage_analysis.volatility_regimes` from a 24-bar rolling standard
+  deviation of public hourly close returns.
+- `coverage_analysis.stress_periods` for public-market context only: underlying
+  drawdown, hourly 5% CVaR, worst 24h return, high-volatility bars, and stress
+  bars. These are not strategy PnL.
+- `coverage_analysis.funding_regimes` for public funding-rate sign and high
+  absolute-rate coverage when funding is downloaded.
+
 This loop can pass the public data bar/window portions of the research-grade
-depth requirements. It deliberately leaves candidate count, candidate-window
-evaluations, bars processed by a candidate grid, stress-return, and candidate
-stability as unclaimed or still failing until a later pre-registered paper-only
+depth requirements. `data_depth_loop_verdict: WATCH`, when present, is a
+data-depth-only status in `loop.json`/`report.md`; it is not a readiness verdict
+and does not change the committed readiness baseline. The baseline is recorded
+separately as `readiness_baseline_verdict: NOT_READY`. The loop deliberately
+leaves candidate count, candidate-window evaluations, bars processed by a
+candidate grid, median stress return vs cash/null, candidate switch rate,
+funding-aware net return, drawdown, and tail loss under unclaimed
+strategy/performance gates until a later pre-registered paper-only
 strategy/validation loop. Do not use this command to retune TSMOM parameters or
 promote live readiness.
 
