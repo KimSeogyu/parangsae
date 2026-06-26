@@ -5,7 +5,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import requests
@@ -204,7 +204,7 @@ def _utc_timestamp(value: pd.Timestamp | str) -> pd.Timestamp:
     timestamp = pd.Timestamp(value)
     if timestamp.tzinfo is None:
         timestamp = timestamp.tz_localize("UTC")
-    return timestamp.tz_convert("UTC")
+    return cast(pd.Timestamp, timestamp.tz_convert("UTC"))
 
 
 def _timestamp(value: pd.Timestamp) -> str:
