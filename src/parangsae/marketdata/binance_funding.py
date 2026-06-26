@@ -6,7 +6,7 @@ import json
 import math
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import requests
@@ -184,8 +184,9 @@ def normalize_funding_rows(rows: list[dict[str, Any]], *, symbol: str) -> pd.Dat
     frame = frame[~frame.index.duplicated(keep="last")]
     if (frame["symbol"] != normalized_symbol).any():
         raise FundingDataValidationError(f"funding response contains non-{normalized_symbol} symbols")
-    validate_funding_frame(frame, symbol=normalized_symbol)
-    return frame.loc[:, FUNDING_COLUMNS]
+    normalized_frame = cast(pd.DataFrame, frame.loc[:, FUNDING_COLUMNS])
+    validate_funding_frame(normalized_frame, symbol=normalized_symbol)
+    return normalized_frame
 
 
 def validate_funding_frame(frame: pd.DataFrame, *, symbol: str) -> dict[str, Any]:
@@ -203,18 +204,18 @@ def validate_funding_frame(frame: pd.DataFrame, *, symbol: str) -> dict[str, Any
         raise FundingDataValidationError("funding frame is empty")
     if (frame["symbol"].astype(str).str.upper() != normalized_symbol).any():
         raise FundingDataValidationError(f"funding frame contains non-{normalized_symbol} symbols")
-    rates = pd.to_numeric(frame["funding_rate"], errors="coerce")
+    rates = cast(pd.Series, pd.to_numeric(frame["funding_rate"], errors="coerce"))
     if rates.isna().any() or not rates.map(math.isfinite).all():
         raise FundingDataValidationError("funding_rate contains missing/non-finite values")
     return {
         "rows": int(len(frame)),
-        "first_timestamp": _timestamp(frame.index[0]),
-        "last_timestamp": _timestamp(frame.index[-1]),
+        "first_timestamp": _timestamp(cast(pd.Timestamp, frame.index[0])),
+        "last_timestamp": _timestamp(cast(pd.Timestamp, frame.index[-1])),
         "symbol": normalized_symbol,
-        "min_funding_rate": float(rates.min()),
-        "max_funding_rate": float(rates.max()),
-        "mean_funding_rate": float(rates.mean()),
-        "median_funding_rate": float(rates.median()),
+        "min_funding_rate": _series_stat_float(rates, "min"),
+        "max_funding_rate": _series_stat_float(rates, "max"),
+        "mean_funding_rate": _series_stat_float(rates, "mean"),
+        "median_funding_rate": _series_stat_float(rates, "median"),
     }
 
 
@@ -265,6 +266,11 @@ def _timestamp(value: pd.Timestamp) -> str:
     else:
         ts = ts.tz_convert("UTC")
     return ts.isoformat().replace("+00:00", "Z")
+
+
+def _series_stat_float(series: pd.Series, method_name: str) -> float:
+    value = getattr(series, method_name)()
+    return float(cast(float, value))
 
 
 def _sha256_bytes(payload: bytes) -> str:
