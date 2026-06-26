@@ -348,6 +348,50 @@ signal, and buy-and-hold. This remains paper-only research, not trading advice,
 not a profitability claim, not live or execution readiness, and not permission
 for live/testnet orders or account/API-key/fill data use.
 
+## TSMOM candidate-family decision loop
+
+`tsmom-family-decision-run` is the pre-registered paper-only
+`TSMOM_CANDIDATE_FAMILY_DECISION_V1` research-governance loop. It does not
+evaluate a new strategy, optimize parameters, retune on holdout, relax failed
+gates, or create a live order path. Instead, it reads the durable TSMOM source,
+stress/switch/funding diagnostic, switch-stability/funding-throttle risk, and
+gross-edge/regime/null robustness artifacts and emits an explicit
+candidate-family queue decision.
+
+The command writes
+`reports/loops/<YYYYMMDD>-tsmom-candidate-family-decision-v1/` with:
+
+- `candidate_family_decision.json`
+- `report.md`
+- `evidence_rollup.csv`
+- `failed_gate_rollup.csv`
+- `regime_exception_review.csv`
+- `decision_rationale.md`
+- `commands.txt`
+- `changed_files.txt`
+
+Allowed decisions are:
+
+- `KEEP_WATCH`
+- `REGIME_ONLY_WATCH`
+- `FREEZE_AS_NEGATIVE_CONTROL`
+- `DEPRECATE_CANDIDATE_FAMILY`
+
+`candidate_family_decision.json` records the pre-registration contract:
+decision purpose, allowed decisions, evidence inputs, forbidden inputs,
+decision gates, regime exception rules, deprecation rules, claim boundary, and
+readiness boundary. The namespaced `tsmom_candidate_family_decision` is a
+research-governance decision only; it is not a readiness verdict and does not
+claim positive expected return. `readiness_baseline_verdict` remains
+`NOT_READY` unless a separate readiness process proves otherwise.
+
+The decision loop preserves failed gates across prior artifacts and reports
+whether TSMOM remains broad WATCH, is narrowed to regime-only WATCH, is frozen
+as a negative-control benchmark, or is deprecated from the active candidate
+queue. It remains paper-only research governance, not trading advice, not a
+profitability claim, not live or execution readiness, and not permission for
+live/testnet orders or account/API-key/fill data use.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

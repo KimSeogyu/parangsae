@@ -1,0 +1,14 @@
+regime_axis,regime_label,window_count,median_gross_return_pct,median_net_return_pct,gross_edge_hit_rate,cash_null_failure_count,regime_gate_status,qualifies_for_regime_only_watch,materiality_note
+funding_drag_regime,high-funding-drag,4,-0.5876158166163159,-3.342594191643669,0.25,3,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+funding_drag_regime,low-funding-drag,27,-0.05272471494669473,-1.4882364665336905,0.4074074074074074,16,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+funding_regime,high-funding-cost,1,-2.098521394225561,-4.564185577988487,0.0,1,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+funding_regime,negative-funding,1,0.0,0.0,0.0,1,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+funding_regime,positive-funding,29,-0.5318158824126007,-1.5014549259752459,0.41379310344827586,17,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+market_regime,bear,13,-0.6393130051843943,-1.5014549259752459,0.15384615384615385,11,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+market_regime,bull,12,-0.08231083286764918,-1.6748523687322259,0.5,6,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+market_regime,sideways,6,0.4463493722155709,-1.7017092614583071,0.6666666666666666,2,passed,True,gross-edge exception only; net return/readiness remains unclaimed
+trend_regime,trend_mixed,4,-0.06278761041214609,-2.19450419438278,0.5,2,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+trend_regime,trend_persistence,14,-0.31965650259219713,-1.9667441227944074,0.35714285714285715,9,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+trend_regime,trend_reversal,13,-0.5318158824126007,-1.4882364665336905,0.38461538461538464,8,failed_or_unclaimed,False,does not meet pre-registered regime exception rule
+volatility_regime,low-vol,6,1.5945640120275995,-0.4845676838391529,0.6666666666666666,2,passed,True,gross-edge exception only; net return/readiness remains unclaimed
+volatility_regime,normal-vol,25,-0.6004568388549902,-1.8773954702830684,0.32,17,failed_or_unclaimed,False,does not meet pre-registered regime exception rule

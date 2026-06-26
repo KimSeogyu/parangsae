@@ -16,23 +16,28 @@ from parangsae.research.readiness import READINESS_CANDIDATE_REGISTRY, READINESS
 from parangsae.research.tsmom import (
     TSMOM_ALLOWED_LOOP_VERDICTS,
     TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE,
+    TSMOM_FAMILY_DECISION_NAMESPACE,
+    TSMOM_FAMILY_DECISION_REGIME_ONLY_WATCH,
     TSMOM_GROSS_EDGE_VERDICT_NAMESPACE,
     TSMOM_LOOP_VERDICT_NAMESPACE,
     TSMOM_RISK_VERDICT_NAMESPACE,
     TsmomCandidateSettings,
     TsmomLoopConfig,
     align_public_funding_to_decision_bars,
+    build_tsmom_candidate_family_decision_payload,
     build_tsmom_diagnostic_payload,
     build_tsmom_decision_frame,
     build_tsmom_gross_edge_loop_payload,
     build_tsmom_loop_payload,
     build_tsmom_risk_loop_payload,
     default_tsmom_diagnostic_output_dir,
+    default_tsmom_family_decision_output_dir,
     default_tsmom_gross_edge_output_dir,
     default_tsmom_output_dir,
     default_tsmom_risk_output_dir,
     render_tsmom_report,
     tsmom_candidate_grid,
+    write_tsmom_candidate_family_decision_artifacts,
     write_tsmom_diagnostic_artifacts,
     write_tsmom_gross_edge_loop_artifacts,
     write_tsmom_loop_artifacts,
@@ -778,3 +783,142 @@ def test_tsmom_gross_edge_cli_writes_artifacts_without_credentials(
     assert (output_dir / "regime_edge_breakdown.csv").exists()
     assert (output_dir / "null_baseline_comparison.csv").exists()
     assert (output_dir / "failed_edge_windows.csv").exists()
+
+
+def test_tsmom_candidate_family_decision_payload_rolls_up_prior_artifacts_and_preserves_boundaries() -> None:
+    payload = build_tsmom_candidate_family_decision_payload(
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/tsmom.py"],
+    )
+    assert "verdict" not in payload
+    assert "loop_verdict" not in payload
+    assert "decision" not in payload
+    assert payload["tsmom_candidate_family_decision_namespace"] == TSMOM_FAMILY_DECISION_NAMESPACE
+    assert payload["tsmom_candidate_family_decision"] == TSMOM_FAMILY_DECISION_REGIME_ONLY_WATCH
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert payload["source_tsmom_loop_verdict"] == "WATCH"
+    assert payload["tsmom_risk_loop_verdict"] == "WATCH"
+    assert payload["tsmom_gross_edge_loop_verdict"] == "WATCH"
+    assert payload["loop_contract"]["readiness_verdict"] is False
+    assert "api_keys" in payload["pre_registration"]["forbidden_inputs"]
+    assert "new_parameter_optimization" in payload["pre_registration"]["forbidden_inputs"]
+    assert "median_stress_return_beats_cash_null" in {row["failed_gate"] for row in payload["failed_gate_rollup"]}
+    assert "median_gross_return_pct" in {row["metric_name"] for row in payload["evidence_rollup"]}
+    assert payload["evidence_summary"]["median_gross_return_pct"] < 0.0
+    assert payload["evidence_summary"]["gross_edge_hit_rate"] < 0.5
+    assert payload["evidence_summary"]["null_baselines_matching_or_beating_tsmom"]
+    assert all(value is False for value in payload["safety_gates"].values())
+    assert "research-governance loop" in payload["claim_boundary"]
+    assert "not strategy optimization" in payload["claim_boundary"]
+    assert "no live, testnet, account, API-key" in payload["claim_boundary"]
+
+
+def test_tsmom_candidate_family_decision_gates_select_regime_only_not_broad_watch() -> None:
+    payload = build_tsmom_candidate_family_decision_payload()
+    gates = payload["decision_gates"]
+    assert gates["readiness_boundary_not_live_ready"]["passed"] is True
+    assert gates["active_keep_watch_gross_edge"]["passed"] is False
+    assert gates["active_keep_watch_null_robustness"]["passed"] is False
+    assert gates["regime_only_watch_exception"]["passed"] is True
+    assert gates["negative_control_utility"]["passed"] is True
+    assert gates["failed_gates_preserved"]["passed"] is True
+    assert payload["tsmom_candidate_family_decision"] == "REGIME_ONLY_WATCH"
+    assert "removed from broad active development" in payload["candidate_queue_status"]
+    qualified = [row for row in payload["regime_exception_review"] if row["qualifies_for_regime_only_watch"]]
+    assert qualified
+    assert {f"{row['regime_axis']}={row['regime_label']}" for row in qualified} >= {
+        "market_regime=sideways",
+        "volatility_regime=low-vol",
+    }
+
+
+def test_tsmom_candidate_family_decision_artifacts_are_generated_and_report_is_safe(tmp_path: Path) -> None:
+    payload = build_tsmom_candidate_family_decision_payload(
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/tsmom.py"],
+    )
+    output_dir = tmp_path / "reports" / "loops" / "20260626-tsmom-candidate-family-decision-v1"
+    written = write_tsmom_candidate_family_decision_artifacts(output_dir, payload)
+    assert written == output_dir
+    expected = {
+        "candidate_family_decision.json",
+        "report.md",
+        "evidence_rollup.csv",
+        "failed_gate_rollup.csv",
+        "regime_exception_review.csv",
+        "decision_rationale.md",
+        "commands.txt",
+        "changed_files.txt",
+    }
+    assert {path.name for path in output_dir.iterdir()} == expected
+    decision = json.loads((output_dir / "candidate_family_decision.json").read_text())
+    assert "verdict" not in decision
+    assert "loop_verdict" not in decision
+    assert "decision" not in decision
+    assert decision["loop_id"] == "20260626-tsmom-candidate-family-decision-v1"
+    assert decision["readiness_baseline_verdict"] == "NOT_READY"
+    assert decision["tsmom_candidate_family_decision"] == "REGIME_ONLY_WATCH"
+    report = (output_dir / "report.md").read_text()
+    assert "## Decision gates" in report
+    assert "readiness_baseline_verdict: NOT_READY" in report
+    assert "not trading advice" in report
+    rationale = (output_dir / "decision_rationale.md").read_text()
+    assert "broad KEEP_WATCH did not pass" in rationale
+    with pytest.raises(FileExistsError, match="output directory already exists"):
+        write_tsmom_candidate_family_decision_artifacts(output_dir, payload)
+    assert default_tsmom_family_decision_output_dir(root=tmp_path / "reports" / "loops", today="20260626") == output_dir
+
+
+def test_tsmom_candidate_family_decision_cli_writes_artifacts_without_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "SHOULD_NOT_BE_READ")
+    monkeypatch.setenv("BINANCE_API_SECRET", "SHOULD_NOT_BE_READ")
+    real_getenv = os.getenv
+
+    def guarded_getenv(key: str, default: str | None = None) -> str | None:
+        if key in {"BINANCE_API_KEY", "BINANCE_API_SECRET"}:
+            raise AssertionError(f"tsmom-family-decision-run must not read {key}")
+        return real_getenv(key, default)
+
+    monkeypatch.setattr(os, "getenv", guarded_getenv)
+    output_dir = tmp_path / "reports" / "loops" / "20260626-tsmom-candidate-family-decision-v1"
+    parsed = quantctl.build_parser().parse_args(
+        [
+            "tsmom-family-decision-run",
+            "--reports-root",
+            str(tmp_path / "reports"),
+            "--output-dir",
+            str(output_dir),
+            "--command",
+            "uv run pytest tests/test_tsmom_loop.py -q",
+            "--changed-file",
+            "src/parangsae/research/tsmom.py",
+        ]
+    )
+    assert parsed.func is quantctl.cmd_tsmom_family_decision_run
+    assert quantctl.cmd_tsmom_family_decision_run(parsed) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert "verdict" not in cli_payload
+    assert "loop_verdict" not in cli_payload
+    assert cli_payload["tsmom_candidate_family_decision_namespace"] == TSMOM_FAMILY_DECISION_NAMESPACE
+    assert cli_payload["tsmom_candidate_family_decision"] == "REGIME_ONLY_WATCH"
+    assert cli_payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert cli_payload["live_orders_submitted"] is False
+    assert cli_payload["testnet_orders_submitted"] is False
+    decision = json.loads((output_dir / "candidate_family_decision.json").read_text())
+    assert decision["safety_gates"]["api_keys_required_for_research"] is False
+    assert decision["safety_gates"]["account_or_fill_data_used"] is False
+    assert decision["safety_gates"]["gates_relaxed"] is False
+    assert (output_dir / "evidence_rollup.csv").exists()
+    assert (output_dir / "failed_gate_rollup.csv").exists()
+    assert (output_dir / "regime_exception_review.csv").exists()
+
+
+def test_tsmom_candidate_family_decision_fails_fast_on_wrong_prior_artifact(tmp_path: Path) -> None:
+    wrong = tmp_path / "wrong.json"
+    wrong.write_text(json.dumps({"tsmom_risk_loop_verdict": "WATCH"}) + "\n")
+    with pytest.raises(ValueError, match="missing required key"):
+        build_tsmom_candidate_family_decision_payload(source_loop_artifact=wrong)

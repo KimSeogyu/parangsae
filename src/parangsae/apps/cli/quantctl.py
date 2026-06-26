@@ -67,14 +67,21 @@ from parangsae.research.regime import build_regime_report
 from parangsae.research.readiness import build_readiness_report
 from parangsae.research.signals import build_signal_report
 from parangsae.research.tsmom import (
+    DEFAULT_TSMOM_DIAGNOSTIC_ARTIFACT,
+    DEFAULT_TSMOM_GROSS_EDGE_ARTIFACT,
+    DEFAULT_TSMOM_RISK_ARTIFACT,
+    DEFAULT_TSMOM_SOURCE_LOOP_ARTIFACT,
+    build_tsmom_candidate_family_decision_payload,
     build_tsmom_diagnostic_payload,
     build_tsmom_gross_edge_loop_payload,
     build_tsmom_loop_payload,
     build_tsmom_risk_loop_payload,
     default_tsmom_diagnostic_output_dir,
+    default_tsmom_family_decision_output_dir,
     default_tsmom_gross_edge_output_dir,
     default_tsmom_output_dir,
     default_tsmom_risk_output_dir,
+    write_tsmom_candidate_family_decision_artifacts,
     write_tsmom_diagnostic_artifacts,
     write_tsmom_gross_edge_loop_artifacts,
     write_tsmom_loop_artifacts,
@@ -271,6 +278,20 @@ def _default_tsmom_gross_edge_command(args: argparse.Namespace) -> str:
         f"--funding-source {args.funding_source}",
         f"--funding-cache-dir {args.funding_cache_dir}",
         f"--output-dir {args.output_dir or default_tsmom_gross_edge_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_tsmom_family_decision_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl tsmom-family-decision-run",
+        f"--source-loop-artifact {args.source_loop_artifact}",
+        f"--diagnostic-artifact {args.diagnostic_artifact}",
+        f"--risk-artifact {args.risk_artifact}",
+        f"--gross-edge-artifact {args.gross_edge_artifact}",
+        f"--output-dir {args.output_dir or default_tsmom_family_decision_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
     if args.overwrite:
         command.append("--overwrite")
@@ -737,6 +758,70 @@ def cmd_tsmom_gross_edge_run(args: argparse.Namespace) -> int:
                     "symbol": symbol,
                     "interval": interval,
                     "months": months,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
+def cmd_tsmom_family_decision_run(args: argparse.Namespace) -> int:
+    output_dir = Path(args.output_dir) if args.output_dir else default_tsmom_family_decision_output_dir(
+        root=Path(args.reports_root) / "loops"
+    )
+    try:
+        commands = args.command or [_default_tsmom_family_decision_command(args)]
+        changed_files = args.changed_file or []
+        payload = build_tsmom_candidate_family_decision_payload(
+            source_loop_artifact=args.source_loop_artifact,
+            diagnostic_artifact=args.diagnostic_artifact,
+            risk_artifact=args.risk_artifact,
+            gross_edge_artifact=args.gross_edge_artifact,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_tsmom_candidate_family_decision_artifacts(
+            output_dir,
+            payload,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "tsmom-family-decision-run",
+                    "output_dir": str(written),
+                    "tsmom_candidate_family_decision": payload["tsmom_candidate_family_decision"],
+                    "tsmom_candidate_family_decision_namespace": payload[
+                        "tsmom_candidate_family_decision_namespace"
+                    ],
+                    "readiness_baseline_verdict": payload["readiness_baseline_verdict"],
+                    "source_tsmom_loop_verdict": payload["source_tsmom_loop_verdict"],
+                    "tsmom_risk_loop_verdict": payload["tsmom_risk_loop_verdict"],
+                    "tsmom_gross_edge_loop_verdict": payload["tsmom_gross_edge_loop_verdict"],
+                    "candidate_queue_status": payload["candidate_queue_status"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (FileNotFoundError, ValueError, FileExistsError) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "tsmom-family-decision-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
                     "live_orders_submitted": False,
                     "testnet_orders_submitted": False,
                     "api_keys_required_for_research": False,
@@ -1410,6 +1495,42 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     tsmom_gross.set_defaults(func=cmd_tsmom_gross_edge_run)
+
+    tsmom_family = sub.add_parser("tsmom-family-decision-run")
+    tsmom_family.add_argument("--reports-root", default="reports")
+    tsmom_family.add_argument("--output-dir")
+    tsmom_family.add_argument("--overwrite", action="store_true")
+    tsmom_family.add_argument(
+        "--source-loop-artifact",
+        default=str(DEFAULT_TSMOM_SOURCE_LOOP_ARTIFACT),
+        help="durable TSMOM source loop artifact path",
+    )
+    tsmom_family.add_argument(
+        "--diagnostic-artifact",
+        default=str(DEFAULT_TSMOM_DIAGNOSTIC_ARTIFACT),
+        help="durable TSMOM stress/switch/funding diagnostic artifact path",
+    )
+    tsmom_family.add_argument(
+        "--risk-artifact",
+        default=str(DEFAULT_TSMOM_RISK_ARTIFACT),
+        help="durable TSMOM switch-stability/funding-throttle risk artifact path",
+    )
+    tsmom_family.add_argument(
+        "--gross-edge-artifact",
+        default=str(DEFAULT_TSMOM_GROSS_EDGE_ARTIFACT),
+        help="durable TSMOM gross-edge/regime/null robustness artifact path",
+    )
+    tsmom_family.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    tsmom_family.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    tsmom_family.set_defaults(func=cmd_tsmom_family_decision_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")

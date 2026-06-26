@@ -52,6 +52,14 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             return None
         if "tsmom_gross_edge_loop_verdict" in payload:
             return "tsmom-gross-edge-run"
+    family_decision_json = path / "candidate_family_decision.json"
+    if family_decision_json.exists():
+        try:
+            payload = json.loads(family_decision_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "tsmom_candidate_family_decision" in payload:
+            return "tsmom-family-decision-run"
     return None
 
 

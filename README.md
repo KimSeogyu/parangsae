@@ -171,6 +171,26 @@ readiness verdict. It preserves source failed gates and
 relax gates, imply profitability or live readiness, authorize live/testnet
 execution, or use account/API-key/order/fill data for performance claims.
 
+`tsmom-family-decision-run` implements the pre-registered paper-only
+`TSMOM_CANDIDATE_FAMILY_DECISION_V1` research-governance loop:
+
+```bash
+uv run quantctl tsmom-family-decision-run
+```
+
+It writes `reports/loops/<YYYYMMDD>-tsmom-candidate-family-decision-v1/` with
+`candidate_family_decision.json`, `report.md`, `evidence_rollup.csv`,
+`failed_gate_rollup.csv`, `regime_exception_review.csv`,
+`decision_rationale.md`, `commands.txt`, and `changed_files.txt`. The loop
+reads the durable TSMOM source, diagnostic, risk, and gross-edge artifacts and
+converts the accumulated evidence into one namespaced candidate-family decision:
+`KEEP_WATCH`, `REGIME_ONLY_WATCH`, `FREEZE_AS_NEGATIVE_CONTROL`, or
+`DEPRECATE_CANDIDATE_FAMILY`. It is not a strategy-optimization loop and does
+not retune parameters, relax gates, hide failed gates, imply profitability or
+live readiness, authorize live/testnet execution, or use account/API-key/order/
+fill data for performance claims. `readiness_baseline_verdict` remains
+`NOT_READY` unless a separate readiness process proves otherwise.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.
