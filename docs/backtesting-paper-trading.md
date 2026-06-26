@@ -308,6 +308,46 @@ paper-only research, not trading advice, not a profitability claim, not live or
 execution readiness, and not permission for live/testnet orders or
 account/API-key/fill data use.
 
+## TSMOM gross-edge regime/null robustness loop
+
+`tsmom-gross-edge-run` is the pre-registered paper-only diagnostic/research
+follow-up to the risk loop. It keeps the source TSMOM family frozen and asks
+whether the selected TSMOM signal has positive gross edge before funding,
+slippage, and stress costs; whether any edge is limited to specific public-data
+regimes; and whether simple null baselines match or beat TSMOM. It does not
+create a live order path, retune on holdout, relax failed gates, or promote the
+repo to readiness.
+
+The command writes
+`reports/loops/<YYYYMMDD>-tsmom-gross-edge-regime-null-robustness-v1/` with:
+
+- `gross_edge_loop.json`
+- `report.md`
+- `gross_edge_decomposition.csv`
+- `regime_edge_breakdown.csv`
+- `null_baseline_comparison.csv`
+- `failed_edge_windows.csv`
+- `commands.txt`
+- `changed_files.txt`
+
+`gross_edge_loop.json` records the pre-registration contract: hypothesis,
+allowed inputs, forbidden inputs, regime definitions, null baselines,
+evaluation gates, holdout boundary, claim boundary, and expected failure modes.
+The loop's `tsmom_gross_edge_loop_verdict` is namespaced to
+`tsmom_gross_edge_regime_null_robustness_only_not_readiness`; it is not a
+generic readiness verdict. `readiness_baseline_verdict` remains `NOT_READY`
+unless a separate readiness process proves otherwise, and source TSMOM failed
+gates remain recorded rather than hidden.
+
+The gross-edge artifacts report per-window gross return before costs, net return
+after funding/slippage/stress, funding drag, slippage drag, stress drag, cash
+and buy-and-hold deltas, direction correctness, exposure, turnover, drawdown,
+CVaR-style tail loss, market/volatility/funding/funding-drag/trend regimes, and
+null comparisons against cash, deterministic random sign, lagged signal, inverse
+signal, and buy-and-hold. This remains paper-only research, not trading advice,
+not a profitability claim, not live or execution readiness, and not permission
+for live/testnet orders or account/API-key/fill data use.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

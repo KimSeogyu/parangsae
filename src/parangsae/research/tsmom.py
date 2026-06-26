@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import random
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from itertools import product
@@ -93,6 +94,30 @@ TSMOM_RISK_REQUIRED_FILES = (
     "changed_files.txt",
 )
 TSMOM_RISK_KNOWN_FILES = set(TSMOM_RISK_REQUIRED_FILES)
+TSMOM_GROSS_EDGE_LOOP_ID = "TSMOM_GROSS_EDGE_REGIME_NULL_ROBUSTNESS_V1"
+TSMOM_GROSS_EDGE_SCHEMA_VERSION = 1
+TSMOM_GROSS_EDGE_LOOP_TYPE = "diagnostic_research"
+TSMOM_GROSS_EDGE_LOOP_SLUG = "tsmom-gross-edge-regime-null-robustness-v1"
+TSMOM_GROSS_EDGE_VERDICT_NAMESPACE = "tsmom_gross_edge_regime_null_robustness_only_not_readiness"
+TSMOM_GROSS_EDGE_BLOCKED = "BLOCKED"
+TSMOM_GROSS_EDGE_WATCH = "WATCH"
+TSMOM_GROSS_EDGE_PASS_PAPER_ONLY = "PASS_PAPER_ONLY"
+TSMOM_GROSS_EDGE_ALLOWED_VERDICTS = (
+    TSMOM_GROSS_EDGE_BLOCKED,
+    TSMOM_GROSS_EDGE_WATCH,
+    TSMOM_GROSS_EDGE_PASS_PAPER_ONLY,
+)
+TSMOM_GROSS_EDGE_REQUIRED_FILES = (
+    "gross_edge_loop.json",
+    "report.md",
+    "gross_edge_decomposition.csv",
+    "regime_edge_breakdown.csv",
+    "null_baseline_comparison.csv",
+    "failed_edge_windows.csv",
+    "commands.txt",
+    "changed_files.txt",
+)
+TSMOM_GROSS_EDGE_KNOWN_FILES = set(TSMOM_GROSS_EDGE_REQUIRED_FILES)
 HARD_GATE_NAMES = (
     "candidate_count",
     "candidate_window_evaluations",
@@ -137,6 +162,8 @@ class TsmomLoopConfig:
     stable_selection_score_margin: float = 0.05
     funding_drag_throttle_abs_rate: float = 0.0001
     funding_drag_throttle_multiplier: float = 0.50
+    gross_edge_high_funding_drag_pct: float = 0.25
+    gross_edge_min_hit_rate: float = 0.50
     asset: str = "BTCUSDT"
     timeframe: str = "1h"
 
@@ -184,6 +211,11 @@ def default_tsmom_diagnostic_output_dir(*, root: str | Path = "reports/loops", t
 def default_tsmom_risk_output_dir(*, root: str | Path = "reports/loops", today: str | None = None) -> Path:
     stamp = today or datetime.now(UTC).strftime("%Y%m%d")
     return Path(root) / f"{stamp}-{TSMOM_RISK_LOOP_SLUG}"
+
+
+def default_tsmom_gross_edge_output_dir(*, root: str | Path = "reports/loops", today: str | None = None) -> Path:
+    stamp = today or datetime.now(UTC).strftime("%Y%m%d")
+    return Path(root) / f"{stamp}-{TSMOM_GROSS_EDGE_LOOP_SLUG}"
 
 
 def tsmom_candidate_grid() -> tuple[TsmomCandidateSettings, ...]:
@@ -1161,6 +1193,339 @@ def prepare_tsmom_risk_output_dir(output_dir: str | Path, *, overwrite: bool = F
     )
 
 
+def build_tsmom_gross_edge_loop_payload(
+    *,
+    bundle: MarketDataBundle,
+    funding_bundle: FundingRateBundle | None = None,
+    funding_metadata: dict[str, Any] | None = None,
+    config: TsmomLoopConfig = TsmomLoopConfig(),
+    commands: Iterable[str] = (),
+    changed_files: Iterable[str] = (),
+) -> dict[str, Any]:
+    source_payload = build_tsmom_loop_payload(
+        bundle=bundle,
+        funding_bundle=funding_bundle,
+        funding_metadata=funding_metadata,
+        config=config,
+        commands=commands,
+        changed_files=changed_files,
+    )
+    data = _validate_ohlcv_frame(bundle.frame)
+    funding_frame = funding_bundle.frame if funding_bundle is not None else None
+    windows = _generate_windows(data, config)
+    source_rows = {
+        str(row["window_id"]): row
+        for row in source_payload.get("walk_forward", {}).get("rows", [])
+        if isinstance(row, dict)
+    }
+    gross_rows: list[dict[str, Any]] = []
+    null_rows: list[dict[str, Any]] = []
+    failed_edge_windows: list[dict[str, Any]] = []
+
+    for window in windows:
+        source_row = source_rows.get(window.window_id)
+        if source_row is None:
+            continue
+        settings = _settings_from_window_row(source_row)
+        decisions = build_tsmom_decision_frame(
+            window.holdout,
+            settings=settings,
+            funding_frame=funding_frame,
+        )
+        position = _float_series(decisions["position"], index=decisions.index)
+        returns = _gross_edge_bar_returns(window.holdout)
+        gross_stats = _gross_edge_position_stats(position, returns, config=config)
+        regimes = _gross_edge_regime_labels(
+            window=window,
+            decisions=decisions,
+            source_row=source_row,
+            funding_frame=funding_frame,
+            config=config,
+        )
+        gross_return = float(gross_stats["return_pct"])
+        net_return = float(source_row["funding_aware_net_return_pct"])
+        stress_raw_return = float(source_row["stress_holdout_raw_return_pct"])
+        funding_drag = float(source_row["stress_funding_drag_pct"])
+        slippage_drag = float(source_row["stress_slippage_drag_pct"])
+        buy_hold_return = float(source_row["base_buy_hold_return_pct"])
+        gross_row = {
+            "window_id": window.window_id,
+            "holdout_start": source_row["holdout_start"],
+            "holdout_end": source_row["holdout_end"],
+            "selected_candidate_id": source_row["selected_candidate_id"],
+            "selected_lookback_bars": source_row["selected_lookback_bars"],
+            "selected_vol_window_bars": source_row["selected_vol_window_bars"],
+            "selected_target_annual_volatility": source_row["selected_target_annual_volatility"],
+            "selected_max_exposure": source_row["selected_max_exposure"],
+            "selected_funding_abs_rate_limit": source_row["selected_funding_abs_rate_limit"],
+            "gross_return_before_costs_pct": gross_return,
+            "net_return_after_funding_slippage_stress_pct": net_return,
+            "funding_drag_pct": funding_drag,
+            "slippage_drag_pct": slippage_drag,
+            "stress_drag_pct": gross_return - stress_raw_return,
+            "stress_raw_return_pct": stress_raw_return,
+            "cash_null_return_pct": 0.0,
+            "difference_vs_cash_null_pct": gross_return,
+            "buy_and_hold_return_pct": buy_hold_return,
+            "difference_vs_buy_and_hold_pct": gross_return - buy_hold_return,
+            "direction_correctness_rate": gross_stats["direction_correctness_rate"],
+            "average_exposure": gross_stats["average_exposure"],
+            "turnover": gross_stats["turnover"],
+            "drawdown_pct": gross_stats["max_drawdown_pct"],
+            "cvar_tail_loss_pct": gross_stats["cvar_tail_loss_pct"],
+            "gross_edge_positive": gross_return > 0.0,
+            "cash_null_failure": gross_return <= 0.0,
+            **regimes,
+        }
+        gross_rows.append(gross_row)
+        null_rows.extend(
+            _gross_edge_null_baseline_rows(
+                window=window,
+                position=position,
+                returns=returns,
+                tsmom_gross_return_pct=gross_return,
+                config=config,
+            )
+        )
+        if gross_return <= 0.0:
+            failed_edge_windows.append(
+                {
+                    "window_id": window.window_id,
+                    "holdout_start": source_row["holdout_start"],
+                    "holdout_end": source_row["holdout_end"],
+                    "selected_candidate_id": source_row["selected_candidate_id"],
+                    "gross_return_before_costs_pct": gross_return,
+                    "net_return_after_funding_slippage_stress_pct": net_return,
+                    "cash_null_return_pct": 0.0,
+                    "difference_vs_cash_null_pct": gross_return,
+                    "market_regime": regimes["market_regime"],
+                    "volatility_regime": regimes["volatility_regime"],
+                    "funding_regime": regimes["funding_regime"],
+                    "funding_drag_regime": regimes["funding_drag_regime"],
+                    "trend_regime": regimes["trend_regime"],
+                    "failure_reason": _gross_edge_failure_reason(gross_row),
+                }
+            )
+
+    gross_summary = _gross_edge_summary(gross_rows, config)
+    null_summary = _gross_edge_null_summary(null_rows)
+    regime_breakdown = _gross_edge_regime_breakdown(gross_rows, config=config)
+    edge_gates = _gross_edge_evaluation_gates(
+        gross_rows=gross_rows,
+        null_summary=null_summary,
+        source_payload=source_payload,
+        config=config,
+    )
+    failed_edge_gates = [name for name, gate in edge_gates.items() if not bool(gate["passed"])]
+    verdict = _gross_edge_loop_verdict(windows=windows, failed_gates=failed_edge_gates)
+    loop_id = f"{datetime.now(UTC).strftime('%Y%m%d')}-{TSMOM_GROSS_EDGE_LOOP_SLUG}"
+    return {
+        "schema_version": TSMOM_GROSS_EDGE_SCHEMA_VERSION,
+        "loop_id": loop_id,
+        "status": "IMPLEMENTED" if gross_rows else "BLOCKED",
+        "loop_type": TSMOM_GROSS_EDGE_LOOP_TYPE,
+        "gross_edge_loop_family": TSMOM_GROSS_EDGE_LOOP_ID,
+        "source_strategy_family": TSMOM_LOOP_ID,
+        "baseline": BASELINE_ARTIFACT,
+        "source_loop_artifact": "reports/loops/20260625-tsmom-vol-target-funding-aware-v1/",
+        "source_risk_artifact": "reports/loops/20260626-tsmom-switch-stability-funding-throttle-risk-v1/",
+        "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+        "source_tsmom_loop_verdict": source_payload["tsmom_loop_verdict"],
+        "source_tsmom_failed_gates": source_payload["failed_gates"],
+        "tsmom_gross_edge_loop_verdict": verdict,
+        "tsmom_gross_edge_loop_verdict_namespace": TSMOM_GROSS_EDGE_VERDICT_NAMESPACE,
+        "loop_contract": {
+            "allowed_gross_edge_loop_verdicts": list(TSMOM_GROSS_EDGE_ALLOWED_VERDICTS),
+            "gross_edge_loop_verdict_namespace": TSMOM_GROSS_EDGE_VERDICT_NAMESPACE,
+            "readiness_verdict": False,
+            "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+            "claim_boundary": _gross_edge_claim_boundary(),
+        },
+        "pre_registration": _gross_edge_pre_registration(config),
+        "hypothesis": _gross_edge_pre_registration(config)["hypothesis"],
+        "data_scope": source_payload["data_scope"],
+        "dataset_provenance": source_payload["dataset_provenance"],
+        "funding_coverage": source_payload["funding_coverage"],
+        "funding_causality_policy": source_payload["funding_causality_policy"],
+        "selection_inputs": source_payload["selection_inputs"],
+        "selection_excludes": source_payload["selection_excludes"],
+        "source_hard_gates": source_payload["hard_gates"],
+        "source_failed_hard_gates": {
+            name: source_payload["hard_gates"][name]
+            for name in source_payload["failed_gates"]
+            if name in source_payload["hard_gates"]
+        },
+        "source_failed_gates_preserved": list(source_payload["failed_gates"]),
+        "gross_edge_evaluation_gates": edge_gates,
+        "failed_gross_edge_gates": failed_edge_gates,
+        "gross_edge_summary": gross_summary,
+        "null_robustness_summary": null_summary,
+        "regime_edge_summary": _gross_edge_regime_summary(regime_breakdown),
+        "compute_profile": source_payload["compute_profile"],
+        "gross_edge_decomposition": gross_rows,
+        "regime_edge_breakdown": regime_breakdown,
+        "null_baseline_comparison": null_rows,
+        "failed_edge_windows": failed_edge_windows,
+        "safety_gates": {
+            "live_orders_submitted": False,
+            "testnet_orders_submitted": False,
+            "api_keys_required_for_research": False,
+            "account_or_fill_data_used": False,
+            "holdout_used_for_selection": False,
+            "profit_or_live_ready_claim": False,
+            "strategy_parameters_retuned": False,
+            "gates_relaxed": False,
+            "live_trading_path_introduced": False,
+        },
+        "validation_commands": list(commands),
+        "evidence_artifacts": list(TSMOM_GROSS_EDGE_REQUIRED_FILES),
+        "changed_files": list(changed_files),
+        "claim_boundary": _gross_edge_claim_boundary(),
+        "tsmom_gross_edge_loop_decision": (
+            "PAPER_ONLY_GROSS_EDGE_PASS" if not failed_edge_gates else "WATCH_OR_NARROW_OR_DEPRECATE_TSMOM"
+        ),
+        "next_loop": (
+            "If gross edge remains weak versus null baselines, pre-register either a narrower regime-specific "
+            "falsification loop or park/deprecate this TSMOM family; do not retune on holdout."
+        ),
+    }
+
+
+def write_tsmom_gross_edge_loop_artifacts(
+    output_dir: str | Path,
+    payload: dict[str, Any],
+    *,
+    overwrite: bool = False,
+) -> Path:
+    out = prepare_tsmom_gross_edge_output_dir(output_dir, overwrite=overwrite)
+    artifact_payload = dict(payload)
+    if out.name.endswith(TSMOM_GROSS_EDGE_LOOP_SLUG):
+        artifact_payload["loop_id"] = out.name
+    _write_json(out / "gross_edge_loop.json", artifact_payload)
+    _atomic_write_text(out / "report.md", render_tsmom_gross_edge_report(artifact_payload))
+    pd.DataFrame(artifact_payload.get("gross_edge_decomposition", [])).to_csv(
+        out / "gross_edge_decomposition.csv",
+        index=False,
+    )
+    pd.DataFrame(artifact_payload.get("regime_edge_breakdown", [])).to_csv(
+        out / "regime_edge_breakdown.csv",
+        index=False,
+    )
+    pd.DataFrame(artifact_payload.get("null_baseline_comparison", [])).to_csv(
+        out / "null_baseline_comparison.csv",
+        index=False,
+    )
+    pd.DataFrame(artifact_payload.get("failed_edge_windows", [])).to_csv(
+        out / "failed_edge_windows.csv",
+        index=False,
+    )
+    _atomic_write_text(out / "commands.txt", "\n".join(artifact_payload.get("validation_commands", [])) + "\n")
+    _atomic_write_text(out / "changed_files.txt", "\n".join(artifact_payload.get("changed_files", [])) + "\n")
+    return out
+
+
+def prepare_tsmom_gross_edge_output_dir(output_dir: str | Path, *, overwrite: bool = False) -> Path:
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="tsmom-gross-edge-run",
+        known_files=TSMOM_GROSS_EDGE_KNOWN_FILES,
+        overwrite=overwrite,
+    )
+
+
+def render_tsmom_gross_edge_report(payload: dict[str, Any]) -> str:
+    summary = payload["gross_edge_summary"]
+    null_summary = payload["null_robustness_summary"]
+    gates = payload["gross_edge_evaluation_gates"]
+    lines = [
+        f"# Quant Loop Report: {payload['loop_id']}",
+        "",
+        "## Hypothesis",
+        payload["hypothesis"],
+        "",
+        "## Claim boundary",
+        f"- tsmom_gross_edge_loop_verdict: {payload['tsmom_gross_edge_loop_verdict']}",
+        f"- namespace: {payload['tsmom_gross_edge_loop_verdict_namespace']}",
+        f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+        f"- source_tsmom_loop_verdict: {payload['source_tsmom_loop_verdict']}",
+        f"- claim_boundary: {payload['claim_boundary']}",
+        "",
+        "## Pre-registration",
+        f"- allowed_inputs: {', '.join(payload['pre_registration']['allowed_inputs'])}",
+        f"- forbidden_inputs: {', '.join(payload['pre_registration']['forbidden_inputs'])}",
+        f"- holdout_boundary: {payload['pre_registration']['holdout_boundary']}",
+        "",
+        "## Source failed gates preserved",
+        f"- {', '.join(payload['source_failed_gates_preserved']) if payload['source_failed_gates_preserved'] else 'none'}",
+        "",
+        "## Gross edge summary",
+        f"- window_count: {summary['window_count']}",
+        f"- median_gross_return_pct: {summary['median_gross_return_pct']}",
+        f"- gross_edge_hit_rate: {summary['gross_edge_hit_rate']}",
+        f"- median_net_return_pct: {summary['median_net_return_pct']}",
+        f"- cash_null_failure_count: {summary['cash_null_failure_count']}",
+        f"- median_difference_vs_buy_and_hold_pct: {summary['median_difference_vs_buy_and_hold_pct']}",
+        f"- cvar_tail_gross_return_pct: {summary['cvar_tail_gross_return_pct']}",
+        "",
+        "## Gross edge gates",
+    ]
+    for name, gate in gates.items():
+        lines.append(
+            f"- {name}: {str(gate.get('status', 'failed')).upper()} "
+            f"(observed={gate.get('observed')}, threshold={gate.get('threshold')})"
+        )
+    lines.extend(
+        [
+            "",
+            "## Null robustness",
+        ]
+    )
+    for baseline, values in null_summary.get("by_baseline", {}).items():
+        lines.append(
+            f"- {baseline}: median_baseline_return_pct={values['median_baseline_return_pct']}, "
+            f"median_tsmom_minus_baseline_return_pct={values['median_tsmom_minus_baseline_return_pct']}, "
+            f"baseline_beats_or_matches_tsmom_count={values['baseline_beats_or_matches_tsmom_count']}"
+        )
+    lines.extend(
+        [
+            "",
+            "## Regime gross edge",
+        ]
+    )
+    for regime in payload["regime_edge_breakdown"]:
+        lines.append(
+            f"- {regime['regime_axis']}={regime['regime_label']}: count={regime['window_count']}, "
+            f"median_gross={regime['median_gross_return_pct']}, hit_rate={regime['gross_edge_hit_rate']}, "
+            f"gate={regime['regime_gate_status']}"
+        )
+    lines.extend(
+        [
+            "",
+            "## Safety",
+            "- live_orders_submitted: false",
+            "- testnet_orders_submitted: false",
+            "- api_keys_required_for_research: false",
+            "- account_or_fill_data_used: false",
+            "- strategy_parameters_retuned: false",
+            "- gates_relaxed: false",
+            "- live_trading_path_introduced: false",
+            "",
+            "## Artifacts",
+            "- gross_edge_loop.json",
+            "- gross_edge_decomposition.csv",
+            "- regime_edge_breakdown.csv",
+            "- null_baseline_comparison.csv",
+            "- failed_edge_windows.csv",
+            "- commands.txt",
+            "- changed_files.txt",
+            "",
+            "## Next loop",
+            payload["next_loop"],
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
 def render_tsmom_risk_report(payload: dict[str, Any]) -> str:
     gates = payload["risk_evaluation_gates"]
     switch = payload["switch_stability_summary"]
@@ -1477,6 +1842,89 @@ def _risk_pre_registration(config: TsmomLoopConfig) -> dict[str, Any]:
     }
 
 
+def _gross_edge_claim_boundary() -> str:
+    return (
+        "TSMOM_GROSS_EDGE_REGIME_NULL_ROBUSTNESS_V1 is a pre-registered paper-only "
+        "diagnostic/research loop for gross-edge and null-baseline falsification, not "
+        "readiness or live readiness, not trading advice, not a profit guarantee, not "
+        "execution readiness, not permission for live orders or testnet orders, and it "
+        "uses no live, testnet, account, API-key, private order, or fill data for "
+        "performance claims"
+    )
+
+
+def _gross_edge_pre_registration(config: TsmomLoopConfig) -> dict[str, Any]:
+    return {
+        "strategy_family": TSMOM_GROSS_EDGE_LOOP_ID,
+        "source_strategy_family": TSMOM_LOOP_ID,
+        "hypothesis": (
+            "Before any retuning, the current frozen TSMOM family should show positive gross "
+            "return before funding, slippage, and stress costs, and should beat simple null "
+            "baselines across public-data-derived regimes; otherwise the family remains WATCH "
+            "or should be narrowed or deprecated."
+        ),
+        "allowed_inputs": [
+            "public_historical_ohlcv_closed_bars",
+            "public_historical_binance_usdm_funding_rates",
+            "train_split",
+            "validation_split",
+            "holdout_for_once_only_evaluation",
+            "source_tsmom_selected_candidates",
+        ],
+        "forbidden_inputs": [
+            "live_orders",
+            "testnet_orders",
+            "account_state",
+            "api_keys",
+            "private_orders",
+            "fills",
+            "signed_endpoints",
+            "holdout_for_parameter_selection",
+            "live_or_testnet_performance",
+        ],
+        "regime_definitions": {
+            "market_regime": "holdout close-to-close return: bull > 2%, bear < -2%, otherwise sideways",
+            "volatility_regime": "annualized holdout realized volatility: high >= 80%, low <= 35%, otherwise normal",
+            "funding_regime": "causally aligned public funding mean/abs rate from _window_regime_diagnostics",
+            "funding_drag_regime": (
+                f"high when pre-registered funding drag >= {config.gross_edge_high_funding_drag_pct}%"
+            ),
+            "trend_regime": (
+                "trend_persistence if validation and holdout close-to-close returns share sign with "
+                "meaningful magnitude, trend_reversal if signs oppose, otherwise trend_mixed"
+            ),
+        },
+        "null_baselines": [
+            "cash_null",
+            "random_sign_deterministic_seed",
+            "lagged_signal_24_bars",
+            "inverse_signal",
+            "buy_and_hold",
+        ],
+        "evaluation_gates": [
+            "median_gross_return_beats_cash_null",
+            "gross_edge_hit_rate",
+            "median_gross_beats_random_sign_baseline",
+            "median_gross_beats_lagged_signal_baseline",
+            "median_gross_beats_inverse_signal_baseline",
+            "median_gross_beats_buy_and_hold_baseline",
+            "source_failed_gates_preserved",
+        ],
+        "holdout_boundary": (
+            "holdout is evaluated once using the source TSMOM train/validation-selected candidate; "
+            "null comparisons and regime labels are diagnostic only and never tune source parameters"
+        ),
+        "claim_boundary": _gross_edge_claim_boundary(),
+        "expected_failure_modes": [
+            "median gross return is already negative before funding, slippage, and stress costs",
+            "gross edge appears only in a small regime subset and is not a broad strategy claim",
+            "random, lagged, inverse, or buy-and-hold nulls match or beat the TSMOM gross return",
+            "net failures are driven primarily by weak raw signal quality, not only costs",
+            "source TSMOM failed gates remain failed or unclaimed and readiness remains NOT_READY",
+        ],
+    }
+
+
 def _stable_selected_candidate(
     rankings: list[TsmomCandidateEvaluation],
     *,
@@ -1641,6 +2089,331 @@ def _risk_regime_breakdown(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         for (axis, label), items in sorted(grouped.items())
     ]
+
+
+def _gross_edge_bar_returns(frame: pd.DataFrame) -> pd.Series:
+    close = _float_series(frame["Close"], index=frame.index)
+    return _float_series(close.pct_change(), index=frame.index).fillna(0.0)
+
+
+def _gross_edge_position_stats(
+    position: pd.Series,
+    returns: pd.Series,
+    *,
+    config: TsmomLoopConfig,
+) -> dict[str, Any]:
+    aligned_position = _float_series(position, index=returns.index).reindex(returns.index).fillna(0.0)
+    shifted_position = _float_series(aligned_position.shift(1), index=returns.index).fillna(0.0)
+    clean_returns = _float_series(returns, index=returns.index).reindex(returns.index).fillna(0.0)
+    strategy_returns = cast(pd.Series, shifted_position * clean_returns)
+    gross_return_factors = cast(pd.Series, pd.Series(1.0, index=returns.index, dtype=float) + strategy_returns)
+    equity = _float_series(gross_return_factors.cumprod(), index=returns.index)
+    if equity.empty:
+        return {
+            "return_pct": 0.0,
+            "max_drawdown_pct": 0.0,
+            "cvar_tail_loss_pct": None,
+            "direction_correctness_rate": None,
+            "average_exposure": 0.0,
+            "turnover": 0.0,
+        }
+    drawdown = _float_series(equity / equity.cummax() - 1.0, index=equity.index)
+    exposed = shifted_position.abs() > 0.0
+    nonzero_returns = clean_returns != 0.0
+    correctness_mask = cast(pd.Series, exposed & nonzero_returns)
+    direction_correctness_rate = None
+    if bool(correctness_mask.any()):
+        correct = cast(pd.Series, (shifted_position[correctness_mask] * clean_returns[correctness_mask]) > 0.0)
+        direction_correctness_rate = _finite_float(cast(Any, correct.mean()))
+    return {
+        "return_pct": float((float(equity.iloc[-1]) - 1.0) * 100.0),
+        "max_drawdown_pct": _series_min_float(drawdown * 100.0),
+        "cvar_tail_loss_pct": _tail_loss_cvar([float(value) * 100.0 for value in strategy_returns], config),
+        "direction_correctness_rate": direction_correctness_rate,
+        "average_exposure": _finite_float(cast(Any, aligned_position.abs().mean())),
+        "turnover": _finite_float(cast(Any, aligned_position.diff().abs().fillna(aligned_position.abs()).sum())),
+    }
+
+
+def _gross_edge_random_sign_position(position: pd.Series, window_id: str) -> tuple[pd.Series, int]:
+    seed = 1729 + sum(ord(char) for char in window_id)
+    rng = random.Random(seed)
+    absolute_position = _float_series(position, index=position.index).abs()
+    signs = [1.0 if rng.random() >= 0.5 else -1.0 for _ in range(len(absolute_position))]
+    return pd.Series(signs, index=absolute_position.index, dtype=float) * absolute_position, seed
+
+
+def _gross_edge_null_baseline_rows(
+    *,
+    window: TsmomWindow,
+    position: pd.Series,
+    returns: pd.Series,
+    tsmom_gross_return_pct: float,
+    config: TsmomLoopConfig,
+) -> list[dict[str, Any]]:
+    random_position, seed = _gross_edge_random_sign_position(position, window.window_id)
+    baselines: list[tuple[str, pd.Series, str, int | None]] = [
+        (
+            "cash_null",
+            pd.Series(0.0, index=returns.index, dtype=float),
+            "zero-return cash/null baseline",
+            None,
+        ),
+        (
+            "random_sign",
+            random_position,
+            "deterministic random long/flat sign baseline with source absolute exposure",
+            seed,
+        ),
+        (
+            "lagged_signal",
+            _float_series(position.shift(24), index=position.index).fillna(0.0),
+            "source TSMOM signal lagged by 24 bars",
+            None,
+        ),
+        (
+            "inverse_signal",
+            -_float_series(position, index=position.index),
+            "inverse of source TSMOM exposure",
+            None,
+        ),
+        (
+            "buy_and_hold",
+            pd.Series(1.0, index=returns.index, dtype=float),
+            "simple unit buy-and-hold exposure",
+            None,
+        ),
+    ]
+    rows: list[dict[str, Any]] = []
+    for name, baseline_position, description, deterministic_seed in baselines:
+        stats = _gross_edge_position_stats(baseline_position, returns, config=config)
+        baseline_return = float(stats["return_pct"])
+        rows.append(
+            {
+                "window_id": window.window_id,
+                "holdout_start": _timestamp(window.holdout.index[0]),
+                "holdout_end": _timestamp(window.holdout.index[-1]),
+                "baseline_name": name,
+                "baseline_description": description,
+                "deterministic_seed": deterministic_seed,
+                "tsmom_gross_return_pct": tsmom_gross_return_pct,
+                "baseline_return_pct": baseline_return,
+                "tsmom_minus_baseline_return_pct": tsmom_gross_return_pct - baseline_return,
+                "baseline_beats_or_matches_tsmom": baseline_return >= tsmom_gross_return_pct,
+                "baseline_drawdown_pct": stats["max_drawdown_pct"],
+                "baseline_cvar_tail_loss_pct": stats["cvar_tail_loss_pct"],
+                "baseline_average_exposure": stats["average_exposure"],
+                "baseline_turnover": stats["turnover"],
+            }
+        )
+    return rows
+
+
+def _gross_edge_regime_labels(
+    *,
+    window: TsmomWindow,
+    decisions: pd.DataFrame,
+    source_row: dict[str, Any],
+    funding_frame: pd.DataFrame | None,
+    config: TsmomLoopConfig,
+) -> dict[str, Any]:
+    regime = _window_regime_diagnostics(window.holdout, decisions, funding_frame, config=config)
+    validation_return = _close_to_close_return_pct(window.validation)
+    holdout_return = _close_to_close_return_pct(window.holdout)
+    if abs(validation_return) < 1.0 or abs(holdout_return) < 1.0:
+        trend_regime = "trend_mixed"
+    elif validation_return * holdout_return > 0.0:
+        trend_regime = "trend_persistence"
+    else:
+        trend_regime = "trend_reversal"
+    funding_drag = float(source_row["stress_funding_drag_pct"])
+    funding_drag_regime = (
+        "high-funding-drag"
+        if funding_drag >= config.gross_edge_high_funding_drag_pct
+        else "low-funding-drag"
+    )
+    return {
+        **regime,
+        "funding_drag_regime": funding_drag_regime,
+        "trend_regime": trend_regime,
+        "validation_close_to_close_return_pct": validation_return,
+        "holdout_close_to_close_return_pct": holdout_return,
+    }
+
+
+def _gross_edge_failure_reason(row: dict[str, Any]) -> str:
+    gross = float(row["gross_return_before_costs_pct"])
+    buy_hold_delta = float(row["difference_vs_buy_and_hold_pct"])
+    correctness = row.get("direction_correctness_rate")
+    if gross <= 0.0 and correctness is not None and float(correctness) < 0.5:
+        return "wrong_direction_or_low_direction_correctness"
+    if gross <= 0.0 and str(row["market_regime"]) == "bear":
+        return "negative_gross_edge_in_bear_regime"
+    if gross <= 0.0 and str(row["trend_regime"]) == "trend_reversal":
+        return "negative_gross_edge_in_trend_reversal_window"
+    if buy_hold_delta < 0.0:
+        return "underperformed_simple_buy_and_hold_before_costs"
+    return "non_positive_gross_edge_before_costs"
+
+
+def _gross_edge_summary(rows: list[dict[str, Any]], config: TsmomLoopConfig) -> dict[str, Any]:
+    gross_returns = [float(row["gross_return_before_costs_pct"]) for row in rows]
+    net_returns = [float(row["net_return_after_funding_slippage_stress_pct"]) for row in rows]
+    hit_count = sum(1 for row in rows if bool(row["gross_edge_positive"]))
+    return {
+        "window_count": len(rows),
+        "median_gross_return_pct": _median_float(gross_returns),
+        "mean_gross_return_pct": _mean_float(gross_returns),
+        "worst_gross_return_pct": min(gross_returns) if gross_returns else None,
+        "gross_edge_hit_rate": float(hit_count / max(1, len(rows))),
+        "median_net_return_pct": _median_float(net_returns),
+        "median_funding_drag_pct": _median_float([float(row["funding_drag_pct"]) for row in rows]),
+        "median_slippage_drag_pct": _median_float([float(row["slippage_drag_pct"]) for row in rows]),
+        "median_stress_drag_pct": _median_float([float(row["stress_drag_pct"]) for row in rows]),
+        "cash_null_failure_count": sum(1 for row in rows if bool(row["cash_null_failure"])),
+        "median_difference_vs_buy_and_hold_pct": _median_float(
+            [float(row["difference_vs_buy_and_hold_pct"]) for row in rows]
+        ),
+        "cvar_tail_gross_return_pct": _tail_loss_cvar(gross_returns, config),
+        "worst_drawdown_pct": min([float(row["drawdown_pct"]) for row in rows], default=None),
+    }
+
+
+def _gross_edge_null_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        grouped.setdefault(str(row["baseline_name"]), []).append(row)
+    return {
+        "by_baseline": {
+            name: {
+                "window_count": len(items),
+                "median_baseline_return_pct": _median_float(
+                    [float(item["baseline_return_pct"]) for item in items]
+                ),
+                "median_tsmom_gross_return_pct": _median_float(
+                    [float(item["tsmom_gross_return_pct"]) for item in items]
+                ),
+                "median_tsmom_minus_baseline_return_pct": _median_float(
+                    [float(item["tsmom_minus_baseline_return_pct"]) for item in items]
+                ),
+                "baseline_beats_or_matches_tsmom_count": sum(
+                    1 for item in items if bool(item["baseline_beats_or_matches_tsmom"])
+                ),
+            }
+            for name, items in sorted(grouped.items())
+        }
+    }
+
+
+def _gross_edge_evaluation_gates(
+    *,
+    gross_rows: list[dict[str, Any]],
+    null_summary: dict[str, Any],
+    source_payload: dict[str, Any],
+    config: TsmomLoopConfig,
+) -> dict[str, dict[str, Any]]:
+    summary = _gross_edge_summary(gross_rows, config)
+    by_baseline = cast(dict[str, dict[str, Any]], null_summary.get("by_baseline", {}))
+
+    def median_delta(baseline_name: str) -> float | None:
+        values = by_baseline.get(baseline_name)
+        if values is None:
+            return None
+        value = values.get("median_tsmom_minus_baseline_return_pct")
+        return float(value) if value is not None else None
+
+    source_failed_gates = list(source_payload.get("failed_gates", []))
+    return {
+        "median_gross_return_beats_cash_null": _gate(
+            summary["median_gross_return_pct"],
+            "> 0.0",
+            _gt(cast(float | None, summary["median_gross_return_pct"]), 0.0),
+        ),
+        "gross_edge_hit_rate": _gate(
+            summary["gross_edge_hit_rate"],
+            f"> {config.gross_edge_min_hit_rate}",
+            float(summary["gross_edge_hit_rate"]) > config.gross_edge_min_hit_rate,
+        ),
+        "median_gross_beats_random_sign_baseline": _gate(
+            median_delta("random_sign"),
+            "> 0.0",
+            _gt(median_delta("random_sign"), 0.0),
+        ),
+        "median_gross_beats_lagged_signal_baseline": _gate(
+            median_delta("lagged_signal"),
+            "> 0.0",
+            _gt(median_delta("lagged_signal"), 0.0),
+        ),
+        "median_gross_beats_inverse_signal_baseline": _gate(
+            median_delta("inverse_signal"),
+            "> 0.0",
+            _gt(median_delta("inverse_signal"), 0.0),
+        ),
+        "median_gross_beats_buy_and_hold_baseline": _gate(
+            median_delta("buy_and_hold"),
+            "> 0.0",
+            _gt(median_delta("buy_and_hold"), 0.0),
+        ),
+        "source_failed_gates_preserved": _gate(
+            source_failed_gates,
+            "source failed gates must remain present and unrenamed",
+            bool(source_failed_gates),
+        ),
+    }
+
+
+def _gross_edge_loop_verdict(*, windows: tuple[TsmomWindow, ...], failed_gates: list[str]) -> str:
+    if not windows:
+        return TSMOM_GROSS_EDGE_BLOCKED
+    return TSMOM_GROSS_EDGE_WATCH if failed_gates else TSMOM_GROSS_EDGE_PASS_PAPER_ONLY
+
+
+def _gross_edge_regime_breakdown(
+    rows: list[dict[str, Any]],
+    *,
+    config: TsmomLoopConfig,
+) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        for key in (
+            "market_regime",
+            "volatility_regime",
+            "funding_regime",
+            "funding_drag_regime",
+            "trend_regime",
+        ):
+            grouped.setdefault((key, str(row[key])), []).append(row)
+    breakdown: list[dict[str, Any]] = []
+    for (axis, label), items in sorted(grouped.items()):
+        gross_returns = [float(item["gross_return_before_costs_pct"]) for item in items]
+        net_returns = [float(item["net_return_after_funding_slippage_stress_pct"]) for item in items]
+        hit_rate = sum(1 for item in items if bool(item["gross_edge_positive"])) / max(1, len(items))
+        median_gross = _median_float(gross_returns)
+        passes = median_gross is not None and median_gross > 0.0 and hit_rate > config.gross_edge_min_hit_rate
+        breakdown.append(
+            {
+                "regime_axis": axis,
+                "regime_label": label,
+                "window_count": len(items),
+                "median_gross_return_pct": median_gross,
+                "median_net_return_pct": _median_float(net_returns),
+                "cash_null_failure_count": sum(1 for item in items if bool(item["cash_null_failure"])),
+                "gross_edge_hit_rate": float(hit_rate),
+                "worst_drawdown_pct": min([float(item["drawdown_pct"]) for item in items], default=None),
+                "cvar_tail_loss_pct": _tail_loss_cvar(gross_returns, config),
+                "regime_gate_status": "passed" if passes else "failed_or_unclaimed",
+            }
+        )
+    return breakdown
+
+
+def _gross_edge_regime_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    passed = [row for row in rows if row["regime_gate_status"] == "passed"]
+    return {
+        "regime_count": len(rows),
+        "passed_regime_count": len(passed),
+        "passed_regimes": [f"{row['regime_axis']}={row['regime_label']}" for row in passed],
+    }
 
 
 def _settings_from_window_row(row: dict[str, Any]) -> TsmomCandidateSettings:

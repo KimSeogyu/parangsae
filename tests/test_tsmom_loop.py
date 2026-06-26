@@ -16,6 +16,7 @@ from parangsae.research.readiness import READINESS_CANDIDATE_REGISTRY, READINESS
 from parangsae.research.tsmom import (
     TSMOM_ALLOWED_LOOP_VERDICTS,
     TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE,
+    TSMOM_GROSS_EDGE_VERDICT_NAMESPACE,
     TSMOM_LOOP_VERDICT_NAMESPACE,
     TSMOM_RISK_VERDICT_NAMESPACE,
     TsmomCandidateSettings,
@@ -23,14 +24,17 @@ from parangsae.research.tsmom import (
     align_public_funding_to_decision_bars,
     build_tsmom_diagnostic_payload,
     build_tsmom_decision_frame,
+    build_tsmom_gross_edge_loop_payload,
     build_tsmom_loop_payload,
     build_tsmom_risk_loop_payload,
     default_tsmom_diagnostic_output_dir,
+    default_tsmom_gross_edge_output_dir,
     default_tsmom_output_dir,
     default_tsmom_risk_output_dir,
     render_tsmom_report,
     tsmom_candidate_grid,
     write_tsmom_diagnostic_artifacts,
+    write_tsmom_gross_edge_loop_artifacts,
     write_tsmom_loop_artifacts,
     write_tsmom_risk_loop_artifacts,
 )
@@ -590,3 +594,187 @@ def test_tsmom_risk_cli_writes_artifacts_without_credentials(
     assert (output_dir / "funding_throttle_decomposition.csv").exists()
     assert (output_dir / "regime_breakdown.csv").exists()
     assert default_tsmom_risk_output_dir(root=tmp_path / "reports" / "loops", today="20260626") == output_dir
+
+
+def test_tsmom_gross_edge_loop_payload_records_schema_and_claim_boundary() -> None:
+    frame = synthetic_frame(420)
+    funding = funding_bundle(funding_frame(frame.index, rate=0.0002))
+    payload = build_tsmom_gross_edge_loop_payload(
+        bundle=market_bundle(frame),
+        funding_bundle=funding,
+        config=small_config(),
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/tsmom.py"],
+    )
+    assert "verdict" not in payload
+    assert "loop_verdict" not in payload
+    assert "decision" not in payload
+    assert payload["tsmom_gross_edge_loop_verdict_namespace"] == TSMOM_GROSS_EDGE_VERDICT_NAMESPACE
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert payload["source_tsmom_loop_verdict"] in {"WATCH", "BLOCKED"}
+    assert payload["loop_contract"]["readiness_verdict"] is False
+    assert "api_keys" in payload["pre_registration"]["forbidden_inputs"]
+    assert "holdout_for_parameter_selection" in payload["pre_registration"]["forbidden_inputs"]
+    assert payload["source_failed_gates_preserved"] == payload["source_tsmom_failed_gates"]
+    assert set(payload["gross_edge_evaluation_gates"]) == {
+        "median_gross_return_beats_cash_null",
+        "gross_edge_hit_rate",
+        "median_gross_beats_random_sign_baseline",
+        "median_gross_beats_lagged_signal_baseline",
+        "median_gross_beats_inverse_signal_baseline",
+        "median_gross_beats_buy_and_hold_baseline",
+        "source_failed_gates_preserved",
+    }
+    assert payload["gross_edge_decomposition"]
+    assert payload["regime_edge_breakdown"]
+    assert payload["null_baseline_comparison"]
+    assert payload["failed_edge_windows"]
+    first_row = payload["gross_edge_decomposition"][0]
+    assert "gross_return_before_costs_pct" in first_row
+    assert "net_return_after_funding_slippage_stress_pct" in first_row
+    assert "difference_vs_cash_null_pct" in first_row
+    assert "direction_correctness_rate" in first_row
+    assert "funding_drag_regime" in first_row
+    assert "trend_regime" in first_row
+    baselines = {row["baseline_name"] for row in payload["null_baseline_comparison"]}
+    assert baselines == {"cash_null", "random_sign", "lagged_signal", "inverse_signal", "buy_and_hold"}
+    assert all(value is False for value in payload["safety_gates"].values())
+    assert "not permission for live orders or testnet orders" in payload["claim_boundary"]
+    assert "no live, testnet, account, API-key" in payload["claim_boundary"]
+
+
+def test_tsmom_gross_edge_regime_classification_and_null_comparison_are_present() -> None:
+    frame = synthetic_frame(420)
+    payload = build_tsmom_gross_edge_loop_payload(
+        bundle=market_bundle(frame),
+        funding_bundle=funding_bundle(funding_frame(frame.index, rate=0.0002)),
+        config=small_config(),
+    )
+    regime_axes = {row["regime_axis"] for row in payload["regime_edge_breakdown"]}
+    assert {"market_regime", "volatility_regime", "funding_regime", "funding_drag_regime", "trend_regime"}.issubset(
+        regime_axes
+    )
+    assert payload["gross_edge_summary"]["window_count"] == len(payload["gross_edge_decomposition"])
+    by_baseline = payload["null_robustness_summary"]["by_baseline"]
+    assert by_baseline["random_sign"]["window_count"] == payload["gross_edge_summary"]["window_count"]
+    assert by_baseline["cash_null"]["median_baseline_return_pct"] == 0.0
+    assert all(row["deterministic_seed"] is not None for row in payload["null_baseline_comparison"] if row["baseline_name"] == "random_sign")
+
+
+def test_tsmom_gross_edge_loop_output_is_deterministic_for_rows() -> None:
+    frame = synthetic_frame(420)
+    funding = funding_bundle(funding_frame(frame.index, rate=0.0002))
+    first = build_tsmom_gross_edge_loop_payload(bundle=market_bundle(frame), funding_bundle=funding, config=small_config())
+    second = build_tsmom_gross_edge_loop_payload(bundle=market_bundle(frame), funding_bundle=funding, config=small_config())
+    assert first["gross_edge_decomposition"] == second["gross_edge_decomposition"]
+    assert first["regime_edge_breakdown"] == second["regime_edge_breakdown"]
+    assert first["null_baseline_comparison"] == second["null_baseline_comparison"]
+    assert first["failed_edge_windows"] == second["failed_edge_windows"]
+
+
+def test_tsmom_gross_edge_artifacts_are_generated_report_is_safe_and_overwrite_guarded(tmp_path: Path) -> None:
+    frame = synthetic_frame(420)
+    payload = build_tsmom_gross_edge_loop_payload(
+        bundle=market_bundle(frame),
+        funding_bundle=funding_bundle(funding_frame(frame.index, rate=0.0002)),
+        config=small_config(),
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/tsmom.py"],
+    )
+    output_dir = tmp_path / "reports" / "loops" / "20260626-tsmom-gross-edge-regime-null-robustness-v1"
+    written = write_tsmom_gross_edge_loop_artifacts(output_dir, payload)
+    assert written == output_dir
+    expected = {
+        "gross_edge_loop.json",
+        "report.md",
+        "gross_edge_decomposition.csv",
+        "regime_edge_breakdown.csv",
+        "null_baseline_comparison.csv",
+        "failed_edge_windows.csv",
+        "commands.txt",
+        "changed_files.txt",
+    }
+    assert {path.name for path in output_dir.iterdir()} == expected
+    gross_edge_loop = json.loads((output_dir / "gross_edge_loop.json").read_text())
+    assert "verdict" not in gross_edge_loop
+    assert "loop_verdict" not in gross_edge_loop
+    assert "decision" not in gross_edge_loop
+    assert gross_edge_loop["loop_id"] == "20260626-tsmom-gross-edge-regime-null-robustness-v1"
+    assert gross_edge_loop["readiness_baseline_verdict"] == "NOT_READY"
+    report = (output_dir / "report.md").read_text()
+    assert "## Gross edge summary" in report
+    assert "## Null robustness" in report
+    assert "not permission for live orders or testnet orders" in report
+    assert "live_trading_path_introduced: false" in report
+    with pytest.raises(FileExistsError, match="output directory already exists"):
+        write_tsmom_gross_edge_loop_artifacts(output_dir, payload)
+    assert default_tsmom_gross_edge_output_dir(root=tmp_path / "reports" / "loops", today="20260626") == output_dir
+
+
+def test_tsmom_gross_edge_cli_writes_artifacts_without_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    frame = synthetic_frame(360)
+    funding = funding_bundle(funding_frame(frame.index, rate=0.0002))
+    monkeypatch.setattr(quantctl, "load_market_data_bundle", lambda **kwargs: market_bundle(frame))
+    monkeypatch.setattr(quantctl, "fetch_funding_rate_history", lambda **kwargs: funding)
+    monkeypatch.setattr(
+        quantctl,
+        "funding_metadata_for_report",
+        lambda bundle: {"source": "public_binance_usdm_funding_history", "rows": len(bundle.frame)},
+    )
+    monkeypatch.setenv("BINANCE_API_KEY", "SHOULD_NOT_BE_READ")
+    monkeypatch.setenv("BINANCE_API_SECRET", "SHOULD_NOT_BE_READ")
+    real_getenv = os.getenv
+
+    def guarded_getenv(key: str, default: str | None = None) -> str | None:
+        if key in {"BINANCE_API_KEY", "BINANCE_API_SECRET"}:
+            raise AssertionError(f"tsmom-gross-edge-run must not read {key}")
+        return real_getenv(key, default)
+
+    monkeypatch.setattr(os, "getenv", guarded_getenv)
+    output_dir = tmp_path / "reports" / "loops" / "20260626-tsmom-gross-edge-regime-null-robustness-v1"
+    parsed = quantctl.build_parser().parse_args(
+        [
+            "tsmom-gross-edge-run",
+            "--symbol",
+            "BTCUSDT",
+            "--interval",
+            "1h",
+            "--months",
+            "2024-01",
+            "--cache-dir",
+            str(tmp_path / "cache"),
+            "--funding-source",
+            "public-binance",
+            "--funding-cache-dir",
+            str(tmp_path / "funding"),
+            "--reports-root",
+            str(tmp_path / "reports"),
+            "--output-dir",
+            str(output_dir),
+            "--command",
+            "uv run pytest tests/test_tsmom_loop.py -q",
+            "--changed-file",
+            "src/parangsae/research/tsmom.py",
+        ]
+    )
+    assert parsed.func is quantctl.cmd_tsmom_gross_edge_run
+    assert quantctl.cmd_tsmom_gross_edge_run(parsed) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert "verdict" not in cli_payload
+    assert "loop_verdict" not in cli_payload
+    assert cli_payload["tsmom_gross_edge_loop_verdict_namespace"] == TSMOM_GROSS_EDGE_VERDICT_NAMESPACE
+    assert cli_payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert cli_payload["live_orders_submitted"] is False
+    assert cli_payload["testnet_orders_submitted"] is False
+    gross_edge_loop = json.loads((output_dir / "gross_edge_loop.json").read_text())
+    assert gross_edge_loop["safety_gates"]["api_keys_required_for_research"] is False
+    assert gross_edge_loop["safety_gates"]["account_or_fill_data_used"] is False
+    assert gross_edge_loop["safety_gates"]["gates_relaxed"] is False
+    assert (output_dir / "gross_edge_decomposition.csv").exists()
+    assert (output_dir / "regime_edge_breakdown.csv").exists()
+    assert (output_dir / "null_baseline_comparison.csv").exists()
+    assert (output_dir / "failed_edge_windows.csv").exists()

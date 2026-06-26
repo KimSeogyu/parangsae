@@ -44,6 +44,14 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             return None
         if "tsmom_risk_loop_verdict" in payload:
             return "tsmom-risk-run"
+    gross_edge_loop_json = path / "gross_edge_loop.json"
+    if gross_edge_loop_json.exists():
+        try:
+            payload = json.loads(gross_edge_loop_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "tsmom_gross_edge_loop_verdict" in payload:
+            return "tsmom-gross-edge-run"
     return None
 
 

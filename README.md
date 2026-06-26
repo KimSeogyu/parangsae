@@ -150,6 +150,27 @@ proves otherwise. It does not retune on holdout, relax gates, imply
 profitability, imply live readiness, authorize live/testnet execution, or use
 account/API-key/order/fill data for performance claims.
 
+`tsmom-gross-edge-run` implements the pre-registered paper-only
+`TSMOM_GROSS_EDGE_REGIME_NULL_ROBUSTNESS_V1` diagnostic/research loop:
+
+```bash
+uv run quantctl tsmom-gross-edge-run
+```
+
+It writes
+`reports/loops/<YYYYMMDD>-tsmom-gross-edge-regime-null-robustness-v1/` with
+`gross_edge_loop.json`, `report.md`, `gross_edge_decomposition.csv`,
+`regime_edge_breakdown.csv`, `null_baseline_comparison.csv`,
+`failed_edge_windows.csv`, `commands.txt`, and `changed_files.txt`. The loop
+uses the frozen source TSMOM selected candidates to ask whether gross return is
+positive before funding, slippage, and stress costs, whether any gross edge is
+regime-concentrated, and whether simple null baselines match or beat TSMOM.
+Its `tsmom_gross_edge_loop_verdict` is namespaced and loop-only; it is not a
+readiness verdict. It preserves source failed gates and
+`readiness_baseline_verdict: NOT_READY`, and it does not retune on holdout,
+relax gates, imply profitability or live readiness, authorize live/testnet
+execution, or use account/API-key/order/fill data for performance claims.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.
