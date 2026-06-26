@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -114,7 +114,7 @@ def run_forward_paper(
     regime_report = build_regime_report(data)
     signal_report = build_signal_report(
         data,
-        regimes=regime_report.rows["regime_label"],
+        regimes=_as_series(regime_report.rows["regime_label"]),
         asset=symbol,
         timeframe=interval,
     )
@@ -157,34 +157,34 @@ def exposure_frame_from_reports(
     role_scores = _role_scores_by_timestamp(signal_report.rows)
     aligned = pd.DataFrame(index=data.index)
     for column in ("direction_score", "entry_score", "risk_score", "exit_score"):
-        aligned[column] = role_scores.get(column, pd.Series(0.0, index=data.index)).reindex(data.index).fillna(0.0)
-    exit_pressure = aligned["exit_score"].clip(lower=0.0)
-    aligned["raw_score"] = (
-        0.45 * aligned["direction_score"]
-        + 0.25 * aligned["entry_score"]
-        + 0.20 * aligned["risk_score"]
+        aligned[column] = _as_series(role_scores.get(column, pd.Series(0.0, index=data.index)).reindex(data.index).fillna(0.0))
+    exit_pressure = _as_series(aligned["exit_score"]).clip(lower=0.0)
+    aligned["raw_score"] = _as_series(
+        0.45 * _as_series(aligned["direction_score"])
+        + 0.25 * _as_series(aligned["entry_score"])
+        + 0.20 * _as_series(aligned["risk_score"])
         - 0.10 * exit_pressure
     ).clip(lower=-1.0, upper=1.0)
-    regimes = regime_report.rows.reindex(data.index)
-    aligned["regime_label"] = regimes["regime_label"].astype(str)
+    regimes = _as_frame(regime_report.rows.reindex(data.index))
+    aligned["regime_label"] = _as_series(regimes["regime_label"]).astype(str)
     aligned["regime_risk_multiplier"] = (
-        pd.to_numeric(regimes["risk_multiplier"], errors="coerce").fillna(0.0).clip(lower=0.0, upper=config.max_exposure)
+        _numeric_series(regimes["risk_multiplier"]).fillna(0.0).clip(lower=0.0, upper=config.max_exposure)
     )
     targets: list[float] = []
     previous_target = 0.0
     for _, row in aligned.iterrows():
-        raw_score = float(row["raw_score"])
+        raw_score = _float_value(row["raw_score"])
         if raw_score >= config.entry_threshold:
             base_exposure = 1.0
         elif raw_score <= config.exit_threshold:
             base_exposure = 0.0
         else:
             base_exposure = previous_target
-        target = _clamp(base_exposure * float(row["regime_risk_multiplier"]), 0.0, config.max_exposure)
+        target = _clamp(base_exposure * _float_value(row["regime_risk_multiplier"]), 0.0, config.max_exposure)
         targets.append(target)
         previous_target = target
-    aligned["target_exposure"] = targets
-    aligned["applied_exposure"] = aligned["target_exposure"].shift(1).fillna(0.0)
+    aligned["target_exposure"] = pd.Series(targets, index=aligned.index)
+    aligned["applied_exposure"] = _as_series(aligned["target_exposure"]).shift(1).fillna(0.0)
     return aligned
 
 
@@ -196,9 +196,9 @@ def simulate_forward_positions(
     config: ForwardPaperConfig,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, Any]]:
     data = _normalize_ohlcv(frame)
-    scores = exposure_frame.reindex(data.index).copy()
-    close = data["Close"].astype(float)
-    returns = close.pct_change().fillna(0.0)
+    scores = _as_frame(exposure_frame.reindex(data.index).copy())
+    close = _as_series(data["Close"]).astype(float)
+    returns = _as_series(close.pct_change().fillna(0.0))
     equity_value = float(config.initial_cash)
     peak_equity = equity_value
     previous_target = 0.0
@@ -207,10 +207,11 @@ def simulate_forward_positions(
     trade_records: list[dict[str, Any]] = []
     active_trade: dict[str, Any] | None = None
     total_turnover = 0.0
-    for timestamp in data.index:
-        target = float(scores.loc[timestamp, "target_exposure"])
-        applied = float(scores.loc[timestamp, "applied_exposure"])
-        bar_return = float(returns.loc[timestamp])
+    for raw_timestamp in data.index:
+        timestamp = _as_timestamp(raw_timestamp)
+        target = _float_value(scores.loc[timestamp, "target_exposure"])
+        applied = _float_value(scores.loc[timestamp, "applied_exposure"])
+        bar_return = _float_value(returns.loc[timestamp])
         gross_pnl = equity_value * applied * bar_return
         equity_after_gross = equity_value + gross_pnl
         turnover_notional = abs(target - previous_target) * equity_after_gross
@@ -229,7 +230,7 @@ def simulate_forward_positions(
         total_turnover += turnover_notional
 
         if previous_target == 0.0 and target > 0.0:
-            active_trade = _new_trade(timestamp, close.loc[timestamp], target)
+            active_trade = _new_trade(timestamp, _float_value(close.loc[timestamp]), target)
         if active_trade is not None:
             _accumulate_trade(
                 active_trade,
@@ -243,7 +244,7 @@ def simulate_forward_positions(
                 _close_trade(
                     active_trade,
                     exit_time=timestamp,
-                    exit_price=float(close.loc[timestamp]),
+                    exit_price=_float_value(close.loc[timestamp]),
                     exit_exposure=previous_target,
                     exit_reason="target_flat",
                 )
@@ -253,10 +254,10 @@ def simulate_forward_positions(
         position_records.append(
             {
                 "Timestamp": timestamp,
-                "close": float(close.loc[timestamp]),
-                "raw_score": float(scores.loc[timestamp, "raw_score"]),
+                "close": _float_value(close.loc[timestamp]),
+                "raw_score": _float_value(scores.loc[timestamp, "raw_score"]),
                 "regime_label": str(scores.loc[timestamp, "regime_label"]),
-                "regime_risk_multiplier": float(scores.loc[timestamp, "regime_risk_multiplier"]),
+                "regime_risk_multiplier": _float_value(scores.loc[timestamp, "regime_risk_multiplier"]),
                 "target_exposure": target,
                 "applied_exposure": applied,
                 "position_notional": equity_value * target,
@@ -273,23 +274,27 @@ def simulate_forward_positions(
         previous_timestamp = timestamp
 
     if active_trade is not None:
-        last_timestamp = data.index[-1]
+        last_timestamp = _as_timestamp(data.index[-1])
         trade_records.append(
             _close_trade(
                 active_trade,
                 exit_time=last_timestamp,
-                exit_price=float(close.loc[last_timestamp]),
+                exit_price=_float_value(close.loc[last_timestamp]),
                 exit_exposure=previous_target,
                 exit_reason="open_at_end",
             )
         )
 
-    positions = pd.DataFrame.from_records(position_records).set_index("Timestamp")
-    positions = positions[POSITIONS_COLUMNS]
-    equity = positions.assign(total_cost=positions["fee_cost"] + positions["slippage_cost"] + positions["funding_cost"])[
-        EQUITY_COLUMNS
-    ]
-    trades = pd.DataFrame.from_records(trade_records, columns=TRADES_COLUMNS)
+    positions = _as_frame(pd.DataFrame.from_records(position_records).set_index("Timestamp"))
+    positions = _as_frame(positions.loc[:, POSITIONS_COLUMNS])
+    equity = _as_frame(
+        positions.assign(
+            total_cost=_as_series(positions["fee_cost"])
+            + _as_series(positions["slippage_cost"])
+            + _as_series(positions["funding_cost"])
+        ).loc[:, EQUITY_COLUMNS]
+    )
+    trades = _as_frame(pd.DataFrame.from_records(trade_records, columns=TRADES_COLUMNS))
     metrics = _metrics(
         positions,
         trades,
@@ -305,11 +310,13 @@ def _role_scores_by_timestamp(rows: pd.DataFrame) -> dict[str, pd.Series]:
     if rows.empty:
         return {role: pd.Series(dtype="float64") for role in ("direction_score", "entry_score", "risk_score", "exit_score")}
     data = rows.copy()
-    data["weighted_score"] = pd.to_numeric(data["weighted_score"], errors="coerce").fillna(0.0)
+    data["weighted_score"] = _numeric_series(data["weighted_score"]).fillna(0.0)
     scores: dict[str, pd.Series] = {}
     for role in ("direction", "entry", "risk", "exit"):
-        role_rows = data[data["role"] == role]
-        scores[f"{role}_score"] = role_rows.groupby(level=0)["weighted_score"].mean() if not role_rows.empty else pd.Series(dtype="float64")
+        role_rows = _as_frame(data[_as_series(data["role"]) == role])
+        scores[f"{role}_score"] = (
+            _as_series(role_rows.groupby(level=0)["weighted_score"].mean()) if not role_rows.empty else pd.Series(dtype="float64")
+        )
     return scores
 
 
@@ -323,11 +330,11 @@ def _funding_cost_for_bar(
 ) -> float:
     if funding_frame is None or funding_frame.empty or previous_timestamp is None or applied_exposure == 0.0:
         return 0.0
-    window = funding_frame.loc[(funding_frame.index > previous_timestamp) & (funding_frame.index <= current_timestamp)]
+    window = _as_frame(funding_frame.loc[(funding_frame.index > previous_timestamp) & (funding_frame.index <= current_timestamp)])
     if window.empty:
         return 0.0
-    rates = pd.to_numeric(window["funding_rate"], errors="coerce").dropna()
-    return float(equity_after_gross * applied_exposure * rates.sum())
+    rates = _numeric_series(window["funding_rate"]).dropna()
+    return float(equity_after_gross * applied_exposure * _float_value(rates.sum()))
 
 
 def _normalize_funding_frame(frame: pd.DataFrame | None) -> pd.DataFrame | None:
@@ -345,8 +352,8 @@ def _normalize_funding_frame(frame: pd.DataFrame | None) -> pd.DataFrame | None:
     if "funding_rate" not in data.columns:
         raise ValueError("funding frame requires funding_rate column")
     data = data.sort_index()
-    data["funding_rate"] = pd.to_numeric(data["funding_rate"], errors="coerce")
-    if data["funding_rate"].isna().any():
+    data["funding_rate"] = _numeric_series(data["funding_rate"])
+    if _bool_value(_as_series(data["funding_rate"]).isna().any()):
         raise ValueError("funding_rate contains non-numeric values")
     return data
 
@@ -418,28 +425,28 @@ def _metrics(
     funding_frame: pd.DataFrame | None,
     funding_source: str,
 ) -> dict[str, Any]:
-    final_equity = float(positions["equity"].iloc[-1])
-    closed = trades[trades["exit_reason"] != "open_at_end"] if not trades.empty else trades
-    wins = closed[closed["net_pnl"] > 0] if not closed.empty else closed
+    final_equity = _float_value(_as_series(positions["equity"]).iloc[-1])
+    closed = _as_frame(trades[_as_series(trades["exit_reason"]) != "open_at_end"]) if not trades.empty else trades
+    wins = _as_frame(closed[_as_series(closed["net_pnl"]) > 0]) if not closed.empty else closed
     return {
         "status": "success",
         "run_type": "forward-paper-run",
         "initial_cash": initial_cash,
         "final_equity": final_equity,
         "return_pct": (final_equity / initial_cash - 1.0) * 100.0,
-        "max_drawdown_pct": float(positions["drawdown_pct"].min()),
+        "max_drawdown_pct": _float_value(_as_series(positions["drawdown_pct"]).min()),
         "bars": int(len(positions)),
-        "exposure_time_pct": float((positions["applied_exposure"] > 0).mean() * 100.0),
+        "exposure_time_pct": _float_value(_as_series(_as_series(positions["applied_exposure"]) > 0).mean() * 100.0),
         "turnover_notional": float(total_turnover),
-        "fee_cost_total": float(positions["fee_cost"].sum()),
-        "slippage_cost_total": float(positions["slippage_cost"].sum()),
-        "funding_cost_total": float(positions["funding_cost"].sum()),
+        "fee_cost_total": _float_value(_as_series(positions["fee_cost"]).sum()),
+        "slippage_cost_total": _float_value(_as_series(positions["slippage_cost"]).sum()),
+        "funding_cost_total": _float_value(_as_series(positions["funding_cost"]).sum()),
         "funding_source": funding_source,
         "funding_rows": int(len(funding_frame)) if funding_frame is not None else 0,
         "closed_trades": int(len(closed)),
         "trade_rows": int(len(trades)),
         "win_rate_pct": None if closed.empty else float(len(wins) / len(closed) * 100.0),
-        "open_position": float(positions["target_exposure"].iloc[-1]),
+        "open_position": _float_value(_as_series(positions["target_exposure"]).iloc[-1]),
         "live_orders_submitted": False,
         "api_keys_required": False,
     }
@@ -470,7 +477,7 @@ def _normalize_ohlcv(frame: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"missing OHLCV columns: {missing}")
     data = data.sort_index()
-    return data.loc[:, ["Open", "High", "Low", "Close", "Volume"]].astype(float)
+    return _as_frame(data.loc[:, ["Open", "High", "Low", "Close", "Volume"]].astype(float))
 
 
 def _clamp(value: float, lower: float, upper: float) -> float:
@@ -482,3 +489,27 @@ def _clamp(value: float, lower: float, upper: float) -> float:
 def _timestamp(value: pd.Timestamp) -> str:
     timestamp = value.tz_localize("UTC") if value.tzinfo is None else value.tz_convert("UTC")
     return timestamp.isoformat().replace("+00:00", "Z")
+
+
+def _as_frame(value: Any) -> pd.DataFrame:
+    return cast(pd.DataFrame, value)
+
+
+def _as_series(value: Any) -> pd.Series:
+    return cast(pd.Series, value)
+
+
+def _as_timestamp(value: Any) -> pd.Timestamp:
+    return cast(pd.Timestamp, value)
+
+
+def _numeric_series(value: Any) -> pd.Series:
+    return cast(pd.Series, pd.to_numeric(value, errors="coerce"))
+
+
+def _float_value(value: Any) -> float:
+    return float(value)
+
+
+def _bool_value(value: Any) -> bool:
+    return bool(value)
