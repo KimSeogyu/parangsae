@@ -60,6 +60,14 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             return None
         if "tsmom_candidate_family_decision" in payload:
             return "tsmom-family-decision-run"
+    decision_json = path / "decision.json"
+    if decision_json.exists():
+        try:
+            payload = json.loads(decision_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "regime_only_tsmom_falsification_decision" in payload:
+            return "tsmom-regime-only-falsification-run"
     return None
 
 

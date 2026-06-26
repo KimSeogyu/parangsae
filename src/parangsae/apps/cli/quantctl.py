@@ -68,19 +68,23 @@ from parangsae.research.readiness import build_readiness_report
 from parangsae.research.signals import build_signal_report
 from parangsae.research.tsmom import (
     DEFAULT_TSMOM_DIAGNOSTIC_ARTIFACT,
+    DEFAULT_TSMOM_FAMILY_DECISION_ARTIFACT,
     DEFAULT_TSMOM_GROSS_EDGE_ARTIFACT,
     DEFAULT_TSMOM_RISK_ARTIFACT,
     DEFAULT_TSMOM_SOURCE_LOOP_ARTIFACT,
+    build_regime_only_tsmom_falsification_payload,
     build_tsmom_candidate_family_decision_payload,
     build_tsmom_diagnostic_payload,
     build_tsmom_gross_edge_loop_payload,
     build_tsmom_loop_payload,
     build_tsmom_risk_loop_payload,
+    default_regime_only_tsmom_falsification_output_dir,
     default_tsmom_diagnostic_output_dir,
     default_tsmom_family_decision_output_dir,
     default_tsmom_gross_edge_output_dir,
     default_tsmom_output_dir,
     default_tsmom_risk_output_dir,
+    write_regime_only_tsmom_falsification_artifacts,
     write_tsmom_candidate_family_decision_artifacts,
     write_tsmom_diagnostic_artifacts,
     write_tsmom_gross_edge_loop_artifacts,
@@ -292,6 +296,21 @@ def _default_tsmom_family_decision_command(args: argparse.Namespace) -> str:
         f"--risk-artifact {args.risk_artifact}",
         f"--gross-edge-artifact {args.gross_edge_artifact}",
         f"--output-dir {args.output_dir or default_tsmom_family_decision_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_regime_only_tsmom_falsification_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl tsmom-regime-only-falsification-run",
+        f"--source-loop-artifact {args.source_loop_artifact}",
+        f"--diagnostic-artifact {args.diagnostic_artifact}",
+        f"--risk-artifact {args.risk_artifact}",
+        f"--gross-edge-artifact {args.gross_edge_artifact}",
+        f"--family-decision-artifact {args.family_decision_artifact}",
+        f"--output-dir {args.output_dir or default_regime_only_tsmom_falsification_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
     if args.overwrite:
         command.append("--overwrite")
@@ -819,6 +838,74 @@ def cmd_tsmom_family_decision_run(args: argparse.Namespace) -> int:
                 {
                     "status": "failed",
                     "run_type": "tsmom-family-decision-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
+def cmd_tsmom_regime_only_falsification_run(args: argparse.Namespace) -> int:
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_regime_only_tsmom_falsification_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        commands = args.command or [_default_regime_only_tsmom_falsification_command(args)]
+        changed_files = args.changed_file or []
+        payload = build_regime_only_tsmom_falsification_payload(
+            source_loop_artifact=args.source_loop_artifact,
+            diagnostic_artifact=args.diagnostic_artifact,
+            risk_artifact=args.risk_artifact,
+            gross_edge_artifact=args.gross_edge_artifact,
+            family_decision_artifact=args.family_decision_artifact,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_regime_only_tsmom_falsification_artifacts(
+            output_dir,
+            payload,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "tsmom-regime-only-falsification-run",
+                    "output_dir": str(written),
+                    "regime_only_tsmom_falsification_decision": payload[
+                        "regime_only_tsmom_falsification_decision"
+                    ],
+                    "regime_only_tsmom_falsification_namespace": payload[
+                        "regime_only_tsmom_falsification_namespace"
+                    ],
+                    "readiness_baseline_verdict": payload["readiness_baseline_verdict"],
+                    "source_candidate_family_decision": payload["source_candidate_family_decision"],
+                    "candidate_queue_status": payload["candidate_queue_status"],
+                    "failed_regime_only_gates": payload["failed_regime_only_gates"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (FileNotFoundError, ValueError, FileExistsError) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "tsmom-regime-only-falsification-run",
                     "failed_gate": type(exc).__name__,
                     "reason": str(exc),
                     "output_dir": str(output_dir),
@@ -1531,6 +1618,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     tsmom_family.set_defaults(func=cmd_tsmom_family_decision_run)
+
+    regime_only = sub.add_parser("tsmom-regime-only-falsification-run")
+    regime_only.add_argument("--reports-root", default="reports")
+    regime_only.add_argument("--output-dir")
+    regime_only.add_argument("--overwrite", action="store_true")
+    regime_only.add_argument(
+        "--source-loop-artifact",
+        default=str(DEFAULT_TSMOM_SOURCE_LOOP_ARTIFACT),
+        help="durable TSMOM source loop artifact path",
+    )
+    regime_only.add_argument(
+        "--diagnostic-artifact",
+        default=str(DEFAULT_TSMOM_DIAGNOSTIC_ARTIFACT),
+        help="durable TSMOM stress/switch/funding diagnostic artifact path",
+    )
+    regime_only.add_argument(
+        "--risk-artifact",
+        default=str(DEFAULT_TSMOM_RISK_ARTIFACT),
+        help="durable TSMOM switch-stability/funding-throttle risk artifact path",
+    )
+    regime_only.add_argument(
+        "--gross-edge-artifact",
+        default=str(DEFAULT_TSMOM_GROSS_EDGE_ARTIFACT),
+        help="durable TSMOM gross-edge/regime/null robustness artifact path",
+    )
+    regime_only.add_argument(
+        "--family-decision-artifact",
+        default=str(DEFAULT_TSMOM_FAMILY_DECISION_ARTIFACT),
+        help="durable TSMOM candidate-family decision artifact path",
+    )
+    regime_only.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    regime_only.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    regime_only.set_defaults(func=cmd_tsmom_regime_only_falsification_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")

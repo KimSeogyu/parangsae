@@ -392,6 +392,38 @@ queue. It remains paper-only research governance, not trading advice, not a
 profitability claim, not live or execution readiness, and not permission for
 live/testnet orders or account/API-key/fill data use.
 
+## Regime-only TSMOM falsification loop
+
+`tsmom-regime-only-falsification-run` is the pre-registered paper-only
+`REGIME_ONLY_TSMOM_FALSIFICATION_V1` follow-up to the candidate-family decision.
+It does not implement a new strategy, optimize parameters, retune on holdout,
+relax failed gates, or create a live/testnet order path. It reads existing
+durable artifacts and evaluates only the intersection slice where
+`market_regime=sideways` and `volatility_regime=low-vol`.
+
+The command writes
+`reports/loops/<YYYYMMDD>-regime-only-tsmom-falsification-v1/` with:
+
+- `decision.json`
+- `report.md`
+- `evidence_rollup.csv`
+- `failed_gate_rollup.csv`
+- `commands.txt`
+- `changed_files.txt`
+
+The loop reports gross/net returns, funding drag, slippage drag, stress drag,
+turnover, drawdown, trade count, sample size, regime coverage, and null/baseline
+comparisons against cash/null, buy-and-hold, deterministic random sign, lagged
+signal, inverse signal, and a simpler trend baseline when the durable artifacts
+make it available. If the exception fails on sample size, net-of-cost return, or
+null robustness, it is marked as a negative-control/deprecation candidate rather
+than restored to broad active WATCH.
+
+This remains paper-only research governance. `readiness_baseline_verdict`
+remains `NOT_READY`; the report is not trading advice, not a profitability
+claim, not live or execution readiness, and not permission for live/testnet
+orders or account/API-key/fill data use.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

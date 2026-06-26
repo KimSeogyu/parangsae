@@ -1,0 +1,1199 @@
+{
+  "baseline": "reports/readiness-run-20260625T053627Z/",
+  "candidate_queue_status": "The sideways + low-vol TSMOM exception is not active WATCH; freeze it as a negative-control candidate unless materially new evidence is introduced.",
+  "changed_files": [
+    "src/parangsae/research/tsmom.py",
+    "src/parangsae/apps/cli/quantctl.py",
+    "src/parangsae/research/loop_artifacts.py",
+    "tests/test_tsmom_loop.py",
+    "README.md",
+    "docs/backtesting-paper-trading.md"
+  ],
+  "claim_boundary": "REGIME_ONLY_TSMOM_FALSIFICATION_V1 is a paper-only research-governance falsification loop for the previously allowed sideways + low-vol TSMOM exception. It does not optimize parameters, does not retune on holdout, does not relax gates, is not readiness or live readiness, is not trading advice, is not a profit guarantee, and uses no live, testnet, account, API-key, private order, or fill data.",
+  "decision_gates": {
+    "baseline_null_robustness": {
+      "observed": {
+        "buy_and_hold": {
+          "baseline_beats_or_matches_tsmom_count": 1,
+          "median_delta": 1.2659772424387983
+        },
+        "cash_null": {
+          "baseline_beats_or_matches_tsmom_count": 1,
+          "median_delta": 1.3819203383031775
+        },
+        "inverse_signal": {
+          "baseline_beats_or_matches_tsmom_count": 1,
+          "median_delta": 2.7670567209375108
+        },
+        "lagged_signal": {
+          "baseline_beats_or_matches_tsmom_count": 2,
+          "median_delta": -0.0004309028450055763
+        },
+        "random_sign": {
+          "baseline_beats_or_matches_tsmom_count": 1,
+          "median_delta": 1.9825983856925689
+        }
+      },
+      "passed": false,
+      "status": "failed",
+      "threshold": "all available nulls median delta > 0 and no null beats/matches in a majority of slice windows"
+    },
+    "cost_adjusted_net_return_beats_cash_null": {
+      "observed": -0.6503531796520268,
+      "passed": false,
+      "status": "failed",
+      "threshold": "> 0.0 after funding/slippage/stress costs"
+    },
+    "failed_gates_preserved": {
+      "observed": [
+        "median_stress_return_beats_cash_null",
+        "selected_candidate_switch_rate",
+        "funding_aware_net_return"
+      ],
+      "passed": true,
+      "status": "passed",
+      "threshold": "source failed gates remain recorded and unrenamed"
+    },
+    "median_gross_return_positive": {
+      "observed": 1.3819203383031775,
+      "passed": true,
+      "status": "passed",
+      "threshold": "> 0.0"
+    },
+    "net_positive_hit_rate": {
+      "observed": 0.3333333333333333,
+      "passed": false,
+      "status": "failed",
+      "threshold": "> 0.5"
+    },
+    "no_parameter_retune_or_holdout_reselection": {
+      "observed": {
+        "holdout_reselection": false,
+        "parameter_retune": false
+      },
+      "passed": true,
+      "status": "passed",
+      "threshold": "no retune and no holdout reselection"
+    },
+    "readiness_boundary_not_live_ready": {
+      "observed": "NOT_READY",
+      "passed": true,
+      "status": "passed",
+      "threshold": "must remain NOT_READY and not emit live readiness"
+    },
+    "regime_slice_sample_size": {
+      "observed": 3,
+      "passed": false,
+      "status": "failed",
+      "threshold": ">= 5 windows for a regime-only exception"
+    },
+    "simpler_trend_baseline_available": {
+      "observed": "unavailable_unclaimed",
+      "passed": false,
+      "status": "unclaimed",
+      "threshold": "available, or explicitly unclaimed if unavailable"
+    },
+    "source_family_decision_is_regime_only_watch": {
+      "observed": "REGIME_ONLY_WATCH",
+      "passed": true,
+      "status": "passed",
+      "threshold": "REGIME_ONLY_WATCH"
+    }
+  },
+  "evidence_artifacts": [
+    "decision.json",
+    "report.md",
+    "evidence_rollup.csv",
+    "failed_gate_rollup.csv",
+    "commands.txt",
+    "changed_files.txt"
+  ],
+  "evidence_inputs": [
+    {
+      "artifact_role": "source_tsmom_loop",
+      "path": "reports/loops/20260625-tsmom-vol-target-funding-aware-v1/loop.json",
+      "sha256": "bd05508458fecdebb93411b2b9d6ae7382f1434ad40ac745345b830640f0bb6c"
+    },
+    {
+      "artifact_role": "stress_switch_funding_diagnostic",
+      "path": "reports/loops/20260626-tsmom-stress-switch-funding-diagnostic-v1/diagnostic.json",
+      "sha256": "c257d281822d5c1222ac7645cfef8e18a2b1b245229bbbcb2dd5f2f49aa081e7"
+    },
+    {
+      "artifact_role": "switch_stability_funding_throttle_risk",
+      "path": "reports/loops/20260626-tsmom-switch-stability-funding-throttle-risk-v1/risk_loop.json",
+      "sha256": "d86065abd77f7087331e471966b4215d53acb2cad64cc172c7b48c92f4af4b25"
+    },
+    {
+      "artifact_role": "gross_edge_regime_null_robustness",
+      "path": "reports/loops/20260626-tsmom-gross-edge-regime-null-robustness-v1/gross_edge_loop.json",
+      "sha256": "bf96b52a18831a0d8550d316a421497dadc2aebae882685cd21654a333efa9dc"
+    },
+    {
+      "artifact_role": "candidate_family_decision",
+      "path": "reports/loops/20260626-tsmom-candidate-family-decision-v1/candidate_family_decision.json",
+      "sha256": "daeb56bd118e682525a32954d56a2c406ea8c1818e579c316a67aa17842e6a65"
+    }
+  ],
+  "evidence_rollup": [
+    {
+      "metric_name": "source_candidate_family_decision",
+      "row_type": "summary",
+      "value": "REGIME_ONLY_WATCH"
+    },
+    {
+      "metric_name": "slice_window_count",
+      "row_type": "summary",
+      "value": 3
+    },
+    {
+      "metric_name": "total_window_count",
+      "row_type": "summary",
+      "value": 31
+    },
+    {
+      "metric_name": "regime_coverage_pct",
+      "row_type": "summary",
+      "value": 9.67741935483871
+    },
+    {
+      "metric_name": "median_gross_return_pct",
+      "row_type": "summary",
+      "value": 1.3819203383031775
+    },
+    {
+      "metric_name": "mean_gross_return_pct",
+      "row_type": "summary",
+      "value": 0.924137601559046
+    },
+    {
+      "metric_name": "median_net_return_pct",
+      "row_type": "summary",
+      "value": -0.6503531796520268
+    },
+    {
+      "metric_name": "mean_net_return_pct",
+      "row_type": "summary",
+      "value": -0.6869453531355676
+    },
+    {
+      "metric_name": "median_funding_drag_pct",
+      "row_type": "summary",
+      "value": 0.075
+    },
+    {
+      "metric_name": "median_slippage_drag_pct",
+      "row_type": "summary",
+      "value": 0.5
+    },
+    {
+      "metric_name": "median_stress_drag_pct",
+      "row_type": "summary",
+      "value": 0.9887926365135691
+    },
+    {
+      "metric_name": "median_turnover",
+      "row_type": "summary",
+      "value": 5.0
+    },
+    {
+      "metric_name": "total_trade_count",
+      "row_type": "summary",
+      "value": 13
+    },
+    {
+      "metric_name": "median_trade_count",
+      "row_type": "summary",
+      "value": 5.0
+    },
+    {
+      "metric_name": "worst_drawdown_pct",
+      "row_type": "summary",
+      "value": -1.3330229672273042
+    },
+    {
+      "metric_name": "cvar_tail_net_return_pct",
+      "row_type": "summary",
+      "value": -2.1969178930406583
+    },
+    {
+      "metric_name": "gross_positive_window_count",
+      "row_type": "summary",
+      "value": 2
+    },
+    {
+      "metric_name": "net_positive_window_count",
+      "row_type": "summary",
+      "value": 1
+    },
+    {
+      "metric_name": "net_positive_hit_rate",
+      "row_type": "summary",
+      "value": 0.3333333333333333
+    },
+    {
+      "metric_name": "simpler_trend_baseline_status",
+      "row_type": "summary",
+      "value": "unavailable_unclaimed"
+    },
+    {
+      "drawdown_pct": -1.3330229672273042,
+      "funding_drag_pct": 0.1325,
+      "gross_return_pct": 2.0523677229010495,
+      "market_regime": "sideways",
+      "net_return_pct": 0.7864350132859821,
+      "row_type": "slice_window",
+      "slippage_drag_pct": 0.3,
+      "stress_drag_pct": 0.8334327096150673,
+      "trade_count": 3,
+      "turnover": 4.095239806347709,
+      "volatility_regime": "low-vol",
+      "window_id": "W022"
+    },
+    {
+      "drawdown_pct": -0.8734779068147791,
+      "funding_drag_pct": 0.075,
+      "gross_return_pct": 1.3819203383031775,
+      "market_regime": "sideways",
+      "net_return_pct": -0.6503531796520268,
+      "row_type": "slice_window",
+      "slippage_drag_pct": 0.5,
+      "stress_drag_pct": 1.4572735179552043,
+      "trade_count": 5,
+      "turnover": 7.2377364165729485,
+      "volatility_regime": "low-vol",
+      "window_id": "W023"
+    },
+    {
+      "drawdown_pct": -0.8656905842342133,
+      "funding_drag_pct": 0.04625,
+      "gross_return_pct": -0.6618752565270891,
+      "market_regime": "sideways",
+      "net_return_pct": -2.1969178930406583,
+      "row_type": "slice_window",
+      "slippage_drag_pct": 0.5,
+      "stress_drag_pct": 0.9887926365135691,
+      "trade_count": 5,
+      "turnover": 5.0,
+      "volatility_regime": "low-vol",
+      "window_id": "W027"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_name": "cash_null",
+      "baseline_return_pct": 0.0,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": 2.0523677229010495,
+      "window_id": "W022"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_name": "random_sign",
+      "baseline_return_pct": -2.32930382758354,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": 4.381671550484589,
+      "window_id": "W022"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_name": "lagged_signal",
+      "baseline_return_pct": 2.052798625746055,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": -0.0004309028450055763,
+      "window_id": "W022"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_name": "inverse_signal",
+      "baseline_return_pct": -2.0621119109381136,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": 4.114479633839164,
+      "window_id": "W022"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_name": "buy_and_hold",
+      "baseline_return_pct": -1.2057267928978432,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": 3.2580945157988928,
+      "window_id": "W022"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_name": "cash_null",
+      "baseline_return_pct": 0.0,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": 1.3819203383031775,
+      "window_id": "W023"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_name": "random_sign",
+      "baseline_return_pct": -0.6006780473893913,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": 1.9825983856925689,
+      "window_id": "W023"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_name": "lagged_signal",
+      "baseline_return_pct": -0.19918861069944116,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": 1.5811089490026187,
+      "window_id": "W023"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_name": "inverse_signal",
+      "baseline_return_pct": -1.3851363826343333,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": 2.7670567209375108,
+      "window_id": "W023"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_name": "buy_and_hold",
+      "baseline_return_pct": 0.11594309586437923,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": 1.2659772424387983,
+      "window_id": "W023"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_name": "cash_null",
+      "baseline_return_pct": 0.0,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": -0.6618752565270891,
+      "window_id": "W027"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_name": "random_sign",
+      "baseline_return_pct": 0.13760486255045556,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": -0.7994801190775447,
+      "window_id": "W027"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_name": "lagged_signal",
+      "baseline_return_pct": -0.11836058420958695,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": -0.5435146723175022,
+      "window_id": "W027"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_name": "inverse_signal",
+      "baseline_return_pct": 0.6639641930534124,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": -1.3258394495805015,
+      "window_id": "W027"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_name": "buy_and_hold",
+      "baseline_return_pct": 1.1057408177802097,
+      "row_type": "null_baseline",
+      "status": "available",
+      "tsmom_minus_baseline_return_pct": -1.7676160743072988,
+      "window_id": "W027"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": null,
+      "baseline_name": "simpler_trend_baseline",
+      "baseline_return_pct": null,
+      "row_type": "null_baseline",
+      "status": "unavailable_unclaimed",
+      "tsmom_minus_baseline_return_pct": null,
+      "window_id": "REGIME_SLICE"
+    }
+  ],
+  "failed_gate_rollup": [
+    {
+      "failed_gate": "median_stress_return_beats_cash_null",
+      "loop_name": "source_tsmom_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "selected_candidate_switch_rate",
+      "loop_name": "source_tsmom_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "funding_aware_net_return",
+      "loop_name": "source_tsmom_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "median_stress_return_beats_cash_null",
+      "loop_name": "tsmom_diagnostic_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "selected_candidate_switch_rate",
+      "loop_name": "tsmom_diagnostic_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "funding_aware_net_return",
+      "loop_name": "tsmom_diagnostic_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "median_stress_return_beats_cash_null",
+      "loop_name": "tsmom_risk_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "funding_aware_net_return",
+      "loop_name": "tsmom_risk_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "median_gross_return_beats_cash_null",
+      "loop_name": "tsmom_gross_edge_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "gross_edge_hit_rate",
+      "loop_name": "tsmom_gross_edge_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "median_gross_beats_random_sign_baseline",
+      "loop_name": "tsmom_gross_edge_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "median_gross_beats_lagged_signal_baseline",
+      "loop_name": "tsmom_gross_edge_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "median_gross_beats_inverse_signal_baseline",
+      "loop_name": "tsmom_gross_edge_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "median_gross_beats_buy_and_hold_baseline",
+      "loop_name": "tsmom_gross_edge_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "active_keep_watch_gross_edge",
+      "loop_name": "candidate_family_decision_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "active_keep_watch_null_robustness",
+      "loop_name": "candidate_family_decision_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "deprecate_candidate_family",
+      "loop_name": "candidate_family_decision_loop",
+      "observed": null,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": null
+    },
+    {
+      "failed_gate": "regime_slice_sample_size",
+      "loop_name": "regime_only_tsmom_falsification_loop",
+      "observed": 3,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": ">= 5 windows for a regime-only exception"
+    },
+    {
+      "failed_gate": "cost_adjusted_net_return_beats_cash_null",
+      "loop_name": "regime_only_tsmom_falsification_loop",
+      "observed": -0.6503531796520268,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": "> 0.0 after funding/slippage/stress costs"
+    },
+    {
+      "failed_gate": "net_positive_hit_rate",
+      "loop_name": "regime_only_tsmom_falsification_loop",
+      "observed": 0.3333333333333333,
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": "> 0.5"
+    },
+    {
+      "failed_gate": "baseline_null_robustness",
+      "loop_name": "regime_only_tsmom_falsification_loop",
+      "observed": {
+        "buy_and_hold": {
+          "baseline_beats_or_matches_tsmom_count": 1,
+          "median_delta": 1.2659772424387983
+        },
+        "cash_null": {
+          "baseline_beats_or_matches_tsmom_count": 1,
+          "median_delta": 1.3819203383031775
+        },
+        "inverse_signal": {
+          "baseline_beats_or_matches_tsmom_count": 1,
+          "median_delta": 2.7670567209375108
+        },
+        "lagged_signal": {
+          "baseline_beats_or_matches_tsmom_count": 2,
+          "median_delta": -0.0004309028450055763
+        },
+        "random_sign": {
+          "baseline_beats_or_matches_tsmom_count": 1,
+          "median_delta": 1.9825983856925689
+        }
+      },
+      "preserved_for_decision": true,
+      "status": "failed",
+      "threshold": "all available nulls median delta > 0 and no null beats/matches in a majority of slice windows"
+    },
+    {
+      "failed_gate": "simpler_trend_baseline_available",
+      "loop_name": "regime_only_tsmom_falsification_loop",
+      "observed": "unavailable_unclaimed",
+      "preserved_for_decision": true,
+      "status": "unclaimed",
+      "threshold": "available, or explicitly unclaimed if unavailable"
+    }
+  ],
+  "failed_regime_only_gates": [
+    "regime_slice_sample_size",
+    "cost_adjusted_net_return_beats_cash_null",
+    "net_positive_hit_rate",
+    "baseline_null_robustness",
+    "simpler_trend_baseline_available"
+  ],
+  "loop_contract": {
+    "allowed_decisions": [
+      "REGIME_ONLY_EXCEPTION_STILL_WATCH",
+      "FREEZE_AS_NEGATIVE_CONTROL_CANDIDATE",
+      "DEPRECATE_CANDIDATE_FAMILY_CANDIDATE"
+    ],
+    "claim_boundary": "REGIME_ONLY_TSMOM_FALSIFICATION_V1 is a paper-only research-governance falsification loop for the previously allowed sideways + low-vol TSMOM exception. It does not optimize parameters, does not retune on holdout, does not relax gates, is not readiness or live readiness, is not trading advice, is not a profit guarantee, and uses no live, testnet, account, API-key, private order, or fill data.",
+    "readiness_baseline_verdict": "NOT_READY",
+    "readiness_verdict": false,
+    "regime_only_tsmom_falsification_namespace": "regime_only_tsmom_falsification_only_not_readiness"
+  },
+  "loop_id": "20260626-regime-only-tsmom-falsification-v1",
+  "loop_type": "research_governance",
+  "next_loop": "Use this slice only as a negative-control benchmark; prioritize non-TSMOM hypotheses or data/validation hardening.",
+  "null_baseline_comparison": [
+    {
+      "baseline_average_exposure": 0.0,
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_cvar_tail_loss_pct": 0.0,
+      "baseline_description": "zero-return cash/null baseline",
+      "baseline_drawdown_pct": 0.0,
+      "baseline_name": "cash_null",
+      "baseline_return_pct": 0.0,
+      "baseline_turnover": 0.0,
+      "deterministic_seed": null,
+      "holdout_end": "2025-06-11T23:00:00Z",
+      "holdout_start": "2025-05-22T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 2.0523677229010495,
+      "tsmom_minus_baseline_return_pct": 2.0523677229010495,
+      "window_id": "W022"
+    },
+    {
+      "baseline_average_exposure": 0.16660214244918772,
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_cvar_tail_loss_pct": -0.30668128533322947,
+      "baseline_description": "deterministic random long/flat sign baseline with source absolute exposure",
+      "baseline_drawdown_pct": -4.259716652545276,
+      "baseline_name": "random_sign",
+      "baseline_return_pct": -2.32930382758354,
+      "baseline_turnover": 94.39960388929941,
+      "deterministic_seed": 1964,
+      "holdout_end": "2025-06-11T23:00:00Z",
+      "holdout_start": "2025-05-22T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 2.0523677229010495,
+      "tsmom_minus_baseline_return_pct": 4.381671550484589,
+      "window_id": "W022"
+    },
+    {
+      "baseline_average_exposure": 0.12869812870614622,
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_cvar_tail_loss_pct": -0.2141736007078001,
+      "baseline_description": "source TSMOM signal lagged by 24 bars",
+      "baseline_drawdown_pct": -1.332581813201239,
+      "baseline_name": "lagged_signal",
+      "baseline_return_pct": 2.052798625746055,
+      "baseline_turnover": 4.067289521042069,
+      "deterministic_seed": null,
+      "holdout_end": "2025-06-11T23:00:00Z",
+      "holdout_start": "2025-05-22T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 2.0523677229010495,
+      "tsmom_minus_baseline_return_pct": -0.0004309028450055763,
+      "window_id": "W022"
+    },
+    {
+      "baseline_average_exposure": 0.16660214244918772,
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_cvar_tail_loss_pct": -0.304092726413121,
+      "baseline_description": "inverse of source TSMOM exposure",
+      "baseline_drawdown_pct": -3.7817128017521795,
+      "baseline_name": "inverse_signal",
+      "baseline_return_pct": -2.0621119109381136,
+      "baseline_turnover": 4.095239806347709,
+      "deterministic_seed": null,
+      "holdout_end": "2025-06-11T23:00:00Z",
+      "holdout_start": "2025-05-22T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 2.0523677229010495,
+      "tsmom_minus_baseline_return_pct": 4.114479633839164,
+      "window_id": "W022"
+    },
+    {
+      "baseline_average_exposure": 1.0,
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_cvar_tail_loss_pct": -0.8136290866105595,
+      "baseline_description": "simple unit buy-and-hold exposure",
+      "baseline_drawdown_pct": -10.135572260614655,
+      "baseline_name": "buy_and_hold",
+      "baseline_return_pct": -1.2057267928978432,
+      "baseline_turnover": 1.0,
+      "deterministic_seed": null,
+      "holdout_end": "2025-06-11T23:00:00Z",
+      "holdout_start": "2025-05-22T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 2.0523677229010495,
+      "tsmom_minus_baseline_return_pct": 3.2580945157988928,
+      "window_id": "W022"
+    },
+    {
+      "baseline_average_exposure": 0.0,
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_cvar_tail_loss_pct": 0.0,
+      "baseline_description": "zero-return cash/null baseline",
+      "baseline_drawdown_pct": 0.0,
+      "baseline_name": "cash_null",
+      "baseline_return_pct": 0.0,
+      "baseline_turnover": 0.0,
+      "deterministic_seed": null,
+      "holdout_end": "2025-07-02T23:00:00Z",
+      "holdout_start": "2025-06-12T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 1.3819203383031775,
+      "tsmom_minus_baseline_return_pct": 1.3819203383031775,
+      "window_id": "W023"
+    },
+    {
+      "baseline_average_exposure": 0.08299656386759355,
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_cvar_tail_loss_pct": -0.1747848201470902,
+      "baseline_description": "deterministic random long/flat sign baseline with source absolute exposure",
+      "baseline_drawdown_pct": -1.8364746710277657,
+      "baseline_name": "random_sign",
+      "baseline_return_pct": -0.6006780473893913,
+      "baseline_turnover": 44.879129437465224,
+      "deterministic_seed": 1965,
+      "holdout_end": "2025-07-02T23:00:00Z",
+      "holdout_start": "2025-06-12T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 1.3819203383031775,
+      "tsmom_minus_baseline_return_pct": 1.9825983856925689,
+      "window_id": "W023"
+    },
+    {
+      "baseline_average_exposure": 0.06718066625195218,
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_cvar_tail_loss_pct": -0.10992942154077563,
+      "baseline_description": "source TSMOM signal lagged by 24 bars",
+      "baseline_drawdown_pct": -0.7355285051632854,
+      "baseline_name": "lagged_signal",
+      "baseline_return_pct": -0.19918861069944116,
+      "baseline_turnover": 4.328838045599151,
+      "deterministic_seed": null,
+      "holdout_end": "2025-07-02T23:00:00Z",
+      "holdout_start": "2025-06-12T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 1.3819203383031775,
+      "tsmom_minus_baseline_return_pct": 1.5811089490026187,
+      "window_id": "W023"
+    },
+    {
+      "baseline_average_exposure": 0.08299656386759355,
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_cvar_tail_loss_pct": -0.18902331640040254,
+      "baseline_description": "inverse of source TSMOM exposure",
+      "baseline_drawdown_pct": -2.050562623744945,
+      "baseline_name": "inverse_signal",
+      "baseline_return_pct": -1.3851363826343333,
+      "baseline_turnover": 7.2377364165729485,
+      "deterministic_seed": null,
+      "holdout_end": "2025-07-02T23:00:00Z",
+      "holdout_start": "2025-06-12T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 1.3819203383031775,
+      "tsmom_minus_baseline_return_pct": 2.7670567209375108,
+      "window_id": "W023"
+    },
+    {
+      "baseline_average_exposure": 1.0,
+      "baseline_beats_or_matches_tsmom": false,
+      "baseline_cvar_tail_loss_pct": -0.8476928796540738,
+      "baseline_description": "simple unit buy-and-hold exposure",
+      "baseline_drawdown_pct": -9.120945005269155,
+      "baseline_name": "buy_and_hold",
+      "baseline_return_pct": 0.11594309586437923,
+      "baseline_turnover": 1.0,
+      "deterministic_seed": null,
+      "holdout_end": "2025-07-02T23:00:00Z",
+      "holdout_start": "2025-06-12T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": 1.3819203383031775,
+      "tsmom_minus_baseline_return_pct": 1.2659772424387983,
+      "window_id": "W023"
+    },
+    {
+      "baseline_average_exposure": 0.0,
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_cvar_tail_loss_pct": 0.0,
+      "baseline_description": "zero-return cash/null baseline",
+      "baseline_drawdown_pct": 0.0,
+      "baseline_name": "cash_null",
+      "baseline_return_pct": 0.0,
+      "baseline_turnover": 0.0,
+      "deterministic_seed": null,
+      "holdout_end": "2025-09-24T23:00:00Z",
+      "holdout_start": "2025-09-04T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": -0.6618752565270891,
+      "tsmom_minus_baseline_return_pct": -0.6618752565270891,
+      "window_id": "W027"
+    },
+    {
+      "baseline_average_exposure": 0.03670634920634921,
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_cvar_tail_loss_pct": -0.04069371199082867,
+      "baseline_description": "deterministic random long/flat sign baseline with source absolute exposure",
+      "baseline_drawdown_pct": -0.3495569282095379,
+      "baseline_name": "random_sign",
+      "baseline_return_pct": 0.13760486255045556,
+      "baseline_turnover": 21.0,
+      "deterministic_seed": 1969,
+      "holdout_end": "2025-09-24T23:00:00Z",
+      "holdout_start": "2025-09-04T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": -0.6618752565270891,
+      "tsmom_minus_baseline_return_pct": -0.7994801190775447,
+      "window_id": "W027"
+    },
+    {
+      "baseline_average_exposure": 0.03670634920634921,
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_cvar_tail_loss_pct": -0.05006308706603705,
+      "baseline_description": "source TSMOM signal lagged by 24 bars",
+      "baseline_drawdown_pct": -0.498086962192712,
+      "baseline_name": "lagged_signal",
+      "baseline_return_pct": -0.11836058420958695,
+      "baseline_turnover": 5.0,
+      "deterministic_seed": null,
+      "holdout_end": "2025-09-24T23:00:00Z",
+      "holdout_start": "2025-09-04T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": -0.6618752565270891,
+      "tsmom_minus_baseline_return_pct": -0.5435146723175022,
+      "window_id": "W027"
+    },
+    {
+      "baseline_average_exposure": 0.03670634920634921,
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_cvar_tail_loss_pct": -0.030611807567493692,
+      "baseline_description": "inverse of source TSMOM exposure",
+      "baseline_drawdown_pct": -0.1610899210735095,
+      "baseline_name": "inverse_signal",
+      "baseline_return_pct": 0.6639641930534124,
+      "baseline_turnover": 5.0,
+      "deterministic_seed": null,
+      "holdout_end": "2025-09-24T23:00:00Z",
+      "holdout_start": "2025-09-04T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": -0.6618752565270891,
+      "tsmom_minus_baseline_return_pct": -1.3258394495805015,
+      "window_id": "W027"
+    },
+    {
+      "baseline_average_exposure": 1.0,
+      "baseline_beats_or_matches_tsmom": true,
+      "baseline_cvar_tail_loss_pct": -0.625903457654928,
+      "baseline_description": "simple unit buy-and-hold exposure",
+      "baseline_drawdown_pct": -5.220957880434874,
+      "baseline_name": "buy_and_hold",
+      "baseline_return_pct": 1.1057408177802097,
+      "baseline_turnover": 1.0,
+      "deterministic_seed": null,
+      "holdout_end": "2025-09-24T23:00:00Z",
+      "holdout_start": "2025-09-04T00:00:00Z",
+      "status": "available",
+      "tsmom_gross_return_pct": -0.6618752565270891,
+      "tsmom_minus_baseline_return_pct": -1.7676160743072988,
+      "window_id": "W027"
+    },
+    {
+      "baseline_beats_or_matches_tsmom": null,
+      "baseline_cvar_tail_loss_pct": null,
+      "baseline_description": "not available in current durable artifacts without reconstructing source bars",
+      "baseline_drawdown_pct": null,
+      "baseline_name": "simpler_trend_baseline",
+      "baseline_return_pct": null,
+      "status": "unavailable_unclaimed",
+      "tsmom_gross_return_pct": null,
+      "tsmom_minus_baseline_return_pct": null,
+      "window_id": "REGIME_SLICE"
+    }
+  ],
+  "pre_registration": {
+    "allowed_inputs": [
+      "durable_source_tsmom_loop_artifact",
+      "durable_stress_switch_funding_diagnostic_artifact",
+      "durable_switch_stability_funding_throttle_risk_artifact",
+      "durable_gross_edge_regime_null_robustness_artifact",
+      "durable_candidate_family_decision_artifact"
+    ],
+    "claim_boundary": "REGIME_ONLY_TSMOM_FALSIFICATION_V1 is a paper-only research-governance falsification loop for the previously allowed sideways + low-vol TSMOM exception. It does not optimize parameters, does not retune on holdout, does not relax gates, is not readiness or live readiness, is not trading advice, is not a profit guarantee, and uses no live, testnet, account, API-key, private order, or fill data.",
+    "decision_gates": [
+      "readiness_boundary_not_live_ready",
+      "source_family_decision_is_regime_only_watch",
+      "no_parameter_retune_or_holdout_reselection",
+      "regime_slice_sample_size",
+      "median_gross_return_positive",
+      "cost_adjusted_net_return_beats_cash_null",
+      "net_positive_hit_rate",
+      "baseline_null_robustness",
+      "simpler_trend_baseline_available",
+      "failed_gates_preserved"
+    ],
+    "edge_source": "behavioral trend/momentum exception under low-vol sideways market structure, falsification-only",
+    "forbidden_inputs": [
+      "new_parameter_optimization",
+      "holdout_retuning",
+      "live_orders",
+      "testnet_orders",
+      "account_state",
+      "api_keys",
+      "private_orders",
+      "fills",
+      "signed_endpoints",
+      "live_or_testnet_performance"
+    ],
+    "hypothesis": "If the prior TSMOM regime-only exception is worth continued paper research, the existing non-retuned TSMOM candidate rows in the sideways + low-vol slice should show sufficient sample coverage, positive cost-adjusted net return, and robustness versus null baselines.",
+    "null_baselines": [
+      "cash_null",
+      "buy_and_hold",
+      "random_sign",
+      "lagged_signal",
+      "inverse_signal",
+      "simpler_trend_baseline_if_available"
+    ],
+    "readiness_boundary": "readiness_baseline_verdict remains NOT_READY unless a separate readiness process proves otherwise",
+    "slice_definition": {
+      "market_regime": "sideways",
+      "operator": "AND",
+      "source": "existing gross-edge artifact rows only",
+      "volatility_regime": "low-vol"
+    },
+    "strategy_family": "REGIME_ONLY_TSMOM_FALSIFICATION_V1"
+  },
+  "readiness_baseline_verdict": "NOT_READY",
+  "regime_only_tsmom_falsification_decision": "FREEZE_AS_NEGATIVE_CONTROL_CANDIDATE",
+  "regime_only_tsmom_falsification_loop": "REGIME_ONLY_TSMOM_FALSIFICATION_V1",
+  "regime_only_tsmom_falsification_namespace": "regime_only_tsmom_falsification_only_not_readiness",
+  "safety_gates": {
+    "account_or_fill_data_used": false,
+    "api_keys_required_for_research": false,
+    "gates_relaxed": false,
+    "holdout_used_for_selection": false,
+    "live_orders_submitted": false,
+    "live_trading_path_introduced": false,
+    "profit_or_live_ready_claim": false,
+    "strategy_parameters_retuned": false,
+    "testnet_orders_submitted": false
+  },
+  "schema_version": 1,
+  "slice_definition": {
+    "holdout_reselection_performed": false,
+    "market_regime": "sideways",
+    "parameter_retune_performed": false,
+    "selection_rule": "existing gross-edge artifact rows where market_regime == sideways AND volatility_regime == low-vol",
+    "volatility_regime": "low-vol"
+  },
+  "slice_windows": [
+    {
+      "average_exposure": 0.16660214244918772,
+      "buy_and_hold_return_pct": -1.2057267928977211,
+      "cash_null_failure": false,
+      "cash_null_return_pct": 0.0,
+      "cvar_tail_loss_pct": -0.23536872248778168,
+      "difference_vs_buy_and_hold_pct": 3.2580945157987706,
+      "difference_vs_cash_null_pct": 2.0523677229010495,
+      "direction_correctness_rate": 0.4857142857142857,
+      "drawdown_pct": -1.3330229672273042,
+      "exposure_time_pct": 21.03174603174603,
+      "funding_drag_pct": 0.1325,
+      "funding_drag_regime": "low-funding-drag",
+      "funding_regime": "positive-funding",
+      "gross_edge_positive": true,
+      "gross_return_before_costs_pct": 2.0523677229010495,
+      "holdout_close_to_close_return_pct": -1.2057267928977211,
+      "holdout_end": "2025-06-11T23:00:00Z",
+      "holdout_start": "2025-05-22T00:00:00Z",
+      "market_regime": "sideways",
+      "mean_abs_funding_rate": 5.180253968253969e-05,
+      "mean_funding_rate": 4.459047619047619e-05,
+      "net_return_after_funding_slippage_stress_pct": 0.7864350132859821,
+      "realized_volatility_pct": 32.33292182026238,
+      "selected_candidate_id": "t003-lb168-vol168-tv0.25-mx0.8-fr0.00025-long-only",
+      "selected_funding_abs_rate_limit": 0.00025,
+      "selected_lookback_bars": 168,
+      "selected_max_exposure": 0.8,
+      "selected_target_annual_volatility": 0.25,
+      "selected_vol_window_bars": 168,
+      "slippage_drag_pct": 0.3,
+      "source_failed_gate_context": "median_stress_return_beats_cash_null;selected_candidate_switch_rate;funding_aware_net_return",
+      "stress_drag_pct": 0.8334327096150673,
+      "stress_raw_return_pct": 1.2189350132859822,
+      "trade_count": 3,
+      "trend_regime": "trend_reversal",
+      "turnover": 4.095239806347709,
+      "validation_close_to_close_return_pct": 16.162333388795336,
+      "volatility_regime": "low-vol",
+      "window_id": "W022"
+    },
+    {
+      "average_exposure": 0.08299656386759355,
+      "buy_and_hold_return_pct": 0.1159430958646901,
+      "cash_null_failure": false,
+      "cash_null_return_pct": 0.0,
+      "cvar_tail_loss_pct": -0.13957952156618766,
+      "difference_vs_buy_and_hold_pct": 1.2659772424384874,
+      "difference_vs_cash_null_pct": 1.3819203383031775,
+      "direction_correctness_rate": 0.5166666666666667,
+      "drawdown_pct": -0.8734779068147791,
+      "exposure_time_pct": 11.904761904761903,
+      "funding_drag_pct": 0.075,
+      "funding_drag_regime": "low-funding-drag",
+      "funding_regime": "positive-funding",
+      "gross_edge_positive": true,
+      "gross_return_before_costs_pct": 1.3819203383031775,
+      "holdout_close_to_close_return_pct": 0.1159430958646901,
+      "holdout_end": "2025-07-02T23:00:00Z",
+      "holdout_start": "2025-06-12T00:00:00Z",
+      "market_regime": "sideways",
+      "mean_abs_funding_rate": 3.122803571428571e-05,
+      "mean_funding_rate": 2.6266130952380954e-05,
+      "net_return_after_funding_slippage_stress_pct": -0.6503531796520268,
+      "realized_volatility_pct": 33.5179758646914,
+      "selected_candidate_id": "t011-lb168-vol336-tv0.25-mx0.8-fr0.00025-long-only",
+      "selected_funding_abs_rate_limit": 0.00025,
+      "selected_lookback_bars": 168,
+      "selected_max_exposure": 0.8,
+      "selected_target_annual_volatility": 0.25,
+      "selected_vol_window_bars": 336,
+      "slippage_drag_pct": 0.5,
+      "source_failed_gate_context": "median_stress_return_beats_cash_null;selected_candidate_switch_rate;funding_aware_net_return",
+      "stress_drag_pct": 1.4572735179552043,
+      "stress_raw_return_pct": -0.07535317965202681,
+      "trade_count": 5,
+      "trend_regime": "trend_mixed",
+      "turnover": 7.2377364165729485,
+      "validation_close_to_close_return_pct": -1.2057267928977211,
+      "volatility_regime": "low-vol",
+      "window_id": "W023"
+    },
+    {
+      "average_exposure": 0.03670634920634921,
+      "buy_and_hold_return_pct": 1.1057408177804096,
+      "cash_null_failure": true,
+      "cash_null_return_pct": 0.0,
+      "cvar_tail_loss_pct": -0.05610881283643962,
+      "difference_vs_buy_and_hold_pct": -1.7676160743074987,
+      "difference_vs_cash_null_pct": -0.6618752565270891,
+      "direction_correctness_rate": 0.43243243243243246,
+      "drawdown_pct": -0.8656905842342133,
+      "exposure_time_pct": 7.341269841269842,
+      "funding_drag_pct": 0.04625,
+      "funding_drag_regime": "low-funding-drag",
+      "funding_regime": "positive-funding",
+      "gross_edge_positive": false,
+      "gross_return_before_costs_pct": -0.6618752565270891,
+      "holdout_close_to_close_return_pct": 1.1057408177804096,
+      "holdout_end": "2025-09-24T23:00:00Z",
+      "holdout_start": "2025-09-04T00:00:00Z",
+      "market_regime": "sideways",
+      "mean_abs_funding_rate": 5.3464682539682544e-05,
+      "mean_funding_rate": 5.09102380952381e-05,
+      "net_return_after_funding_slippage_stress_pct": -2.1969178930406583,
+      "realized_volatility_pct": 25.01025198127949,
+      "selected_candidate_id": "t009-lb168-vol336-tv0.25-mx0.5-fr0.00025-long-only",
+      "selected_funding_abs_rate_limit": 0.00025,
+      "selected_lookback_bars": 168,
+      "selected_max_exposure": 0.5,
+      "selected_target_annual_volatility": 0.25,
+      "selected_vol_window_bars": 336,
+      "slippage_drag_pct": 0.5,
+      "source_failed_gate_context": "median_stress_return_beats_cash_null;selected_candidate_switch_rate;funding_aware_net_return",
+      "stress_drag_pct": 0.9887926365135691,
+      "stress_raw_return_pct": -1.6506678930406582,
+      "trade_count": 5,
+      "trend_regime": "trend_reversal",
+      "turnover": 5.0,
+      "validation_close_to_close_return_pct": -9.85807020362296,
+      "volatility_regime": "low-vol",
+      "window_id": "W027"
+    }
+  ],
+  "source_candidate_family_decision": "REGIME_ONLY_WATCH",
+  "source_diagnostic_loop_verdict": "DIAGNOSTIC_COMPLETE",
+  "source_strategy_family": "TSMOM_VOL_TARGET_FUNDING_AWARE_V1",
+  "source_tsmom_loop_verdict": "WATCH",
+  "status": "IMPLEMENTED",
+  "summary": {
+    "cvar_tail_net_return_pct": -2.1969178930406583,
+    "gross_positive_window_count": 2,
+    "mean_gross_return_pct": 0.924137601559046,
+    "mean_net_return_pct": -0.6869453531355676,
+    "median_funding_drag_pct": 0.075,
+    "median_gross_return_pct": 1.3819203383031775,
+    "median_net_return_pct": -0.6503531796520268,
+    "median_slippage_drag_pct": 0.5,
+    "median_stress_drag_pct": 0.9887926365135691,
+    "median_trade_count": 5.0,
+    "median_turnover": 5.0,
+    "net_positive_hit_rate": 0.3333333333333333,
+    "net_positive_window_count": 1,
+    "null_summary": {
+      "buy_and_hold": {
+        "baseline_beats_or_matches_tsmom_count": 1,
+        "baseline_beats_or_matches_tsmom_rate": 0.3333333333333333,
+        "count": 3,
+        "median_baseline_return_pct": 0.11594309586437923,
+        "median_tsmom_minus_baseline_return_pct": 1.2659772424387983,
+        "status": "available"
+      },
+      "cash_null": {
+        "baseline_beats_or_matches_tsmom_count": 1,
+        "baseline_beats_or_matches_tsmom_rate": 0.3333333333333333,
+        "count": 3,
+        "median_baseline_return_pct": 0.0,
+        "median_tsmom_minus_baseline_return_pct": 1.3819203383031775,
+        "status": "available"
+      },
+      "inverse_signal": {
+        "baseline_beats_or_matches_tsmom_count": 1,
+        "baseline_beats_or_matches_tsmom_rate": 0.3333333333333333,
+        "count": 3,
+        "median_baseline_return_pct": -1.3851363826343333,
+        "median_tsmom_minus_baseline_return_pct": 2.7670567209375108,
+        "status": "available"
+      },
+      "lagged_signal": {
+        "baseline_beats_or_matches_tsmom_count": 2,
+        "baseline_beats_or_matches_tsmom_rate": 0.6666666666666666,
+        "count": 3,
+        "median_baseline_return_pct": -0.11836058420958695,
+        "median_tsmom_minus_baseline_return_pct": -0.0004309028450055763,
+        "status": "available"
+      },
+      "random_sign": {
+        "baseline_beats_or_matches_tsmom_count": 1,
+        "baseline_beats_or_matches_tsmom_rate": 0.3333333333333333,
+        "count": 3,
+        "median_baseline_return_pct": -0.6006780473893913,
+        "median_tsmom_minus_baseline_return_pct": 1.9825983856925689,
+        "status": "available"
+      },
+      "simpler_trend_baseline": {
+        "baseline_beats_or_matches_tsmom_count": null,
+        "baseline_beats_or_matches_tsmom_rate": null,
+        "count": 0,
+        "median_baseline_return_pct": null,
+        "median_tsmom_minus_baseline_return_pct": null,
+        "status": "unavailable_unclaimed"
+      }
+    },
+    "regime_coverage_pct": 9.67741935483871,
+    "simpler_trend_baseline_status": "unavailable_unclaimed",
+    "slice_window_count": 3,
+    "source_candidate_family_decision": "REGIME_ONLY_WATCH",
+    "total_trade_count": 13,
+    "total_window_count": 31,
+    "worst_drawdown_pct": -1.3330229672273042
+  },
+  "validation_commands": [
+    "uv run pytest tests/test_tsmom_loop.py -q",
+    "uv run pytest -q",
+    "uv run ruff check .",
+    "uv run --with pyright pyright src tests",
+    "git diff --check"
+  ]
+}

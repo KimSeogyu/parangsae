@@ -191,6 +191,24 @@ live readiness, authorize live/testnet execution, or use account/API-key/order/
 fill data for performance claims. `readiness_baseline_verdict` remains
 `NOT_READY` unless a separate readiness process proves otherwise.
 
+`tsmom-regime-only-falsification-run` implements the pre-registered paper-only
+`REGIME_ONLY_TSMOM_FALSIFICATION_V1` follow-up:
+
+```bash
+uv run quantctl tsmom-regime-only-falsification-run
+```
+
+It writes `reports/loops/<YYYYMMDD>-regime-only-tsmom-falsification-v1/` with
+`decision.json`, `report.md`, `evidence_rollup.csv`, `failed_gate_rollup.csv`,
+`commands.txt`, and `changed_files.txt`. The loop reads existing durable
+artifacts only, does not retune TSMOM parameters, and evaluates the
+`market_regime=sideways` AND `volatility_regime=low-vol` exception slice
+against cash/null, buy-and-hold, random sign, lagged signal, inverse signal,
+and a simpler trend baseline when available. The decision is loop-only and
+paper-only; `readiness_baseline_verdict` remains `NOT_READY`, and the loop does
+not imply profitability, live readiness, execution readiness, or permission to
+trade real money.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

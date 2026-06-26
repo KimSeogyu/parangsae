@@ -14,6 +14,8 @@ from parangsae.marketdata.binance_funding import FundingRateBundle
 from parangsae.marketdata.binance_vision import MarketDataBundle
 from parangsae.research.readiness import READINESS_CANDIDATE_REGISTRY, READINESS_CANDIDATE_REGISTRY_VERSION
 from parangsae.research.tsmom import (
+    REGIME_ONLY_TSMOM_FREEZE_NEGATIVE_CONTROL,
+    REGIME_ONLY_TSMOM_FALSIFICATION_NAMESPACE,
     TSMOM_ALLOWED_LOOP_VERDICTS,
     TSMOM_DIAGNOSTIC_VERDICT_NAMESPACE,
     TSMOM_FAMILY_DECISION_NAMESPACE,
@@ -24,12 +26,14 @@ from parangsae.research.tsmom import (
     TsmomCandidateSettings,
     TsmomLoopConfig,
     align_public_funding_to_decision_bars,
+    build_regime_only_tsmom_falsification_payload,
     build_tsmom_candidate_family_decision_payload,
     build_tsmom_diagnostic_payload,
     build_tsmom_decision_frame,
     build_tsmom_gross_edge_loop_payload,
     build_tsmom_loop_payload,
     build_tsmom_risk_loop_payload,
+    default_regime_only_tsmom_falsification_output_dir,
     default_tsmom_diagnostic_output_dir,
     default_tsmom_family_decision_output_dir,
     default_tsmom_gross_edge_output_dir,
@@ -37,6 +41,7 @@ from parangsae.research.tsmom import (
     default_tsmom_risk_output_dir,
     render_tsmom_report,
     tsmom_candidate_grid,
+    write_regime_only_tsmom_falsification_artifacts,
     write_tsmom_candidate_family_decision_artifacts,
     write_tsmom_diagnostic_artifacts,
     write_tsmom_gross_edge_loop_artifacts,
@@ -922,3 +927,133 @@ def test_tsmom_candidate_family_decision_fails_fast_on_wrong_prior_artifact(tmp_
     wrong.write_text(json.dumps({"tsmom_risk_loop_verdict": "WATCH"}) + "\n")
     with pytest.raises(ValueError, match="missing required key"):
         build_tsmom_candidate_family_decision_payload(source_loop_artifact=wrong)
+
+
+def test_regime_only_tsmom_falsification_payload_preserves_boundaries_and_marks_negative_control() -> None:
+    payload = build_regime_only_tsmom_falsification_payload(
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/tsmom.py"],
+    )
+    assert "verdict" not in payload
+    assert "loop_verdict" not in payload
+    assert "decision" not in payload
+    assert payload["regime_only_tsmom_falsification_namespace"] == REGIME_ONLY_TSMOM_FALSIFICATION_NAMESPACE
+    assert payload["regime_only_tsmom_falsification_decision"] == REGIME_ONLY_TSMOM_FREEZE_NEGATIVE_CONTROL
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert payload["source_candidate_family_decision"] == "REGIME_ONLY_WATCH"
+    assert payload["slice_definition"]["parameter_retune_performed"] is False
+    assert payload["slice_definition"]["holdout_reselection_performed"] is False
+    assert payload["summary"]["slice_window_count"] == 3
+    assert payload["summary"]["total_window_count"] == 31
+    assert payload["summary"]["median_gross_return_pct"] > 0.0
+    assert payload["summary"]["median_net_return_pct"] < 0.0
+    assert payload["summary"]["simpler_trend_baseline_status"] == "unavailable_unclaimed"
+    assert payload["decision_gates"]["regime_slice_sample_size"]["passed"] is False
+    assert payload["decision_gates"]["median_gross_return_positive"]["passed"] is True
+    assert payload["decision_gates"]["cost_adjusted_net_return_beats_cash_null"]["passed"] is False
+    assert payload["decision_gates"]["baseline_null_robustness"]["passed"] is False
+    assert payload["decision_gates"]["simpler_trend_baseline_available"]["status"] == "unclaimed"
+    assert all(value is False for value in payload["safety_gates"].values())
+    assert "does not optimize parameters" in payload["claim_boundary"]
+    assert "no live, testnet, account, API-key" in payload["claim_boundary"]
+
+
+def test_regime_only_tsmom_falsification_rollup_contains_slice_costs_and_nulls() -> None:
+    payload = build_regime_only_tsmom_falsification_payload()
+    row_types = {row["row_type"] for row in payload["evidence_rollup"]}
+    assert {"summary", "slice_window", "null_baseline"}.issubset(row_types)
+    windows = [row for row in payload["evidence_rollup"] if row["row_type"] == "slice_window"]
+    assert {row["window_id"] for row in windows} == {"W022", "W023", "W027"}
+    assert all(row["market_regime"] == "sideways" for row in windows)
+    assert all(row["volatility_regime"] == "low-vol" for row in windows)
+    baselines = {row["baseline_name"] for row in payload["evidence_rollup"] if row["row_type"] == "null_baseline"}
+    assert {"cash_null", "buy_and_hold", "random_sign", "lagged_signal", "inverse_signal", "simpler_trend_baseline"}.issubset(baselines)
+    lagged = payload["summary"]["null_summary"]["lagged_signal"]
+    assert lagged["baseline_beats_or_matches_tsmom_count"] == 2
+    assert lagged["median_tsmom_minus_baseline_return_pct"] < 0.0
+    failed_names = {row["failed_gate"] for row in payload["failed_gate_rollup"]}
+    assert "median_stress_return_beats_cash_null" in failed_names
+    assert "cost_adjusted_net_return_beats_cash_null" in failed_names
+
+
+def test_regime_only_tsmom_falsification_artifacts_are_generated_and_overwrite_guarded(tmp_path: Path) -> None:
+    payload = build_regime_only_tsmom_falsification_payload(
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/tsmom.py"],
+    )
+    output_dir = tmp_path / "reports" / "loops" / "20260626-regime-only-tsmom-falsification-v1"
+    written = write_regime_only_tsmom_falsification_artifacts(output_dir, payload)
+    assert written == output_dir
+    expected = {
+        "decision.json",
+        "report.md",
+        "evidence_rollup.csv",
+        "failed_gate_rollup.csv",
+        "commands.txt",
+        "changed_files.txt",
+    }
+    assert {path.name for path in output_dir.iterdir()} == expected
+    decision = json.loads((output_dir / "decision.json").read_text())
+    assert "verdict" not in decision
+    assert "loop_verdict" not in decision
+    assert "decision" not in decision
+    assert decision["loop_id"] == "20260626-regime-only-tsmom-falsification-v1"
+    assert decision["readiness_baseline_verdict"] == "NOT_READY"
+    report = (output_dir / "report.md").read_text()
+    assert "## Regime slice evidence" in report
+    assert "readiness_baseline_verdict: NOT_READY" in report
+    assert "permission to use real money" in report
+    with pytest.raises(FileExistsError, match="output directory already exists"):
+        write_regime_only_tsmom_falsification_artifacts(output_dir, payload)
+    assert default_regime_only_tsmom_falsification_output_dir(
+        root=tmp_path / "reports" / "loops",
+        today="20260626",
+    ) == output_dir
+
+
+def test_regime_only_tsmom_falsification_cli_writes_artifacts_without_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "SHOULD_NOT_BE_READ")
+    monkeypatch.setenv("BINANCE_API_SECRET", "SHOULD_NOT_BE_READ")
+    real_getenv = os.getenv
+
+    def guarded_getenv(key: str, default: str | None = None) -> str | None:
+        if key in {"BINANCE_API_KEY", "BINANCE_API_SECRET"}:
+            raise AssertionError(f"tsmom-regime-only-falsification-run must not read {key}")
+        return real_getenv(key, default)
+
+    monkeypatch.setattr(os, "getenv", guarded_getenv)
+    output_dir = tmp_path / "reports" / "loops" / "20260626-regime-only-tsmom-falsification-v1"
+    parsed = quantctl.build_parser().parse_args(
+        [
+            "tsmom-regime-only-falsification-run",
+            "--reports-root",
+            str(tmp_path / "reports"),
+            "--output-dir",
+            str(output_dir),
+            "--command",
+            "uv run pytest tests/test_tsmom_loop.py -q",
+            "--changed-file",
+            "src/parangsae/research/tsmom.py",
+        ]
+    )
+    assert parsed.func is quantctl.cmd_tsmom_regime_only_falsification_run
+    assert quantctl.cmd_tsmom_regime_only_falsification_run(parsed) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert "verdict" not in cli_payload
+    assert "loop_verdict" not in cli_payload
+    assert cli_payload["regime_only_tsmom_falsification_namespace"] == REGIME_ONLY_TSMOM_FALSIFICATION_NAMESPACE
+    assert cli_payload["regime_only_tsmom_falsification_decision"] == REGIME_ONLY_TSMOM_FREEZE_NEGATIVE_CONTROL
+    assert cli_payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert cli_payload["live_orders_submitted"] is False
+    assert cli_payload["testnet_orders_submitted"] is False
+    decision = json.loads((output_dir / "decision.json").read_text())
+    assert decision["safety_gates"]["api_keys_required_for_research"] is False
+    assert decision["safety_gates"]["account_or_fill_data_used"] is False
+    assert decision["safety_gates"]["strategy_parameters_retuned"] is False
+    assert decision["safety_gates"]["gates_relaxed"] is False
+    assert (output_dir / "evidence_rollup.csv").exists()
+    assert (output_dir / "failed_gate_rollup.csv").exists()

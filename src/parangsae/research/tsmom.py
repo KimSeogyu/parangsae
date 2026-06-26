@@ -145,6 +145,28 @@ TSMOM_FAMILY_DECISION_REQUIRED_FILES = (
     "changed_files.txt",
 )
 TSMOM_FAMILY_DECISION_KNOWN_FILES = set(TSMOM_FAMILY_DECISION_REQUIRED_FILES)
+REGIME_ONLY_TSMOM_FALSIFICATION_LOOP_ID = "REGIME_ONLY_TSMOM_FALSIFICATION_V1"
+REGIME_ONLY_TSMOM_FALSIFICATION_SCHEMA_VERSION = 1
+REGIME_ONLY_TSMOM_FALSIFICATION_LOOP_TYPE = "research_governance"
+REGIME_ONLY_TSMOM_FALSIFICATION_LOOP_SLUG = "regime-only-tsmom-falsification-v1"
+REGIME_ONLY_TSMOM_FALSIFICATION_NAMESPACE = "regime_only_tsmom_falsification_only_not_readiness"
+REGIME_ONLY_TSMOM_STILL_WATCH = "REGIME_ONLY_EXCEPTION_STILL_WATCH"
+REGIME_ONLY_TSMOM_FREEZE_NEGATIVE_CONTROL = "FREEZE_AS_NEGATIVE_CONTROL_CANDIDATE"
+REGIME_ONLY_TSMOM_DEPRECATE = "DEPRECATE_CANDIDATE_FAMILY_CANDIDATE"
+REGIME_ONLY_TSMOM_ALLOWED_DECISIONS = (
+    REGIME_ONLY_TSMOM_STILL_WATCH,
+    REGIME_ONLY_TSMOM_FREEZE_NEGATIVE_CONTROL,
+    REGIME_ONLY_TSMOM_DEPRECATE,
+)
+REGIME_ONLY_TSMOM_REQUIRED_FILES = (
+    "decision.json",
+    "report.md",
+    "evidence_rollup.csv",
+    "failed_gate_rollup.csv",
+    "commands.txt",
+    "changed_files.txt",
+)
+REGIME_ONLY_TSMOM_KNOWN_FILES = set(REGIME_ONLY_TSMOM_REQUIRED_FILES)
 DEFAULT_TSMOM_SOURCE_LOOP_ARTIFACT = Path("reports/loops/20260625-tsmom-vol-target-funding-aware-v1/loop.json")
 DEFAULT_TSMOM_DIAGNOSTIC_ARTIFACT = Path(
     "reports/loops/20260626-tsmom-stress-switch-funding-diagnostic-v1/diagnostic.json"
@@ -154,6 +176,9 @@ DEFAULT_TSMOM_RISK_ARTIFACT = Path(
 )
 DEFAULT_TSMOM_GROSS_EDGE_ARTIFACT = Path(
     "reports/loops/20260626-tsmom-gross-edge-regime-null-robustness-v1/gross_edge_loop.json"
+)
+DEFAULT_TSMOM_FAMILY_DECISION_ARTIFACT = Path(
+    "reports/loops/20260626-tsmom-candidate-family-decision-v1/candidate_family_decision.json"
 )
 HARD_GATE_NAMES = (
     "candidate_count",
@@ -258,6 +283,15 @@ def default_tsmom_gross_edge_output_dir(*, root: str | Path = "reports/loops", t
 def default_tsmom_family_decision_output_dir(*, root: str | Path = "reports/loops", today: str | None = None) -> Path:
     stamp = today or datetime.now(UTC).strftime("%Y%m%d")
     return Path(root) / f"{stamp}-{TSMOM_FAMILY_DECISION_LOOP_SLUG}"
+
+
+def default_regime_only_tsmom_falsification_output_dir(
+    *,
+    root: str | Path = "reports/loops",
+    today: str | None = None,
+) -> Path:
+    stamp = today or datetime.now(UTC).strftime("%Y%m%d")
+    return Path(root) / f"{stamp}-{REGIME_ONLY_TSMOM_FALSIFICATION_LOOP_SLUG}"
 
 
 def tsmom_candidate_grid() -> tuple[TsmomCandidateSettings, ...]:
@@ -1773,6 +1807,226 @@ def render_tsmom_candidate_family_decision_report(payload: dict[str, Any]) -> st
     return "\n".join(lines) + "\n"
 
 
+def build_regime_only_tsmom_falsification_payload(
+    *,
+    source_loop_artifact: str | Path = DEFAULT_TSMOM_SOURCE_LOOP_ARTIFACT,
+    diagnostic_artifact: str | Path = DEFAULT_TSMOM_DIAGNOSTIC_ARTIFACT,
+    risk_artifact: str | Path = DEFAULT_TSMOM_RISK_ARTIFACT,
+    gross_edge_artifact: str | Path = DEFAULT_TSMOM_GROSS_EDGE_ARTIFACT,
+    family_decision_artifact: str | Path = DEFAULT_TSMOM_FAMILY_DECISION_ARTIFACT,
+    commands: Iterable[str] = (),
+    changed_files: Iterable[str] = (),
+) -> dict[str, Any]:
+    source_path = Path(source_loop_artifact)
+    diagnostic_path = Path(diagnostic_artifact)
+    risk_path = Path(risk_artifact)
+    gross_edge_path = Path(gross_edge_artifact)
+    family_decision_path = Path(family_decision_artifact)
+    source_payload = _read_json_artifact(source_path, required_key="tsmom_loop_verdict")
+    diagnostic_payload = _read_json_artifact(diagnostic_path, required_key="tsmom_diagnostic_loop_verdict")
+    risk_payload = _read_json_artifact(risk_path, required_key="tsmom_risk_loop_verdict")
+    gross_edge_payload = _read_json_artifact(gross_edge_path, required_key="tsmom_gross_edge_loop_verdict")
+    family_decision_payload = _read_json_artifact(
+        family_decision_path,
+        required_key="tsmom_candidate_family_decision",
+    )
+    slice_rows = _regime_only_slice_rows(source_payload=source_payload, gross_edge_payload=gross_edge_payload)
+    null_rows = _regime_only_null_rows(gross_edge_payload=gross_edge_payload, slice_rows=slice_rows)
+    summary = _regime_only_summary(
+        gross_edge_payload=gross_edge_payload,
+        family_decision_payload=family_decision_payload,
+        slice_rows=slice_rows,
+        null_rows=null_rows,
+    )
+    gates = _regime_only_falsification_gates(
+        source_payload=source_payload,
+        family_decision_payload=family_decision_payload,
+        summary=summary,
+        null_rows=null_rows,
+    )
+    failed_gates = [name for name, gate in gates.items() if not bool(gate["passed"])]
+    regime_decision = _regime_only_falsification_decision(summary=summary, gates=gates)
+    evidence_rollup = _regime_only_evidence_rollup(summary=summary, slice_rows=slice_rows, null_rows=null_rows)
+    failed_gate_rollup = _regime_only_failed_gate_rollup(
+        source_payload=source_payload,
+        diagnostic_payload=diagnostic_payload,
+        risk_payload=risk_payload,
+        gross_edge_payload=gross_edge_payload,
+        family_decision_payload=family_decision_payload,
+        gates=gates,
+    )
+    loop_id = f"{datetime.now(UTC).strftime('%Y%m%d')}-{REGIME_ONLY_TSMOM_FALSIFICATION_LOOP_SLUG}"
+    return {
+        "schema_version": REGIME_ONLY_TSMOM_FALSIFICATION_SCHEMA_VERSION,
+        "loop_id": loop_id,
+        "status": "IMPLEMENTED",
+        "loop_type": REGIME_ONLY_TSMOM_FALSIFICATION_LOOP_TYPE,
+        "regime_only_tsmom_falsification_loop": REGIME_ONLY_TSMOM_FALSIFICATION_LOOP_ID,
+        "source_strategy_family": TSMOM_LOOP_ID,
+        "baseline": BASELINE_ARTIFACT,
+        "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+        "source_tsmom_loop_verdict": source_payload["tsmom_loop_verdict"],
+        "source_diagnostic_loop_verdict": diagnostic_payload["tsmom_diagnostic_loop_verdict"],
+        "source_candidate_family_decision": family_decision_payload["tsmom_candidate_family_decision"],
+        "regime_only_tsmom_falsification_decision": regime_decision,
+        "regime_only_tsmom_falsification_namespace": REGIME_ONLY_TSMOM_FALSIFICATION_NAMESPACE,
+        "candidate_queue_status": _regime_only_candidate_queue_status(regime_decision),
+        "pre_registration": _regime_only_pre_registration(),
+        "loop_contract": {
+            "allowed_decisions": list(REGIME_ONLY_TSMOM_ALLOWED_DECISIONS),
+            "regime_only_tsmom_falsification_namespace": REGIME_ONLY_TSMOM_FALSIFICATION_NAMESPACE,
+            "readiness_verdict": False,
+            "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+            "claim_boundary": _regime_only_claim_boundary(),
+        },
+        "evidence_inputs": _regime_only_evidence_inputs(
+            source_path=source_path,
+            diagnostic_path=diagnostic_path,
+            risk_path=risk_path,
+            gross_edge_path=gross_edge_path,
+            family_decision_path=family_decision_path,
+        ),
+        "slice_definition": {
+            "market_regime": "sideways",
+            "volatility_regime": "low-vol",
+            "selection_rule": "existing gross-edge artifact rows where market_regime == sideways AND volatility_regime == low-vol",
+            "parameter_retune_performed": False,
+            "holdout_reselection_performed": False,
+        },
+        "summary": summary,
+        "decision_gates": gates,
+        "failed_regime_only_gates": failed_gates,
+        "slice_windows": slice_rows,
+        "null_baseline_comparison": null_rows,
+        "evidence_rollup": evidence_rollup,
+        "failed_gate_rollup": failed_gate_rollup,
+        "safety_gates": {
+            "live_orders_submitted": False,
+            "testnet_orders_submitted": False,
+            "api_keys_required_for_research": False,
+            "account_or_fill_data_used": False,
+            "holdout_used_for_selection": False,
+            "profit_or_live_ready_claim": False,
+            "strategy_parameters_retuned": False,
+            "gates_relaxed": False,
+            "live_trading_path_introduced": False,
+        },
+        "validation_commands": list(commands),
+        "evidence_artifacts": list(REGIME_ONLY_TSMOM_REQUIRED_FILES),
+        "changed_files": list(changed_files),
+        "claim_boundary": _regime_only_claim_boundary(),
+        "next_loop": _regime_only_next_loop(regime_decision),
+    }
+
+
+def write_regime_only_tsmom_falsification_artifacts(
+    output_dir: str | Path,
+    payload: dict[str, Any],
+    *,
+    overwrite: bool = False,
+) -> Path:
+    out = prepare_regime_only_tsmom_falsification_output_dir(output_dir, overwrite=overwrite)
+    artifact_payload = dict(payload)
+    if out.name.endswith(REGIME_ONLY_TSMOM_FALSIFICATION_LOOP_SLUG):
+        artifact_payload["loop_id"] = out.name
+    _write_json(out / "decision.json", artifact_payload)
+    _atomic_write_text(out / "report.md", render_regime_only_tsmom_falsification_report(artifact_payload))
+    pd.DataFrame(artifact_payload.get("evidence_rollup", [])).to_csv(out / "evidence_rollup.csv", index=False)
+    pd.DataFrame(artifact_payload.get("failed_gate_rollup", [])).to_csv(out / "failed_gate_rollup.csv", index=False)
+    _atomic_write_text(out / "commands.txt", "\n".join(artifact_payload.get("validation_commands", [])) + "\n")
+    _atomic_write_text(out / "changed_files.txt", "\n".join(artifact_payload.get("changed_files", [])) + "\n")
+    return out
+
+
+def prepare_regime_only_tsmom_falsification_output_dir(
+    output_dir: str | Path,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="tsmom-regime-only-falsification-run",
+        known_files=REGIME_ONLY_TSMOM_KNOWN_FILES,
+        overwrite=overwrite,
+    )
+
+
+def render_regime_only_tsmom_falsification_report(payload: dict[str, Any]) -> str:
+    summary = payload["summary"]
+    lines = [
+        f"# Quant Loop Report: {payload['loop_id']}",
+        "",
+        "## Hypothesis",
+        payload["pre_registration"]["hypothesis"],
+        "",
+        "## Edge source",
+        payload["pre_registration"]["edge_source"],
+        "",
+        "## Claim boundary",
+        f"- regime_only_tsmom_falsification_decision: {payload['regime_only_tsmom_falsification_decision']}",
+        f"- namespace: {payload['regime_only_tsmom_falsification_namespace']}",
+        f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+        f"- source_candidate_family_decision: {payload['source_candidate_family_decision']}",
+        f"- claim_boundary: {payload['claim_boundary']}",
+        "",
+        "## Regime slice evidence",
+        f"- slice_window_count: {summary['slice_window_count']}",
+        f"- total_window_count: {summary['total_window_count']}",
+        f"- regime_coverage_pct: {summary['regime_coverage_pct']}",
+        f"- median_gross_return_pct: {summary['median_gross_return_pct']}",
+        f"- median_net_return_pct: {summary['median_net_return_pct']}",
+        f"- median_funding_drag_pct: {summary['median_funding_drag_pct']}",
+        f"- median_slippage_drag_pct: {summary['median_slippage_drag_pct']}",
+        f"- median_stress_drag_pct: {summary['median_stress_drag_pct']}",
+        f"- median_turnover: {summary['median_turnover']}",
+        f"- total_trade_count: {summary['total_trade_count']}",
+        f"- worst_drawdown_pct: {summary['worst_drawdown_pct']}",
+        f"- net_positive_window_count: {summary['net_positive_window_count']}",
+        "",
+        "## Baseline / null comparison",
+    ]
+    for baseline, values in summary["null_summary"].items():
+        lines.append(
+            f"- {baseline}: status={values['status']}, count={values['count']}, "
+            f"median_baseline_return_pct={values['median_baseline_return_pct']}, "
+            f"median_tsmom_minus_baseline_return_pct={values['median_tsmom_minus_baseline_return_pct']}, "
+            f"baseline_beats_or_matches_tsmom_count={values['baseline_beats_or_matches_tsmom_count']}"
+        )
+    lines.extend(
+        [
+            "",
+            "## Decision gates",
+        ]
+    )
+    for name, gate in payload["decision_gates"].items():
+        lines.append(
+            f"- {name}: {str(gate.get('status', 'failed')).upper()} "
+            f"(observed={gate.get('observed')}, threshold={gate.get('threshold')})"
+        )
+    lines.extend(
+        [
+            "",
+            "## Failed gates preserved",
+        ]
+    )
+    lines.extend(f"- {row['loop_name']}: {row['failed_gate']}" for row in payload["failed_gate_rollup"])
+    lines.extend(
+        [
+            "",
+            "## What cannot be claimed",
+            "- live readiness",
+            "- profitability",
+            "- execution readiness",
+            "- permission to use real money",
+            "- validation of broad TSMOM active development",
+            "",
+            "## Next loop",
+            payload["next_loop"],
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
 def render_tsmom_risk_report(payload: dict[str, Any]) -> str:
     gates = payload["risk_evaluation_gates"]
     switch = payload["switch_stability_summary"]
@@ -2628,6 +2882,421 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
     except (TypeError, ValueError):
         return default
     return number if math.isfinite(number) else default
+
+
+def _regime_only_claim_boundary() -> str:
+    return (
+        "REGIME_ONLY_TSMOM_FALSIFICATION_V1 is a paper-only research-governance "
+        "falsification loop for the previously allowed sideways + low-vol TSMOM exception. "
+        "It does not optimize parameters, does not retune on holdout, does not relax gates, "
+        "is not readiness or live readiness, is not trading advice, is not a profit guarantee, "
+        "and uses no live, testnet, account, API-key, private order, or fill data."
+    )
+
+
+def _regime_only_pre_registration() -> dict[str, Any]:
+    return {
+        "strategy_family": REGIME_ONLY_TSMOM_FALSIFICATION_LOOP_ID,
+        "hypothesis": (
+            "If the prior TSMOM regime-only exception is worth continued paper research, "
+            "the existing non-retuned TSMOM candidate rows in the sideways + low-vol slice "
+            "should show sufficient sample coverage, positive cost-adjusted net return, "
+            "and robustness versus null baselines."
+        ),
+        "edge_source": "behavioral trend/momentum exception under low-vol sideways market structure, falsification-only",
+        "allowed_inputs": [
+            "durable_source_tsmom_loop_artifact",
+            "durable_stress_switch_funding_diagnostic_artifact",
+            "durable_switch_stability_funding_throttle_risk_artifact",
+            "durable_gross_edge_regime_null_robustness_artifact",
+            "durable_candidate_family_decision_artifact",
+        ],
+        "forbidden_inputs": [
+            "new_parameter_optimization",
+            "holdout_retuning",
+            "live_orders",
+            "testnet_orders",
+            "account_state",
+            "api_keys",
+            "private_orders",
+            "fills",
+            "signed_endpoints",
+            "live_or_testnet_performance",
+        ],
+        "slice_definition": {
+            "market_regime": "sideways",
+            "volatility_regime": "low-vol",
+            "operator": "AND",
+            "source": "existing gross-edge artifact rows only",
+        },
+        "null_baselines": [
+            "cash_null",
+            "buy_and_hold",
+            "random_sign",
+            "lagged_signal",
+            "inverse_signal",
+            "simpler_trend_baseline_if_available",
+        ],
+        "decision_gates": [
+            "readiness_boundary_not_live_ready",
+            "source_family_decision_is_regime_only_watch",
+            "no_parameter_retune_or_holdout_reselection",
+            "regime_slice_sample_size",
+            "median_gross_return_positive",
+            "cost_adjusted_net_return_beats_cash_null",
+            "net_positive_hit_rate",
+            "baseline_null_robustness",
+            "simpler_trend_baseline_available",
+            "failed_gates_preserved",
+        ],
+        "claim_boundary": _regime_only_claim_boundary(),
+        "readiness_boundary": "readiness_baseline_verdict remains NOT_READY unless a separate readiness process proves otherwise",
+    }
+
+
+def _regime_only_evidence_inputs(
+    *,
+    source_path: Path,
+    diagnostic_path: Path,
+    risk_path: Path,
+    gross_edge_path: Path,
+    family_decision_path: Path,
+) -> list[dict[str, Any]]:
+    return [
+        {"artifact_role": "source_tsmom_loop", "path": str(source_path), "sha256": _artifact_sha256(source_path)},
+        {
+            "artifact_role": "stress_switch_funding_diagnostic",
+            "path": str(diagnostic_path),
+            "sha256": _artifact_sha256(diagnostic_path),
+        },
+        {
+            "artifact_role": "switch_stability_funding_throttle_risk",
+            "path": str(risk_path),
+            "sha256": _artifact_sha256(risk_path),
+        },
+        {
+            "artifact_role": "gross_edge_regime_null_robustness",
+            "path": str(gross_edge_path),
+            "sha256": _artifact_sha256(gross_edge_path),
+        },
+        {
+            "artifact_role": "candidate_family_decision",
+            "path": str(family_decision_path),
+            "sha256": _artifact_sha256(family_decision_path),
+        },
+    ]
+
+
+def _regime_only_slice_rows(
+    *,
+    source_payload: dict[str, Any],
+    gross_edge_payload: dict[str, Any],
+) -> list[dict[str, Any]]:
+    source_rows = {
+        str(row["window_id"]): row
+        for row in source_payload.get("walk_forward", {}).get("rows", [])
+        if isinstance(row, dict)
+    }
+    rows: list[dict[str, Any]] = []
+    for item in gross_edge_payload.get("gross_edge_decomposition", []):
+        row = cast(dict[str, Any], item)
+        if row.get("market_regime") != "sideways" or row.get("volatility_regime") != "low-vol":
+            continue
+        source_row = cast(dict[str, Any], source_rows.get(str(row["window_id"]), {}))
+        rows.append(
+            {
+                **row,
+                "trade_count": int(source_row.get("base_holdout_closed_trades", 0) or 0),
+                "source_failed_gate_context": ";".join(source_payload.get("failed_gates", [])),
+            }
+        )
+    return rows
+
+
+def _regime_only_null_rows(
+    *,
+    gross_edge_payload: dict[str, Any],
+    slice_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    window_ids = {str(row["window_id"]) for row in slice_rows}
+    rows = [
+        {**cast(dict[str, Any], row), "status": "available"}
+        for row in gross_edge_payload.get("null_baseline_comparison", [])
+        if str(cast(dict[str, Any], row).get("window_id")) in window_ids
+    ]
+    rows.append(
+        {
+            "window_id": "REGIME_SLICE",
+            "baseline_name": "simpler_trend_baseline",
+            "baseline_description": "not available in current durable artifacts without reconstructing source bars",
+            "status": "unavailable_unclaimed",
+            "tsmom_gross_return_pct": None,
+            "baseline_return_pct": None,
+            "tsmom_minus_baseline_return_pct": None,
+            "baseline_beats_or_matches_tsmom": None,
+            "baseline_drawdown_pct": None,
+            "baseline_cvar_tail_loss_pct": None,
+        }
+    )
+    return rows
+
+
+def _regime_only_summary(
+    *,
+    gross_edge_payload: dict[str, Any],
+    family_decision_payload: dict[str, Any],
+    slice_rows: list[dict[str, Any]],
+    null_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    total_windows = int(gross_edge_payload.get("gross_edge_summary", {}).get("window_count", 0) or 0)
+    slice_count = len(slice_rows)
+    net_returns = [_safe_float(row.get("net_return_after_funding_slippage_stress_pct")) for row in slice_rows]
+    gross_returns = [_safe_float(row.get("gross_return_before_costs_pct")) for row in slice_rows]
+    null_summary = _regime_only_null_summary(null_rows=null_rows, slice_count=slice_count)
+    return {
+        "source_candidate_family_decision": family_decision_payload.get("tsmom_candidate_family_decision"),
+        "slice_window_count": slice_count,
+        "total_window_count": total_windows,
+        "regime_coverage_pct": float(slice_count / max(1, total_windows) * 100.0),
+        "median_gross_return_pct": _median_float(gross_returns),
+        "mean_gross_return_pct": _mean_float(gross_returns),
+        "median_net_return_pct": _median_float(net_returns),
+        "mean_net_return_pct": _mean_float(net_returns),
+        "median_funding_drag_pct": _median_float([_safe_float(row.get("funding_drag_pct")) for row in slice_rows]),
+        "median_slippage_drag_pct": _median_float([_safe_float(row.get("slippage_drag_pct")) for row in slice_rows]),
+        "median_stress_drag_pct": _median_float([_safe_float(row.get("stress_drag_pct")) for row in slice_rows]),
+        "median_turnover": _median_float([_safe_float(row.get("turnover")) for row in slice_rows]),
+        "total_trade_count": sum(int(row.get("trade_count", 0) or 0) for row in slice_rows),
+        "median_trade_count": _median_float([float(row.get("trade_count", 0) or 0) for row in slice_rows]),
+        "worst_drawdown_pct": min([_safe_float(row.get("drawdown_pct")) for row in slice_rows], default=None),
+        "cvar_tail_net_return_pct": _tail_loss_cvar(net_returns, TsmomLoopConfig()),
+        "gross_positive_window_count": sum(1 for value in gross_returns if value > 0.0),
+        "net_positive_window_count": sum(1 for value in net_returns if value > 0.0),
+        "net_positive_hit_rate": float(sum(1 for value in net_returns if value > 0.0) / max(1, slice_count)),
+        "null_summary": null_summary,
+        "simpler_trend_baseline_status": null_summary["simpler_trend_baseline"]["status"],
+    }
+
+
+def _regime_only_null_summary(*, null_rows: list[dict[str, Any]], slice_count: int) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    for row in null_rows:
+        grouped.setdefault(str(row["baseline_name"]), []).append(row)
+    summary: dict[str, dict[str, Any]] = {}
+    for name in ("cash_null", "buy_and_hold", "random_sign", "lagged_signal", "inverse_signal"):
+        items = grouped.get(name, [])
+        summary[name] = {
+            "status": "available" if items else "missing",
+            "count": len(items),
+            "median_baseline_return_pct": _median_float(
+                [_safe_float(item.get("baseline_return_pct")) for item in items]
+            ),
+            "median_tsmom_minus_baseline_return_pct": _median_float(
+                [_safe_float(item.get("tsmom_minus_baseline_return_pct")) for item in items]
+            ),
+            "baseline_beats_or_matches_tsmom_count": sum(
+                1 for item in items if bool(item.get("baseline_beats_or_matches_tsmom"))
+            ),
+            "baseline_beats_or_matches_tsmom_rate": float(
+                sum(1 for item in items if bool(item.get("baseline_beats_or_matches_tsmom"))) / max(1, slice_count)
+            ),
+        }
+    summary["simpler_trend_baseline"] = {
+        "status": "unavailable_unclaimed",
+        "count": 0,
+        "median_baseline_return_pct": None,
+        "median_tsmom_minus_baseline_return_pct": None,
+        "baseline_beats_or_matches_tsmom_count": None,
+        "baseline_beats_or_matches_tsmom_rate": None,
+    }
+    return summary
+
+
+def _regime_only_falsification_gates(
+    *,
+    source_payload: dict[str, Any],
+    family_decision_payload: dict[str, Any],
+    summary: dict[str, Any],
+    null_rows: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    null_summary = cast(dict[str, dict[str, Any]], summary["null_summary"])
+    available_nulls = {
+        name: values
+        for name, values in null_summary.items()
+        if values.get("status") == "available"
+    }
+    null_robust = all(
+        _safe_float(values.get("median_tsmom_minus_baseline_return_pct")) > 0.0
+        and int(values.get("baseline_beats_or_matches_tsmom_count", 0) or 0)
+        <= int(summary["slice_window_count"]) // 2
+        for values in available_nulls.values()
+    )
+    return {
+        "readiness_boundary_not_live_ready": _gate(
+            READINESS_BASELINE_VERDICT,
+            "must remain NOT_READY and not emit live readiness",
+            READINESS_BASELINE_VERDICT == "NOT_READY",
+        ),
+        "source_family_decision_is_regime_only_watch": _gate(
+            family_decision_payload.get("tsmom_candidate_family_decision"),
+            "REGIME_ONLY_WATCH",
+            family_decision_payload.get("tsmom_candidate_family_decision") == TSMOM_FAMILY_DECISION_REGIME_ONLY_WATCH,
+        ),
+        "no_parameter_retune_or_holdout_reselection": _gate(
+            {"parameter_retune": False, "holdout_reselection": False},
+            "no retune and no holdout reselection",
+            True,
+        ),
+        "regime_slice_sample_size": _gate(
+            summary["slice_window_count"],
+            ">= 5 windows for a regime-only exception",
+            int(summary["slice_window_count"]) >= 5,
+        ),
+        "median_gross_return_positive": _gate(
+            summary["median_gross_return_pct"],
+            "> 0.0",
+            _gt(cast(float | None, summary["median_gross_return_pct"]), 0.0),
+        ),
+        "cost_adjusted_net_return_beats_cash_null": _gate(
+            summary["median_net_return_pct"],
+            "> 0.0 after funding/slippage/stress costs",
+            _gt(cast(float | None, summary["median_net_return_pct"]), 0.0),
+        ),
+        "net_positive_hit_rate": _gate(
+            summary["net_positive_hit_rate"],
+            "> 0.5",
+            _safe_float(summary["net_positive_hit_rate"]) > 0.5,
+        ),
+        "baseline_null_robustness": _gate(
+            {
+                name: {
+                    "median_delta": values["median_tsmom_minus_baseline_return_pct"],
+                    "baseline_beats_or_matches_tsmom_count": values["baseline_beats_or_matches_tsmom_count"],
+                }
+                for name, values in available_nulls.items()
+            },
+            "all available nulls median delta > 0 and no null beats/matches in a majority of slice windows",
+            null_robust,
+        ),
+        "simpler_trend_baseline_available": _gate(
+            summary["simpler_trend_baseline_status"],
+            "available, or explicitly unclaimed if unavailable",
+            False,
+            status="unclaimed",
+        ),
+        "failed_gates_preserved": _gate(
+            source_payload.get("failed_gates"),
+            "source failed gates remain recorded and unrenamed",
+            bool(source_payload.get("failed_gates")) and bool(null_rows),
+        ),
+    }
+
+
+def _regime_only_falsification_decision(
+    *,
+    summary: dict[str, Any],
+    gates: dict[str, dict[str, Any]],
+) -> str:
+    active_watch_gates = (
+        "regime_slice_sample_size",
+        "median_gross_return_positive",
+        "cost_adjusted_net_return_beats_cash_null",
+        "net_positive_hit_rate",
+        "baseline_null_robustness",
+    )
+    if all(bool(gates[name]["passed"]) for name in active_watch_gates):
+        return REGIME_ONLY_TSMOM_STILL_WATCH
+    if int(summary["slice_window_count"]) > 0 and _safe_float(summary["median_gross_return_pct"]) > 0.0:
+        return REGIME_ONLY_TSMOM_FREEZE_NEGATIVE_CONTROL
+    return REGIME_ONLY_TSMOM_DEPRECATE
+
+
+def _regime_only_candidate_queue_status(regime_decision: str) -> str:
+    if regime_decision == REGIME_ONLY_TSMOM_STILL_WATCH:
+        return "The sideways + low-vol TSMOM exception remains paper-only REGIME_ONLY_WATCH."
+    if regime_decision == REGIME_ONLY_TSMOM_FREEZE_NEGATIVE_CONTROL:
+        return (
+            "The sideways + low-vol TSMOM exception is not active WATCH; freeze it as a "
+            "negative-control candidate unless materially new evidence is introduced."
+        )
+    return "Deprecate the regime-only TSMOM exception from active candidate development."
+
+
+def _regime_only_next_loop(regime_decision: str) -> str:
+    if regime_decision == REGIME_ONLY_TSMOM_STILL_WATCH:
+        return "Run a stricter pre-registered validation loop with larger public-data regime coverage before any promotion."
+    if regime_decision == REGIME_ONLY_TSMOM_FREEZE_NEGATIVE_CONTROL:
+        return "Use this slice only as a negative-control benchmark; prioritize non-TSMOM hypotheses or data/validation hardening."
+    return "Remove the regime-only TSMOM exception from the active candidate queue until a materially different signal exists."
+
+
+def _regime_only_evidence_rollup(
+    *,
+    summary: dict[str, Any],
+    slice_rows: list[dict[str, Any]],
+    null_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = [
+        {"row_type": "summary", "metric_name": key, "value": value}
+        for key, value in summary.items()
+        if key != "null_summary"
+    ]
+    for row in slice_rows:
+        rows.append(
+            {
+                "row_type": "slice_window",
+                "window_id": row["window_id"],
+                "gross_return_pct": row["gross_return_before_costs_pct"],
+                "net_return_pct": row["net_return_after_funding_slippage_stress_pct"],
+                "funding_drag_pct": row["funding_drag_pct"],
+                "slippage_drag_pct": row["slippage_drag_pct"],
+                "stress_drag_pct": row["stress_drag_pct"],
+                "turnover": row["turnover"],
+                "drawdown_pct": row["drawdown_pct"],
+                "trade_count": row["trade_count"],
+                "market_regime": row["market_regime"],
+                "volatility_regime": row["volatility_regime"],
+            }
+        )
+    for row in null_rows:
+        rows.append(
+            {
+                "row_type": "null_baseline",
+                "window_id": row.get("window_id"),
+                "baseline_name": row.get("baseline_name"),
+                "status": row.get("status"),
+                "baseline_return_pct": row.get("baseline_return_pct"),
+                "tsmom_minus_baseline_return_pct": row.get("tsmom_minus_baseline_return_pct"),
+                "baseline_beats_or_matches_tsmom": row.get("baseline_beats_or_matches_tsmom"),
+            }
+        )
+    return rows
+
+
+def _regime_only_failed_gate_rollup(
+    *,
+    source_payload: dict[str, Any],
+    diagnostic_payload: dict[str, Any],
+    risk_payload: dict[str, Any],
+    gross_edge_payload: dict[str, Any],
+    family_decision_payload: dict[str, Any],
+    gates: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for gate_name in source_payload.get("failed_gates", []):
+        rows.append(_family_failed_gate_row("source_tsmom_loop", str(gate_name), {}))
+    for gate_name in diagnostic_payload.get("analyzed_failed_gates", []):
+        rows.append(_family_failed_gate_row("tsmom_diagnostic_loop", str(gate_name), {}))
+    for gate_name in risk_payload.get("failed_risk_gates", []):
+        rows.append(_family_failed_gate_row("tsmom_risk_loop", str(gate_name), {}))
+    for gate_name in gross_edge_payload.get("failed_gross_edge_gates", []):
+        rows.append(_family_failed_gate_row("tsmom_gross_edge_loop", str(gate_name), {}))
+    for gate_name in family_decision_payload.get("failed_decision_gates", []):
+        rows.append(_family_failed_gate_row("candidate_family_decision_loop", str(gate_name), {}))
+    for gate_name, gate in gates.items():
+        if not bool(gate["passed"]):
+            rows.append(_family_failed_gate_row("regime_only_tsmom_falsification_loop", gate_name, gate))
+    return rows
 
 
 def _stable_selected_candidate(
