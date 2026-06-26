@@ -1,0 +1,7 @@
+src/parangsae/research/null_baselines.py
+src/parangsae/research/tsmom.py
+src/parangsae/apps/cli/quantctl.py
+src/parangsae/research/loop_artifacts.py
+tests/test_tsmom_loop.py
+README.md
+docs/backtesting-paper-trading.md

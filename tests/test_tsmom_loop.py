@@ -12,6 +12,19 @@ import pytest
 from parangsae.apps.cli import quantctl
 from parangsae.marketdata.binance_funding import FundingRateBundle
 from parangsae.marketdata.binance_vision import MarketDataBundle
+from parangsae.research.null_baselines import (
+    BASELINE_COMPARISON_SCHEMA_COLUMNS,
+    NULL_BASELINE_FAMILIES,
+    RESEARCH_NULL_BASELINE_HARNESS_DECISION,
+    RESEARCH_NULL_BASELINE_HARNESS_NAMESPACE,
+    NullBaselineEvaluationInput,
+    build_null_baseline_comparison_rows,
+    build_research_null_baseline_harness_payload,
+    default_research_null_baseline_harness_output_dir,
+    deterministic_random_sign_position,
+    lagged_signal_position,
+    write_research_null_baseline_harness_artifacts,
+)
 from parangsae.research.readiness import READINESS_CANDIDATE_REGISTRY, READINESS_CANDIDATE_REGISTRY_VERSION
 from parangsae.research.tsmom import (
     REGIME_ONLY_TSMOM_FREEZE_NEGATIVE_CONTROL,
@@ -1057,3 +1070,178 @@ def test_regime_only_tsmom_falsification_cli_writes_artifacts_without_credential
     assert decision["safety_gates"]["gates_relaxed"] is False
     assert (output_dir / "evidence_rollup.csv").exists()
     assert (output_dir / "failed_gate_rollup.csv").exists()
+
+
+def test_research_null_baseline_harness_payload_schema_preserves_tsmom_state() -> None:
+    payload = build_research_null_baseline_harness_payload(
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/null_baselines.py"],
+    )
+    assert "verdict" not in payload
+    assert "loop_verdict" not in payload
+    assert "decision" not in payload
+    assert payload["research_null_baseline_harness_namespace"] == RESEARCH_NULL_BASELINE_HARNESS_NAMESPACE
+    assert payload["research_null_baseline_harness_decision"] == RESEARCH_NULL_BASELINE_HARNESS_DECISION
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert payload["schema_contract"]["required_columns"] == list(BASELINE_COMPARISON_SCHEMA_COLUMNS)
+    assert payload["schema_contract"]["baseline_families"] == list(NULL_BASELINE_FAMILIES)
+    assert payload["schema_contract"]["strategy_agnostic"] is True
+    assert payload["source_loop_state_preserved"]["candidate_family_decision"] == "REGIME_ONLY_WATCH"
+    assert (
+        payload["source_loop_state_preserved"]["regime_only_tsmom_falsification_decision"]
+        == "FREEZE_AS_NEGATIVE_CONTROL_CANDIDATE"
+    )
+    assert payload["source_loop_state_preserved"]["broad_tsmom_active_development_restored"] is False
+    assert payload["source_loop_state_preserved"]["regime_only_tsmom_active_candidate_restored"] is False
+    assert payload["summary"]["tsmom_state_changed"] is False
+    assert payload["summary"]["comparison_row_count"] >= 170
+    assert all(value is False for value in payload["safety_gates"].values())
+    first_row = payload["baseline_comparison"][0]
+    for column in BASELINE_COMPARISON_SCHEMA_COLUMNS:
+        assert column in first_row
+    assert "no live, testnet, account, API-key" in payload["claim_boundary"]
+
+
+def test_null_baseline_random_sign_is_deterministic() -> None:
+    index = pd.date_range("2024-01-01", periods=8, freq="h", tz="UTC")
+    position = pd.Series([0.0, 0.5, 0.5, 0.2, 0.8, 0.0, 0.4, 0.7], index=index)
+    first, seed_a = deterministic_random_sign_position(position, "W123")
+    second, seed_b = deterministic_random_sign_position(position, "W123")
+    other, seed_c = deterministic_random_sign_position(position, "W124")
+    assert seed_a == seed_b
+    assert first.tolist() == second.tolist()
+    assert seed_c != seed_a
+    assert other.tolist() != first.tolist()
+
+
+def test_lagged_baseline_uses_no_current_bar_signal() -> None:
+    index = pd.date_range("2024-01-01", periods=6, freq="h", tz="UTC")
+    position = pd.Series([10.0, 20.0, 30.0, 40.0, 50.0, 60.0], index=index)
+    lagged = lagged_signal_position(position, lag_bars=2)
+    assert lagged.tolist() == [0.0, 0.0, 10.0, 20.0, 30.0, 40.0]
+    position.iloc[-1] = 999.0
+    lagged_after_future_change = lagged_signal_position(position, lag_bars=2)
+    assert lagged_after_future_change.iloc[4] == 30.0
+    with pytest.raises(ValueError, match="lag_bars must be positive"):
+        lagged_signal_position(position, lag_bars=0)
+
+
+def test_null_baseline_inverse_consistency() -> None:
+    index = pd.date_range("2024-01-01", periods=5, freq="h", tz="UTC")
+    returns = pd.Series([0.0, 0.01, -0.02, 0.03, -0.01], index=index)
+    position = pd.Series([0.0, 1.0, 1.0, -0.5, -0.5], index=index)
+    rows = build_null_baseline_comparison_rows(
+        NullBaselineEvaluationInput(
+            window_id="W001",
+            strategy_name="toy_strategy",
+            returns=returns,
+            strategy_position=position,
+            strategy_return_gross=1.0,
+            strategy_return_net=0.5,
+            sample_size=len(returns),
+            trade_count=2,
+            turnover=1.5,
+            fees_drag=0.1,
+            slippage_drag=0.2,
+            funding_drag=0.3,
+            max_drawdown=-1.0,
+            regime_filter="unit_test",
+            evidence_source="unit_test",
+        )
+    )
+    inverse = next(row for row in rows if row["baseline_name"] == "inverse_signal")
+    cash = next(row for row in rows if row["baseline_name"] == "cash_null")
+    lagged = next(row for row in rows if row["baseline_name"] == "lagged_signal")
+    assert inverse["baseline_uses_current_bar_signal"] is True
+    assert inverse["baseline_return_gross"] != cash["baseline_return_gross"]
+    assert lagged["baseline_uses_current_bar_signal"] is False
+    assert lagged["lag_bars"] == 24
+    assert all(row["holdout_retune_used"] is False for row in rows)
+
+
+def test_research_null_baseline_harness_artifacts_are_generated_and_overwrite_guarded(
+    tmp_path: Path,
+) -> None:
+    payload = build_research_null_baseline_harness_payload(
+        commands=["uv run pytest tests/test_tsmom_loop.py -q"],
+        changed_files=["src/parangsae/research/null_baselines.py"],
+    )
+    output_dir = tmp_path / "reports" / "loops" / "20260626-research-null-baseline-harness-v1"
+    written = write_research_null_baseline_harness_artifacts(output_dir, payload)
+    assert written == output_dir
+    expected = {
+        "baseline_harness.json",
+        "baseline_comparison.csv",
+        "report.md",
+        "commands.txt",
+        "changed_files.txt",
+    }
+    assert {path.name for path in output_dir.iterdir()} == expected
+    harness = json.loads((output_dir / "baseline_harness.json").read_text())
+    assert "verdict" not in harness
+    assert "loop_verdict" not in harness
+    assert "decision" not in harness
+    assert harness["loop_id"] == "20260626-research-null-baseline-harness-v1"
+    assert harness["readiness_baseline_verdict"] == "NOT_READY"
+    assert harness["leakage_defense"]["lagged_baseline_uses_current_bar_info"] is False
+    comparison = pd.read_csv(output_dir / "baseline_comparison.csv")
+    assert set(BASELINE_COMPARISON_SCHEMA_COLUMNS).issubset(comparison.columns)
+    assert set(NULL_BASELINE_FAMILIES).issubset(set(comparison["baseline_name"]))
+    report = (output_dir / "report.md").read_text()
+    assert "## Leakage defense" in report
+    assert "readiness_baseline_verdict: NOT_READY" in report
+    assert "restoration of broad or regime-only TSMOM active development" in report
+    with pytest.raises(FileExistsError, match="output directory already exists"):
+        write_research_null_baseline_harness_artifacts(output_dir, payload)
+    assert default_research_null_baseline_harness_output_dir(
+        root=tmp_path / "reports" / "loops",
+        today="20260626",
+    ) == output_dir
+
+
+def test_research_null_baseline_harness_cli_writes_artifacts_without_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "SHOULD_NOT_BE_READ")
+    monkeypatch.setenv("BINANCE_API_SECRET", "SHOULD_NOT_BE_READ")
+    real_getenv = os.getenv
+
+    def guarded_getenv(key: str, default: str | None = None) -> str | None:
+        if key in {"BINANCE_API_KEY", "BINANCE_API_SECRET"}:
+            raise AssertionError(f"research-null-baseline-harness-run must not read {key}")
+        return real_getenv(key, default)
+
+    monkeypatch.setattr(os, "getenv", guarded_getenv)
+    output_dir = tmp_path / "reports" / "loops" / "20260626-research-null-baseline-harness-v1"
+    parsed = quantctl.build_parser().parse_args(
+        [
+            "research-null-baseline-harness-run",
+            "--reports-root",
+            str(tmp_path / "reports"),
+            "--output-dir",
+            str(output_dir),
+            "--command",
+            "uv run pytest tests/test_tsmom_loop.py -q",
+            "--changed-file",
+            "src/parangsae/research/null_baselines.py",
+        ]
+    )
+    assert parsed.func is quantctl.cmd_research_null_baseline_harness_run
+    assert quantctl.cmd_research_null_baseline_harness_run(parsed) == 0
+    cli_payload = json.loads(capsys.readouterr().out)
+    assert "verdict" not in cli_payload
+    assert "loop_verdict" not in cli_payload
+    assert cli_payload["research_null_baseline_harness_namespace"] == RESEARCH_NULL_BASELINE_HARNESS_NAMESPACE
+    assert cli_payload["research_null_baseline_harness_decision"] == RESEARCH_NULL_BASELINE_HARNESS_DECISION
+    assert cli_payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert cli_payload["tsmom_state_changed"] is False
+    assert cli_payload["live_orders_submitted"] is False
+    assert cli_payload["testnet_orders_submitted"] is False
+    harness = json.loads((output_dir / "baseline_harness.json").read_text())
+    assert harness["safety_gates"]["api_keys_required_for_research"] is False
+    assert harness["safety_gates"]["account_or_fill_data_used"] is False
+    assert harness["safety_gates"]["strategy_parameters_retuned"] is False
+    assert harness["safety_gates"]["gates_relaxed"] is False
+    assert (output_dir / "baseline_comparison.csv").exists()

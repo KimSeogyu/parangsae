@@ -68,6 +68,14 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             return None
         if "regime_only_tsmom_falsification_decision" in payload:
             return "tsmom-regime-only-falsification-run"
+    baseline_harness_json = path / "baseline_harness.json"
+    if baseline_harness_json.exists():
+        try:
+            payload = json.loads(baseline_harness_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "research_null_baseline_harness_loop" in payload:
+            return "research-null-baseline-harness-run"
     return None
 
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import random
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from itertools import product
@@ -20,6 +19,12 @@ from parangsae.research.backtest_engine import (
     risk_adjusted_score_v1,
 )
 from parangsae.research.loop_artifacts import prepare_loop_output_dir
+from parangsae.research.null_baselines import (
+    NullBaselineEvaluationInput,
+    build_null_baseline_comparison_rows,
+    deterministic_random_sign_position,
+    evaluate_position_stats,
+)
 from parangsae.research.regime import build_regime_report
 
 TSMOM_LOOP_ID = "TSMOM_VOL_TARGET_FUNDING_AWARE_V1"
@@ -3476,22 +3481,14 @@ def _gross_edge_position_stats(
     *,
     config: TsmomLoopConfig,
 ) -> dict[str, Any]:
+    stats = evaluate_position_stats(
+        position,
+        returns,
+        cvar_quantile=config.tail_loss_cvar_quantile,
+    )
     aligned_position = _float_series(position, index=returns.index).reindex(returns.index).fillna(0.0)
     shifted_position = _float_series(aligned_position.shift(1), index=returns.index).fillna(0.0)
     clean_returns = _float_series(returns, index=returns.index).reindex(returns.index).fillna(0.0)
-    strategy_returns = cast(pd.Series, shifted_position * clean_returns)
-    gross_return_factors = cast(pd.Series, pd.Series(1.0, index=returns.index, dtype=float) + strategy_returns)
-    equity = _float_series(gross_return_factors.cumprod(), index=returns.index)
-    if equity.empty:
-        return {
-            "return_pct": 0.0,
-            "max_drawdown_pct": 0.0,
-            "cvar_tail_loss_pct": None,
-            "direction_correctness_rate": None,
-            "average_exposure": 0.0,
-            "turnover": 0.0,
-        }
-    drawdown = _float_series(equity / equity.cummax() - 1.0, index=equity.index)
     exposed = shifted_position.abs() > 0.0
     nonzero_returns = clean_returns != 0.0
     correctness_mask = cast(pd.Series, exposed & nonzero_returns)
@@ -3500,21 +3497,17 @@ def _gross_edge_position_stats(
         correct = cast(pd.Series, (shifted_position[correctness_mask] * clean_returns[correctness_mask]) > 0.0)
         direction_correctness_rate = _finite_float(cast(Any, correct.mean()))
     return {
-        "return_pct": float((float(equity.iloc[-1]) - 1.0) * 100.0),
-        "max_drawdown_pct": _series_min_float(drawdown * 100.0),
-        "cvar_tail_loss_pct": _tail_loss_cvar([float(value) * 100.0 for value in strategy_returns], config),
+        "return_pct": stats["return_pct"],
+        "max_drawdown_pct": stats["max_drawdown_pct"],
+        "cvar_tail_loss_pct": stats["cvar_tail_loss_pct"],
         "direction_correctness_rate": direction_correctness_rate,
-        "average_exposure": _finite_float(cast(Any, aligned_position.abs().mean())),
-        "turnover": _finite_float(cast(Any, aligned_position.diff().abs().fillna(aligned_position.abs()).sum())),
+        "average_exposure": stats["average_exposure"],
+        "turnover": stats["turnover"],
     }
 
 
 def _gross_edge_random_sign_position(position: pd.Series, window_id: str) -> tuple[pd.Series, int]:
-    seed = 1729 + sum(ord(char) for char in window_id)
-    rng = random.Random(seed)
-    absolute_position = _float_series(position, index=position.index).abs()
-    signs = [1.0 if rng.random() >= 0.5 else -1.0 for _ in range(len(absolute_position))]
-    return pd.Series(signs, index=absolute_position.index, dtype=float) * absolute_position, seed
+    return deterministic_random_sign_position(position, window_id)
 
 
 def _gross_edge_null_baseline_rows(
@@ -3525,62 +3518,46 @@ def _gross_edge_null_baseline_rows(
     tsmom_gross_return_pct: float,
     config: TsmomLoopConfig,
 ) -> list[dict[str, Any]]:
-    random_position, seed = _gross_edge_random_sign_position(position, window.window_id)
-    baselines: list[tuple[str, pd.Series, str, int | None]] = [
-        (
-            "cash_null",
-            pd.Series(0.0, index=returns.index, dtype=float),
-            "zero-return cash/null baseline",
-            None,
-        ),
-        (
-            "random_sign",
-            random_position,
-            "deterministic random long/flat sign baseline with source absolute exposure",
-            seed,
-        ),
-        (
-            "lagged_signal",
-            _float_series(position.shift(24), index=position.index).fillna(0.0),
-            "source TSMOM signal lagged by 24 bars",
-            None,
-        ),
-        (
-            "inverse_signal",
-            -_float_series(position, index=position.index),
-            "inverse of source TSMOM exposure",
-            None,
-        ),
-        (
-            "buy_and_hold",
-            pd.Series(1.0, index=returns.index, dtype=float),
-            "simple unit buy-and-hold exposure",
-            None,
-        ),
-    ]
-    rows: list[dict[str, Any]] = []
-    for name, baseline_position, description, deterministic_seed in baselines:
-        stats = _gross_edge_position_stats(baseline_position, returns, config=config)
-        baseline_return = float(stats["return_pct"])
-        rows.append(
-            {
-                "window_id": window.window_id,
-                "holdout_start": _timestamp(window.holdout.index[0]),
-                "holdout_end": _timestamp(window.holdout.index[-1]),
-                "baseline_name": name,
-                "baseline_description": description,
-                "deterministic_seed": deterministic_seed,
-                "tsmom_gross_return_pct": tsmom_gross_return_pct,
-                "baseline_return_pct": baseline_return,
-                "tsmom_minus_baseline_return_pct": tsmom_gross_return_pct - baseline_return,
-                "baseline_beats_or_matches_tsmom": baseline_return >= tsmom_gross_return_pct,
-                "baseline_drawdown_pct": stats["max_drawdown_pct"],
-                "baseline_cvar_tail_loss_pct": stats["cvar_tail_loss_pct"],
-                "baseline_average_exposure": stats["average_exposure"],
-                "baseline_turnover": stats["turnover"],
-            }
+    common_rows = build_null_baseline_comparison_rows(
+        NullBaselineEvaluationInput(
+            window_id=window.window_id,
+            strategy_name=TSMOM_LOOP_ID,
+            returns=returns,
+            strategy_position=position,
+            strategy_return_gross=tsmom_gross_return_pct,
+            strategy_return_net=tsmom_gross_return_pct,
+            sample_size=len(returns),
+            trade_count=0,
+            turnover=0.0,
+            fees_drag=0.0,
+            slippage_drag=0.0,
+            funding_drag=0.0,
+            max_drawdown=None,
+            regime_filter=None,
+            evidence_source="in_memory_tsmom_gross_edge_generation",
+            cvar_quantile=config.tail_loss_cvar_quantile,
         )
-    return rows
+    )
+    return [
+        {
+            "window_id": window.window_id,
+            "holdout_start": _timestamp(window.holdout.index[0]),
+            "holdout_end": _timestamp(window.holdout.index[-1]),
+            "baseline_name": row["baseline_name"],
+            "baseline_description": row["baseline_description"],
+            "deterministic_seed": row["deterministic_seed"],
+            "tsmom_gross_return_pct": tsmom_gross_return_pct,
+            "baseline_return_pct": row["baseline_return_gross"],
+            "tsmom_minus_baseline_return_pct": tsmom_gross_return_pct
+            - float(row["baseline_return_gross"]),
+            "baseline_beats_or_matches_tsmom": not bool(row["strategy_beats_baseline_gross"]),
+            "baseline_drawdown_pct": row["baseline_max_drawdown"],
+            "baseline_cvar_tail_loss_pct": row["baseline_cvar_tail_loss"],
+            "baseline_average_exposure": row["baseline_average_exposure"],
+            "baseline_turnover": row["baseline_turnover"],
+        }
+        for row in common_rows
+    ]
 
 
 def _gross_edge_regime_labels(

@@ -209,6 +209,27 @@ paper-only; `readiness_baseline_verdict` remains `NOT_READY`, and the loop does
 not imply profitability, live readiness, execution readiness, or permission to
 trade real money.
 
+`research-null-baseline-harness-run` implements the strategy-agnostic
+`RESEARCH_NULL_BASELINE_HARNESS_V1` validation-infrastructure loop:
+
+```bash
+uv run quantctl research-null-baseline-harness-run
+```
+
+It writes `reports/loops/<YYYYMMDD>-research-null-baseline-harness-v1/` with
+`baseline_harness.json`, `baseline_comparison.csv`, `report.md`,
+`commands.txt`, and `changed_files.txt`. The harness reads the durable TSMOM
+source/diagnostic/risk/gross-edge/candidate-family/regime-only artifacts and
+standardizes future null/baseline comparison rows for cash/null, buy-and-hold,
+deterministic random sign, lagged signal, inverse signal, and a simpler trend
+baseline only when durable evidence supports it. This is validation
+infrastructure, not alpha, not optimization, and not a performance-improvement
+feature. It records leakage defenses, deterministic random seeds, lagged-signal
+no-current-bar policy, and that baseline comparison was not used for holdout
+retuning. Existing TSMOM state is unchanged: broad active development is not
+restored, regime-only TSMOM remains a negative-control candidate, and
+`readiness_baseline_verdict` remains `NOT_READY`.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

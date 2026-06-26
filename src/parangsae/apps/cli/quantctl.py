@@ -63,6 +63,12 @@ from parangsae.research.data_depth import (
     write_data_depth_loop_artifacts,
 )
 from parangsae.research.forward_paper import ForwardPaperConfig, run_forward_paper
+from parangsae.research.null_baselines import (
+    DEFAULT_TSMOM_REGIME_ONLY_ARTIFACT,
+    build_research_null_baseline_harness_payload,
+    default_research_null_baseline_harness_output_dir,
+    write_research_null_baseline_harness_artifacts,
+)
 from parangsae.research.regime import build_regime_report
 from parangsae.research.readiness import build_readiness_report
 from parangsae.research.signals import build_signal_report
@@ -311,6 +317,22 @@ def _default_regime_only_tsmom_falsification_command(args: argparse.Namespace) -
         f"--gross-edge-artifact {args.gross_edge_artifact}",
         f"--family-decision-artifact {args.family_decision_artifact}",
         f"--output-dir {args.output_dir or default_regime_only_tsmom_falsification_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_research_null_baseline_harness_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl research-null-baseline-harness-run",
+        f"--source-loop-artifact {args.source_loop_artifact}",
+        f"--diagnostic-artifact {args.diagnostic_artifact}",
+        f"--risk-artifact {args.risk_artifact}",
+        f"--gross-edge-artifact {args.gross_edge_artifact}",
+        f"--family-decision-artifact {args.family_decision_artifact}",
+        f"--regime-only-artifact {args.regime_only_artifact}",
+        f"--output-dir {args.output_dir or default_research_null_baseline_harness_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
     if args.overwrite:
         command.append("--overwrite")
@@ -906,6 +928,74 @@ def cmd_tsmom_regime_only_falsification_run(args: argparse.Namespace) -> int:
                 {
                     "status": "failed",
                     "run_type": "tsmom-regime-only-falsification-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
+def cmd_research_null_baseline_harness_run(args: argparse.Namespace) -> int:
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_research_null_baseline_harness_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        commands = args.command or [_default_research_null_baseline_harness_command(args)]
+        changed_files = args.changed_file or []
+        payload = build_research_null_baseline_harness_payload(
+            source_loop_artifact=args.source_loop_artifact,
+            diagnostic_artifact=args.diagnostic_artifact,
+            risk_artifact=args.risk_artifact,
+            gross_edge_artifact=args.gross_edge_artifact,
+            family_decision_artifact=args.family_decision_artifact,
+            regime_only_artifact=args.regime_only_artifact,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_research_null_baseline_harness_artifacts(
+            output_dir,
+            payload,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "research-null-baseline-harness-run",
+                    "output_dir": str(written),
+                    "research_null_baseline_harness_decision": payload[
+                        "research_null_baseline_harness_decision"
+                    ],
+                    "research_null_baseline_harness_namespace": payload[
+                        "research_null_baseline_harness_namespace"
+                    ],
+                    "readiness_baseline_verdict": payload["readiness_baseline_verdict"],
+                    "comparison_row_count": payload["summary"]["comparison_row_count"],
+                    "tsmom_state_changed": payload["summary"]["tsmom_state_changed"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (FileNotFoundError, ValueError, FileExistsError) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "research-null-baseline-harness-run",
                     "failed_gate": type(exc).__name__,
                     "reason": str(exc),
                     "output_dir": str(output_dir),
@@ -1659,6 +1749,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     regime_only.set_defaults(func=cmd_tsmom_regime_only_falsification_run)
+
+    null_harness = sub.add_parser("research-null-baseline-harness-run")
+    null_harness.add_argument("--reports-root", default="reports")
+    null_harness.add_argument("--output-dir")
+    null_harness.add_argument("--overwrite", action="store_true")
+    null_harness.add_argument(
+        "--source-loop-artifact",
+        default=str(DEFAULT_TSMOM_SOURCE_LOOP_ARTIFACT),
+        help="durable TSMOM source loop artifact path",
+    )
+    null_harness.add_argument(
+        "--diagnostic-artifact",
+        default=str(DEFAULT_TSMOM_DIAGNOSTIC_ARTIFACT),
+        help="durable TSMOM stress/switch/funding diagnostic artifact path",
+    )
+    null_harness.add_argument(
+        "--risk-artifact",
+        default=str(DEFAULT_TSMOM_RISK_ARTIFACT),
+        help="durable TSMOM switch-stability/funding-throttle risk artifact path",
+    )
+    null_harness.add_argument(
+        "--gross-edge-artifact",
+        default=str(DEFAULT_TSMOM_GROSS_EDGE_ARTIFACT),
+        help="durable TSMOM gross-edge/null robustness artifact path",
+    )
+    null_harness.add_argument(
+        "--family-decision-artifact",
+        default=str(DEFAULT_TSMOM_FAMILY_DECISION_ARTIFACT),
+        help="durable TSMOM candidate-family decision artifact path",
+    )
+    null_harness.add_argument(
+        "--regime-only-artifact",
+        default=str(DEFAULT_TSMOM_REGIME_ONLY_ARTIFACT),
+        help="durable regime-only TSMOM falsification artifact path",
+    )
+    null_harness.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    null_harness.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    null_harness.set_defaults(func=cmd_research_null_baseline_harness_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")

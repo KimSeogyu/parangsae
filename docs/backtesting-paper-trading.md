@@ -424,6 +424,41 @@ remains `NOT_READY`; the report is not trading advice, not a profitability
 claim, not live or execution readiness, and not permission for live/testnet
 orders or account/API-key/fill data use.
 
+## Research null/baseline harness
+
+`research-null-baseline-harness-run` implements
+`RESEARCH_NULL_BASELINE_HARNESS_V1`, a strategy-agnostic validation
+infrastructure loop. It is deliberately not a new alpha strategy and does not
+retune TSMOM parameters, retune holdout, relax gates, or restore any TSMOM
+candidate status.
+
+The command writes
+`reports/loops/<YYYYMMDD>-research-null-baseline-harness-v1/` with:
+
+- `baseline_harness.json`
+- `baseline_comparison.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+The common `baseline_comparison.csv` schema records, at minimum:
+`baseline_name`, strategy gross/net return, baseline gross/net return, gross/net
+beat flags, sample size, trade count, turnover, fees/slippage/funding drag,
+max drawdown, optional regime filter, evidence source, and claim boundary. The
+baseline families are cash/null, buy-and-hold, deterministic random sign,
+lagged signal, inverse signal, and a simpler trend baseline only when durable
+evidence supports it.
+
+Leakage defenses are first-class artifact fields: forward-return label overlap
+is explicitly recorded, random sign uses deterministic seeds, lagged signal
+baselines are required to avoid current-bar information, and the harness records
+that baseline comparison is evaluation-only and not holdout retuning input.
+
+This harness makes future strategy claims harder. It does not change TSMOM
+decisions: broad TSMOM active development remains failed/not restored,
+regime-only TSMOM remains a negative-control candidate, and
+`readiness_baseline_verdict` remains `NOT_READY`.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:
