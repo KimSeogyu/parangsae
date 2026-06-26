@@ -526,6 +526,94 @@ readiness, live/testnet permission, or permission to use real money.
 `readiness_baseline_verdict` remains `NOT_READY` and `tsmom_state_changed`
 remains `false`.
 
+## Alpha Signal DAG combinatorial expansion harness
+
+`alpha-signal-dag-expansion-run` implements
+`ALPHA_SIGNAL_DAG_COMBINATORIAL_EXPANSION_V2`, a paper-only combinatorial Signal
+DAG factory. It is validation infrastructure for falsifying many signal
+hypotheses; it is not a trading strategy, not signal weight optimization, not
+strategy PnL optimization, not live/testnet readiness, and not a profitability
+claim.
+
+```bash
+uv run quantctl alpha-signal-dag-expansion-run
+```
+
+The command writes
+`reports/loops/<YYYYMMDD>-alpha-signal-dag-combinatorial-expansion-v2/` with:
+
+- `alpha_signal_dag_expansion.json`
+- `signal_dag_catalog.jsonl`
+- `signal_diagnostics.csv`
+- `signal_family_summary.csv`
+- `signal_correlation_clusters.csv`
+- `null_baseline_comparison.csv`
+- `multiple_testing_summary.csv`
+- `shortlist.csv`
+- `failed_gate_rollup.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+Each `SignalDagSpec` is JSON-serializable and records `signal_id`, `dag_id`,
+`signal_family`, `root_operator`, `nodes`, `edges`, `base_inputs`,
+`operator_sequence`, depth, max depth, lookback, decision lag, price/volume/
+funding/regime-gate usage, future-data flag, generation seed, generation rule,
+complexity score, and claim boundary. Default generation is deterministic with
+`max_depth=4`, `candidate_budget=2000`, and a hard candidate-budget maximum of
+`10000`. Generation uses only public OHLCV/funding base inputs and never uses
+forward returns, labels, holdout feedback, or performance to select candidates.
+
+The operator grammar includes unary transforms (`delay`, `delta`,
+`rolling_mean`, `rolling_std`, `zscore`, `rank`, `winsorize`, `sign`, `abs`,
+`negate`, `clip`, `ewma`, `decay_linear`, `volatility_scale`, `rolling_min`,
+`rolling_max`, and `rolling_quantile_position`), binary operators (`add`,
+`subtract`, `multiply`, `ratio_safe`, `spread`, `interaction`, `rolling_corr`,
+`rolling_beta_proxy`, `min`, and `max`), and regime/funding/volume gates
+(`gate_low_volatility`, `gate_high_volatility`, `gate_positive_funding`,
+`gate_negative_funding`, `gate_extreme_funding`, `gate_volume_spike`,
+`gate_range_bound`, and `gate_trending_proxy`). Template families include
+momentum/volatility, momentum/funding, mean-reversion/low-vol,
+mean-reversion/funding-extreme, volume-shock/return-direction,
+breakout/volume-confirmation, funding-extreme/volatility,
+funding-change/return-reversal, range-position/realized-volatility, and
+carry-proxy/trend-filter interactions.
+
+Evaluation remains diagnostic only. For each DAG signal the harness records
+coverage, missingness, mean/std, autocorrelation, turnover proxy, max absolute
+signal, duplicate cluster ID, max absolute correlation, effective-independent
+flag, 8h/24h/72h forward-return IC and rank-IC where labels exist, signal-sign
+hit rates, decay profile, regime breakdown, null-comparison status, leakage
+status, and failure reason. Every evaluated signal is shifted by at least one
+decision lag before label comparison; same-bar label usage and full-sample
+normalization are forbidden.
+
+Null/baseline comparison covers family means and deterministic cluster
+representatives: zero/cash-null, buy-and-hold same-window where applicable,
+deterministic random sign, lagged signal, inverse signal, shuffled timestamp
+signal, family-permuted signal, and frozen TSMOM negative-control references
+when durable artifacts support them. Duplicate/correlation control marks
+absolute correlation `>= 0.95` as redundant and selects representatives by
+lowest `complexity_score`, then smallest depth, then lexicographic signal ID;
+representatives are not chosen by performance.
+
+Multiple-testing controls are mandatory because many DAG hypotheses are scanned.
+`multiple_testing_summary.csv` reports generated/evaluated counts, null
+comparison counts, family best/median raw IC, family hit rate, duplicate-adjusted
+signal count, effective signal breadth, an approximate false-discovery warning,
+a selection-bias warning, and `cannot_claim_edge_due_to_multiple_testing=True`.
+This loop cannot claim a discovered edge; any WATCH or
+`NEEDS_OOS_FALSIFICATION` output only means a family may deserve a separate
+pre-registered paper-only OOS falsification loop.
+
+Allowed shortlist labels are limited to `KILL_SIGNAL`, `DUPLICATE_SIGNAL`,
+`WATCH_FAMILY_ONLY`, `WATCH_DIAGNOSTIC_ONLY`,
+`NEGATIVE_CONTROL_CANDIDATE`, and `NEEDS_OOS_FALSIFICATION`. Forbidden labels
+include `READY`, `TRADE`, `LIVE_READY`, `PROFITABLE`, `DEPLOY`, and
+`CAPITAL_ALLOCATE`. `readiness_baseline_verdict` remains `NOT_READY`,
+`holdout_retune_used` remains `false`, and `tsmom_state_changed` remains
+`false`.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

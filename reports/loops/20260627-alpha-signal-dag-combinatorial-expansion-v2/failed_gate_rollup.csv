@@ -1,0 +1,5 @@
+gate,status,reason
+duplicate_correlation_control,watch,1273 redundant DAG signal variants marked
+multiple_testing_edge_claim,unclaimed,combinatorial DAG scan cannot claim edge without separate OOS protocol
+readiness_boundary,passed,readiness_baseline_verdict remains NOT_READY
+tsmom_state_unchanged,passed,TSMOM artifacts are not modified or restored

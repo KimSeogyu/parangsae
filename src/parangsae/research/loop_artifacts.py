@@ -84,6 +84,14 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             return None
         if "loop_namespace" in payload and "alpha_signal_factory" in str(payload.get("loop_namespace")):
             return "alpha-signal-factory-composition-run"
+    alpha_signal_dag_json = path / "alpha_signal_dag_expansion.json"
+    if alpha_signal_dag_json.exists():
+        try:
+            payload = json.loads(alpha_signal_dag_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "alpha_signal_dag" in str(payload.get("loop_namespace")):
+            return "alpha-signal-dag-expansion-run"
     return None
 
 

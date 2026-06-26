@@ -265,6 +265,40 @@ does not claim profitability, readiness, live/testnet permission, capital
 allocation, or execution readiness; `readiness_baseline_verdict` remains
 `NOT_READY` and `tsmom_state_changed` remains `false`.
 
+`alpha-signal-dag-expansion-run` implements the paper-only
+`ALPHA_SIGNAL_DAG_COMBINATORIAL_EXPANSION_V2` harness:
+
+```bash
+uv run quantctl alpha-signal-dag-expansion-run
+```
+
+It writes
+`reports/loops/<YYYYMMDD>-alpha-signal-dag-combinatorial-expansion-v2/` with
+`alpha_signal_dag_expansion.json`, `signal_dag_catalog.jsonl`,
+`signal_diagnostics.csv`, `signal_family_summary.csv`,
+`signal_correlation_clusters.csv`, `null_baseline_comparison.csv`,
+`multiple_testing_summary.csv`, `shortlist.csv`, `failed_gate_rollup.csv`,
+`report.md`, `commands.txt`, and `changed_files.txt`.
+
+V2 is a bounded combinatorial alpha signal DAG factory, not a trading strategy.
+It expands public-data base signals through unary transforms, binary
+interactions, regime/funding/volatility gates, and depth-2/depth-4 DAG
+topologies under a deterministic candidate budget. Generated DAG signals are
+hypotheses, not edges. The harness forbids full-sample normalization, shifts
+every evaluated signal by a decision lag before labels, compares families and
+representatives against null baselines, and chooses duplicate-cluster
+representatives by deterministic non-performance rules.
+
+Because V2 can generate many hypotheses, `multiple_testing_summary.csv` and the
+top-level `multiple_testing_boundary` are mandatory. Apparent IC or hit-rate
+patterns cannot be reported as alpha, profitability, readiness, or trading
+permission from this loop. Shortlist labels are paper-only (`KILL_SIGNAL`,
+`DUPLICATE_SIGNAL`, `WATCH_FAMILY_ONLY`, `WATCH_DIAGNOSTIC_ONLY`,
+`NEGATIVE_CONTROL_CANDIDATE`, or `NEEDS_OOS_FALSIFICATION`) and only identify
+families that may deserve a separate pre-registered paper-only OOS falsification
+loop. `readiness_baseline_verdict` remains `NOT_READY`, and
+`tsmom_state_changed` remains `false`.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

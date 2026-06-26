@@ -58,9 +58,15 @@ from parangsae.research.backtest_engine import (
 )
 from parangsae.research.alpha_signal_factory import (
     DEFAULT_MAX_DEPTH,
+    DEFAULT_SIGNAL_DAG_CANDIDATE_BUDGET,
+    DEFAULT_SIGNAL_DAG_GENERATION_SEED,
+    DEFAULT_SIGNAL_DAG_MAX_DEPTH,
     DEFAULT_SIGNAL_GENERATION_SEED,
+    evaluate_alpha_signal_dag_expansion,
     evaluate_alpha_signal_factory,
+    default_alpha_signal_dag_expansion_output_dir,
     default_alpha_signal_factory_output_dir,
+    write_alpha_signal_dag_expansion_artifacts,
     write_alpha_signal_factory_artifacts,
 )
 from parangsae.research.data_depth import (
@@ -358,6 +364,25 @@ def _default_alpha_signal_factory_command(args: argparse.Namespace) -> str:
         f"--seed {args.seed}",
         f"--max-depth {args.max_depth}",
         f"--output-dir {args.output_dir or default_alpha_signal_factory_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_alpha_signal_dag_expansion_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl alpha-signal-dag-expansion-run",
+        f"--symbol {args.symbol}",
+        f"--interval {args.interval}",
+        f"--months {args.months}",
+        f"--cache-dir {args.cache_dir}",
+        f"--funding-source {args.funding_source}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--seed {args.seed}",
+        f"--max-depth {args.max_depth}",
+        f"--candidate-budget {args.candidate_budget}",
+        f"--output-dir {args.output_dir or default_alpha_signal_dag_expansion_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
     if args.overwrite:
         command.append("--overwrite")
@@ -1114,6 +1139,106 @@ def cmd_alpha_signal_factory_composition_run(args: argparse.Namespace) -> int:
                 {
                     "status": "failed",
                     "run_type": "alpha-signal-factory-composition-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "symbol": symbol,
+                    "interval": interval,
+                    "months": months,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
+def cmd_alpha_signal_dag_expansion_run(args: argparse.Namespace) -> int:
+    symbol = CANONICAL_SYMBOL
+    interval = CANONICAL_INTERVAL
+    months = default_data_depth_months()
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_alpha_signal_dag_expansion_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        symbol = validate_symbol(args.symbol)
+        interval = validate_interval(args.interval)
+        months = _parse_months(args.months)
+        market_bundle = load_market_data_bundle(
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            cache_dir=args.cache_dir,
+        )
+        funding_bundle = None
+        if args.funding_source == "public-binance":
+            funding_bundle = fetch_funding_rate_history(
+                symbol=symbol,
+                start_time=_datetime_index_endpoint(market_bundle.frame.index, 0),
+                end_time=_datetime_index_endpoint(market_bundle.frame.index, -1),
+                cache_dir=args.funding_cache_dir,
+            )
+        commands = args.command or [_default_alpha_signal_dag_expansion_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_alpha_signal_dag_expansion(
+            market_bundle=market_bundle,
+            funding_bundle=funding_bundle,
+            seed=args.seed,
+            max_depth=args.max_depth,
+            candidate_budget=args.candidate_budget,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_alpha_signal_dag_expansion_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "alpha-signal-dag-expansion-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "generated_signal_count": result.payload["generated_signal_count"],
+                    "evaluated_signal_count": result.payload["evaluated_signal_count"],
+                    "effective_signal_breadth": result.payload["effective_signal_breadth"],
+                    "duplicate_signal_count": result.payload["duplicate_signal_count"],
+                    "duplicate_ratio": result.payload["duplicate_ratio"],
+                    "watch_family_count": result.payload["watch_family_count"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                    "multiple_testing_boundary": result.payload["multiple_testing_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (
+        BinanceVisionError,
+        BinanceFundingError,
+        DataValidationError,
+        FundingDataValidationError,
+        requests.RequestException,
+        ValueError,
+        FileExistsError,
+    ) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "alpha-signal-dag-expansion-run",
                     "failed_gate": type(exc).__name__,
                     "reason": str(exc),
                     "output_dir": str(output_dir),
@@ -1944,6 +2069,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     alpha_factory.set_defaults(func=cmd_alpha_signal_factory_composition_run)
+
+    alpha_dag = sub.add_parser("alpha-signal-dag-expansion-run")
+    alpha_dag.add_argument("--symbol", default=CANONICAL_SYMBOL)
+    alpha_dag.add_argument("--interval", default=CANONICAL_INTERVAL)
+    alpha_dag.add_argument(
+        "--months",
+        default=",".join(default_data_depth_months()),
+        help="public Binance Vision months; default is 2024-01..2025-12 for alpha DAG diagnostics",
+    )
+    alpha_dag.add_argument("--cache-dir", default="data/binance-vision")
+    alpha_dag.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    alpha_dag.add_argument("--funding-cache-dir", default="data/binance-funding")
+    alpha_dag.add_argument("--seed", type=int, default=DEFAULT_SIGNAL_DAG_GENERATION_SEED)
+    alpha_dag.add_argument("--max-depth", type=int, default=DEFAULT_SIGNAL_DAG_MAX_DEPTH)
+    alpha_dag.add_argument("--candidate-budget", type=int, default=DEFAULT_SIGNAL_DAG_CANDIDATE_BUDGET)
+    alpha_dag.add_argument("--reports-root", default="reports")
+    alpha_dag.add_argument("--output-dir")
+    alpha_dag.add_argument("--overwrite", action="store_true")
+    alpha_dag.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    alpha_dag.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    alpha_dag.set_defaults(func=cmd_alpha_signal_dag_expansion_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")
