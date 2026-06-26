@@ -70,6 +70,29 @@ TSMOM_FAILED_GATE_DIAGNOSTIC_NAMES = (
     "selected_candidate_switch_rate",
     "funding_aware_net_return",
 )
+TSMOM_RISK_LOOP_ID = "TSMOM_SWITCH_STABILITY_FUNDING_THROTTLE_RISK_V1"
+TSMOM_RISK_SCHEMA_VERSION = 1
+TSMOM_RISK_LOOP_TYPE = "risk"
+TSMOM_RISK_LOOP_SLUG = "tsmom-switch-stability-funding-throttle-risk-v1"
+TSMOM_RISK_VERDICT_NAMESPACE = "tsmom_switch_stability_funding_throttle_risk_only_not_readiness"
+TSMOM_RISK_BLOCKED = "BLOCKED"
+TSMOM_RISK_WATCH = "WATCH"
+TSMOM_RISK_PASS_PAPER_ONLY = "PASS_PAPER_ONLY"
+TSMOM_RISK_ALLOWED_VERDICTS = (
+    TSMOM_RISK_BLOCKED,
+    TSMOM_RISK_WATCH,
+    TSMOM_RISK_PASS_PAPER_ONLY,
+)
+TSMOM_RISK_REQUIRED_FILES = (
+    "risk_loop.json",
+    "report.md",
+    "candidate_switch_stability.csv",
+    "funding_throttle_decomposition.csv",
+    "regime_breakdown.csv",
+    "commands.txt",
+    "changed_files.txt",
+)
+TSMOM_RISK_KNOWN_FILES = set(TSMOM_RISK_REQUIRED_FILES)
 HARD_GATE_NAMES = (
     "candidate_count",
     "candidate_window_evaluations",
@@ -111,6 +134,9 @@ class TsmomLoopConfig:
     stress_slippage_proxy_bps: float = 5.0
     stress_funding_rate_per_8h: float = 0.0001
     funding_rate_quantile: float = 0.75
+    stable_selection_score_margin: float = 0.05
+    funding_drag_throttle_abs_rate: float = 0.0001
+    funding_drag_throttle_multiplier: float = 0.50
     asset: str = "BTCUSDT"
     timeframe: str = "1h"
 
@@ -153,6 +179,11 @@ def default_tsmom_output_dir(*, root: str | Path = "reports/loops", today: str |
 def default_tsmom_diagnostic_output_dir(*, root: str | Path = "reports/loops", today: str | None = None) -> Path:
     stamp = today or datetime.now(UTC).strftime("%Y%m%d")
     return Path(root) / f"{stamp}-{TSMOM_DIAGNOSTIC_LOOP_SLUG}"
+
+
+def default_tsmom_risk_output_dir(*, root: str | Path = "reports/loops", today: str | None = None) -> Path:
+    stamp = today or datetime.now(UTC).strftime("%Y%m%d")
+    return Path(root) / f"{stamp}-{TSMOM_RISK_LOOP_SLUG}"
 
 
 def tsmom_candidate_grid() -> tuple[TsmomCandidateSettings, ...]:
@@ -256,10 +287,20 @@ def run_tsmom_backtest(
     settings: TsmomCandidateSettings,
     broker_settings: BrokerSettings = BrokerSettings(),
     funding_frame: pd.DataFrame | None = None,
+    position_multiplier: pd.Series | None = None,
 ) -> BacktestResult:
     data = _validate_ohlcv_frame(frame)
     data_index = _datetime_index(data)
     decisions = build_tsmom_decision_frame(data, settings=settings, funding_frame=funding_frame)
+    if position_multiplier is not None:
+        multiplier = (
+            _float_series(position_multiplier, index=position_multiplier.index)
+            .reindex(data_index)
+            .fillna(1.0)
+            .clip(lower=0.0, upper=1.0)
+        )
+        decisions = decisions.copy()
+        decisions["position"] = _float_series(decisions["position"], index=data_index) * multiplier
     close = _float_series(data["Close"], index=data_index)
     returns = _float_series(close.pct_change(), index=data_index).fillna(0.0)
     equity = float(broker_settings.cash)
@@ -792,6 +833,413 @@ def prepare_tsmom_diagnostic_output_dir(output_dir: str | Path, *, overwrite: bo
     )
 
 
+def build_tsmom_risk_loop_payload(
+    *,
+    bundle: MarketDataBundle,
+    funding_bundle: FundingRateBundle | None = None,
+    funding_metadata: dict[str, Any] | None = None,
+    config: TsmomLoopConfig = TsmomLoopConfig(),
+    commands: Iterable[str] = (),
+    changed_files: Iterable[str] = (),
+) -> dict[str, Any]:
+    source_payload = build_tsmom_loop_payload(
+        bundle=bundle,
+        funding_bundle=funding_bundle,
+        funding_metadata=funding_metadata,
+        config=config,
+        commands=commands,
+        changed_files=changed_files,
+    )
+    data = _validate_ohlcv_frame(bundle.frame)
+    funding_frame = funding_bundle.frame if funding_bundle is not None else None
+    funding_validated = funding_bundle is not None and funding_frame is not None and not funding_frame.empty
+    grid = tsmom_candidate_grid()
+    windows = _generate_windows(data, config)
+    source_rows = {
+        str(row["window_id"]): row
+        for row in source_payload.get("walk_forward", {}).get("rows", [])
+        if isinstance(row, dict)
+    }
+    switch_rows: list[dict[str, Any]] = []
+    throttle_rows: list[dict[str, Any]] = []
+    previous_baseline: dict[str, Any] | None = None
+    previous_stable: TsmomCandidateEvaluation | None = None
+    previous_stable_regime: str | None = None
+    baseline_ids: list[str] = []
+    stable_ids: list[str] = []
+
+    for window in windows:
+        source_row = source_rows.get(window.window_id)
+        if source_row is None:
+            continue
+        rankings = _rank_candidate_evaluations(
+            window.train,
+            window.validation,
+            grid,
+            funding_frame=funding_frame,
+        )
+        top = rankings[0]
+        runner_up = rankings[1] if len(rankings) > 1 else None
+        previous_stable_ranked = (
+            next((candidate for candidate in rankings if candidate.candidate_id == previous_stable.candidate_id), None)
+            if previous_stable is not None
+            else None
+        )
+        score_gap = _score_gap(rankings)
+        stable_selected = _stable_selected_candidate(
+            rankings,
+            previous_stable=previous_stable,
+            config=config,
+        )
+        top_vs_previous_stable_gap = (
+            float(top.score - previous_stable_ranked.score) if previous_stable_ranked is not None else None
+        )
+        sticky_selection_triggered = bool(stable_selected.candidate_id != top.candidate_id)
+        baseline_ids.append(str(source_row["selected_candidate_id"]))
+        stable_ids.append(stable_selected.candidate_id)
+        multiplier = _funding_drag_throttle_multiplier(_datetime_index(window.holdout), funding_frame, config=config)
+        risk_base_holdout = run_tsmom_backtest(
+            window.holdout,
+            label=f"{window.window_id}_risk_variant_base",
+            settings=stable_selected.settings,
+            funding_frame=funding_frame,
+            position_multiplier=multiplier,
+        )
+        risk_stress_holdout = run_tsmom_backtest(
+            window.holdout,
+            label=f"{window.window_id}_risk_variant_stress",
+            settings=stable_selected.settings,
+            broker_settings=BrokerSettings(
+                commission=config.stress_commission,
+                spread=config.stress_spread,
+            ),
+            funding_frame=funding_frame,
+            position_multiplier=multiplier,
+        )
+        risk_stress_raw = _metric_float(risk_stress_holdout.metrics, "Return_pct")
+        risk_funding_rate = _window_funding_rate_per_8h(
+            funding_frame,
+            _timestamp_at(window.holdout.index, 0),
+            _timestamp_at(window.holdout.index, -1),
+            config=config,
+        )
+        risk_funding_drag = _funding_drag_pct(
+            bars=len(window.holdout),
+            exposure_time_pct=_metric_float(risk_stress_holdout.metrics, "Exposure_Time_pct"),
+            funding_rate_per_8h=risk_funding_rate,
+        )
+        risk_slippage_drag = _slippage_drag_pct(
+            closed_trades=int(risk_stress_holdout.metrics.get("closed_trades", 0) or 0),
+            slippage_proxy_bps=config.stress_slippage_proxy_bps,
+        )
+        risk_net = risk_stress_raw - risk_funding_drag - risk_slippage_drag
+        decisions = build_tsmom_decision_frame(
+            window.holdout,
+            settings=stable_selected.settings,
+            funding_frame=funding_frame,
+        )
+        decisions = decisions.copy()
+        decisions["position"] = _float_series(decisions["position"], index=decisions.index) * multiplier
+        regime = _window_regime_diagnostics(window.holdout, decisions, funding_frame, config=config)
+        stable_switched = (
+            previous_stable is not None and previous_stable.candidate_id != stable_selected.candidate_id
+        )
+        baseline_switched = (
+            previous_baseline is not None
+            and previous_baseline.get("selected_candidate_id") != source_row["selected_candidate_id"]
+        )
+        switch_causes = _risk_switch_causes(
+            previous_stable.settings if previous_stable is not None else None,
+            stable_selected.settings,
+            score_gap=score_gap,
+            previous_market_regime=previous_stable_regime,
+            market_regime=str(regime["market_regime"]),
+            switched=stable_switched,
+        )
+        switch_rows.append(
+            {
+                "window_id": window.window_id,
+                "holdout_start": source_row["holdout_start"],
+                "holdout_end": source_row["holdout_end"],
+                "baseline_selected_candidate_id": source_row["selected_candidate_id"],
+                "stable_selected_candidate_id": stable_selected.candidate_id,
+                "baseline_switched": baseline_switched,
+                "stable_switched": stable_switched,
+                "sticky_selection_triggered": sticky_selection_triggered,
+                "top_candidate_id": top.candidate_id,
+                "previous_stable_candidate_id": previous_stable.candidate_id if previous_stable is not None else None,
+                "runner_up_candidate_id": runner_up.candidate_id if runner_up is not None else None,
+                "top_validation_score": top.score,
+                "stable_validation_score": stable_selected.score,
+                "top_vs_runner_up_score_gap": score_gap,
+                "top_vs_previous_stable_score_gap": top_vs_previous_stable_gap,
+                "score_margin_to_top": float(top.score - stable_selected.score),
+                "runner_up_near_tie_candidate": bool(
+                    score_gap is not None and abs(score_gap) <= config.stable_selection_score_margin
+                ),
+                "sticky_selection_eligible": bool(
+                    top_vs_previous_stable_gap is not None
+                    and top_vs_previous_stable_gap <= config.stable_selection_score_margin
+                ),
+                "switch_causes": ";".join(switch_causes) if switch_causes else "no_switch",
+                "market_regime": regime["market_regime"],
+                "volatility_regime": regime["volatility_regime"],
+                "funding_regime": regime["funding_regime"],
+            }
+        )
+        throttle_rows.append(
+            {
+                "window_id": window.window_id,
+                "holdout_start": source_row["holdout_start"],
+                "holdout_end": source_row["holdout_end"],
+                "baseline_selected_candidate_id": source_row["selected_candidate_id"],
+                "risk_selected_candidate_id": stable_selected.candidate_id,
+                "baseline_gross_return_pct": source_row["base_holdout_return_pct"],
+                "baseline_stress_raw_return_pct": source_row["stress_holdout_raw_return_pct"],
+                "baseline_funding_drag_pct": source_row["stress_funding_drag_pct"],
+                "baseline_slippage_drag_pct": source_row["stress_slippage_drag_pct"],
+                "baseline_stress_net_return_pct": source_row["funding_aware_net_return_pct"],
+                "risk_gross_return_pct": _metric_float(risk_base_holdout.metrics, "Return_pct"),
+                "risk_stress_raw_return_pct": risk_stress_raw,
+                "risk_funding_drag_pct": risk_funding_drag,
+                "risk_slippage_drag_pct": risk_slippage_drag,
+                "risk_stress_net_return_pct": risk_net,
+                "risk_delta_net_return_pct": risk_net - float(source_row["funding_aware_net_return_pct"]),
+                "risk_max_drawdown_pct": _metric_float(risk_stress_holdout.metrics, "Max_Drawdown_pct"),
+                "risk_closed_trades": int(risk_stress_holdout.metrics.get("closed_trades", 0) or 0),
+                "risk_exposure_time_pct": _metric_float(risk_stress_holdout.metrics, "Exposure_Time_pct"),
+                "funding_throttle_bars": int((multiplier < 1.0).sum()),
+                "funding_throttle_bar_pct": float((multiplier < 1.0).mean() * 100.0) if len(multiplier) else 0.0,
+                "funding_throttle_abs_rate_threshold": config.funding_drag_throttle_abs_rate,
+                "funding_throttle_multiplier": config.funding_drag_throttle_multiplier,
+                "cash_null_return_pct": 0.0,
+                "risk_beats_cash_null": risk_net > 0.0,
+                "market_regime": regime["market_regime"],
+                "volatility_regime": regime["volatility_regime"],
+                "funding_regime": regime["funding_regime"],
+            }
+        )
+        previous_baseline = source_row
+        previous_stable = stable_selected
+        previous_stable_regime = str(regime["market_regime"])
+
+    compute_profile = dict(source_payload["compute_profile"])
+    compute_profile["risk_variant_holdout_evaluations"] = len(throttle_rows) * 2
+    compute_profile["engine"] = "vectorized_paper_only_tsmom_switch_stability_funding_throttle_risk_loop"
+    risk_hard_gates = _risk_hard_gates(
+        risk_rows=throttle_rows,
+        stable_ids=stable_ids,
+        compute_profile=compute_profile,
+        funding_validated=funding_validated,
+        config=config,
+    )
+    failed_risk_gates = [name for name, gate in risk_hard_gates.items() if not bool(gate["passed"])]
+    verdict = _risk_loop_verdict(windows=windows, failed_gates=failed_risk_gates)
+    loop_id = f"{datetime.now(UTC).strftime('%Y%m%d')}-{TSMOM_RISK_LOOP_SLUG}"
+    return {
+        "schema_version": TSMOM_RISK_SCHEMA_VERSION,
+        "loop_id": loop_id,
+        "status": "IMPLEMENTED" if throttle_rows else "BLOCKED",
+        "loop_type": TSMOM_RISK_LOOP_TYPE,
+        "risk_loop_family": TSMOM_RISK_LOOP_ID,
+        "source_strategy_family": TSMOM_LOOP_ID,
+        "baseline": BASELINE_ARTIFACT,
+        "source_loop_artifact": "reports/loops/20260625-tsmom-vol-target-funding-aware-v1/",
+        "source_diagnostic_artifact": "reports/loops/20260626-tsmom-stress-switch-funding-diagnostic-v1/",
+        "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+        "source_tsmom_loop_verdict": source_payload["tsmom_loop_verdict"],
+        "source_tsmom_failed_gates": source_payload["failed_gates"],
+        "tsmom_risk_loop_verdict": verdict,
+        "tsmom_risk_loop_verdict_namespace": TSMOM_RISK_VERDICT_NAMESPACE,
+        "loop_contract": {
+            "allowed_risk_loop_verdicts": list(TSMOM_RISK_ALLOWED_VERDICTS),
+            "risk_loop_verdict_namespace": TSMOM_RISK_VERDICT_NAMESPACE,
+            "readiness_verdict": False,
+            "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+            "claim_boundary": _risk_claim_boundary(),
+        },
+        "pre_registration": _risk_pre_registration(config),
+        "hypothesis": _risk_pre_registration(config)["hypothesis"],
+        "data_scope": source_payload["data_scope"],
+        "dataset_provenance": source_payload["dataset_provenance"],
+        "funding_coverage": source_payload["funding_coverage"],
+        "funding_causality_policy": source_payload["funding_causality_policy"],
+        "selection_inputs": ["train", "validation"],
+        "selection_excludes": source_payload["selection_excludes"],
+        "source_hard_gates": source_payload["hard_gates"],
+        "source_failed_hard_gates": {
+            name: source_payload["hard_gates"][name]
+            for name in source_payload["failed_gates"]
+            if name in source_payload["hard_gates"]
+        },
+        "risk_evaluation_gates": risk_hard_gates,
+        "failed_risk_gates": failed_risk_gates,
+        "source_failed_gates_preserved": list(source_payload["failed_gates"]),
+        "switch_stability_summary": {
+            "baseline": _candidate_switch_summary(
+                [
+                    {
+                        "switched": index > 0 and baseline_ids[index] != baseline_ids[index - 1],
+                        "switch_causes": "baseline_source_tsmom",
+                    }
+                    for index in range(len(baseline_ids))
+                ]
+            ),
+            "stable": _candidate_switch_summary(
+                [
+                    {
+                        "switched": index > 0 and stable_ids[index] != stable_ids[index - 1],
+                        "switch_causes": str(switch_rows[index]["switch_causes"]),
+                    }
+                    for index in range(len(stable_ids))
+                ]
+            ),
+            "runner_up_near_tie_window_count": sum(1 for row in switch_rows if bool(row["runner_up_near_tie_candidate"])),
+            "sticky_selection_eligible_count": sum(1 for row in switch_rows if bool(row["sticky_selection_eligible"])),
+            "sticky_selection_triggered_count": sum(1 for row in switch_rows if bool(row["sticky_selection_triggered"])),
+        },
+        "funding_throttle_summary": _risk_funding_throttle_summary(throttle_rows, config),
+        "regime_breakdown": _risk_regime_breakdown(throttle_rows),
+        "compute_profile": compute_profile,
+        "candidate_switch_stability": switch_rows,
+        "funding_throttle_decomposition": throttle_rows,
+        "safety_gates": {
+            "live_orders_submitted": False,
+            "testnet_orders_submitted": False,
+            "api_keys_required_for_research": False,
+            "account_or_fill_data_used": False,
+            "holdout_used_for_selection": False,
+            "profit_or_live_ready_claim": False,
+            "strategy_parameters_retuned": False,
+            "gates_relaxed": False,
+            "live_trading_path_introduced": False,
+        },
+        "validation_commands": list(commands),
+        "evidence_artifacts": list(TSMOM_RISK_REQUIRED_FILES),
+        "changed_files": list(changed_files),
+        "claim_boundary": _risk_claim_boundary(),
+        "tsmom_risk_loop_decision": "ITERATE_RISK_COST_RESEARCH" if failed_risk_gates else "PAPER_ONLY_RISK_LOOP_PASS",
+        "next_loop": (
+            "If risk gates remain failed, inspect gross edge and selection stability before any strategy retune; "
+            "if all risk gates pass, run a separate readiness process without claiming live readiness."
+        ),
+    }
+
+
+def write_tsmom_risk_loop_artifacts(
+    output_dir: str | Path,
+    payload: dict[str, Any],
+    *,
+    overwrite: bool = False,
+) -> Path:
+    out = prepare_tsmom_risk_output_dir(output_dir, overwrite=overwrite)
+    artifact_payload = dict(payload)
+    if out.name.endswith(TSMOM_RISK_LOOP_SLUG):
+        artifact_payload["loop_id"] = out.name
+    _write_json(out / "risk_loop.json", artifact_payload)
+    _atomic_write_text(out / "report.md", render_tsmom_risk_report(artifact_payload))
+    pd.DataFrame(artifact_payload.get("candidate_switch_stability", [])).to_csv(
+        out / "candidate_switch_stability.csv",
+        index=False,
+    )
+    pd.DataFrame(artifact_payload.get("funding_throttle_decomposition", [])).to_csv(
+        out / "funding_throttle_decomposition.csv",
+        index=False,
+    )
+    pd.DataFrame(artifact_payload.get("regime_breakdown", [])).to_csv(out / "regime_breakdown.csv", index=False)
+    _atomic_write_text(out / "commands.txt", "\n".join(artifact_payload.get("validation_commands", [])) + "\n")
+    _atomic_write_text(out / "changed_files.txt", "\n".join(artifact_payload.get("changed_files", [])) + "\n")
+    return out
+
+
+def prepare_tsmom_risk_output_dir(output_dir: str | Path, *, overwrite: bool = False) -> Path:
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="tsmom-risk-run",
+        known_files=TSMOM_RISK_KNOWN_FILES,
+        overwrite=overwrite,
+    )
+
+
+def render_tsmom_risk_report(payload: dict[str, Any]) -> str:
+    gates = payload["risk_evaluation_gates"]
+    switch = payload["switch_stability_summary"]
+    funding = payload["funding_throttle_summary"]
+    lines = [
+        f"# Quant Loop Report: {payload['loop_id']}",
+        "",
+        "## Hypothesis",
+        payload["hypothesis"],
+        "",
+        "## Claim boundary",
+        f"- tsmom_risk_loop_verdict: {payload['tsmom_risk_loop_verdict']}",
+        f"- namespace: {payload['tsmom_risk_loop_verdict_namespace']}",
+        f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+        f"- source_tsmom_loop_verdict: {payload['source_tsmom_loop_verdict']}",
+        f"- claim_boundary: {payload['claim_boundary']}",
+        "",
+        "## Pre-registration",
+        f"- allowed_inputs: {', '.join(payload['pre_registration']['allowed_inputs'])}",
+        f"- forbidden_inputs: {', '.join(payload['pre_registration']['forbidden_inputs'])}",
+        f"- holdout_boundary: {payload['pre_registration']['holdout_boundary']}",
+        "",
+        "## Source failed gates preserved",
+        f"- {', '.join(payload['source_failed_gates_preserved']) if payload['source_failed_gates_preserved'] else 'none'}",
+        "",
+        "## Risk evaluation gates",
+    ]
+    for name in HARD_GATE_NAMES:
+        gate = gates[name]
+        lines.append(
+            f"- {name}: {str(gate.get('status', 'failed')).upper()} "
+            f"(observed={gate.get('observed')}, threshold={gate.get('threshold')})"
+        )
+    lines.extend(
+        [
+            "",
+            "## Switch stability",
+            f"- baseline_switch_count: {switch['baseline']['switch_count']}",
+            f"- baseline_switch_rate: {switch['baseline']['switch_rate']}",
+            f"- stable_switch_count: {switch['stable']['switch_count']}",
+            f"- stable_switch_rate: {switch['stable']['switch_rate']}",
+            f"- runner_up_near_tie_window_count: {switch['runner_up_near_tie_window_count']}",
+            f"- sticky_selection_eligible_count: {switch['sticky_selection_eligible_count']}",
+            f"- sticky_selection_triggered_count: {switch['sticky_selection_triggered_count']}",
+            "",
+            "## Funding throttle comparison",
+            f"- median_baseline_net_return_pct: {funding['median_baseline_net_return_pct']}",
+            f"- median_risk_net_return_pct: {funding['median_risk_net_return_pct']}",
+            f"- median_delta_net_return_pct: {funding['median_delta_net_return_pct']}",
+            f"- median_risk_funding_drag_pct: {funding['median_risk_funding_drag_pct']}",
+            f"- throttle_active_window_count: {funding['throttle_active_window_count']}",
+            f"- max_throttle_bar_pct: {funding['max_throttle_bar_pct']}",
+            f"- risk_tail_cvar_pct: {funding['risk_tail_cvar_pct']}",
+            f"- risk_cash_null_failure_count: {funding['risk_cash_null_failure_count']}",
+            "",
+            "## Safety",
+            "- live_orders_submitted: false",
+            "- testnet_orders_submitted: false",
+            "- api_keys_required_for_research: false",
+            "- account_or_fill_data_used: false",
+            "- strategy_parameters_retuned: false",
+            "- gates_relaxed: false",
+            "- live_trading_path_introduced: false",
+            "",
+            "## Artifacts",
+            "- risk_loop.json",
+            "- candidate_switch_stability.csv",
+            "- funding_throttle_decomposition.csv",
+            "- regime_breakdown.csv",
+            "- commands.txt",
+            "- changed_files.txt",
+            "",
+            "## Next loop",
+            payload["next_loop"],
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
 def render_tsmom_diagnostic_report(payload: dict[str, Any]) -> str:
     summary = payload["diagnostic_summary"]
     stress = summary["stress_return_distribution"]
@@ -961,6 +1409,238 @@ def _diagnostic_claim_boundary() -> str:
         "not strategy parameter optimization, not permission for live orders or testnet orders, "
         "and it uses no account, API-key, order, or fill data for performance claims"
     )
+
+
+def _risk_claim_boundary() -> str:
+    return (
+        "TSMOM_SWITCH_STABILITY_FUNDING_THROTTLE_RISK_V1 is a pre-registered paper-only "
+        "risk/cost research loop, not readiness or live readiness, not trading advice, "
+        "not a profit guarantee, not execution readiness, not permission for live orders "
+        "or testnet orders, and it uses no account, API-key, private order, or fill data "
+        "for performance claims"
+    )
+
+
+def _risk_pre_registration(config: TsmomLoopConfig) -> dict[str, Any]:
+    return {
+        "strategy_family": TSMOM_RISK_LOOP_ID,
+        "hypothesis": (
+            "A train/validation-only near-tie sticky-selection rule plus a pre-registered "
+            "public-funding-drag exposure throttle can reduce selected-candidate switch "
+            "instability and improve funding-aware stress robustness without holdout tuning."
+        ),
+        "allowed_inputs": [
+            "public_historical_ohlcv_closed_bars",
+            "public_historical_binance_usdm_funding_rates",
+            "train_split",
+            "validation_split",
+            "holdout_for_once_only_evaluation",
+        ],
+        "forbidden_inputs": [
+            "live_orders",
+            "testnet_orders",
+            "account_state",
+            "api_keys",
+            "private_orders",
+            "fills",
+            "signed_endpoints",
+            "holdout_for_parameter_selection",
+        ],
+        "candidate_risk_rules": {
+            "near_tie_sticky_selection": {
+                "score_margin": config.stable_selection_score_margin,
+                "definition": (
+                    "If the prior stable candidate is still eligible and the current top "
+                    "validation score beats it by no more than this margin, keep the prior "
+                    "candidate for stability. Uses train/validation scores only."
+                ),
+            },
+            "funding_drag_exposure_throttle": {
+                "abs_public_funding_rate_threshold": config.funding_drag_throttle_abs_rate,
+                "exposure_multiplier_when_threshold_exceeded": config.funding_drag_throttle_multiplier,
+                "definition": (
+                    "On decision bars where causally aligned public funding abs(rate) exceeds "
+                    "the frozen threshold, multiply selected exposure by the frozen multiplier."
+                ),
+            },
+        },
+        "evaluation_gates": list(HARD_GATE_NAMES),
+        "holdout_boundary": "holdout is evaluated once after train/validation-only selection and is never used to tune rules",
+        "claim_boundary": _risk_claim_boundary(),
+        "expected_failure_modes": [
+            "sticky selection reduces switches but does not improve net stress return",
+            "funding throttle lowers exposure but gross edge remains weak",
+            "cash/null baseline still beats median risk variant returns",
+            "tail loss or drawdown worsens under reduced exposure timing",
+            "public funding coverage is missing and funding-aware gates remain unclaimed",
+        ],
+    }
+
+
+def _stable_selected_candidate(
+    rankings: list[TsmomCandidateEvaluation],
+    *,
+    previous_stable: TsmomCandidateEvaluation | None,
+    config: TsmomLoopConfig,
+) -> TsmomCandidateEvaluation:
+    top = rankings[0]
+    if previous_stable is None:
+        return top
+    previous = next(
+        (candidate for candidate in rankings if candidate.candidate_id == previous_stable.candidate_id),
+        None,
+    )
+    if previous is None:
+        return top
+    if float(top.score - previous.score) <= config.stable_selection_score_margin:
+        return previous
+    return top
+
+
+def _funding_drag_throttle_multiplier(
+    index: pd.DatetimeIndex,
+    funding_frame: pd.DataFrame | None,
+    *,
+    config: TsmomLoopConfig,
+) -> pd.Series:
+    funding_rate = align_public_funding_to_decision_bars(index, funding_frame)
+    multiplier = pd.Series(1.0, index=index, dtype=float)
+    multiplier = cast(
+        pd.Series,
+        multiplier.mask(
+            funding_rate.abs() > config.funding_drag_throttle_abs_rate,
+            config.funding_drag_throttle_multiplier,
+        ),
+    )
+    return _float_series(multiplier, index=index).clip(lower=0.0, upper=1.0)
+
+
+def _risk_switch_causes(
+    previous: TsmomCandidateSettings | None,
+    selected: TsmomCandidateSettings,
+    *,
+    score_gap: float | None,
+    previous_market_regime: str | None,
+    market_regime: str,
+    switched: bool,
+) -> list[str]:
+    if previous is None or not switched:
+        return []
+    causes: list[str] = []
+    if score_gap is not None and abs(score_gap) < 0.05:
+        causes.append("near_tie_instability")
+    if previous.lookback_bars != selected.lookback_bars:
+        causes.append("lookback_sensitivity")
+    if previous.vol_window_bars != selected.vol_window_bars or previous.target_annual_volatility != selected.target_annual_volatility:
+        causes.append("volatility_target_sensitivity")
+    if previous.max_exposure != selected.max_exposure:
+        causes.append("exposure_cap_sensitivity")
+    if previous.funding_abs_rate_limit != selected.funding_abs_rate_limit:
+        causes.append("funding_threshold_sensitivity")
+    if previous_market_regime is not None and previous_market_regime != market_regime:
+        causes.append("regime_change")
+    return causes or ["unknown"]
+
+
+def _risk_hard_gates(
+    *,
+    risk_rows: list[dict[str, Any]],
+    stable_ids: list[str],
+    compute_profile: dict[str, Any],
+    funding_validated: bool,
+    config: TsmomLoopConfig,
+) -> dict[str, dict[str, Any]]:
+    median_stress = _median_float([float(row["risk_stress_net_return_pct"]) for row in risk_rows])
+    switch_rate = _selected_candidate_switch_rate(stable_ids)
+    worst_drawdown_abs = _worst_abs_records(risk_rows, "risk_max_drawdown_pct")
+    cvar = _tail_loss_cvar([float(row["risk_stress_net_return_pct"]) for row in risk_rows], config)
+    return {
+        "candidate_count": _gate(
+            compute_profile["candidate_count"],
+            config.min_research_grade_candidate_count,
+            compute_profile["candidate_count"] >= config.min_research_grade_candidate_count,
+        ),
+        "candidate_window_evaluations": _gate(
+            compute_profile["candidate_window_evaluations"],
+            config.min_research_grade_candidate_window_evaluations,
+            compute_profile["candidate_window_evaluations"]
+            >= config.min_research_grade_candidate_window_evaluations,
+        ),
+        "bars_processed_estimate": _gate(
+            compute_profile["bars_processed_estimate"],
+            config.min_research_grade_bars_processed_estimate,
+            compute_profile["bars_processed_estimate"] >= config.min_research_grade_bars_processed_estimate,
+        ),
+        "median_stress_return_beats_cash_null": _gate(median_stress, "> 0.0", _gt(median_stress, 0.0)),
+        "selected_candidate_switch_rate": _gate(
+            switch_rate,
+            f"<= {config.max_selected_candidate_switch_rate}",
+            switch_rate <= config.max_selected_candidate_switch_rate,
+        ),
+        "funding_aware_net_return": _gate(
+            median_stress,
+            "> 0.0 with validated public funding",
+            funding_validated and _gt(median_stress, 0.0),
+            status="unclaimed" if not funding_validated else None,
+        ),
+        "max_drawdown_abs_pct": _gate(
+            worst_drawdown_abs,
+            f"<= {config.max_drawdown_abs_pct}",
+            worst_drawdown_abs is not None and worst_drawdown_abs <= config.max_drawdown_abs_pct,
+        ),
+        "tail_loss_cvar_pct": _gate(
+            cvar,
+            f">= {config.min_tail_loss_cvar_pct}",
+            cvar is not None and cvar >= config.min_tail_loss_cvar_pct,
+        ),
+    }
+
+
+def _risk_loop_verdict(*, windows: tuple[TsmomWindow, ...], failed_gates: list[str]) -> str:
+    if not windows:
+        return TSMOM_RISK_BLOCKED
+    return TSMOM_RISK_WATCH if failed_gates else TSMOM_RISK_PASS_PAPER_ONLY
+
+
+def _risk_funding_throttle_summary(rows: list[dict[str, Any]], config: TsmomLoopConfig) -> dict[str, Any]:
+    return {
+        "window_count": len(rows),
+        "median_baseline_net_return_pct": _median_float(
+            [float(row["baseline_stress_net_return_pct"]) for row in rows]
+        ),
+        "median_risk_net_return_pct": _median_float([float(row["risk_stress_net_return_pct"]) for row in rows]),
+        "median_delta_net_return_pct": _median_float([float(row["risk_delta_net_return_pct"]) for row in rows]),
+        "median_risk_funding_drag_pct": _median_float([float(row["risk_funding_drag_pct"]) for row in rows]),
+        "median_risk_slippage_drag_pct": _median_float([float(row["risk_slippage_drag_pct"]) for row in rows]),
+        "risk_tail_cvar_pct": _tail_loss_cvar([float(row["risk_stress_net_return_pct"]) for row in rows], config),
+        "risk_cash_null_failure_count": sum(1 for row in rows if not bool(row["risk_beats_cash_null"])),
+        "median_throttle_bar_pct": _median_float([float(row["funding_throttle_bar_pct"]) for row in rows]),
+        "throttle_active_window_count": sum(1 for row in rows if int(row["funding_throttle_bars"]) > 0),
+        "max_throttle_bar_pct": max([float(row["funding_throttle_bar_pct"]) for row in rows], default=0.0),
+    }
+
+
+def _risk_regime_breakdown(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for row in rows:
+        for key in ("market_regime", "volatility_regime", "funding_regime"):
+            grouped.setdefault((key, str(row[key])), []).append(row)
+    return [
+        {
+            "regime_axis": axis,
+            "regime_label": label,
+            "window_count": len(items),
+            "median_baseline_net_return_pct": _median_float(
+                [float(item["baseline_stress_net_return_pct"]) for item in items]
+            ),
+            "median_risk_net_return_pct": _median_float([float(item["risk_stress_net_return_pct"]) for item in items]),
+            "median_delta_net_return_pct": _median_float([float(item["risk_delta_net_return_pct"]) for item in items]),
+            "risk_cash_null_failure_rate": float(
+                sum(1 for item in items if not bool(item["risk_beats_cash_null"])) / max(1, len(items))
+            ),
+        }
+        for (axis, label), items in sorted(grouped.items())
+    ]
 
 
 def _settings_from_window_row(row: dict[str, Any]) -> TsmomCandidateSettings:

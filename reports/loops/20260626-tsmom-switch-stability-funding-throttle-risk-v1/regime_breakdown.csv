@@ -1,0 +1,9 @@
+regime_axis,regime_label,window_count,median_baseline_net_return_pct,median_risk_net_return_pct,median_delta_net_return_pct,risk_cash_null_failure_rate
+funding_regime,high-funding-cost,1,-4.564185577988487,-3.180608158625306,1.3835774193631805,1.0
+funding_regime,negative-funding,1,0.0,0.0,0.0,1.0
+funding_regime,positive-funding,29,-1.5014549259752459,-1.5014549259752459,0.0,0.8275862068965517
+market_regime,bear,13,-1.5014549259752459,-1.5014549259752459,0.0,1.0
+market_regime,bull,12,-1.6748523687322259,-1.4671954975126127,0.0,0.6666666666666666
+market_regime,sideways,6,-1.7017092614583071,-1.7017092614583071,0.0,0.8333333333333334
+volatility_regime,low-vol,6,-0.4845676838391529,-0.6803771393763287,0.0,0.6666666666666666
+volatility_regime,normal-vol,25,-1.8773954702830684,-1.64077903286652,0.0,0.88

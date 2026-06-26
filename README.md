@@ -130,6 +130,26 @@ candidate instability. It does not retune parameters, relax gates, imply
 profitability, imply live readiness, authorize live/testnet execution, or use
 account/API-key/order/fill data for performance claims.
 
+`tsmom-risk-run` implements the pre-registered paper-only
+`TSMOM_SWITCH_STABILITY_FUNDING_THROTTLE_RISK_V1` follow-up risk/cost loop:
+
+```bash
+uv run quantctl tsmom-risk-run
+```
+
+It writes
+`reports/loops/<YYYYMMDD>-tsmom-switch-stability-funding-throttle-risk-v1/`
+with `risk_loop.json`, `report.md`, `candidate_switch_stability.csv`,
+`funding_throttle_decomposition.csv`, `regime_breakdown.csv`, `commands.txt`,
+and `changed_files.txt`. The loop tests two frozen risk rules before holdout
+evaluation: train/validation-only near-tie sticky selection, and public
+funding-drag exposure throttling. It preserves source TSMOM failed gates,
+compares baseline TSMOM against the risk variant, and keeps
+`readiness_baseline_verdict: NOT_READY` unless a separate readiness process
+proves otherwise. It does not retune on holdout, relax gates, imply
+profitability, imply live readiness, authorize live/testnet execution, or use
+account/API-key/order/fill data for performance claims.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

@@ -264,6 +264,50 @@ This loop remains paper-only and public-data-only. It is not trading advice, not
 a profitability claim, not live readiness, and not permission for live/testnet
 orders or account/API-key/fill data use.
 
+## TSMOM switch-stability funding-throttle risk loop
+
+`tsmom-risk-run` is the pre-registered paper-only risk/cost follow-up to
+`TSMOM_STRESS_SWITCH_FUNDING_DIAGNOSTIC_V1`. It does not create a live order
+path, retune on holdout, relax failed gates, or promote the repo to readiness.
+It reruns the frozen TSMOM train/validation selection surface and evaluates two
+pre-registered risk rules:
+
+- **near-tie sticky selection** — if the prior stable candidate remains eligible
+  and the current train/validation top candidate beats it by no more than the
+  frozen score margin, keep the prior candidate for stability;
+- **funding-drag exposure throttle** — on decision bars where causally aligned
+  public funding abs(rate) exceeds the frozen threshold, multiply selected
+  exposure by the frozen throttle multiplier.
+
+The command writes
+`reports/loops/<YYYYMMDD>-tsmom-switch-stability-funding-throttle-risk-v1/`
+with:
+
+- `risk_loop.json`
+- `report.md`
+- `candidate_switch_stability.csv`
+- `funding_throttle_decomposition.csv`
+- `regime_breakdown.csv`
+- `commands.txt`
+- `changed_files.txt`
+
+`risk_loop.json` records the pre-registration contract: hypothesis, allowed
+inputs, forbidden inputs, candidate risk rules, evaluation gates, holdout
+boundary, claim boundary, and expected failure modes. The loop's
+`tsmom_risk_loop_verdict` is namespaced to
+`tsmom_switch_stability_funding_throttle_risk_only_not_readiness`; it is not a
+generic readiness verdict. `readiness_baseline_verdict` remains `NOT_READY`
+unless a separate readiness process proves otherwise, and the source TSMOM
+failed gates remain recorded rather than hidden.
+
+The risk artifacts compare baseline selected TSMOM holdout rows with the risk
+variant by gross return, funding drag, slippage drag, stress net return,
+drawdown, CVaR-style tail loss, cash/null comparison, switch count/rate, score
+margins, switch causes, and public-data-derived regime labels. This remains
+paper-only research, not trading advice, not a profitability claim, not live or
+execution readiness, and not permission for live/testnet orders or
+account/API-key/fill data use.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

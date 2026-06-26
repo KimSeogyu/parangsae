@@ -36,6 +36,14 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             return None
         if "tsmom_diagnostic_loop_verdict" in payload:
             return "tsmom-diagnostic-run"
+    risk_loop_json = path / "risk_loop.json"
+    if risk_loop_json.exists():
+        try:
+            payload = json.loads(risk_loop_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "tsmom_risk_loop_verdict" in payload:
+            return "tsmom-risk-run"
     return None
 
 
