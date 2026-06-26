@@ -230,6 +230,41 @@ retuning. Existing TSMOM state is unchanged: broad active development is not
 restored, regime-only TSMOM remains a negative-control candidate, and
 `readiness_baseline_verdict` remains `NOT_READY`.
 
+`alpha-signal-factory-composition-run` implements the paper-only
+`ALPHA_SIGNAL_FACTORY_COMPOSITION_HARNESS_V1` validation-infrastructure loop:
+
+```bash
+uv run quantctl alpha-signal-factory-composition-run
+```
+
+It writes
+`reports/loops/<YYYYMMDD>-alpha-signal-factory-composition-harness-v1/` with
+`alpha_signal_factory.json`, `signal_catalog.jsonl`,
+`signal_diagnostics.csv`, `signal_family_summary.csv`,
+`signal_correlation_clusters.csv`, `null_baseline_comparison.csv`,
+`shortlist.csv`, `failed_gate_rollup.csv`, `report.md`, `commands.txt`, and
+`changed_files.txt`.
+
+This command is an Alpha Signal Factory harness, not a trading strategy. It
+generates deterministic SignalSpec DAGs for price-return, momentum,
+mean-reversion, volatility, volume/liquidity, funding, and interaction/gated
+signal families; applies bounded unary/binary/gating transforms; shifts signals
+by at least one decision lag before forward-return label comparison; and records
+duplicate/correlation clusters so near-identical variants do not count as
+independent evidence. Generated signals are hypotheses, not proven edges.
+
+The shortlist is paper-only and may contain only research categories such as
+`KILL_SIGNAL`, `DUPLICATE_SIGNAL`, `WATCH_FAMILY_ONLY`,
+`WATCH_DIAGNOSTIC_ONLY`, or `NEGATIVE_CONTROL_CANDIDATE`. It must not emit
+`READY`, `TRADE`, `LIVE_READY`, `PROFITABLE`, `DEPLOY`, or
+`CAPITAL_ALLOCATE`. Null/baseline and duplicate controls are mandatory:
+cash/null, buy-and-hold where applicable, deterministic random sign, lagged
+signal, inverse signal, shuffled timestamp signal, and frozen TSMOM
+negative-control references when durable artifacts support them. The harness
+does not claim profitability, readiness, live/testnet permission, capital
+allocation, or execution readiness; `readiness_baseline_verdict` remains
+`NOT_READY` and `tsmom_state_changed` remains `false`.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

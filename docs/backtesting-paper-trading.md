@@ -459,6 +459,73 @@ decisions: broad TSMOM active development remains failed/not restored,
 regime-only TSMOM remains a negative-control candidate, and
 `readiness_baseline_verdict` remains `NOT_READY`.
 
+## Alpha Signal Factory composition harness
+
+`alpha-signal-factory-composition-run` implements
+`ALPHA_SIGNAL_FACTORY_COMPOSITION_HARNESS_V1`, a paper-only validation
+infrastructure loop for generating, composing, diagnosing, duplicate-controlling,
+and null-comparing alpha signal hypotheses. It is not a trading strategy, not a
+strategy PnL optimizer, not live/testnet readiness, and not a profitability
+claim.
+
+```bash
+uv run quantctl alpha-signal-factory-composition-run
+```
+
+The command writes
+`reports/loops/<YYYYMMDD>-alpha-signal-factory-composition-harness-v1/` with:
+
+- `alpha_signal_factory.json`
+- `signal_catalog.jsonl`
+- `signal_diagnostics.csv`
+- `signal_family_summary.csv`
+- `signal_correlation_clusters.csv`
+- `null_baseline_comparison.csv`
+- `shortlist.csv`
+- `failed_gate_rollup.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+Each generated `SignalSpec` is JSON-serializable and records `signal_id`,
+`signal_family`, base inputs, operators, lookback, decision lag, max depth,
+funding/volume usage, future-data flag, deterministic seed, and claim boundary.
+Default generation is deterministic and bounded: primitives use max depth 1,
+transforms use max depth 2, and interactions/gates use max depth 3. Recursive
+unbounded signal generation is not allowed.
+
+Generated signals are hypotheses, not edges. The harness computes diagnostic
+metrics only: coverage, missingness, mean/std, autocorrelation, turnover proxy,
+forward-return IC/rank-IC for 8h/24h/72h where labels exist, signal-sign hit
+rate, decay profile, regime breakdown, duplicate cluster ID, max absolute
+correlation to prior signals, null comparison status, and leakage status. It
+does not optimize signal weights, thresholds, horizons, capital allocation, or
+strategy PnL.
+
+Leakage controls are mandatory. Signals may use only public OHLCV/funding data
+available at or before the bar timestamp, rolling/z-score transforms use
+historical windows rather than full-sample normalization, and every signal is
+shifted by at least one decision lag before forward-return label comparison.
+Null/baseline controls are mandatory too: zero/cash-null, buy-and-hold where
+applicable, deterministic random sign, lagged signal, inverse signal, shuffled
+timestamp signal, and frozen TSMOM negative-control references when durable
+artifacts support them.
+
+Duplicate/correlation control is part of the evidence contract. Pairwise signal
+correlations are clustered where feasible, absolute correlation above `0.95`
+marks redundant variants, and `effective_signal_breadth` excludes duplicates so
+many near-identical signals cannot count as independent evidence.
+
+Allowed shortlist labels are limited to `KILL_SIGNAL`, `DUPLICATE_SIGNAL`,
+`WATCH_FAMILY_ONLY`, `WATCH_DIAGNOSTIC_ONLY`, and
+`NEGATIVE_CONTROL_CANDIDATE`. Forbidden labels include `READY`, `TRADE`,
+`LIVE_READY`, `PROFITABLE`, `DEPLOY`, and `CAPITAL_ALLOCATE`.
+`WATCH_*` means only that a signal family deserves another paper-only
+falsification loop. It does not imply profitability, readiness, execution
+readiness, live/testnet permission, or permission to use real money.
+`readiness_baseline_verdict` remains `NOT_READY` and `tsmom_state_changed`
+remains `false`.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

@@ -76,6 +76,14 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             return None
         if "research_null_baseline_harness_loop" in payload:
             return "research-null-baseline-harness-run"
+    alpha_signal_factory_json = path / "alpha_signal_factory.json"
+    if alpha_signal_factory_json.exists():
+        try:
+            payload = json.loads(alpha_signal_factory_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "alpha_signal_factory" in str(payload.get("loop_namespace")):
+            return "alpha-signal-factory-composition-run"
     return None
 
 
