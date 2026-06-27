@@ -755,6 +755,89 @@ enter the paper-only `NEEDS_EXECUTION_AWARE_PROTOCOL` queue in
 `NOT_READY`, `holdout_retune_used` remains `false`, and `tsmom_state_changed`
 remains `false`.
 
+## Multi-asset alpha generator strict prefilter
+
+`multi-asset-alpha-generator-strict-prefilter-run` implements
+`MULTI_ASSET_ALPHA_GENERATOR_STRICT_PREFILTER_V5`, a paper-only public
+multi-asset signal factory and strict diagnostic prefilter. It is not a trading
+strategy, not portfolio construction, not signal-weight optimization, not
+strategy PnL optimization, not live/testnet readiness, and not a profitability
+claim.
+
+```bash
+uv run quantctl multi-asset-alpha-generator-strict-prefilter-run
+```
+
+The command writes a new artifact directory:
+
+- `multi_asset_alpha_factory.json`
+- `multi_asset_panel_summary.csv`
+- `signal_catalog.jsonl`
+- `signal_diagnostics.csv`
+- `signal_family_summary.csv`
+- `signal_correlation_clusters.csv`
+- `oos_prefilter_summary.csv`
+- `null_baseline_comparison.csv`
+- `multiple_testing_summary.csv`
+- `shortlist.csv`
+- `failed_gate_rollup.csv`
+- `next_strict_falsification_queue.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+V5 deliberately changes the information axis after V4 falsified the prior
+single-symbol V2/V3/V4 family queue. It does not reuse V4 candidates, V4
+representatives, V4 horizons, V4 thresholds, or V4 evidence. The
+`--source-v4-artifact` argument is lineage/audit-only: V5 records the source V4
+path and whether `next_protocol_queue.csv` is empty, then generates a new
+multi-asset panel hypothesis universe independently.
+
+The requested universe defaults to the user-declared public Binance symbols:
+`BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `BNBUSDT`, `XRPUSDT`, `ADAUSDT`, `DOGEUSDT`,
+`AVAXUSDT`, `LINKUSDT`, and `TONUSDT`. The panel records requested, used, and
+excluded symbols. Symbol inclusion is controlled by OHLCV availability,
+schema validity, and minimum bar count. Missing, invalid, or unalignable public
+funding never excludes an otherwise OHLCV-usable symbol; funding-dependent
+families record unavailable diagnostics while OHLCV-only families still run.
+
+Cross-sectional ranks are point-in-time. At timestamp `t`, ranks and universe
+medians use only symbols with actual OHLCV rows at `t`; missing symbols are not
+forward-filled and do not affect historical ranks before they have data. Every
+signal is shifted by at least one decision lag before 8h/24h/72h forward-return
+label comparison.
+
+The fixed V5 family taxonomy is:
+
+- `cross_sectional_momentum`
+- `cross_sectional_reversal`
+- `funding_dispersion`
+- `lead_lag`
+- `beta_residual`
+- `volatility_dispersion`
+- `liquidity_volume_shock`
+- `correlation_breakdown`
+- `carry_x_trend`
+- `relative_value_interaction`
+
+Null/baseline comparison covers zero/cash-null, buy-and-hold same-window,
+deterministic random sign, lagged signal, inverse signal, shuffled timestamp
+signal, family-permuted signal, symbol-permuted signal, universe-median signal,
+and frozen TSMOM negative-control availability. Duplicate control uses
+vectorized matrix correlation; absolute correlation `>= 0.95` marks redundant
+signals, and representatives are selected by lowest complexity, smallest depth,
+then lexicographic `signal_id`, never by performance.
+
+Multiple-testing risk increases with the generated signal count, so V5 records
+`cannot_claim_edge_due_to_multiple_testing: true`. Allowed signal labels are
+paper-only research labels such as `KILL_SIGNAL`, `DUPLICATE_SIGNAL`,
+`WATCH_FAMILY_ONLY`, `WATCH_DIAGNOSTIC_ONLY`, and
+`NEEDS_STRICT_OOS_FALSIFICATION`. A shortlist is only a paper-only queue for a
+future pre-registered stricter falsification loop. It is not alpha, edge,
+profitability, readiness, execution readiness, live/testnet permission, or
+permission to trade. `readiness_baseline_verdict` remains `NOT_READY`, and
+`tsmom_state_changed` remains `false`.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

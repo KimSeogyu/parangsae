@@ -1,0 +1,2 @@
+symbol,row_count,first_timestamp,last_timestamp,closed_bar_only,ohlcv_normalized_sha256,funding_status,funding_available,funding_non_null_count,source
+BTCUSDT,17544,2024-01-01T00:00:00Z,2025-12-31T23:00:00Z,True,afd05e75d20344e0cfd96923490e90a9ac3569a88392954d08f7a09b718461de,available,True,17543,public_binance_vision_ohlcv_and_optional_public_funding

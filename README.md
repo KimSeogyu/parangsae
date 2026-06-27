@@ -377,6 +377,48 @@ confirmation; survivors may only enter a paper-only `NEEDS_EXECUTION_AWARE_PROTO
 queue. `readiness_baseline_verdict` remains `NOT_READY`, and
 `tsmom_state_changed` remains `false`.
 
+`multi-asset-alpha-generator-strict-prefilter-run` implements the paper-only
+`MULTI_ASSET_ALPHA_GENERATOR_STRICT_PREFILTER_V5` harness:
+
+```bash
+uv run quantctl multi-asset-alpha-generator-strict-prefilter-run
+```
+
+It writes
+`reports/loops/<YYYYMMDD>-multi-asset-alpha-generator-strict-prefilter-v5/`
+with a public multi-asset panel summary, signal catalog, diagnostics,
+correlation clusters, OOS prefilter rows, null-baseline comparisons,
+multiple-testing summary, shortlist, failed gates, next strict-falsification
+queue, report, commands, and changed-files artifacts.
+
+V5 expands the information universe from single-symbol OHLCV/funding signals to
+public multi-asset panel hypotheses: cross-sectional momentum/reversal,
+funding dispersion, lead-lag, beta residual, volatility dispersion,
+liquidity/volume shock, correlation breakdown, carry x trend, and relative-value
+interactions. It does **not** revive V4-falsified V2/V3/V4 candidate families.
+The V4 artifact is read only as lineage/audit evidence: V5 records
+`source_v4_artifact_path` and whether `next_protocol_queue.csv` is empty, but it
+does not seed candidates from V4 survivors, horizons, representatives, or
+thresholds.
+
+The default requested universe is
+`BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, ADAUSDT, DOGEUSDT, AVAXUSDT, LINKUSDT, TONUSDT`.
+The command records requested, used, and excluded symbols deterministically.
+At each timestamp, cross-sectional ranks use only symbols that have an actual
+OHLCV row at that timestamp; missing symbols are coverage loss, not forward
+filled. Missing or invalid public funding does not remove an OHLCV-usable
+symbol; it only makes funding-dependent diagnostics unavailable for that symbol
+or pair.
+
+Generated signals are hypotheses, not edges. V5 is not a trading strategy, not
+portfolio construction, not signal-weight optimization, not strategy PnL
+optimization, not profitability evidence, not readiness, and not live/testnet
+permission. Because the signal count increases multiple-testing risk, every
+artifact records `cannot_claim_edge_due_to_multiple_testing: true`. A shortlist
+entry is paper-only and can only mean a family may deserve another strict
+falsification loop. `readiness_baseline_verdict` remains `NOT_READY`, and
+`tsmom_state_changed` remains `false`.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

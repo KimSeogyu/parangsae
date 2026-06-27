@@ -21,6 +21,8 @@ from parangsae.marketdata.binance_vision import (
     CANONICAL_SYMBOL,
     BinanceVisionError,
     DataValidationError,
+    MarketDataBundle,
+    canonical_cache_path,
     load_market_data_bundle,
     normalize_months,
     validate_interval,
@@ -29,6 +31,8 @@ from parangsae.marketdata.binance_vision import (
 from parangsae.marketdata.binance_funding import (
     BinanceFundingError,
     FundingDataValidationError,
+    FundingRateBundle,
+    funding_cache_path,
     fetch_funding_rate_history,
     funding_metadata_for_report,
 )
@@ -84,6 +88,18 @@ from parangsae.research.data_depth import (
     write_data_depth_loop_artifacts,
 )
 from parangsae.research.forward_paper import ForwardPaperConfig, run_forward_paper
+from parangsae.research.multi_asset_alpha_factory import (
+    DEFAULT_MIN_BARS_PER_SYMBOL,
+    DEFAULT_MULTI_ASSET_ALPHA_V4_ARTIFACT,
+    DEFAULT_MULTI_ASSET_CANDIDATE_BUDGET,
+    DEFAULT_MULTI_ASSET_GENERATION_SEED,
+    DEFAULT_MULTI_ASSET_MAX_DEPTH,
+    DEFAULT_SYMBOL_UNIVERSE,
+    default_multi_asset_alpha_prefilter_output_dir,
+    evaluate_multi_asset_alpha_prefilter,
+    parse_symbol_universe,
+    write_multi_asset_alpha_prefilter_artifacts,
+)
 from parangsae.research.null_baselines import (
     DEFAULT_TSMOM_REGIME_ONLY_ARTIFACT,
     build_research_null_baseline_harness_payload,
@@ -429,6 +445,128 @@ def _default_alpha_signal_strict_falsification_command(args: argparse.Namespace)
     if args.overwrite:
         command.append("--overwrite")
     return " ".join(command)
+
+
+def _default_multi_asset_alpha_prefilter_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl multi-asset-alpha-generator-strict-prefilter-run",
+        f"--source-v4-artifact {args.source_v4_artifact}",
+        f"--symbols {args.symbols}",
+        f"--interval {args.interval}",
+        f"--months {args.months}",
+        f"--cache-dir {args.cache_dir}",
+        f"--funding-source {args.funding_source}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--cache-mode {args.cache_mode}",
+        f"--seed {args.seed}",
+        f"--candidate-budget {args.candidate_budget}",
+        f"--max-depth {args.max_depth}",
+        f"--min-bars-per-symbol {args.min_bars_per_symbol}",
+        f"--output-dir {args.output_dir or default_multi_asset_alpha_prefilter_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _cached_ohlcv_available(
+    *,
+    symbol: str,
+    interval: str,
+    months: tuple[str, ...],
+    cache_dir: str | Path,
+) -> tuple[bool, str | None]:
+    missing = [
+        month
+        for month in months
+        if not canonical_cache_path(Path(cache_dir), symbol, interval, month).exists()
+    ]
+    if missing:
+        return False, f"missing cached OHLCV month(s): {','.join(missing[:6])}"
+    return True, None
+
+
+def _cached_funding_available(
+    *,
+    symbol: str,
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
+    cache_dir: str | Path,
+) -> bool:
+    start_ms = int(start_time.timestamp() * 1000)
+    end_ms = int(end_time.timestamp() * 1000)
+    return funding_cache_path(cache_dir, symbol, start_ms, end_ms).exists()
+
+
+def _load_multi_asset_public_bundles(
+    args: argparse.Namespace,
+    *,
+    symbols: tuple[str, ...],
+    interval: str,
+    months: tuple[str, ...],
+) -> tuple[dict[str, MarketDataBundle], dict[str, FundingRateBundle | None], list[dict[str, object]], dict[str, str]]:
+    market_bundles: dict[str, MarketDataBundle] = {}
+    funding_bundles: dict[str, FundingRateBundle | None] = {}
+    excluded: list[dict[str, object]] = []
+    funding_status: dict[str, str] = {}
+    for symbol in symbols:
+        try:
+            if args.cache_mode == "cache-only":
+                available, reason = _cached_ohlcv_available(
+                    symbol=symbol,
+                    interval=interval,
+                    months=months,
+                    cache_dir=args.cache_dir,
+                )
+                if not available:
+                    excluded.append({"symbol": symbol, "stage": "ohlcv_cache_availability", "reason": reason})
+                    continue
+            bundle = load_market_data_bundle(
+                symbol=symbol,
+                interval=interval,
+                months=months,
+                cache_dir=args.cache_dir,
+            )
+            if len(bundle.frame) < int(args.min_bars_per_symbol):
+                excluded.append(
+                    {
+                        "symbol": symbol,
+                        "stage": "ohlcv_min_bars",
+                        "reason": f"{len(bundle.frame)} bars below min_bars_per_symbol={args.min_bars_per_symbol}",
+                    }
+                )
+                continue
+            market_bundles[symbol] = bundle
+            if args.funding_source == "none":
+                funding_bundles[symbol] = None
+                funding_status[symbol] = "disabled"
+                continue
+            start_ts = _datetime_index_endpoint(bundle.frame.index, 0)
+            end_ts = _datetime_index_endpoint(bundle.frame.index, -1)
+            if args.cache_mode == "cache-only" and not _cached_funding_available(
+                symbol=symbol,
+                start_time=start_ts,
+                end_time=end_ts,
+                cache_dir=args.funding_cache_dir,
+            ):
+                funding_bundles[symbol] = None
+                funding_status[symbol] = "unavailable_missing_cache"
+                continue
+            try:
+                funding_bundle = fetch_funding_rate_history(
+                    symbol=symbol,
+                    start_time=start_ts,
+                    end_time=end_ts,
+                    cache_dir=args.funding_cache_dir,
+                )
+                funding_bundles[symbol] = funding_bundle
+                funding_status[symbol] = "available"
+            except (BinanceFundingError, FundingDataValidationError, requests.RequestException, ValueError) as exc:
+                funding_bundles[symbol] = None
+                funding_status[symbol] = f"invalid_unavailable:{type(exc).__name__}"
+        except (BinanceVisionError, DataValidationError, requests.RequestException, ValueError) as exc:
+            excluded.append({"symbol": symbol, "stage": "ohlcv_load_or_validation", "reason": str(exc)})
+    return market_bundles, funding_bundles, excluded, funding_status
 
 
 def cmd_data_depth_run(args: argparse.Namespace) -> int:
@@ -1510,6 +1648,109 @@ def cmd_alpha_signal_strict_falsification_run(args: argparse.Namespace) -> int:
         return 2
 
 
+def cmd_multi_asset_alpha_generator_strict_prefilter_run(args: argparse.Namespace) -> int:
+    symbols = parse_symbol_universe(args.symbols)
+    interval = CANONICAL_INTERVAL
+    months = default_data_depth_months()
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_multi_asset_alpha_prefilter_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        interval = validate_interval(args.interval)
+        months = _parse_months(args.months)
+        symbols = tuple(validate_symbol(symbol) for symbol in symbols)
+        market_bundles, funding_bundles, excluded, funding_status = _load_multi_asset_public_bundles(
+            args,
+            symbols=symbols,
+            interval=interval,
+            months=months,
+        )
+        commands = args.command or [_default_multi_asset_alpha_prefilter_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_multi_asset_alpha_prefilter(
+            market_bundles=market_bundles,
+            funding_bundles=funding_bundles,
+            requested_symbols=symbols,
+            excluded_symbols=excluded,
+            funding_status_by_symbol=funding_status,
+            source_v4_artifact_path=args.source_v4_artifact,
+            seed=args.seed,
+            candidate_budget=args.candidate_budget,
+            max_depth=args.max_depth,
+            min_bars_per_symbol=args.min_bars_per_symbol,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_multi_asset_alpha_prefilter_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "multi-asset-alpha-generator-strict-prefilter-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v4_artifact_path": result.payload["source_v4_artifact_path"],
+                    "v4_queue_empty": result.payload["v4_queue_empty"],
+                    "symbol_universe_requested": result.payload["symbol_universe_requested"],
+                    "symbol_universe_used": result.payload["symbol_universe_used"],
+                    "excluded_symbols": result.payload["excluded_symbols"],
+                    "generated_signal_count": result.payload["generated_signal_count"],
+                    "evaluated_signal_count": result.payload["evaluated_signal_count"],
+                    "effective_signal_breadth": result.payload["effective_signal_breadth"],
+                    "duplicate_ratio": result.payload["duplicate_ratio"],
+                    "watch_family_count": result.payload["watch_family_count"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "strategy_optimization_performed": result.payload["strategy_optimization_performed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                    "multiple_testing_boundary": result.payload["multiple_testing_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (
+        BinanceVisionError,
+        DataValidationError,
+        requests.RequestException,
+        ValueError,
+        FileExistsError,
+        FileNotFoundError,
+    ) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "multi-asset-alpha-generator-strict-prefilter-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v4_artifact_path": str(args.source_v4_artifact),
+                    "symbols": symbols,
+                    "interval": interval,
+                    "months": months,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def _two_way_regime_segments(frame: pd.DataFrame, split_index: int) -> pd.Series:
     segments = pd.Series(["backtest"] * len(frame), index=frame.index, dtype="object")
     segments.iloc[split_index:] = "holdout_paper"
@@ -2414,6 +2655,51 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     alpha_strict.set_defaults(func=cmd_alpha_signal_strict_falsification_run)
+
+    multi_asset_alpha = sub.add_parser("multi-asset-alpha-generator-strict-prefilter-run")
+    multi_asset_alpha.add_argument(
+        "--source-v4-artifact",
+        default=str(DEFAULT_MULTI_ASSET_ALPHA_V4_ARTIFACT),
+        help="audit-only V4 strict falsification artifact path; V5 records queue emptiness but never seeds candidates from it",
+    )
+    multi_asset_alpha.add_argument(
+        "--symbols",
+        default=",".join(DEFAULT_SYMBOL_UNIVERSE),
+        help="comma-separated requested public symbol universe; normalized and recorded before exclusions",
+    )
+    multi_asset_alpha.add_argument("--interval", default=CANONICAL_INTERVAL)
+    multi_asset_alpha.add_argument(
+        "--months",
+        default=",".join(default_data_depth_months()),
+        help="public Binance Vision months for V5 multi-asset panel diagnostics",
+    )
+    multi_asset_alpha.add_argument("--cache-dir", default="data/binance-vision")
+    multi_asset_alpha.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    multi_asset_alpha.add_argument("--funding-cache-dir", default="data/binance-funding")
+    multi_asset_alpha.add_argument(
+        "--cache-mode",
+        default="cache-only",
+        choices=["cache-only", "download-missing"],
+        help="cache-only records unavailable symbols instead of downloading missing public files; download-missing delegates to existing public loaders",
+    )
+    multi_asset_alpha.add_argument("--seed", type=int, default=DEFAULT_MULTI_ASSET_GENERATION_SEED)
+    multi_asset_alpha.add_argument("--candidate-budget", type=int, default=DEFAULT_MULTI_ASSET_CANDIDATE_BUDGET)
+    multi_asset_alpha.add_argument("--max-depth", type=int, default=DEFAULT_MULTI_ASSET_MAX_DEPTH)
+    multi_asset_alpha.add_argument("--min-bars-per-symbol", type=int, default=DEFAULT_MIN_BARS_PER_SYMBOL)
+    multi_asset_alpha.add_argument("--reports-root", default="reports")
+    multi_asset_alpha.add_argument("--output-dir")
+    multi_asset_alpha.add_argument("--overwrite", action="store_true")
+    multi_asset_alpha.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    multi_asset_alpha.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    multi_asset_alpha.set_defaults(func=cmd_multi_asset_alpha_generator_strict_prefilter_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")

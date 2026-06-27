@@ -100,6 +100,26 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             return None
         if "loop_namespace" in payload and "alpha_signal_oos_fdr" in str(payload.get("loop_namespace")):
             return "alpha-signal-oos-fdr-validation-run"
+    alpha_signal_strict_json = path / "alpha_signal_strict_falsification.json"
+    if alpha_signal_strict_json.exists():
+        try:
+            payload = json.loads(alpha_signal_strict_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "alpha_signal_strict_falsification" in str(
+            payload.get("loop_namespace")
+        ):
+            return "alpha-signal-strict-falsification-run"
+    multi_asset_alpha_json = path / "multi_asset_alpha_factory.json"
+    if multi_asset_alpha_json.exists():
+        try:
+            payload = json.loads(multi_asset_alpha_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "multi_asset_alpha_generator_strict_prefilter" in str(
+            payload.get("loop_namespace")
+        ):
+            return "multi-asset-alpha-generator-strict-prefilter-run"
     return None
 
 
