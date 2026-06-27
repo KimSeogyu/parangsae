@@ -58,20 +58,24 @@ from parangsae.research.backtest_engine import (
 )
 from parangsae.research.alpha_signal_factory import (
     DEFAULT_ALPHA_SIGNAL_DAG_V2_ARTIFACT,
+    DEFAULT_ALPHA_SIGNAL_OOS_FDR_V3_ARTIFACT,
     DEFAULT_MAX_DEPTH,
     DEFAULT_SIGNAL_DAG_CANDIDATE_BUDGET,
     DEFAULT_SIGNAL_DAG_GENERATION_SEED,
     DEFAULT_SIGNAL_DAG_MAX_DEPTH,
     DEFAULT_SIGNAL_GENERATION_SEED,
     default_alpha_signal_oos_fdr_validation_output_dir,
+    default_alpha_signal_strict_falsification_output_dir,
     evaluate_alpha_signal_dag_expansion,
     evaluate_alpha_signal_factory,
     evaluate_alpha_signal_oos_fdr_validation,
+    evaluate_alpha_signal_strict_falsification,
     default_alpha_signal_dag_expansion_output_dir,
     default_alpha_signal_factory_output_dir,
     write_alpha_signal_dag_expansion_artifacts,
     write_alpha_signal_factory_artifacts,
     write_alpha_signal_oos_fdr_validation_artifacts,
+    write_alpha_signal_strict_falsification_artifacts,
 )
 from parangsae.research.data_depth import (
     build_data_depth_loop_payload,
@@ -404,6 +408,23 @@ def _default_alpha_signal_oos_fdr_validation_command(args: argparse.Namespace) -
         f"--funding-source {args.funding_source}",
         f"--funding-cache-dir {args.funding_cache_dir}",
         f"--output-dir {args.output_dir or default_alpha_signal_oos_fdr_validation_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_alpha_signal_strict_falsification_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl alpha-signal-strict-falsification-run",
+        f"--source-v3-artifact {args.source_v3_artifact}",
+        f"--symbol {args.symbol}",
+        f"--interval {args.interval}",
+        f"--months {args.months}",
+        f"--cache-dir {args.cache_dir}",
+        f"--funding-source {args.funding_source}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--output-dir {args.output_dir or default_alpha_signal_strict_falsification_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
     if args.overwrite:
         command.append("--overwrite")
@@ -1381,6 +1402,114 @@ def cmd_alpha_signal_oos_fdr_validation_run(args: argparse.Namespace) -> int:
         return 2
 
 
+def cmd_alpha_signal_strict_falsification_run(args: argparse.Namespace) -> int:
+    symbol = CANONICAL_SYMBOL
+    interval = CANONICAL_INTERVAL
+    months = default_data_depth_months()
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_alpha_signal_strict_falsification_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        symbol = validate_symbol(args.symbol)
+        interval = validate_interval(args.interval)
+        months = _parse_months(args.months)
+        market_bundle = load_market_data_bundle(
+            symbol=symbol,
+            interval=interval,
+            months=months,
+            cache_dir=args.cache_dir,
+        )
+        funding_bundle = None
+        if args.funding_source == "public-binance":
+            funding_bundle = fetch_funding_rate_history(
+                symbol=symbol,
+                start_time=_datetime_index_endpoint(market_bundle.frame.index, 0),
+                end_time=_datetime_index_endpoint(market_bundle.frame.index, -1),
+                cache_dir=args.funding_cache_dir,
+            )
+        commands = args.command or [_default_alpha_signal_strict_falsification_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_alpha_signal_strict_falsification(
+            source_v3_artifact_path=args.source_v3_artifact,
+            market_bundle=market_bundle,
+            funding_bundle=funding_bundle,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_alpha_signal_strict_falsification_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "alpha-signal-strict-falsification-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v3_artifact_path": result.payload["source_v3_artifact_path"],
+                    "preregistered_hypothesis_count": result.payload["preregistered_hypothesis_count"],
+                    "evaluated_family_horizon_count": result.payload["evaluated_family_horizon_count"],
+                    "frozen_candidate_count": result.payload["frozen_candidate_count"],
+                    "evaluated_signal_count": result.payload["evaluated_signal_count"],
+                    "strict_fold_count": result.payload["strict_fold_count"],
+                    "purge_bars": result.payload["purge_bars"],
+                    "embargo_bars": result.payload["embargo_bars"],
+                    "bootstrap_resamples": result.payload["bootstrap_resamples"],
+                    "survived_strict_falsification_count": result.payload["survived_strict_falsification_count"],
+                    "falsified_count": result.payload["falsified_count"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "strategy_optimization_performed": result.payload["strategy_optimization_performed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                    "multiple_testing_boundary": result.payload["multiple_testing_boundary"],
+                    "preregistration_boundary": result.payload["preregistration_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (
+        BinanceVisionError,
+        BinanceFundingError,
+        DataValidationError,
+        FundingDataValidationError,
+        requests.RequestException,
+        ValueError,
+        FileExistsError,
+        FileNotFoundError,
+    ) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "alpha-signal-strict-falsification-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v3_artifact_path": str(args.source_v3_artifact),
+                    "symbol": symbol,
+                    "interval": interval,
+                    "months": months,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def _two_way_regime_segments(frame: pd.DataFrame, split_index: int) -> pd.Series:
     segments = pd.Series(["backtest"] * len(frame), index=frame.index, dtype="object")
     segments.iloc[split_index:] = "holdout_paper"
@@ -2254,6 +2383,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     alpha_oos.set_defaults(func=cmd_alpha_signal_oos_fdr_validation_run)
+
+    alpha_strict = sub.add_parser("alpha-signal-strict-falsification-run")
+    alpha_strict.add_argument(
+        "--source-v3-artifact",
+        default=str(DEFAULT_ALPHA_SIGNAL_OOS_FDR_V3_ARTIFACT),
+        help="frozen V3 OOS/FDR artifact directory whose next falsification queue is pre-registered and stress-tested without regeneration",
+    )
+    alpha_strict.add_argument("--symbol", default=CANONICAL_SYMBOL)
+    alpha_strict.add_argument("--interval", default=CANONICAL_INTERVAL)
+    alpha_strict.add_argument(
+        "--months",
+        default=",".join(default_data_depth_months()),
+        help="public Binance Vision months; V4 stress-tests frozen V3 queued hypotheses on stricter chronological OOS folds",
+    )
+    alpha_strict.add_argument("--cache-dir", default="data/binance-vision")
+    alpha_strict.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    alpha_strict.add_argument("--funding-cache-dir", default="data/binance-funding")
+    alpha_strict.add_argument("--reports-root", default="reports")
+    alpha_strict.add_argument("--output-dir")
+    alpha_strict.add_argument("--overwrite", action="store_true")
+    alpha_strict.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    alpha_strict.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    alpha_strict.set_defaults(func=cmd_alpha_signal_strict_falsification_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")

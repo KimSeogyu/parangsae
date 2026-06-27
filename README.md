@@ -334,6 +334,49 @@ family decisions are limited to paper-research statuses such as `KILL_FAMILY`,
 `WATCH_FAMILY_ONLY`. `readiness_baseline_verdict` remains `NOT_READY`, and
 `tsmom_state_changed` remains `false`.
 
+`alpha-signal-strict-falsification-run` implements the paper-only
+`ALPHA_SIGNAL_STRICT_FALSIFICATION_PROTOCOL_V4` harness:
+
+```bash
+uv run quantctl alpha-signal-strict-falsification-run
+```
+
+It reads the frozen V3 artifact at
+`reports/loops/20260627-alpha-signal-oos-fdr-validation-protocol-v3/` by
+default and writes
+`reports/loops/<YYYYMMDD>-alpha-signal-strict-falsification-protocol-v4/` with
+`alpha_signal_strict_falsification.json`, `preregistered_hypotheses.csv`,
+`frozen_candidate_universe.jsonl`, `strict_chronological_folds.csv`,
+`signal_strict_oos_diagnostics.csv`, `bootstrap_significance_summary.csv`,
+`family_strict_falsification_summary.csv`, `multiple_testing_fdr_summary.csv`,
+`failed_gate_rollup.csv`, `next_protocol_queue.csv`, `report.md`,
+`commands.txt`, and `changed_files.txt`.
+
+V4 is a falsificationist follow-up to the V3 `next_falsification_queue.csv`. It
+pre-registers each queued `(family, horizon)` hypothesis and its expected IC
+sign *before* evaluation, freezes the V3 candidate universe to the queued
+families without regeneration, and then tries to **reject** each hypothesis. It
+applies stricter purge/embargo (`2 ×` the maximum queued horizon), computes a
+block-permutation p-value per family/horizon (the label series is split into
+non-overlapping blocks whose order is shuffled, with block length equal to the
+horizon, so within-block label autocorrelation is preserved while the
+signal-label alignment is destroyed), and Benjamini-Hochberg
+corrects those p-values across the pre-registered set with an additional
+selection-deflated alpha that accounts for the broad V2/V3 universe the
+hypotheses were chosen from.
+
+The protocol **defaults to FALSIFIED**: a hypothesis survives only when its
+observed sign matches the pre-registration, sign/fold consistency and
+null-robustness clear the `0.60` thresholds, degradation stays inside
+`[0.5, 2.0]`, and its bootstrap p-value is BH-significant. Otherwise it is
+labelled `FALSIFIED_SIGN_FLIP`, `FALSIFIED_OOS_INCONSISTENT`,
+`FALSIFIED_NULL_FRAGILE`, `FALSIFIED_DEGRADATION`,
+`FALSIFIED_NO_BOOTSTRAP_SIGNIFICANCE`, or `FALSIFIED_INSUFFICIENT_EVIDENCE`. A
+`SURVIVED_STRICT_FALSIFICATION` verdict is explicitly **not** alpha
+confirmation; survivors may only enter a paper-only `NEEDS_EXECUTION_AWARE_PROTOCOL`
+queue. `readiness_baseline_verdict` remains `NOT_READY`, and
+`tsmom_state_changed` remains `false`.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

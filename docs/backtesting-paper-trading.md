@@ -687,6 +687,74 @@ permission to trade real money. `readiness_baseline_verdict` remains
 `NOT_READY`, `holdout_retune_used` remains `false`, and `tsmom_state_changed`
 remains `false`.
 
+## Alpha Signal strict falsification protocol
+
+`alpha-signal-strict-falsification-run` implements
+`ALPHA_SIGNAL_STRICT_FALSIFICATION_PROTOCOL_V4`, a paper-only pre-registered
+stricter OOS falsification protocol over the frozen V3
+`next_falsification_queue.csv`. It is not new alpha generation, not strategy
+optimization, not signal weight optimization, not live/testnet readiness, and
+not a profitability claim. Its purpose is to *reject* hypotheses; the default
+outcome is FALSIFIED.
+
+```bash
+uv run quantctl alpha-signal-strict-falsification-run
+```
+
+The command reads the existing V3 artifact directory and writes a new artifact
+directory:
+
+- `alpha_signal_strict_falsification.json`
+- `preregistered_hypotheses.csv`
+- `frozen_candidate_universe.jsonl`
+- `strict_chronological_folds.csv`
+- `signal_strict_oos_diagnostics.csv`
+- `bootstrap_significance_summary.csv`
+- `family_strict_falsification_summary.csv`
+- `multiple_testing_fdr_summary.csv`
+- `failed_gate_rollup.csv`
+- `next_protocol_queue.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+V4 pre-registers, before evaluation, every queued `(family, horizon)` hypothesis
+and its expected IC sign (taken from the sign of the V3 family median test IC),
+the fold construction, the purge/embargo, the bootstrap block length, the
+resample count, the false-discovery alpha, and the survival thresholds. These
+are written to `preregistered_hypotheses.csv` and may not be retuned after
+results are seen. The protocol freezes the V3 candidate universe to the queued
+families without generating new DAGs, changing `signal_id`s, or selecting by
+performance.
+
+Stricter OOS controls extend V3: purge and embargo are `2 ×` the maximum queued
+horizon, and folds are chronological with purged forward-return label overlap.
+For each pre-registered hypothesis the family-mean signal is correlated with the
+forward-return label over the pooled test windows, and significance is assessed
+with a block-permutation test: the label series is partitioned into
+non-overlapping contiguous blocks whose order is randomly shuffled. The block
+length equals the horizon so that within-block label autocorrelation is
+preserved while signal-label alignment is destroyed; the one-sided p-value is
+computed in the pre-registered direction
+(two-sided when the expected sign is zero) with a deterministic seed and an
+add-one correction. P-values across the pre-registered set are Benjamini-Hochberg
+corrected at the pre-registered alpha, and a selection-deflated alpha additionally
+accounts for the broad V2/V3 effective breadth the hypotheses were chosen from.
+
+A hypothesis is labelled `SURVIVED_STRICT_FALSIFICATION` only when the observed
+test sign matches the pre-registration, sign-consistency, fold-consistency, and
+null-robustness each clear `0.60`, validation-to-test degradation stays inside
+`[0.5, 2.0]`, and its bootstrap p-value is Benjamini-Hochberg significant.
+Otherwise it is `FALSIFIED_SIGN_FLIP`, `FALSIFIED_OOS_INCONSISTENT`,
+`FALSIFIED_NULL_FRAGILE`, `FALSIFIED_DEGRADATION`,
+`FALSIFIED_NO_BOOTSTRAP_SIGNIFICANCE`, or `FALSIFIED_INSUFFICIENT_EVIDENCE`.
+Surviving falsification is explicitly not alpha confirmation; survivors may only
+enter the paper-only `NEEDS_EXECUTION_AWARE_PROTOCOL` queue in
+`next_protocol_queue.csv`. Forbidden labels extend the V3 set with
+`ALPHA_CONFIRMED` and `EDGE_PROVEN`. `readiness_baseline_verdict` remains
+`NOT_READY`, `holdout_retune_used` remains `false`, and `tsmom_state_changed`
+remains `false`.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

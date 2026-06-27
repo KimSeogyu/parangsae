@@ -20,6 +20,8 @@ from parangsae.research.alpha_signal_factory import (
     ALPHA_SIGNAL_FACTORY_NAMESPACE,
     ALPHA_SIGNAL_OOS_FDR_DECISION,
     ALPHA_SIGNAL_OOS_FDR_NAMESPACE,
+    ALPHA_SIGNAL_STRICT_FALSIFICATION_DECISION,
+    ALPHA_SIGNAL_STRICT_FALSIFICATION_NAMESPACE,
     CLAIM_BOUNDARY,
     DEFAULT_SIGNAL_DAG_CANDIDATE_BUDGET,
     DEFAULT_SIGNAL_DAG_MAX_DEPTH,
@@ -27,6 +29,9 @@ from parangsae.research.alpha_signal_factory import (
     OOS_FORBIDDEN_OUTPUT_LABELS,
     READINESS_BASELINE_VERDICT,
     SIGNAL_DAG_CLAIM_BOUNDARY,
+    STRICT_FALSIFICATION_CLAIM_BOUNDARY,
+    STRICT_FORBIDDEN_OUTPUT_LABELS,
+    STRICT_PURGE_EMBARGO_MULTIPLIER,
     SignalSpec,
     SignalDagSpec,
     apply_unary_operator,
@@ -38,6 +43,7 @@ from parangsae.research.alpha_signal_factory import (
     evaluate_alpha_signal_factory,
     evaluate_alpha_signal_dag_expansion,
     evaluate_alpha_signal_oos_fdr_validation,
+    evaluate_alpha_signal_strict_falsification,
     generate_signal_specs,
     generate_signal_dag_specs,
     inverse_signal_position,
@@ -50,6 +56,10 @@ from parangsae.research.alpha_signal_factory import (
     write_alpha_signal_factory_artifacts,
     write_alpha_signal_dag_expansion_artifacts,
     write_alpha_signal_oos_fdr_validation_artifacts,
+    write_alpha_signal_strict_falsification_artifacts,
+    _benjamini_hochberg,
+    _moving_block_permutation_pvalue,
+    _strict_falsification_decision,
 )
 
 
@@ -139,6 +149,45 @@ def write_v2_fixture_artifact(tmp_path: Path, frame: pd.DataFrame, *, candidate_
         changed_files=["src/parangsae/research/alpha_signal_factory.py"],
     )
     return write_alpha_signal_dag_expansion_artifacts(tmp_path / "v2-source", result)
+
+
+def write_v3_fixture_artifact(
+    tmp_path: Path,
+    frame: pd.DataFrame,
+    *,
+    candidate_budget: int = 32,
+    horizons: tuple[int, ...] = (2, 4),
+    fold_count: int = 2,
+    force_queue: bool = True,
+) -> Path:
+    v2_artifact = write_v2_fixture_artifact(tmp_path, frame, candidate_budget=candidate_budget)
+    v3_result = evaluate_alpha_signal_oos_fdr_validation(
+        source_v2_artifact_path=v2_artifact,
+        market_bundle=market_bundle(frame),
+        funding_bundle=funding_bundle(frame),
+        horizons=horizons,
+        fold_count=fold_count,
+        commands=["uv run quantctl alpha-signal-oos-fdr-validation-run"],
+        changed_files=["src/parangsae/research/alpha_signal_factory.py"],
+    )
+    out = write_alpha_signal_oos_fdr_validation_artifacts(tmp_path / "v3-source", v3_result)
+    if force_queue and not v3_result.next_falsification_queue:
+        seed_family = v3_result.family_oos_summary[0]
+        forced_ic = seed_family["median_test_ic"]
+        pd.DataFrame(
+            [
+                {
+                    "signal_family": seed_family["signal_family"],
+                    "horizon_bars": seed_family["horizon_bars"],
+                    "queue_decision": "NEEDS_STRICTER_OOS_FALSIFICATION",
+                    "median_test_ic": forced_ic if forced_ic is not None else 0.01,
+                    "effective_signal_breadth": seed_family["effective_signal_breadth"],
+                    "reason": "forced non-empty queue for strict falsification fixture",
+                    "claim_boundary": OOS_FDR_CLAIM_BOUNDARY,
+                }
+            ]
+        ).to_csv(out / "next_falsification_queue.csv", index=False)
+    return out
 
 
 def test_signal_spec_schema_serializes_and_forbids_future_data() -> None:
@@ -656,3 +705,216 @@ def test_v1_v2_v3_alpha_commands_are_wired() -> None:
     assert parser.parse_args(["alpha-signal-factory-composition-run"]).func is quantctl.cmd_alpha_signal_factory_composition_run
     assert parser.parse_args(["alpha-signal-dag-expansion-run"]).func is quantctl.cmd_alpha_signal_dag_expansion_run
     assert parser.parse_args(["alpha-signal-oos-fdr-validation-run"]).func is quantctl.cmd_alpha_signal_oos_fdr_validation_run
+
+
+def test_v4_strict_falsification_command_is_wired() -> None:
+    parser = quantctl.build_parser()
+    parsed = parser.parse_args(["alpha-signal-strict-falsification-run"])
+    assert parsed.func is quantctl.cmd_alpha_signal_strict_falsification_run
+    assert parsed.source_v3_artifact.endswith("alpha-signal-oos-fdr-validation-protocol-v3")
+
+
+def test_moving_block_permutation_pvalue_separates_signal_from_null() -> None:
+    rng = pd.Series(range(600), dtype=float)
+    base = (rng % 17 - 8.0).to_numpy(dtype=float)
+    dependent_label = 0.35 * base + ((rng % 5 - 2.0).to_numpy(dtype=float))
+    dependent = _moving_block_permutation_pvalue(
+        base, dependent_label, block_length=8, n_resamples=400, expected_sign=1, seed=4242
+    )
+    assert dependent["observed_ic"] is not None and dependent["observed_ic"] > 0
+    assert dependent["pvalue"] is not None and dependent["pvalue"] < 0.05
+    assert dependent["block_length"] == 8
+    assert dependent["test_direction"] == "greater"
+
+    unrelated_label = ((rng * 7 + 3) % 13 - 6.0).to_numpy(dtype=float)
+    unrelated = _moving_block_permutation_pvalue(
+        base, unrelated_label, block_length=8, n_resamples=400, expected_sign=1, seed=4242
+    )
+    assert unrelated["pvalue"] is not None and unrelated["pvalue"] > dependent["pvalue"]
+
+    short = _moving_block_permutation_pvalue(
+        base[:10], dependent_label[:10], block_length=8, n_resamples=400, expected_sign=1, seed=1
+    )
+    assert short["pvalue"] is None and short["observed_ic"] is None
+
+
+def test_moving_block_permutation_pvalue_is_deterministic() -> None:
+    series = pd.Series(range(300), dtype=float)
+    signal = (series % 11 - 5.0).to_numpy(dtype=float)
+    label = 0.2 * signal + ((series % 7 - 3.0).to_numpy(dtype=float))
+    first = _moving_block_permutation_pvalue(signal, label, block_length=4, n_resamples=300, expected_sign=1, seed=99)
+    second = _moving_block_permutation_pvalue(signal, label, block_length=4, n_resamples=300, expected_sign=1, seed=99)
+    assert first == second
+
+
+def test_benjamini_hochberg_controls_false_discovery() -> None:
+    result = _benjamini_hochberg([0.001, 0.04, 0.2, None, 0.5], alpha=0.10, m=5)
+    assert result["flags"] == [True, True, False, False, False]
+    assert result["cutoff_pvalue"] == 0.04
+    assert result["m"] == 5
+    none_result = _benjamini_hochberg([None, None], alpha=0.10, m=2)
+    assert none_result["flags"] == [False, False]
+    assert none_result["cutoff_pvalue"] is None
+
+
+def test_strict_falsification_decision_defaults_to_falsified() -> None:
+    survived = _strict_falsification_decision(
+        expected_sign=1,
+        observed_test_sign=1,
+        bootstrap_pvalue=0.001,
+        bh_significant=True,
+        sign_consistency_rate=0.75,
+        fold_consistency_rate=0.7,
+        null_robustness_rate=0.7,
+        degradation_ratio=1.0,
+    )
+    assert survived == "SURVIVED_STRICT_FALSIFICATION"
+    assert (
+        _strict_falsification_decision(
+            expected_sign=1, observed_test_sign=None, bootstrap_pvalue=None, bh_significant=False,
+            sign_consistency_rate=None, fold_consistency_rate=None, null_robustness_rate=0.0, degradation_ratio=None,
+        )
+        == "FALSIFIED_INSUFFICIENT_EVIDENCE"
+    )
+    assert (
+        _strict_falsification_decision(
+            expected_sign=1, observed_test_sign=-1, bootstrap_pvalue=0.01, bh_significant=True,
+            sign_consistency_rate=0.9, fold_consistency_rate=0.9, null_robustness_rate=0.9, degradation_ratio=1.0,
+        )
+        == "FALSIFIED_SIGN_FLIP"
+    )
+    assert (
+        _strict_falsification_decision(
+            expected_sign=1, observed_test_sign=1, bootstrap_pvalue=0.5, bh_significant=False,
+            sign_consistency_rate=0.9, fold_consistency_rate=0.9, null_robustness_rate=0.9, degradation_ratio=1.0,
+        )
+        == "FALSIFIED_NO_BOOTSTRAP_SIGNIFICANCE"
+    )
+
+
+def test_strict_falsification_preregisters_and_freezes_v3_queue(monkeypatch, tmp_path: Path) -> None:
+    frame = synthetic_frame(rows=420)
+    v3_artifact = write_v3_fixture_artifact(tmp_path, frame, candidate_budget=30)
+
+    def forbidden_generation(*_args, **_kwargs):
+        raise AssertionError("V4 must not generate new Signal DAG candidates")
+
+    monkeypatch.setattr(alpha_signal_factory_module, "generate_signal_dag_specs", forbidden_generation)
+    result = evaluate_alpha_signal_strict_falsification(
+        source_v3_artifact_path=v3_artifact,
+        market_bundle=market_bundle(frame),
+        funding_bundle=funding_bundle(frame),
+        fold_count=2,
+        bootstrap_resamples=200,
+        commands=["uv run quantctl alpha-signal-strict-falsification-run"],
+        changed_files=["src/parangsae/research/alpha_signal_factory.py"],
+    )
+    payload = result.payload
+    assert payload["suite_decision"] == ALPHA_SIGNAL_STRICT_FALSIFICATION_DECISION
+    assert payload["loop_namespace"] == ALPHA_SIGNAL_STRICT_FALSIFICATION_NAMESPACE
+    assert payload["readiness_baseline_verdict"] == READINESS_BASELINE_VERDICT
+    assert payload["candidate_universe_freeze"]["new_signal_dags_generated"] is False
+    assert payload["candidate_universe_freeze"]["signal_ids_changed"] is False
+    assert payload["strategy_optimization_performed"] is False
+    assert payload["tsmom_state_changed"] is False
+    assert payload["preregistered_hypothesis_count"] >= 1
+
+    queue_rows = pd.read_csv(v3_artifact / "next_falsification_queue.csv").to_dict(orient="records")
+    queued_families = {str(row["signal_family"]) for row in queue_rows}
+    assert {row["signal_family"] for row in result.preregistered_hypotheses} == queued_families
+    # frozen universe must be a sign-id-preserving subset of the V3 frozen universe, queued families only
+    v3_signal_ids = {json.loads(line)["signal_id"] for line in (v3_artifact / "frozen_candidate_universe.jsonl").read_text().splitlines() if line.strip()}
+    v4_signal_ids = {row["signal_id"] for row in result.frozen_candidate_universe}
+    assert v4_signal_ids.issubset(v3_signal_ids)
+    assert all(str(row["signal_family"]) in queued_families for row in result.frozen_candidate_universe)
+    # stricter purge/embargo than V3 (2x max queued horizon)
+    queued_horizons = {int(row["horizon_bars"]) for row in queue_rows}
+    assert payload["purge_bars"] == STRICT_PURGE_EMBARGO_MULTIPLIER * max(queued_horizons)
+    assert payload["embargo_bars"] == payload["purge_bars"]
+
+
+def test_strict_falsification_defaults_to_falsified_and_writes_bounded_artifacts(tmp_path: Path) -> None:
+    frame = synthetic_frame(rows=420)
+    v3_artifact = write_v3_fixture_artifact(tmp_path, frame, candidate_budget=34)
+    result = evaluate_alpha_signal_strict_falsification(
+        source_v3_artifact_path=v3_artifact,
+        market_bundle=market_bundle(frame),
+        funding_bundle=funding_bundle(frame),
+        fold_count=2,
+        bootstrap_resamples=200,
+        commands=["uv run pytest tests/test_alpha_signal_factory.py -q"],
+        changed_files=["src/parangsae/research/alpha_signal_factory.py"],
+    )
+    payload = result.payload
+    valid_decisions = {
+        "SURVIVED_STRICT_FALSIFICATION",
+        "FALSIFIED_SIGN_FLIP",
+        "FALSIFIED_OOS_INCONSISTENT",
+        "FALSIFIED_NULL_FRAGILE",
+        "FALSIFIED_DEGRADATION",
+        "FALSIFIED_NO_BOOTSTRAP_SIGNIFICANCE",
+        "FALSIFIED_INSUFFICIENT_EVIDENCE",
+    }
+    assert payload["claim_boundary"] == STRICT_FALSIFICATION_CLAIM_BOUNDARY
+    assert payload["summary"]["default_outcome_is_falsified"] is True
+    assert payload["summary"]["survivors_are_not_alpha_confirmation"] is True
+    assert payload["suite_decision"] not in STRICT_FORBIDDEN_OUTPUT_LABELS
+    assert result.family_strict_falsification_summary, "fixture must yield at least one hypothesis"
+    for row in result.family_strict_falsification_summary:
+        assert row["strict_decision"] in valid_decisions
+        assert row["strict_decision"] not in STRICT_FORBIDDEN_OUTPUT_LABELS
+        assert row["decision_is_alpha_confirmation"] is False
+    # bootstrap block length must equal the pre-registered horizon (autocorrelation-aware)
+    for row in result.bootstrap_significance_summary:
+        assert row["block_length"] == int(row["horizon_bars"])
+    assert any(row["cannot_claim_edge_due_to_multiple_testing"] for row in result.multiple_testing_fdr_summary)
+    # survivors only ever flow into a paper-only next protocol queue
+    for row in result.next_protocol_queue:
+        assert row["queue_decision"] == "NEEDS_EXECUTION_AWARE_PROTOCOL"
+
+    out = write_alpha_signal_strict_falsification_artifacts(tmp_path / "v4", result)
+    assert {path.name for path in out.iterdir()} == set(payload["evidence_artifacts"])
+    saved = json.loads((out / "alpha_signal_strict_falsification.json").read_text())
+    assert saved["readiness_baseline_verdict"] == "NOT_READY"
+    assert saved["candidate_universe_freeze"]["new_signal_dags_generated"] is False
+
+
+def test_cli_strict_falsification_uses_public_no_credential_no_live_path(monkeypatch, tmp_path: Path) -> None:
+    source_frame = synthetic_frame(rows=420)
+    v3_artifact = write_v3_fixture_artifact(tmp_path, source_frame, candidate_budget=26)
+    frame = synthetic_frame(rows=1300)
+    args = Namespace(
+        source_v3_artifact=str(v3_artifact),
+        symbol="BTCUSDT",
+        interval="1h",
+        months="2024-01,2024-02",
+        cache_dir="unused-cache",
+        funding_source="public-binance",
+        funding_cache_dir="unused-funding-cache",
+        reports_root=str(tmp_path / "reports"),
+        output_dir=None,
+        overwrite=False,
+        command=None,
+        changed_file=None,
+    )
+    monkeypatch.setattr(quantctl, "load_market_data_bundle", lambda **_: market_bundle(frame))
+    monkeypatch.setattr(quantctl, "fetch_funding_rate_history", lambda **_: funding_bundle(frame))
+    monkeypatch.setenv("BINANCE_API_KEY", "SHOULD_NOT_BE_READ")
+    monkeypatch.setenv("BINANCE_API_SECRET", "SHOULD_NOT_BE_READ")
+    real_getenv = os.getenv
+
+    def guarded_getenv(key, default=None):
+        if key in {"BINANCE_API_KEY", "BINANCE_API_SECRET"}:
+            raise AssertionError(f"strict falsification must not read {key}")
+        return real_getenv(key, default)
+
+    monkeypatch.setattr(os, "getenv", guarded_getenv)
+    assert quantctl.cmd_alpha_signal_strict_falsification_run(args) == 0
+    report_dirs = list((tmp_path / "reports" / "loops").iterdir())
+    assert len(report_dirs) == 1
+    payload = json.loads((report_dirs[0] / "alpha_signal_strict_falsification.json").read_text())
+    assert payload["suite_decision"] == "STRICT_FALSIFICATION_PROTOCOL_INFRA_ONLY"
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert payload["tsmom_state_changed"] is False
+    assert payload["safety_gates"]["no_api_key_used"] is True
+    assert payload["live_or_testnet_path_created"] is False

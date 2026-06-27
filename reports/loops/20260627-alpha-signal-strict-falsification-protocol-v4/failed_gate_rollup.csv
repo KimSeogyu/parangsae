@@ -1,0 +1,7 @@
+gate,status,reason
+preregistration_lock,passed,"5 hypotheses, expected signs, and survival thresholds locked from frozen V3 queue before evaluation"
+sign_flip_guard,watch,1 hypotheses falsified by post-hoc sign flip vs pre-registered direction
+bootstrap_fdr_significance,unclaimed,no hypothesis is Benjamini-Hochberg significant after correction; edge cannot be claimed
+strict_family_survival,watch,5 of 5 pre-registered hypotheses were falsified
+readiness_boundary,passed,readiness_baseline_verdict remains NOT_READY
+tsmom_state_unchanged,passed,TSMOM artifacts are not modified or restored

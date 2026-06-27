@@ -151,6 +151,59 @@ ALPHA_OOS_FDR_REQUIRED_FILES = (
     "changed_files.txt",
 )
 ALPHA_OOS_FDR_KNOWN_FILES = set(ALPHA_OOS_FDR_REQUIRED_FILES)
+ALPHA_SIGNAL_STRICT_FALSIFICATION_SCHEMA_VERSION = 4
+ALPHA_SIGNAL_STRICT_FALSIFICATION_LOOP_SLUG = "alpha-signal-strict-falsification-protocol-v4"
+DEFAULT_ALPHA_SIGNAL_OOS_FDR_V3_ARTIFACT = Path("reports/loops/20260627-alpha-signal-oos-fdr-validation-protocol-v3")
+ALPHA_SIGNAL_STRICT_FALSIFICATION_NAMESPACE = "alpha_signal_strict_falsification_protocol_v4_only_not_readiness"
+ALPHA_SIGNAL_STRICT_FALSIFICATION_DECISION = "STRICT_FALSIFICATION_PROTOCOL_INFRA_ONLY"
+STRICT_PREREGISTERED_ALPHA = 0.10
+STRICT_BOOTSTRAP_RESAMPLES = 2000
+STRICT_BOOTSTRAP_SEED_BASE = 20260628
+STRICT_MIN_BOOTSTRAP_OBSERVATIONS = 24
+STRICT_SIGN_CONSISTENCY_MIN = 0.60
+STRICT_FOLD_CONSISTENCY_MIN = 0.60
+STRICT_NULL_ROBUSTNESS_MIN = 0.60
+STRICT_DEGRADATION_LOW = 0.5
+STRICT_DEGRADATION_HIGH = 2.0
+STRICT_PURGE_EMBARGO_MULTIPLIER = 2
+STRICT_FOLD_COUNT = 4
+STRICT_FALSIFICATION_CLAIM_BOUNDARY = (
+    "ALPHA_SIGNAL_STRICT_FALSIFICATION_PROTOCOL_V4 is a paper-only pre-registered stricter "
+    "out-of-sample falsification protocol over the frozen V3 next-falsification queue. It tries "
+    "to reject queued family/horizon hypotheses and defaults to FALSIFIED. SURVIVED_STRICT_FALSIFICATION "
+    "means a hypothesis was not rejected by this protocol; it is NOT alpha confirmation, NOT a proven "
+    "edge, NOT a trading strategy, NOT signal-weight optimization, NOT profitability evidence, NOT "
+    "readiness or live readiness, and NOT permission for live/testnet/account/API-key/order/fill use."
+)
+STRICT_FALSIFICATION_MULTIPLE_TESTING_BOUNDARY = (
+    "V4 evaluates a small frozen pre-registered hypothesis set selected from a much larger V2/V3 "
+    "candidate universe. Bootstrap p-values are Benjamini-Hochberg corrected and selection-deflated; "
+    "surviving the correction is still not proof of alpha because the hypotheses were chosen after "
+    "broad multiple testing. Survivors may only enter a paper-only next protocol queue."
+)
+STRICT_PREREGISTRATION_BOUNDARY = (
+    "Hypotheses, expected IC sign, fold construction, purge/embargo, bootstrap block length, "
+    "resample count, false-discovery alpha, and survival thresholds are pre-registered from the "
+    "frozen V3 queue before evaluation. Post-hoc sign flips and threshold retuning are forbidden "
+    "and force FALSIFIED."
+)
+STRICT_FORBIDDEN_OUTPUT_LABELS = OOS_FORBIDDEN_OUTPUT_LABELS | {"ALPHA_CONFIRMED", "EDGE_PROVEN"}
+ALPHA_STRICT_REQUIRED_FILES = (
+    "alpha_signal_strict_falsification.json",
+    "preregistered_hypotheses.csv",
+    "frozen_candidate_universe.jsonl",
+    "strict_chronological_folds.csv",
+    "signal_strict_oos_diagnostics.csv",
+    "bootstrap_significance_summary.csv",
+    "family_strict_falsification_summary.csv",
+    "multiple_testing_fdr_summary.csv",
+    "failed_gate_rollup.csv",
+    "next_protocol_queue.csv",
+    "report.md",
+    "commands.txt",
+    "changed_files.txt",
+)
+ALPHA_STRICT_KNOWN_FILES = set(ALPHA_STRICT_REQUIRED_FILES)
 
 SignalDecision = Literal[
     "KILL_SIGNAL",
@@ -166,6 +219,15 @@ DAGSignalDecision = Literal[
     "WATCH_DIAGNOSTIC_ONLY",
     "NEGATIVE_CONTROL_CANDIDATE",
     "NEEDS_OOS_FALSIFICATION",
+]
+StrictFalsificationDecision = Literal[
+    "SURVIVED_STRICT_FALSIFICATION",
+    "FALSIFIED_SIGN_FLIP",
+    "FALSIFIED_OOS_INCONSISTENT",
+    "FALSIFIED_NULL_FRAGILE",
+    "FALSIFIED_DEGRADATION",
+    "FALSIFIED_NO_BOOTSTRAP_SIGNIFICANCE",
+    "FALSIFIED_INSUFFICIENT_EVIDENCE",
 ]
 
 
@@ -322,6 +384,20 @@ class SignalOosFdrValidationResult:
     multiple_testing_fdr_summary: list[dict[str, Any]]
     failed_gates: list[dict[str, Any]]
     next_falsification_queue: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class StrictFalsificationResult:
+    payload: dict[str, Any]
+    preregistered_hypotheses: list[dict[str, Any]]
+    frozen_candidate_universe: list[dict[str, Any]]
+    strict_chronological_folds: list[dict[str, Any]]
+    signal_strict_oos_diagnostics: list[dict[str, Any]]
+    bootstrap_significance_summary: list[dict[str, Any]]
+    family_strict_falsification_summary: list[dict[str, Any]]
+    multiple_testing_fdr_summary: list[dict[str, Any]]
+    failed_gates: list[dict[str, Any]]
+    next_protocol_queue: list[dict[str, Any]]
 
 
 def default_alpha_signal_factory_output_dir(
@@ -3206,3 +3282,762 @@ def _corresponding_oos_for_overall_best(family_rows: list[dict[str, Any]]) -> fl
         return None
     best = max(family_rows, key=lambda row: abs(float(row["best_validation_ic"] or 0.0)))
     return _finite_or_none(best.get("corresponding_test_ic_for_best_validation_signal"))
+
+
+def default_alpha_signal_strict_falsification_output_dir(
+    *,
+    root: str | Path = "reports/loops",
+    today: str | None = None,
+) -> Path:
+    stamp = today or datetime.now(UTC).strftime("%Y%m%d")
+    return Path(root) / f"{stamp}-{ALPHA_SIGNAL_STRICT_FALSIFICATION_LOOP_SLUG}"
+
+
+def evaluate_alpha_signal_strict_falsification(
+    *,
+    source_v3_artifact_path: str | Path = DEFAULT_ALPHA_SIGNAL_OOS_FDR_V3_ARTIFACT,
+    market_bundle: MarketDataBundle,
+    funding_bundle: FundingRateBundle | None = None,
+    fold_count: int = STRICT_FOLD_COUNT,
+    bootstrap_resamples: int = STRICT_BOOTSTRAP_RESAMPLES,
+    preregistered_alpha: float = STRICT_PREREGISTERED_ALPHA,
+    commands: Iterable[str] = (),
+    changed_files: Iterable[str] = (),
+) -> StrictFalsificationResult:
+    source_path = Path(source_v3_artifact_path)
+    source_payload, queue_rows, frozen_catalog, _family_summary = _load_v3_falsification_queue_artifact(source_path)
+    source_effective_breadth = int(source_payload.get("effective_signal_breadth", 0))
+    preregistered = _preregistered_hypothesis_rows(queue_rows, source_effective_breadth=source_effective_breadth)
+    preregistered_pairs = {(row["signal_family"], int(row["horizon_bars"])) for row in preregistered}
+    queued_families = {family for family, _ in preregistered_pairs}
+    queued_horizons = tuple(sorted({int(horizon) for _, horizon in preregistered_pairs}))
+
+    specs = [SignalDagSpec.from_dict(row) for row in frozen_catalog if str(row["signal_family"]) in queued_families]
+    frame = _normalize_ohlcv(market_bundle.frame)
+    funding = _align_public_funding(frame.index, funding_bundle.frame if funding_bundle is not None else None)
+
+    folds: list[dict[str, Any]] = []
+    diagnostic_rows: list[dict[str, Any]] = []
+    null_rows: list[dict[str, Any]] = []
+    bootstrap_rows: list[dict[str, Any]] = []
+    family_rows: list[dict[str, Any]] = []
+    multiple_testing_rows: list[dict[str, Any]] = []
+    next_queue: list[dict[str, Any]] = []
+    purge = embargo = 0
+    if specs and preregistered_pairs:
+        max_horizon = max(queued_horizons)
+        purge = embargo = STRICT_PURGE_EMBARGO_MULTIPLIER * max_horizon
+        folds = build_oos_chronological_folds(
+            frame.index,
+            horizons=queued_horizons,
+            fold_count=fold_count,
+            purge_bars=purge,
+            embargo_bars=embargo,
+        )
+        labels = _forward_return_labels(frame, horizons=queued_horizons)
+        base_series = _dag_base_series(frame, funding)
+        signals: dict[str, pd.Series] = {}
+        for spec in specs:
+            raw_signal = _build_signal_dag_series_prepared(spec, frame=frame, funding=funding, base_series=base_series)
+            signals[spec.signal_id] = lag_signal_for_labels(raw_signal, lag_bars=spec.lag_bars)
+        all_diagnostics = _oos_signal_diagnostic_rows(specs=specs, signals=signals, labels=labels, folds=folds)
+        diagnostic_rows = [row for row in all_diagnostics if (str(row["signal_family"]), int(row["horizon_bars"])) in preregistered_pairs]
+        representatives = _representative_signal_rows(specs=specs, clusters=[], signals=signals)
+        all_null = _oos_null_baseline_rows(signals=signals, specs=specs, representatives=representatives, labels=labels, folds=folds)
+        null_rows = [row for row in all_null if (str(row["signal_family"]), int(row["horizon_bars"])) in preregistered_pairs]
+        family_signals = {
+            family: _mean_signal([signals[spec.signal_id] for spec in specs if spec.signal_family == family])
+            for family in queued_families
+        }
+        bootstrap_rows = _strict_bootstrap_significance_rows(
+            preregistered=preregistered,
+            family_signals=family_signals,
+            labels=labels,
+            folds=folds,
+            n_resamples=bootstrap_resamples,
+        )
+        multiple_testing_rows = _strict_multiple_testing_fdr_rows(
+            bootstrap_rows=bootstrap_rows,
+            preregistered=preregistered,
+            alpha=preregistered_alpha,
+            source_effective_breadth=source_effective_breadth,
+        )
+        bh_lookup = {(row["signal_family"], int(row["horizon_bars"])): row for row in multiple_testing_rows if row["scope"] != "overall"}
+        bootstrap_lookup = {(row["signal_family"], int(row["horizon_bars"])): row for row in bootstrap_rows}
+        family_rows = _strict_family_falsification_rows(
+            preregistered=preregistered,
+            diagnostic_rows=diagnostic_rows,
+            null_rows=null_rows,
+            bootstrap_lookup=bootstrap_lookup,
+            bh_lookup=bh_lookup,
+        )
+        next_queue = _strict_next_protocol_queue_rows(family_rows)
+
+    survived = sum(1 for row in family_rows if row["strict_decision"] == "SURVIVED_STRICT_FALSIFICATION")
+    falsified = sum(1 for row in family_rows if str(row["strict_decision"]).startswith("FALSIFIED"))
+    failed_gates = _strict_failed_gate_rows(family_rows, multiple_testing_rows, preregistered=preregistered)
+    payload = {
+        "schema_version": ALPHA_SIGNAL_STRICT_FALSIFICATION_SCHEMA_VERSION,
+        "loop_id": f"{datetime.now(UTC).strftime('%Y%m%d')}-{ALPHA_SIGNAL_STRICT_FALSIFICATION_LOOP_SLUG}",
+        "loop_namespace": ALPHA_SIGNAL_STRICT_FALSIFICATION_NAMESPACE,
+        "loop_type": "falsification_protocol",
+        "status": "IMPLEMENTED",
+        "suite_decision": ALPHA_SIGNAL_STRICT_FALSIFICATION_DECISION,
+        "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+        "source_v3_artifact_path": str(source_path),
+        "source_v3_effective_signal_breadth": source_effective_breadth,
+        "preregistered_hypothesis_count": len(preregistered),
+        "evaluated_family_horizon_count": len(family_rows),
+        "frozen_candidate_count": len(specs),
+        "evaluated_signal_count": len({spec.signal_id for spec in specs}),
+        "queued_families": sorted(queued_families),
+        "queued_horizons": list(queued_horizons),
+        "strict_fold_count": len(folds),
+        "purge_bars": purge,
+        "embargo_bars": embargo,
+        "bootstrap_resamples": int(bootstrap_resamples),
+        "preregistered_alpha": float(preregistered_alpha),
+        "survived_strict_falsification_count": survived,
+        "falsified_count": falsified,
+        "multiple_testing_boundary": STRICT_FALSIFICATION_MULTIPLE_TESTING_BOUNDARY,
+        "preregistration_boundary": STRICT_PREREGISTRATION_BOUNDARY,
+        "leakage_boundary": LEAKAGE_BOUNDARY,
+        "claim_boundary": STRICT_FALSIFICATION_CLAIM_BOUNDARY,
+        "safety_gates": {
+            "no_live_orders_submitted": True,
+            "no_testnet_orders_submitted": True,
+            "no_account_data_used": True,
+            "no_api_key_used": True,
+            "no_private_order_or_fill_data_used": True,
+            "live_orders_submitted": False,
+            "testnet_orders_submitted": False,
+            "api_keys_required_for_research": False,
+            "account_or_fill_data_used": False,
+            "profit_or_live_ready_claim": False,
+            "live_trading_path_introduced": False,
+        },
+        "tsmom_state_changed": False,
+        "holdout_retune_used": False,
+        "strategy_optimization_performed": False,
+        "live_or_testnet_path_created": False,
+        "candidate_universe_freeze": {
+            "source_signal_ids_preserved": True,
+            "new_signal_dags_generated": False,
+            "signal_ids_changed": False,
+            "performance_based_candidate_addition": False,
+            "threshold_or_horizon_retune_based_on_results": False,
+        },
+        "dataset_provenance": _dataset_provenance(market_bundle, funding_bundle),
+        "summary": {
+            "forbidden_outputs": sorted(STRICT_FORBIDDEN_OUTPUT_LABELS),
+            "cannot_claim_edge_due_to_multiple_testing": True,
+            "survivors_are_not_alpha_confirmation": True,
+            "paper_only_next_protocol_queue": True,
+            "default_outcome_is_falsified": True,
+        },
+        "validation_commands": list(commands),
+        "changed_files": list(changed_files),
+        "evidence_artifacts": list(ALPHA_STRICT_REQUIRED_FILES),
+        "next_loop": "Use next_protocol_queue.csv only as input to a separate paper-only execution-aware protocol; surviving falsification is not alpha confirmation and never authorizes trading or readiness.",
+    }
+    return StrictFalsificationResult(
+        payload=payload,
+        preregistered_hypotheses=preregistered,
+        frozen_candidate_universe=[row for row in frozen_catalog if str(row["signal_family"]) in queued_families],
+        strict_chronological_folds=_public_fold_rows(folds),
+        signal_strict_oos_diagnostics=diagnostic_rows,
+        bootstrap_significance_summary=bootstrap_rows,
+        family_strict_falsification_summary=family_rows,
+        multiple_testing_fdr_summary=multiple_testing_rows,
+        failed_gates=failed_gates,
+        next_protocol_queue=next_queue,
+    )
+
+
+def _load_v3_falsification_queue_artifact(
+    source_path: Path,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    required = (
+        "alpha_signal_oos_fdr_validation.json",
+        "next_falsification_queue.csv",
+        "frozen_candidate_universe.jsonl",
+        "family_oos_summary.csv",
+    )
+    missing = [name for name in required if not (source_path / name).exists()]
+    if missing:
+        raise FileNotFoundError(f"source V3 artifact missing required files: {missing}")
+    payload = json.loads((source_path / "alpha_signal_oos_fdr_validation.json").read_text())
+    queue_frame = pd.read_csv(source_path / "next_falsification_queue.csv") if (source_path / "next_falsification_queue.csv").stat().st_size else pd.DataFrame()
+    queue_rows = _frame(queue_frame).to_dict(orient="records") if not queue_frame.empty else []
+    frozen_catalog = [json.loads(line) for line in (source_path / "frozen_candidate_universe.jsonl").read_text().splitlines() if line.strip()]
+    family_summary = _frame(pd.read_csv(source_path / "family_oos_summary.csv")).to_dict(orient="records")
+    if not frozen_catalog:
+        raise ValueError("frozen V3 candidate universe is empty")
+    return payload, queue_rows, frozen_catalog, family_summary
+
+
+def _preregistered_hypothesis_rows(
+    queue_rows: list[dict[str, Any]],
+    *,
+    source_effective_breadth: int,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for q in queue_rows:
+        median_ic = _finite_or_none(q.get("median_test_ic"))
+        expected_sign = 0 if median_ic is None else int(_safe_sign(median_ic))
+        rows.append(
+            {
+                "signal_family": str(q["signal_family"]),
+                "horizon_bars": int(q["horizon_bars"]),
+                "preregistered_expected_ic_sign": expected_sign,
+                "source_v3_queue_decision": str(q.get("queue_decision", "")),
+                "source_v3_median_test_ic": median_ic,
+                "source_v3_effective_signal_breadth": int(q.get("effective_signal_breadth") or 0),
+                "source_v3_universe_effective_breadth": source_effective_breadth,
+                "preregistered_alpha": STRICT_PREREGISTERED_ALPHA,
+                "preregistered_sign_consistency_min": STRICT_SIGN_CONSISTENCY_MIN,
+                "preregistered_fold_consistency_min": STRICT_FOLD_CONSISTENCY_MIN,
+                "preregistered_null_robustness_min": STRICT_NULL_ROBUSTNESS_MIN,
+                "preregistered_degradation_band": f"[{STRICT_DEGRADATION_LOW}, {STRICT_DEGRADATION_HIGH}]",
+                "preregistered_bootstrap_resamples": STRICT_BOOTSTRAP_RESAMPLES,
+                "preregistration_boundary": STRICT_PREREGISTRATION_BOUNDARY,
+                "claim_boundary": STRICT_FALSIFICATION_CLAIM_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _strict_seed(family: str, horizon: int) -> int:
+    return STRICT_BOOTSTRAP_SEED_BASE + (sum(ord(char) for char in family) * 131 + int(horizon) * 17)
+
+
+def _pearson_fast(left: np.ndarray, right: np.ndarray) -> float | None:
+    mask = np.isfinite(left) & np.isfinite(right)
+    if int(mask.sum()) < 3:
+        return None
+    lhs = left[mask]
+    rhs = right[mask]
+    lhs = lhs - float(np.mean(lhs))
+    rhs = rhs - float(np.mean(rhs))
+    denominator = math.sqrt(float(lhs @ lhs) * float(rhs @ rhs))
+    if denominator == 0.0:
+        return None
+    value = float(lhs @ rhs) / denominator
+    return value if math.isfinite(value) else None
+
+
+def _pooled_oos_test_arrays(
+    signal: pd.Series,
+    label: pd.Series,
+    folds: list[dict[str, Any]],
+    horizon: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    signal_parts: list[np.ndarray] = []
+    label_parts: list[np.ndarray] = []
+    for fold in folds:
+        if int(fold["horizon_bars"]) != int(horizon):
+            continue
+        start = int(fold["test_start_pos"])
+        end = int(fold["test_end_pos"])
+        signal_parts.append(_coerce_float_series(signal.iloc[start:end]).to_numpy(dtype=float))
+        label_parts.append(_coerce_float_series(label.iloc[start:end]).to_numpy(dtype=float))
+    if not signal_parts:
+        return np.array([], dtype=float), np.array([], dtype=float)
+    return np.concatenate(signal_parts), np.concatenate(label_parts)
+
+
+def _moving_block_permutation_pvalue(
+    signal: np.ndarray,
+    label: np.ndarray,
+    *,
+    block_length: int,
+    n_resamples: int,
+    expected_sign: int,
+    seed: int,
+) -> dict[str, Any]:
+    """Block-permutation significance test for the signal/label correlation.
+
+    The label series is partitioned into non-overlapping contiguous blocks of
+    ``block_length`` (set to the horizon by callers) whose order is randomly
+    shuffled while the signal stays fixed. This preserves within-block label
+    autocorrelation while destroying the signal-label alignment, then yields an
+    add-one one-sided p-value in the pre-registered direction (two-sided when
+    ``expected_sign`` is zero). Insufficient data returns ``pvalue=None``.
+    """
+    mask = np.isfinite(signal) & np.isfinite(label)
+    sample_signal = signal[mask].astype(float)
+    sample_label = label[mask].astype(float)
+    observation_count = int(sample_signal.shape[0])
+    result: dict[str, Any] = {
+        "observed_ic": None,
+        "pvalue": None,
+        "n_observations": observation_count,
+        "block_length": int(max(1, block_length)),
+        "n_resamples": int(n_resamples),
+        "null_mean_ic": None,
+        "null_std_ic": None,
+        "test_direction": "two_sided" if expected_sign == 0 else ("greater" if expected_sign > 0 else "less"),
+    }
+    if observation_count < STRICT_MIN_BOOTSTRAP_OBSERVATIONS:
+        return result
+    observed = _pearson_fast(sample_signal, sample_label)
+    if observed is None:
+        return result
+    result["observed_ic"] = _finite_or_none(observed)
+    block = max(1, int(block_length))
+    block_count = int(math.ceil(observation_count / block))
+    index_blocks = [np.arange(i * block, min((i + 1) * block, observation_count)) for i in range(block_count)]
+    rng = np.random.default_rng(int(seed))
+    null_values: list[float] = []
+    at_least_as_extreme = 0
+    for _ in range(int(n_resamples)):
+        order = rng.permutation(block_count)
+        permuted_index = np.concatenate([index_blocks[block_id] for block_id in order])
+        null_ic = _pearson_fast(sample_signal, sample_label[permuted_index])
+        if null_ic is None:
+            continue
+        null_values.append(null_ic)
+        if expected_sign > 0 and null_ic >= observed:
+            at_least_as_extreme += 1
+        elif expected_sign < 0 and null_ic <= observed:
+            at_least_as_extreme += 1
+        elif expected_sign == 0 and abs(null_ic) >= abs(observed):
+            at_least_as_extreme += 1
+    if null_values:
+        result["pvalue"] = _finite_or_none((1.0 + at_least_as_extreme) / (len(null_values) + 1.0))
+        result["null_mean_ic"] = _finite_or_none(float(np.mean(null_values)))
+        result["null_std_ic"] = _finite_or_none(float(np.std(null_values)))
+    return result
+
+
+def _strict_bootstrap_significance_rows(
+    *,
+    preregistered: list[dict[str, Any]],
+    family_signals: dict[str, pd.Series],
+    labels: dict[int, pd.Series],
+    folds: list[dict[str, Any]],
+    n_resamples: int,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for hypothesis in preregistered:
+        family = str(hypothesis["signal_family"])
+        horizon = int(hypothesis["horizon_bars"])
+        expected_sign = int(hypothesis["preregistered_expected_ic_sign"])
+        signal = family_signals.get(family)
+        if signal is None or horizon not in labels:
+            rows.append(
+                {
+                    "signal_family": family,
+                    "horizon_bars": horizon,
+                    "preregistered_expected_ic_sign": expected_sign,
+                    "observed_test_ic": None,
+                    "bootstrap_pvalue": None,
+                    "block_length": horizon,
+                    "n_resamples": int(n_resamples),
+                    "n_test_observations": 0,
+                    "null_mean_ic": None,
+                    "null_std_ic": None,
+                    "test_direction": "two_sided" if expected_sign == 0 else ("greater" if expected_sign > 0 else "less"),
+                    "claim_boundary": STRICT_FALSIFICATION_CLAIM_BOUNDARY,
+                }
+            )
+            continue
+        pooled_signal, pooled_label = _pooled_oos_test_arrays(signal, labels[horizon], folds, horizon)
+        stats = _moving_block_permutation_pvalue(
+            pooled_signal,
+            pooled_label,
+            block_length=horizon,
+            n_resamples=n_resamples,
+            expected_sign=expected_sign,
+            seed=_strict_seed(family, horizon),
+        )
+        rows.append(
+            {
+                "signal_family": family,
+                "horizon_bars": horizon,
+                "preregistered_expected_ic_sign": expected_sign,
+                "observed_test_ic": stats["observed_ic"],
+                "bootstrap_pvalue": stats["pvalue"],
+                "block_length": stats["block_length"],
+                "n_resamples": stats["n_resamples"],
+                "n_test_observations": stats["n_observations"],
+                "null_mean_ic": stats["null_mean_ic"],
+                "null_std_ic": stats["null_std_ic"],
+                "test_direction": stats["test_direction"],
+                "claim_boundary": STRICT_FALSIFICATION_CLAIM_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _benjamini_hochberg(
+    pvalues: list[float | None],
+    *,
+    alpha: float,
+    m: int | None = None,
+) -> dict[str, Any]:
+    indexed = [(position, value) for position, value in enumerate(pvalues) if value is not None]
+    total = int(m) if m is not None else len(indexed)
+    flags = [False] * len(pvalues)
+    ranks: list[int | None] = [None] * len(pvalues)
+    thresholds: list[float | None] = [None] * len(pvalues)
+    if not indexed or total <= 0:
+        return {"flags": flags, "ranks": ranks, "thresholds": thresholds, "cutoff_pvalue": None, "alpha": float(alpha), "m": total}
+    ordered = sorted(indexed, key=lambda item: item[1])
+    cutoff_rank = 0
+    for rank, (_position, value) in enumerate(ordered, start=1):
+        if value <= (rank / total) * alpha:
+            cutoff_rank = rank
+    cutoff_pvalue = ordered[cutoff_rank - 1][1] if cutoff_rank > 0 else None
+    for rank, (position, value) in enumerate(ordered, start=1):
+        ranks[position] = rank
+        thresholds[position] = (rank / total) * alpha
+        if cutoff_pvalue is not None and value <= cutoff_pvalue:
+            flags[position] = True
+    return {"flags": flags, "ranks": ranks, "thresholds": thresholds, "cutoff_pvalue": cutoff_pvalue, "alpha": float(alpha), "m": total}
+
+
+def _strict_multiple_testing_fdr_rows(
+    *,
+    bootstrap_rows: list[dict[str, Any]],
+    preregistered: list[dict[str, Any]],
+    alpha: float,
+    source_effective_breadth: int,
+) -> list[dict[str, Any]]:
+    pvalues = [row["bootstrap_pvalue"] for row in bootstrap_rows]
+    hypothesis_count = len(preregistered)
+    benjamini = _benjamini_hochberg(pvalues, alpha=alpha, m=hypothesis_count)
+    deflation_factor = max(1, source_effective_breadth) / max(1, hypothesis_count)
+    deflated_alpha = alpha / deflation_factor
+    benjamini_deflated = _benjamini_hochberg(pvalues, alpha=deflated_alpha, m=max(hypothesis_count, source_effective_breadth))
+    discoveries = sum(1 for flag in benjamini["flags"] if flag)
+    rows: list[dict[str, Any]] = [
+        {
+            "scope": "overall",
+            "signal_family": "ALL",
+            "horizon_bars": -1,
+            "hypothesis_count": hypothesis_count,
+            "preregistered_alpha": float(alpha),
+            "bh_cutoff_pvalue": benjamini["cutoff_pvalue"],
+            "bh_discoveries": discoveries,
+            "selection_deflation_factor": _finite_or_none(deflation_factor),
+            "selection_deflated_alpha": _finite_or_none(deflated_alpha),
+            "selection_deflated_discoveries": sum(1 for flag in benjamini_deflated["flags"] if flag),
+            "source_v3_universe_effective_breadth": source_effective_breadth,
+            "bootstrap_pvalue": None,
+            "bh_threshold": None,
+            "bh_rank": None,
+            "bh_significant": discoveries > 0,
+            "selection_deflated_significant": sum(1 for flag in benjamini_deflated["flags"] if flag) > 0,
+            "approximate_false_discovery_warning": "BH correction over a pre-registered set selected from broad multiple testing; survival is not edge confirmation",
+            "multiple_testing_boundary": STRICT_FALSIFICATION_MULTIPLE_TESTING_BOUNDARY,
+            "cannot_claim_edge_due_to_multiple_testing": True,
+            "claim_boundary": STRICT_FALSIFICATION_CLAIM_BOUNDARY,
+        }
+    ]
+    for position, row in enumerate(bootstrap_rows):
+        rows.append(
+            {
+                "scope": f"{row['signal_family']}_h{row['horizon_bars']}",
+                "signal_family": row["signal_family"],
+                "horizon_bars": int(row["horizon_bars"]),
+                "hypothesis_count": hypothesis_count,
+                "preregistered_alpha": float(alpha),
+                "bh_cutoff_pvalue": benjamini["cutoff_pvalue"],
+                "bh_discoveries": discoveries,
+                "selection_deflation_factor": _finite_or_none(deflation_factor),
+                "selection_deflated_alpha": _finite_or_none(deflated_alpha),
+                "selection_deflated_discoveries": sum(1 for flag in benjamini_deflated["flags"] if flag),
+                "source_v3_universe_effective_breadth": source_effective_breadth,
+                "bootstrap_pvalue": row["bootstrap_pvalue"],
+                "bh_threshold": benjamini["thresholds"][position],
+                "bh_rank": benjamini["ranks"][position],
+                "bh_significant": bool(benjamini["flags"][position]),
+                "selection_deflated_significant": bool(benjamini_deflated["flags"][position]),
+                "approximate_false_discovery_warning": "single pre-registered hypothesis; not edge confirmation even if BH-significant",
+                "multiple_testing_boundary": STRICT_FALSIFICATION_MULTIPLE_TESTING_BOUNDARY,
+                "cannot_claim_edge_due_to_multiple_testing": True,
+                "claim_boundary": STRICT_FALSIFICATION_CLAIM_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _strict_family_falsification_rows(
+    *,
+    preregistered: list[dict[str, Any]],
+    diagnostic_rows: list[dict[str, Any]],
+    null_rows: list[dict[str, Any]],
+    bootstrap_lookup: dict[tuple[str, int], dict[str, Any]],
+    bh_lookup: dict[tuple[str, int], dict[str, Any]],
+) -> list[dict[str, Any]]:
+    diagnostics = _frame(pd.DataFrame(diagnostic_rows))
+    rows: list[dict[str, Any]] = []
+    for hypothesis in preregistered:
+        family = str(hypothesis["signal_family"])
+        horizon = int(hypothesis["horizon_bars"])
+        expected_sign = int(hypothesis["preregistered_expected_ic_sign"])
+        key = (family, horizon)
+        if not diagnostics.empty:
+            subset = _frame(
+                diagnostics[(diagnostics["signal_family"] == family) & (diagnostics["horizon_bars"] == horizon)]
+            )
+        else:
+            subset = pd.DataFrame()
+        validation_values = _series(pd.to_numeric(subset["validation_ic"], errors="coerce")).dropna() if not subset.empty else pd.Series(dtype=float)
+        test_values = _series(pd.to_numeric(subset["test_ic"], errors="coerce")).dropna() if not subset.empty else pd.Series(dtype=float)
+        median_validation = _finite_or_none(validation_values.median()) if not validation_values.empty else None
+        median_test = _finite_or_none(test_values.median()) if not test_values.empty else None
+        sign_consistency_rate = (
+            _finite_or_none(_series(subset["sign_consistency_train_to_test"]).dropna().astype(float).mean())
+            if not subset.empty and not _series(subset["sign_consistency_train_to_test"]).dropna().empty
+            else None
+        )
+        fold_consistency_rate = _fold_consistency_rate(subset) if not subset.empty else None
+        degradation = _degradation_ratio(median_validation, median_test)
+        family_null_rows = [
+            row
+            for row in null_rows
+            if row["comparison_level"] == "family" and row["signal_family"] == family and int(row["horizon_bars"]) == horizon
+        ]
+        null_available = [row for row in family_null_rows if row["signal_beats_baseline_oos"] is not None]
+        null_robustness_rate = (
+            _safe_div(sum(1 for row in null_available if row["signal_beats_baseline_oos"] is True), len(null_available))
+            if null_available
+            else 0.0
+        )
+        bootstrap = bootstrap_lookup.get(key, {})
+        bh = bh_lookup.get(key, {})
+        observed_test_ic = bootstrap.get("observed_test_ic")
+        observed_test_sign = None if observed_test_ic is None else int(_safe_sign(observed_test_ic))
+        bootstrap_pvalue = bootstrap.get("bootstrap_pvalue")
+        bh_significant = bool(bh.get("bh_significant")) if bh else False
+        decision = _strict_falsification_decision(
+            expected_sign=expected_sign,
+            observed_test_sign=observed_test_sign,
+            bootstrap_pvalue=bootstrap_pvalue,
+            bh_significant=bh_significant,
+            sign_consistency_rate=sign_consistency_rate,
+            fold_consistency_rate=fold_consistency_rate,
+            null_robustness_rate=null_robustness_rate,
+            degradation_ratio=degradation,
+        )
+        rows.append(
+            {
+                "signal_family": family,
+                "horizon_bars": horizon,
+                "preregistered_expected_ic_sign": expected_sign,
+                "observed_median_test_ic": median_test,
+                "observed_test_ic_sign": observed_test_sign,
+                "observed_pooled_test_ic": observed_test_ic,
+                "bootstrap_pvalue": bootstrap_pvalue,
+                "bh_significant": bh_significant,
+                "bh_threshold": bh.get("bh_threshold"),
+                "selection_deflated_significant": bool(bh.get("selection_deflated_significant")) if bh else False,
+                "median_validation_ic": median_validation,
+                "validation_to_test_degradation": degradation,
+                "sign_consistency_rate": sign_consistency_rate,
+                "fold_consistency_rate": fold_consistency_rate,
+                "null_robustness_rate": null_robustness_rate,
+                "evaluated_signal_count": int(_series(subset["signal_id"]).nunique()) if not subset.empty else 0,
+                "sign_flip_detected": expected_sign != 0 and observed_test_sign is not None and observed_test_sign != expected_sign,
+                "strict_decision": decision,
+                "decision_is_alpha_confirmation": False,
+                "claim_boundary": STRICT_FALSIFICATION_CLAIM_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _strict_falsification_decision(
+    *,
+    expected_sign: int,
+    observed_test_sign: int | None,
+    bootstrap_pvalue: float | None,
+    bh_significant: bool,
+    sign_consistency_rate: float | None,
+    fold_consistency_rate: float | None,
+    null_robustness_rate: float,
+    degradation_ratio: float | None,
+) -> str:
+    if observed_test_sign is None or bootstrap_pvalue is None:
+        return "FALSIFIED_INSUFFICIENT_EVIDENCE"
+    if expected_sign != 0 and observed_test_sign != expected_sign:
+        return "FALSIFIED_SIGN_FLIP"
+    if sign_consistency_rate is None or sign_consistency_rate < STRICT_SIGN_CONSISTENCY_MIN:
+        return "FALSIFIED_OOS_INCONSISTENT"
+    if fold_consistency_rate is None or fold_consistency_rate < STRICT_FOLD_CONSISTENCY_MIN:
+        return "FALSIFIED_OOS_INCONSISTENT"
+    if null_robustness_rate < STRICT_NULL_ROBUSTNESS_MIN:
+        return "FALSIFIED_NULL_FRAGILE"
+    if degradation_ratio is None or not (STRICT_DEGRADATION_LOW <= degradation_ratio <= STRICT_DEGRADATION_HIGH):
+        return "FALSIFIED_DEGRADATION"
+    if not bh_significant:
+        return "FALSIFIED_NO_BOOTSTRAP_SIGNIFICANCE"
+    return "SURVIVED_STRICT_FALSIFICATION"
+
+
+def _strict_next_protocol_queue_rows(family_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for row in family_rows:
+        if row["strict_decision"] == "SURVIVED_STRICT_FALSIFICATION":
+            rows.append(
+                {
+                    "signal_family": row["signal_family"],
+                    "horizon_bars": row["horizon_bars"],
+                    "queue_decision": "NEEDS_EXECUTION_AWARE_PROTOCOL",
+                    "observed_pooled_test_ic": row["observed_pooled_test_ic"],
+                    "bootstrap_pvalue": row["bootstrap_pvalue"],
+                    "reason": "survived paper-only strict falsification; requires separate execution-aware/cost-aware protocol, not trading",
+                    "claim_boundary": STRICT_FALSIFICATION_CLAIM_BOUNDARY,
+                }
+            )
+    return rows
+
+
+def _strict_failed_gate_rows(
+    family_rows: list[dict[str, Any]],
+    multiple_testing_rows: list[dict[str, Any]],
+    *,
+    preregistered: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = [
+        {
+            "gate": "preregistration_lock",
+            "status": "passed",
+            "reason": f"{len(preregistered)} hypotheses, expected signs, and survival thresholds locked from frozen V3 queue before evaluation",
+        }
+    ]
+    sign_flips = sum(1 for row in family_rows if row["sign_flip_detected"])
+    if sign_flips:
+        rows.append({"gate": "sign_flip_guard", "status": "watch", "reason": f"{sign_flips} hypotheses falsified by post-hoc sign flip vs pre-registered direction"})
+    overall = next((row for row in multiple_testing_rows if row["scope"] == "overall"), None)
+    if overall is None or int(overall.get("bh_discoveries", 0)) == 0:
+        rows.append({"gate": "bootstrap_fdr_significance", "status": "unclaimed", "reason": "no hypothesis is Benjamini-Hochberg significant after correction; edge cannot be claimed"})
+    falsified = [row for row in family_rows if str(row["strict_decision"]).startswith("FALSIFIED")]
+    if falsified:
+        rows.append({"gate": "strict_family_survival", "status": "watch", "reason": f"{len(falsified)} of {len(family_rows)} pre-registered hypotheses were falsified"})
+    survivors = [row for row in family_rows if row["strict_decision"] == "SURVIVED_STRICT_FALSIFICATION"]
+    if survivors:
+        rows.append({"gate": "survivor_edge_claim", "status": "unclaimed", "reason": f"{len(survivors)} survivors are paper-only follow-ups, not alpha confirmation or readiness"})
+    rows.append({"gate": "readiness_boundary", "status": "passed", "reason": "readiness_baseline_verdict remains NOT_READY"})
+    rows.append({"gate": "tsmom_state_unchanged", "status": "passed", "reason": "TSMOM artifacts are not modified or restored"})
+    return rows
+
+
+def write_alpha_signal_strict_falsification_artifacts(
+    output_dir: str | Path,
+    result: StrictFalsificationResult,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    out = prepare_alpha_signal_strict_falsification_output_dir(output_dir, overwrite=overwrite)
+    payload = dict(result.payload)
+    if out.name.endswith(ALPHA_SIGNAL_STRICT_FALSIFICATION_LOOP_SLUG):
+        payload["loop_id"] = out.name
+    _write_json(out / "alpha_signal_strict_falsification.json", payload)
+    pd.DataFrame(result.preregistered_hypotheses).to_csv(out / "preregistered_hypotheses.csv", index=False)
+    _atomic_write_text(
+        out / "frozen_candidate_universe.jsonl",
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in result.frozen_candidate_universe),
+    )
+    pd.DataFrame(result.strict_chronological_folds).to_csv(out / "strict_chronological_folds.csv", index=False)
+    pd.DataFrame(result.signal_strict_oos_diagnostics).to_csv(out / "signal_strict_oos_diagnostics.csv", index=False)
+    pd.DataFrame(result.bootstrap_significance_summary).to_csv(out / "bootstrap_significance_summary.csv", index=False)
+    pd.DataFrame(result.family_strict_falsification_summary).to_csv(out / "family_strict_falsification_summary.csv", index=False)
+    pd.DataFrame(result.multiple_testing_fdr_summary).to_csv(out / "multiple_testing_fdr_summary.csv", index=False)
+    pd.DataFrame(result.failed_gates).to_csv(out / "failed_gate_rollup.csv", index=False)
+    pd.DataFrame(result.next_protocol_queue).to_csv(out / "next_protocol_queue.csv", index=False)
+    _atomic_write_text(out / "report.md", render_alpha_signal_strict_falsification_report(payload, result))
+    _atomic_write_text(out / "commands.txt", "\n".join(payload.get("validation_commands", [])) + "\n")
+    _atomic_write_text(out / "changed_files.txt", "\n".join(payload.get("changed_files", [])) + "\n")
+    return out
+
+
+def prepare_alpha_signal_strict_falsification_output_dir(output_dir: str | Path, *, overwrite: bool = False) -> Path:
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="alpha-signal-strict-falsification-run",
+        known_files=ALPHA_STRICT_KNOWN_FILES,
+        overwrite=overwrite,
+    )
+
+
+def render_alpha_signal_strict_falsification_report(payload: dict[str, Any], result: StrictFalsificationResult) -> str:
+    lines = [
+        f"# Quant Loop Report: {payload['loop_id']}",
+        "",
+        "## Purpose",
+        "Apply a paper-only pre-registered stricter OOS falsification protocol to the frozen V3 next-falsification queue: lock hypotheses and expected signs, enlarge purge/embargo, compute moving-block permutation p-values, and Benjamini-Hochberg correct them. The protocol tries to reject and defaults to FALSIFIED.",
+        "",
+        "## Claim boundary",
+        f"- suite_decision: {payload['suite_decision']}",
+        f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+        f"- source_v3_artifact_path: {payload['source_v3_artifact_path']}",
+        f"- claim_boundary: {payload['claim_boundary']}",
+        f"- preregistration_boundary: {payload['preregistration_boundary']}",
+        f"- multiple_testing_boundary: {payload['multiple_testing_boundary']}",
+        "- SURVIVED_STRICT_FALSIFICATION is a paper-only next-protocol follow-up, not alpha confirmation.",
+        "",
+        "## Safety boundary",
+        f"- no_live_orders_submitted: {payload['safety_gates']['no_live_orders_submitted']}",
+        f"- no_testnet_orders_submitted: {payload['safety_gates']['no_testnet_orders_submitted']}",
+        f"- no_account_data_used: {payload['safety_gates']['no_account_data_used']}",
+        f"- no_api_key_used: {payload['safety_gates']['no_api_key_used']}",
+        f"- no_private_order_or_fill_data_used: {payload['safety_gates']['no_private_order_or_fill_data_used']}",
+        f"- holdout_retune_used: {payload['holdout_retune_used']}",
+        f"- strategy_optimization_performed: {payload['strategy_optimization_performed']}",
+        f"- live_or_testnet_path_created: {payload['live_or_testnet_path_created']}",
+        f"- tsmom_state_changed: {payload['tsmom_state_changed']}",
+        "",
+        "## Pre-registered hypotheses (frozen from V3 queue)",
+        f"- preregistered_hypothesis_count: {payload['preregistered_hypothesis_count']}",
+        f"- queued_families: {', '.join(payload['queued_families']) or 'none'}",
+        f"- queued_horizons: {payload['queued_horizons']}",
+        f"- frozen_candidate_count: {payload['frozen_candidate_count']}",
+        f"- evaluated_signal_count: {payload['evaluated_signal_count']}",
+        "",
+        "## Stricter OOS configuration",
+        f"- strict_fold_count: {payload['strict_fold_count']}",
+        f"- purge_bars: {payload['purge_bars']}",
+        f"- embargo_bars: {payload['embargo_bars']}",
+        f"- bootstrap_resamples: {payload['bootstrap_resamples']}",
+        f"- preregistered_alpha: {payload['preregistered_alpha']}",
+        "",
+        "## Falsification outcomes",
+        f"- survived_strict_falsification_count: {payload['survived_strict_falsification_count']}",
+        f"- falsified_count: {payload['falsified_count']}",
+    ]
+    for row in result.family_strict_falsification_summary:
+        lines.append(
+            f"- {row['signal_family']} / h{row['horizon_bars']}: {row['strict_decision']} "
+            f"(expected_sign={row['preregistered_expected_ic_sign']}, observed_sign={row['observed_test_ic_sign']}, "
+            f"bootstrap_p={row['bootstrap_pvalue']}, bh_significant={row['bh_significant']})"
+        )
+    lines.extend(["", "## Next protocol queue"])
+    if result.next_protocol_queue:
+        for row in result.next_protocol_queue:
+            lines.append(f"- {row['signal_family']} / h{row['horizon_bars']}: {row['queue_decision']} ({row['reason']})")
+    else:
+        lines.append("- empty (no hypothesis survived strict falsification)")
+    lines.extend(["", "## Failed gates / unclaimed checks"])
+    for row in result.failed_gates:
+        lines.append(f"- {row['gate']}: {row['status']} ({row['reason']})")
+    lines.extend(
+        [
+            "",
+            "## What cannot be claimed",
+            "- alpha confirmed",
+            "- profitability",
+            "- live readiness",
+            "- execution readiness",
+            "- permission to trade real money",
+            "- restoration of TSMOM active development",
+            "- survivors imply edge",
+            "",
+            "## Next loop",
+            payload["next_loop"],
+            "",
+        ]
+    )
+    return "\n".join(lines)
