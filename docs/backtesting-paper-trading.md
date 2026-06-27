@@ -894,6 +894,60 @@ or live data. `readiness_baseline_verdict` remains `NOT_READY`, no holdout
 retune is used, no strategy optimization is performed, and
 `tsmom_state_changed` remains `false`.
 
+## Public multi-asset data backfill loop
+
+`public-multi-asset-data-backfill-run` implements
+`PUBLIC_MULTI_ASSET_DATA_BACKFILL_V7`, a public-data backfill and provenance
+loop for the V6 missing data plan. It is not an alpha generator, not a trading
+strategy, not portfolio construction, not signal-weight optimization, not
+strategy PnL optimization, not live/testnet readiness, and not a profitability
+claim.
+
+```bash
+uv run quantctl public-multi-asset-data-backfill-run
+```
+
+The command reads the immutable V6 artifact directory, especially
+`missing_data_plan.csv`, and derives its default symbol universe, interval, and
+target month span from that V6 source when CLI overrides are omitted. It builds
+a deterministic public Binance Vision OHLCV month plan plus public Binance
+funding span plan, skips existing cache files, records `skipped_existing`,
+records successful and failed downloads, writes checksums/provenance where cache
+files exist, and then reruns the V6 coverage audit in cache-only mode. It does
+not run V5 automatically.
+
+The command writes a new artifact directory:
+
+- `public_multi_asset_data_backfill.json`
+- `backfill_plan.csv`
+- `download_manifest.csv`
+- `symbol_month_coverage.csv`
+- `checksum_manifest.csv`
+- `failed_downloads.csv`
+- `panel_readiness_after_backfill.csv`
+- `missing_data_remaining.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+If public network/downloads fail, V7 records failed rows and preserves any
+successful cache files for resumable reruns. It does not fabricate OHLCV or
+funding data. Rerunning without `--force` should skip existing cache files.
+Raw public cache files under `data/**` are not report artifacts and should not
+be committed unless repo policy explicitly allows it. V7 records created raw
+cache paths for audit only, filters raw cache paths and raw `.metadata.json`
+sidecars out of `changed_files.txt`, and records
+`raw_data_files_committed: false`.
+
+`panel_ready_for_v5_rerun: true` is only a data-readiness flag for a separate
+future paper-only V5 rerun. It requires at least the configured minimum number
+of OHLCV-usable symbols, a non-empty common public OHLCV span, enough common
+bars for 8h/24h/72h labels, public provenance, and intact safety gates. It is
+not an alpha, edge, profitability, strategy, portfolio, execution, testnet, or
+live readiness claim. Generated V5 signals, if V5 is run later, remain
+hypotheses rather than edges, and multiple-testing risk still increases with
+the signal count.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

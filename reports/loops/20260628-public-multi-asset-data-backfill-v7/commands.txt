@@ -1,0 +1,1 @@
+uv run quantctl public-multi-asset-data-backfill-run --source-v6-artifact reports/loops/20260628-public-multi-asset-data-panel-coverage-v6 --cache-dir data/binance-vision --funding-source public-binance --funding-cache-dir data/binance-funding --minimum-required-symbols 3 --output-dir reports/loops/20260628-public-multi-asset-data-backfill-v7 --overwrite

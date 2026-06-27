@@ -23,6 +23,7 @@ from parangsae.marketdata.binance_vision import (
     DataValidationError,
     MarketDataBundle,
     canonical_cache_path,
+    download_monthly_klines,
     load_market_data_bundle,
     normalize_months,
     validate_interval,
@@ -101,12 +102,16 @@ from parangsae.research.multi_asset_alpha_factory import (
     write_multi_asset_alpha_prefilter_artifacts,
 )
 from parangsae.research.public_multi_asset_panel_coverage import (
+    DEFAULT_PUBLIC_MULTI_ASSET_DATA_BACKFILL_V6_ARTIFACT,
     DEFAULT_PUBLIC_MULTI_ASSET_PANEL_MINIMUM_REQUIRED_SYMBOLS,
     DEFAULT_PUBLIC_MULTI_ASSET_PANEL_V5_ARTIFACT,
     PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE,
+    default_public_multi_asset_data_backfill_output_dir,
     default_public_multi_asset_panel_coverage_output_dir,
+    evaluate_public_multi_asset_data_backfill,
     evaluate_public_multi_asset_panel_coverage,
     parse_public_symbol_universe,
+    write_public_multi_asset_data_backfill_artifacts,
     write_public_multi_asset_panel_coverage_artifacts,
 )
 from parangsae.research.null_baselines import (
@@ -492,6 +497,33 @@ def _default_public_multi_asset_panel_coverage_command(args: argparse.Namespace)
         f"--minimum-required-symbols {args.minimum_required_symbols}",
         f"--output-dir {args.output_dir or default_public_multi_asset_panel_coverage_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_public_multi_asset_data_backfill_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl public-multi-asset-data-backfill-run",
+        f"--source-v6-artifact {args.source_v6_artifact}",
+        f"--cache-dir {args.cache_dir}",
+        f"--funding-source {args.funding_source}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--minimum-required-symbols {args.minimum_required_symbols}",
+        f"--output-dir {args.output_dir or default_public_multi_asset_data_backfill_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.symbols is not None:
+        command.append(f"--symbols {args.symbols}")
+    if args.interval is not None:
+        command.append(f"--interval {args.interval}")
+    if args.start_month is not None:
+        command.append(f"--start-month {args.start_month}")
+    if args.end_month is not None:
+        command.append(f"--end-month {args.end_month}")
+    if args.plan_only:
+        command.append("--plan-only")
+    if args.force:
+        command.append("--force")
     if args.overwrite:
         command.append("--overwrite")
     return " ".join(command)
@@ -1869,6 +1901,91 @@ def cmd_public_multi_asset_panel_coverage_run(args: argparse.Namespace) -> int:
         return 2
 
 
+def cmd_public_multi_asset_data_backfill_run(args: argparse.Namespace) -> int:
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_public_multi_asset_data_backfill_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        commands = args.command or [_default_public_multi_asset_data_backfill_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_public_multi_asset_data_backfill(
+            source_v6_artifact_path=args.source_v6_artifact,
+            requested_symbols=args.symbols,
+            interval=args.interval,
+            start_month=args.start_month,
+            end_month=args.end_month,
+            cache_dir=args.cache_dir,
+            funding_source=args.funding_source,
+            funding_cache_dir=args.funding_cache_dir,
+            minimum_required_symbols=args.minimum_required_symbols,
+            plan_only=args.plan_only,
+            force=args.force,
+            ohlcv_downloader=download_monthly_klines,
+            market_loader=load_market_data_bundle,
+            funding_loader=fetch_funding_rate_history,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_public_multi_asset_data_backfill_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "public-multi-asset-data-backfill-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v6_artifact_path": result.payload["source_v6_artifact_path"],
+                    "planned_download_count": result.payload["planned_download_count"],
+                    "skipped_existing_count": result.payload["skipped_existing_count"],
+                    "successful_download_count": result.payload["successful_download_count"],
+                    "failed_download_count": result.payload["failed_download_count"],
+                    "usable_symbol_universe_before": result.payload["usable_symbol_universe_before"],
+                    "usable_symbol_universe_after": result.payload["usable_symbol_universe_after"],
+                    "panel_ready_for_v5_rerun": result.payload["panel_ready_for_v5_rerun"],
+                    "raw_data_files_committed": result.payload["raw_data_files_committed"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "strategy_optimization_performed": result.payload["strategy_optimization_performed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (ValueError, FileExistsError, FileNotFoundError, requests.RequestException) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "public-multi-asset-data-backfill-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v6_artifact_path": str(args.source_v6_artifact),
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def _two_way_regime_segments(frame: pd.DataFrame, split_index: int) -> pd.Series:
     segments = pd.Series(["backtest"] * len(frame), index=frame.index, dtype="object")
     segments.iloc[split_index:] = "holdout_paper"
@@ -2864,6 +2981,65 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     public_panel.set_defaults(func=cmd_public_multi_asset_panel_coverage_run)
+
+    public_backfill = sub.add_parser("public-multi-asset-data-backfill-run")
+    public_backfill.add_argument(
+        "--source-v6-artifact",
+        default=str(DEFAULT_PUBLIC_MULTI_ASSET_DATA_BACKFILL_V6_ARTIFACT),
+        help="V6 public multi-asset panel coverage artifact used as immutable backfill input",
+    )
+    public_backfill.add_argument(
+        "--symbols",
+        default=None,
+        help="optional comma-separated symbol universe override; omitted means derive from source V6 artifact",
+    )
+    public_backfill.add_argument(
+        "--interval",
+        default=None,
+        help="optional interval override; omitted means derive from source V6 artifact",
+    )
+    public_backfill.add_argument(
+        "--start-month",
+        default=None,
+        help="optional YYYY-MM target start override; omitted means derive from source V6 artifact",
+    )
+    public_backfill.add_argument(
+        "--end-month",
+        default=None,
+        help="optional YYYY-MM target end override; omitted means derive from source V6 artifact",
+    )
+    public_backfill.add_argument("--cache-dir", default="data/binance-vision")
+    public_backfill.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    public_backfill.add_argument("--funding-cache-dir", default="data/binance-funding")
+    public_backfill.add_argument(
+        "--minimum-required-symbols",
+        type=int,
+        default=DEFAULT_PUBLIC_MULTI_ASSET_PANEL_MINIMUM_REQUIRED_SYMBOLS,
+    )
+    public_backfill.add_argument(
+        "--plan-only",
+        action="store_true",
+        help="write the deterministic public backfill plan without attempting downloads",
+    )
+    public_backfill.add_argument(
+        "--force",
+        action="store_true",
+        help="mark existing cache files as download targets; existing loader resume semantics still preserve valid files",
+    )
+    public_backfill.add_argument("--reports-root", default="reports")
+    public_backfill.add_argument("--output-dir")
+    public_backfill.add_argument("--overwrite", action="store_true")
+    public_backfill.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    public_backfill.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    public_backfill.set_defaults(func=cmd_public_multi_asset_data_backfill_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")

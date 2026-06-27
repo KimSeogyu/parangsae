@@ -130,6 +130,16 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             payload.get("loop_namespace")
         ):
             return "public-multi-asset-panel-coverage-run"
+    public_multi_asset_backfill_json = path / "public_multi_asset_data_backfill.json"
+    if public_multi_asset_backfill_json.exists():
+        try:
+            payload = json.loads(public_multi_asset_backfill_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "public_multi_asset_data_backfill_v7" in str(
+            payload.get("loop_namespace")
+        ):
+            return "public-multi-asset-data-backfill-run"
     return None
 
 

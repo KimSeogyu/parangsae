@@ -450,6 +450,36 @@ live/testnet/account/API-key/order/fill data, keeps
 `readiness_baseline_verdict: NOT_READY`, and leaves `tsmom_state_changed:
 false`.
 
+`public-multi-asset-data-backfill-run` implements the public-data-only
+`PUBLIC_MULTI_ASSET_DATA_BACKFILL_V7` loop:
+
+```bash
+uv run quantctl public-multi-asset-data-backfill-run
+```
+
+It reads the immutable V6 artifact, derives the default symbol universe and
+target month span from that V6 source when CLI overrides are omitted, builds a
+deterministic public OHLCV/funding backfill plan, skips existing cache files,
+records checksums/provenance, and reruns the V6 coverage audit internally. It
+does not run V5 automatically; it only reports whether
+`panel_ready_for_v5_rerun` is true after the backfill attempt.
+
+V7 writes `reports/loops/<YYYYMMDD>-public-multi-asset-data-backfill-v7/` with
+`public_multi_asset_data_backfill.json`, `backfill_plan.csv`,
+`download_manifest.csv`, `symbol_month_coverage.csv`,
+`checksum_manifest.csv`, `failed_downloads.csv`,
+`panel_readiness_after_backfill.csv`, `missing_data_remaining.csv`,
+`report.md`, `commands.txt`, and `changed_files.txt`. Raw public cache files
+under `data/**` are provenance inputs and should not be committed unless repo
+policy explicitly allows it; V7 filters raw cache paths out of
+`changed_files.txt` and records `raw_data_files_committed: false`.
+
+V7 is not alpha generation, not a trading strategy, not portfolio construction,
+not signal-weight optimization, not holdout retuning, and not a profitability,
+edge, readiness, live-readiness, or execution-readiness claim. A future V5 rerun
+should only be considered after `panel_ready_for_v5_rerun: true`, and any such
+rerun remains paper-only with the same multiple-testing warning.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

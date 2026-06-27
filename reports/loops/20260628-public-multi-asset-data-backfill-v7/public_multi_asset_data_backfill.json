@@ -1,0 +1,102 @@
+{
+  "account_data_used": false,
+  "api_key_used": false,
+  "changed_files": [
+    "src/parangsae/research/public_multi_asset_panel_coverage.py",
+    "src/parangsae/apps/cli/quantctl.py",
+    "src/parangsae/research/loop_artifacts.py",
+    "tests/test_public_multi_asset_panel_coverage.py",
+    "README.md",
+    "docs/backtesting-paper-trading.md"
+  ],
+  "claim_boundary": "PUBLIC_MULTI_ASSET_DATA_BACKFILL_V7 is public Binance data backfill and provenance infrastructure only. It does not generate alpha, does not run V5 automatically, does not implement a strategy or portfolio, does not optimize weights or thresholds, does not claim edge/profitability/readiness, and does not permit live/testnet/account/API-key/order/fill use.",
+  "common_bar_count_after": 17544,
+  "common_end_after": "2025-12-31T23:00:00Z",
+  "common_start_after": "2024-01-01T00:00:00Z",
+  "data_sources_used": [
+    "public_binance_vision_um_monthly_klines",
+    "public_binance_usdm_funding_history"
+  ],
+  "excluded_symbols_after": [
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "TONUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    }
+  ],
+  "failed_download_count": 2,
+  "holdout_retune_used": false,
+  "interval": "1h",
+  "live_or_testnet_path_created": false,
+  "loop_id": "20260628-public-multi-asset-data-backfill-v7",
+  "loop_namespace": "public_multi_asset_data_backfill_v7_only_not_alpha",
+  "minimum_required_symbols": 3,
+  "no_account_data_used": true,
+  "no_api_key_used": true,
+  "no_live_orders_submitted": true,
+  "no_private_order_or_fill_data_used": true,
+  "no_testnet_orders_submitted": true,
+  "panel_ready_for_v5_rerun": true,
+  "planned_download_count": 2,
+  "private_data_used": false,
+  "raw_data_files_committed": false,
+  "raw_data_files_created": [],
+  "raw_public_data_committed": false,
+  "readiness_baseline_verdict": "NOT_READY",
+  "requested_symbol_universe": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "AVAXUSDT",
+    "LINKUSDT",
+    "TONUSDT"
+  ],
+  "safety_gates": {
+    "holdout_retune_used": false,
+    "live_or_testnet_path_created": false,
+    "no_account_data_used": true,
+    "no_api_key_used": true,
+    "no_live_orders_submitted": true,
+    "no_private_order_or_fill_data_used": true,
+    "no_testnet_orders_submitted": true,
+    "readiness_baseline_verdict": "NOT_READY",
+    "strategy_optimization_performed": false,
+    "tsmom_state_changed": false
+  },
+  "schema_version": 7,
+  "skipped_existing_count": 248,
+  "source_v6_artifact_path": "reports/loops/20260628-public-multi-asset-data-panel-coverage-v6",
+  "source_v6_missing_data_plan_hash": "b2dcc7ac951b5d266f9935723fbda940ec7ae236507a8f6fdff3b8ee584a1332",
+  "source_v6_payload_hash": "19b7ef2e5f85be078fd09904731b206d1d7ee631dea932bcd9c5900e2e01e599",
+  "strategy_optimization_performed": false,
+  "successful_download_count": 0,
+  "suite_decision": "BACKFILL_COMPLETED_PANEL_READY_FOR_V5_RERUN",
+  "target_end_month": "2025-12",
+  "target_start_month": "2024-01",
+  "tsmom_state_changed": false,
+  "usable_symbol_count_after": 9,
+  "usable_symbol_count_before": 1,
+  "usable_symbol_universe_after": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "AVAXUSDT",
+    "LINKUSDT"
+  ],
+  "usable_symbol_universe_before": [
+    "BTCUSDT"
+  ],
+  "validation_commands": [
+    "uv run quantctl public-multi-asset-data-backfill-run --source-v6-artifact reports/loops/20260628-public-multi-asset-data-panel-coverage-v6 --cache-dir data/binance-vision --funding-source public-binance --funding-cache-dir data/binance-funding --minimum-required-symbols 3 --output-dir reports/loops/20260628-public-multi-asset-data-backfill-v7 --overwrite"
+  ]
+}

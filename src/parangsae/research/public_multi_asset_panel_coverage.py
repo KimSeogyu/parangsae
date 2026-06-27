@@ -24,10 +24,13 @@ from parangsae.marketdata.binance_vision import (
     CANONICAL_INTERVAL,
     BinanceVisionError,
     DataValidationError,
+    DownloadRecord,
     MarketDataBundle,
     canonical_cache_path,
+    download_monthly_klines,
     load_market_data_bundle,
     normalize_months,
+    sha256_file,
     validate_interval,
     validate_symbol,
 )
@@ -88,6 +91,42 @@ PUBLIC_MULTI_ASSET_PANEL_REQUIRED_FILES = (
     "changed_files.txt",
 )
 PUBLIC_MULTI_ASSET_PANEL_KNOWN_FILES = set(PUBLIC_MULTI_ASSET_PANEL_REQUIRED_FILES)
+
+PUBLIC_MULTI_ASSET_DATA_BACKFILL_SCHEMA_VERSION = 7
+PUBLIC_MULTI_ASSET_DATA_BACKFILL_LOOP_SLUG = "public-multi-asset-data-backfill-v7"
+PUBLIC_MULTI_ASSET_DATA_BACKFILL_NAMESPACE = "public_multi_asset_data_backfill_v7_only_not_alpha"
+DEFAULT_PUBLIC_MULTI_ASSET_DATA_BACKFILL_V6_ARTIFACT = Path(
+    "reports/loops/20260628-public-multi-asset-data-panel-coverage-v6"
+)
+PUBLIC_MULTI_ASSET_DATA_BACKFILL_ALLOWED_SUITE_DECISIONS = (
+    "DATA_BACKFILL_INFRA_ONLY",
+    "BACKFILL_COMPLETED_PANEL_READY_FOR_V5_RERUN",
+    "BACKFILL_COMPLETED_PANEL_STILL_NOT_READY",
+    "BACKFILL_SKIPPED_NETWORK_UNAVAILABLE",
+    "BACKFILL_FAILED_SAFE",
+    "BACKFILL_PLAN_ONLY",
+)
+PUBLIC_MULTI_ASSET_DATA_BACKFILL_CLAIM_BOUNDARY = (
+    "PUBLIC_MULTI_ASSET_DATA_BACKFILL_V7 is public Binance data backfill and provenance "
+    "infrastructure only. It does not generate alpha, does not run V5 automatically, does "
+    "not implement a strategy or portfolio, does not optimize weights or thresholds, does "
+    "not claim edge/profitability/readiness, and does not permit live/testnet/account/"
+    "API-key/order/fill use."
+)
+PUBLIC_MULTI_ASSET_DATA_BACKFILL_REQUIRED_FILES = (
+    "public_multi_asset_data_backfill.json",
+    "backfill_plan.csv",
+    "download_manifest.csv",
+    "symbol_month_coverage.csv",
+    "checksum_manifest.csv",
+    "failed_downloads.csv",
+    "panel_readiness_after_backfill.csv",
+    "missing_data_remaining.csv",
+    "report.md",
+    "commands.txt",
+    "changed_files.txt",
+)
+PUBLIC_MULTI_ASSET_DATA_BACKFILL_KNOWN_FILES = set(PUBLIC_MULTI_ASSET_DATA_BACKFILL_REQUIRED_FILES)
 
 SYMBOL_COVERAGE_COLUMNS = (
     "symbol",
@@ -154,9 +193,71 @@ PROVENANCE_MANIFEST_COLUMNS = (
     "first_timestamp",
     "last_timestamp",
 )
+BACKFILL_PLAN_COLUMNS = (
+    "symbol",
+    "data_type",
+    "month",
+    "start_time",
+    "end_time",
+    "interval",
+    "cache_path",
+    "already_cached",
+    "force",
+    "plan_action",
+    "source_url",
+    "reason",
+)
+DOWNLOAD_MANIFEST_COLUMNS = (
+    "symbol",
+    "data_type",
+    "month",
+    "status",
+    "cache_path",
+    "sha256",
+    "bytes",
+    "from_cache",
+    "http_status",
+    "source_url",
+    "downloaded_at",
+    "error",
+)
+SYMBOL_MONTH_COVERAGE_COLUMNS = (
+    "symbol",
+    "data_type",
+    "month",
+    "ohlcv_cache_present_before",
+    "ohlcv_cache_present_after",
+    "ohlcv_valid_after",
+    "funding_cache_present_after",
+    "planned_action",
+    "download_status",
+    "checksum",
+)
+CHECKSUM_MANIFEST_COLUMNS = (
+    "symbol",
+    "data_type",
+    "month",
+    "cache_path",
+    "sha256",
+    "bytes",
+    "source_url",
+    "from_cache",
+    "provenance_status",
+)
+FAILED_DOWNLOADS_COLUMNS = (
+    "symbol",
+    "data_type",
+    "month",
+    "cache_path",
+    "source_url",
+    "error_type",
+    "error",
+    "failed_safe",
+)
 
 MarketLoader = Callable[..., MarketDataBundle]
 FundingLoader = Callable[..., FundingRateBundle]
+OhlcvDownloader = Callable[..., tuple[DownloadRecord, ...]]
 
 
 @dataclass(frozen=True)
@@ -166,6 +267,18 @@ class PublicMultiAssetPanelCoverageResult:
     missing_data_plan: list[dict[str, Any]]
     panel_readiness: list[dict[str, Any]]
     provenance_manifest: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class PublicMultiAssetDataBackfillResult:
+    payload: dict[str, Any]
+    backfill_plan: list[dict[str, Any]]
+    download_manifest: list[dict[str, Any]]
+    symbol_month_coverage: list[dict[str, Any]]
+    checksum_manifest: list[dict[str, Any]]
+    failed_downloads: list[dict[str, Any]]
+    panel_readiness_after_backfill: list[dict[str, Any]]
+    missing_data_remaining: list[dict[str, Any]]
 
 
 def default_public_multi_asset_panel_coverage_output_dir(
@@ -524,6 +637,420 @@ def write_public_multi_asset_panel_coverage_artifacts(
     _atomic_write_text(out / "commands.txt", "\n".join(payload.get("validation_commands", [])) + "\n")
     _atomic_write_text(out / "changed_files.txt", "\n".join(payload.get("changed_files", [])) + "\n")
     return out
+
+
+def default_public_multi_asset_data_backfill_output_dir(
+    *,
+    root: str | Path = "reports/loops",
+    today: str | None = None,
+) -> Path:
+    stamp = today or datetime.now(UTC).strftime("%Y%m%d")
+    return Path(root) / f"{stamp}-{PUBLIC_MULTI_ASSET_DATA_BACKFILL_LOOP_SLUG}"
+
+
+def build_public_multi_asset_data_backfill_plan(
+    *,
+    source_v6_artifact_path: str | Path = DEFAULT_PUBLIC_MULTI_ASSET_DATA_BACKFILL_V6_ARTIFACT,
+    requested_symbols: str | Iterable[str] | None = None,
+    interval: str | None = None,
+    start_month: str | None = None,
+    end_month: str | None = None,
+    cache_dir: str | Path = "data/binance-vision",
+    funding_source: str = "public-binance",
+    funding_cache_dir: str | Path = "data/binance-funding",
+    force: bool = False,
+) -> list[dict[str, Any]]:
+    source_state = _read_v6_source_state(Path(source_v6_artifact_path))
+    scope = _resolve_v7_backfill_scope(
+        source_state=source_state,
+        requested_symbols=requested_symbols,
+        interval=interval,
+        start_month=start_month,
+        end_month=end_month,
+    )
+    return _build_backfill_plan_rows(
+        symbols=scope["symbols"],
+        interval=scope["interval"],
+        months=scope["months"],
+        source_state=source_state,
+        cache_dir=cache_dir,
+        funding_source=funding_source,
+        funding_cache_dir=funding_cache_dir,
+        force=force,
+    )
+
+
+def evaluate_public_multi_asset_data_backfill(
+    *,
+    source_v6_artifact_path: str | Path = DEFAULT_PUBLIC_MULTI_ASSET_DATA_BACKFILL_V6_ARTIFACT,
+    requested_symbols: str | Iterable[str] | None = None,
+    interval: str | None = None,
+    start_month: str | None = None,
+    end_month: str | None = None,
+    cache_dir: str | Path = "data/binance-vision",
+    funding_source: str = "public-binance",
+    funding_cache_dir: str | Path = "data/binance-funding",
+    minimum_required_symbols: int = DEFAULT_PUBLIC_MULTI_ASSET_PANEL_MINIMUM_REQUIRED_SYMBOLS,
+    plan_only: bool = False,
+    force: bool = False,
+    ohlcv_downloader: OhlcvDownloader = download_monthly_klines,
+    market_loader: MarketLoader = load_market_data_bundle,
+    funding_loader: FundingLoader = fetch_funding_rate_history,
+    commands: Iterable[str] | None = None,
+    changed_files: Iterable[str] | None = None,
+) -> PublicMultiAssetDataBackfillResult:
+    if funding_source not in {"public-binance", "none"}:
+        raise ValueError("funding_source must be public-binance or none")
+    if minimum_required_symbols <= 0:
+        raise ValueError("minimum_required_symbols must be positive")
+
+    source_path = Path(source_v6_artifact_path)
+    source_state = _read_v6_source_state(source_path)
+    scope = _resolve_v7_backfill_scope(
+        source_state=source_state,
+        requested_symbols=requested_symbols,
+        interval=interval,
+        start_month=start_month,
+        end_month=end_month,
+    )
+    symbols = cast(tuple[str, ...], scope["symbols"])
+    resolved_interval = str(scope["interval"])
+    months = cast(tuple[str, ...], scope["months"])
+    backfill_plan = _build_backfill_plan_rows(
+        symbols=symbols,
+        interval=resolved_interval,
+        months=months,
+        source_state=source_state,
+        cache_dir=cache_dir,
+        funding_source=funding_source,
+        funding_cache_dir=funding_cache_dir,
+        force=force,
+    )
+
+    download_manifest: list[dict[str, Any]] = []
+    symbol_month_coverage: list[dict[str, Any]] = []
+    checksum_manifest: list[dict[str, Any]] = []
+    failed_downloads: list[dict[str, Any]] = []
+    raw_data_files_created: list[str] = []
+    skipped_existing_count = 0
+    successful_download_count = 0
+
+    if not plan_only:
+        for row in backfill_plan:
+            data_type = str(row["data_type"])
+            before_exists = bool(row["already_cached"])
+            status = "not_attempted"
+            cache_path = Path(str(row["cache_path"]))
+            if row["plan_action"] == "skip_existing":
+                skipped_existing_count += 1
+                status = "skipped_existing"
+                _append_existing_cache_manifests(
+                    row=row,
+                    download_manifest=download_manifest,
+                    checksum_manifest=checksum_manifest,
+                )
+            else:
+                try:
+                    if data_type == "ohlcv":
+                        records = ohlcv_downloader(
+                            symbol=row["symbol"],
+                            interval=resolved_interval,
+                            months=(row["month"],),
+                            cache_dir=cache_dir,
+                        )
+                        for record in records:
+                            if record.from_cache:
+                                skipped_existing_count += 1
+                                status = "skipped_existing"
+                            else:
+                                successful_download_count += 1
+                                status = "downloaded"
+                                raw_data_files_created.append(record.cache_path)
+                            _append_download_record_manifests(
+                                row=row,
+                                record=record,
+                                data_type="ohlcv",
+                                download_manifest=download_manifest,
+                                checksum_manifest=checksum_manifest,
+                            )
+                    elif data_type == "funding":
+                        funding_bundle = funding_loader(
+                            symbol=row["symbol"],
+                            start_time=row["start_time"],
+                            end_time=row["end_time"],
+                            cache_dir=funding_cache_dir,
+                        )
+                        status = "downloaded"
+                        for record in funding_bundle.downloads:
+                            if record.from_cache:
+                                skipped_existing_count += 1
+                                status = "skipped_existing"
+                            else:
+                                successful_download_count += 1
+                                raw_data_files_created.append(record.cache_path)
+                            _append_funding_record_manifests(
+                                row=row,
+                                record=record,
+                                download_manifest=download_manifest,
+                                checksum_manifest=checksum_manifest,
+                            )
+                    else:
+                        raise ValueError(f"unsupported V7 data_type: {data_type}")
+                except (
+                    BinanceVisionError,
+                    DataValidationError,
+                    BinanceFundingError,
+                    FundingDataValidationError,
+                    requests.RequestException,
+                    ValueError,
+                ) as exc:
+                    status = "failed"
+                    failed_downloads.append(_failed_download_row(row, exc))
+                    download_manifest.append(
+                        {
+                            "symbol": row["symbol"],
+                            "data_type": data_type,
+                            "month": row["month"],
+                            "status": "failed",
+                            "cache_path": row["cache_path"],
+                            "sha256": "",
+                            "bytes": 0,
+                            "from_cache": False,
+                            "http_status": "",
+                            "source_url": row["source_url"],
+                            "downloaded_at": "",
+                            "error": f"{type(exc).__name__}: {exc}",
+                        }
+                    )
+            symbol_month_coverage.append(
+                _symbol_month_coverage_row(
+                    row=row,
+                    before_exists=before_exists,
+                    status=status,
+                    cache_path=cache_path,
+                    funding_cache_dir=funding_cache_dir,
+                )
+            )
+
+    panel_after = evaluate_public_multi_asset_panel_coverage(
+        requested_symbols=symbols,
+        interval=resolved_interval,
+        months=months,
+        cache_dir=cache_dir,
+        funding_source=funding_source,
+        funding_cache_dir=funding_cache_dir,
+        cache_mode="cache-only",
+        minimum_required_symbols=minimum_required_symbols,
+        source_v5_artifact_path=DEFAULT_PUBLIC_MULTI_ASSET_PANEL_V5_ARTIFACT,
+        market_loader=market_loader,
+        funding_loader=funding_loader,
+        commands=commands,
+        changed_files=_filter_report_changed_files(changed_files or []),
+    )
+    _apply_post_backfill_ohlcv_validation(symbol_month_coverage, panel_after.symbol_coverage)
+
+    planned_download_count = sum(1 for row in backfill_plan if row["plan_action"] == "download")
+    failed_download_count = len(failed_downloads)
+    panel_ready_for_v5_rerun = bool(panel_after.payload["panel_ready_for_v5_rerun"])
+    suite_decision = _backfill_suite_decision(
+        plan_only=plan_only,
+        panel_ready_for_v5_rerun=panel_ready_for_v5_rerun,
+        planned_download_count=planned_download_count,
+        successful_download_count=successful_download_count,
+        skipped_existing_count=skipped_existing_count,
+        failed_download_count=failed_download_count,
+    )
+    filtered_changed_files = _filter_report_changed_files(changed_files or [])
+    payload = {
+        "schema_version": PUBLIC_MULTI_ASSET_DATA_BACKFILL_SCHEMA_VERSION,
+        "loop_id": f"{datetime.now(UTC).strftime('%Y%m%d')}-{PUBLIC_MULTI_ASSET_DATA_BACKFILL_LOOP_SLUG}",
+        "loop_namespace": PUBLIC_MULTI_ASSET_DATA_BACKFILL_NAMESPACE,
+        "suite_decision": suite_decision,
+        "readiness_baseline_verdict": "NOT_READY",
+        "source_v6_artifact_path": str(source_path),
+        "source_v6_payload_hash": source_state["payload_hash"],
+        "source_v6_missing_data_plan_hash": source_state["missing_data_plan_hash"],
+        "requested_symbol_universe": list(symbols),
+        "target_start_month": months[0],
+        "target_end_month": months[-1],
+        "interval": resolved_interval,
+        "planned_download_count": planned_download_count,
+        "skipped_existing_count": skipped_existing_count,
+        "successful_download_count": successful_download_count,
+        "failed_download_count": failed_download_count,
+        "usable_symbol_universe_before": list(source_state["payload"].get("usable_symbol_universe", [])),
+        "usable_symbol_universe_after": list(panel_after.payload["usable_symbol_universe"]),
+        "usable_symbol_count_before": int(source_state["payload"].get("usable_symbol_count", 0)),
+        "usable_symbol_count_after": int(panel_after.payload["usable_symbol_count"]),
+        "excluded_symbols_after": list(panel_after.payload["excluded_symbols"]),
+        "panel_ready_for_v5_rerun": panel_ready_for_v5_rerun,
+        "minimum_required_symbols": minimum_required_symbols,
+        "common_start_after": panel_after.payload["common_start"],
+        "common_end_after": panel_after.payload["common_end"],
+        "common_bar_count_after": int(panel_after.payload["common_bar_count"]),
+        "data_sources_used": _data_sources_used(funding_source=funding_source),
+        "raw_data_files_created": sorted(set(raw_data_files_created)),
+        "raw_data_files_committed": False,
+        "raw_public_data_committed": False,
+        "private_data_used": False,
+        "account_data_used": False,
+        "api_key_used": False,
+        "live_or_testnet_path_created": False,
+        "claim_boundary": PUBLIC_MULTI_ASSET_DATA_BACKFILL_CLAIM_BOUNDARY,
+        "no_live_orders_submitted": True,
+        "no_testnet_orders_submitted": True,
+        "no_account_data_used": True,
+        "no_api_key_used": True,
+        "no_private_order_or_fill_data_used": True,
+        "holdout_retune_used": False,
+        "strategy_optimization_performed": False,
+        "tsmom_state_changed": False,
+        "safety_gates": {
+            "no_live_orders_submitted": True,
+            "no_testnet_orders_submitted": True,
+            "no_account_data_used": True,
+            "no_api_key_used": True,
+            "no_private_order_or_fill_data_used": True,
+            "holdout_retune_used": False,
+            "strategy_optimization_performed": False,
+            "live_or_testnet_path_created": False,
+            "tsmom_state_changed": False,
+            "readiness_baseline_verdict": "NOT_READY",
+        },
+        "validation_commands": list(commands or []),
+        "changed_files": filtered_changed_files,
+    }
+    _assert_public_backfill_payload_safe(payload)
+    return PublicMultiAssetDataBackfillResult(
+        payload=payload,
+        backfill_plan=backfill_plan,
+        download_manifest=download_manifest,
+        symbol_month_coverage=symbol_month_coverage,
+        checksum_manifest=checksum_manifest,
+        failed_downloads=failed_downloads,
+        panel_readiness_after_backfill=panel_after.panel_readiness,
+        missing_data_remaining=panel_after.missing_data_plan,
+    )
+
+
+def prepare_public_multi_asset_data_backfill_output_dir(
+    output_dir: str | Path,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="public-multi-asset-data-backfill-run",
+        known_files=PUBLIC_MULTI_ASSET_DATA_BACKFILL_KNOWN_FILES,
+        overwrite=overwrite,
+    )
+
+
+def write_public_multi_asset_data_backfill_artifacts(
+    output_dir: str | Path,
+    result: PublicMultiAssetDataBackfillResult,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    out = prepare_public_multi_asset_data_backfill_output_dir(output_dir, overwrite=overwrite)
+    payload = dict(result.payload)
+    payload["changed_files"] = _filter_report_changed_files(payload.get("changed_files", []))
+    if out.name.endswith(PUBLIC_MULTI_ASSET_DATA_BACKFILL_LOOP_SLUG):
+        payload["loop_id"] = out.name
+    _assert_public_backfill_payload_safe(payload)
+    _write_json(out / "public_multi_asset_data_backfill.json", payload)
+    _csv_frame(result.backfill_plan, BACKFILL_PLAN_COLUMNS).to_csv(out / "backfill_plan.csv", index=False)
+    _csv_frame(result.download_manifest, DOWNLOAD_MANIFEST_COLUMNS).to_csv(
+        out / "download_manifest.csv",
+        index=False,
+    )
+    _csv_frame(result.symbol_month_coverage, SYMBOL_MONTH_COVERAGE_COLUMNS).to_csv(
+        out / "symbol_month_coverage.csv",
+        index=False,
+    )
+    _csv_frame(result.checksum_manifest, CHECKSUM_MANIFEST_COLUMNS).to_csv(
+        out / "checksum_manifest.csv",
+        index=False,
+    )
+    _csv_frame(result.failed_downloads, FAILED_DOWNLOADS_COLUMNS).to_csv(
+        out / "failed_downloads.csv",
+        index=False,
+    )
+    _csv_frame(result.panel_readiness_after_backfill, PANEL_READINESS_COLUMNS).to_csv(
+        out / "panel_readiness_after_backfill.csv",
+        index=False,
+    )
+    _csv_frame(result.missing_data_remaining, MISSING_DATA_PLAN_COLUMNS).to_csv(
+        out / "missing_data_remaining.csv",
+        index=False,
+    )
+    _atomic_write_text(out / "report.md", render_public_multi_asset_data_backfill_report(payload, result))
+    _atomic_write_text(out / "commands.txt", "\n".join(payload.get("validation_commands", [])) + "\n")
+    _atomic_write_text(out / "changed_files.txt", "\n".join(payload.get("changed_files", [])) + "\n")
+    return out
+
+
+def render_public_multi_asset_data_backfill_report(
+    payload: dict[str, Any],
+    result: PublicMultiAssetDataBackfillResult,
+) -> str:
+    remaining = result.missing_data_remaining[:20]
+    lines = [
+        f"# Quant Loop Report: {payload['loop_id']}",
+        "",
+        "## Purpose",
+        "Backfill missing public Binance OHLCV/funding cache and provenance so a separate paper-only V5 rerun can be considered later.",
+        "",
+        "## Suite decision",
+        f"- suite_decision: {payload['suite_decision']}",
+        f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+        f"- panel_ready_for_v5_rerun: {payload['panel_ready_for_v5_rerun']}",
+        "",
+        "## V6 state",
+        f"- source_v6_artifact_path: {payload['source_v6_artifact_path']}",
+        f"- source_v6_payload_hash: {payload['source_v6_payload_hash']}",
+        f"- source_v6_missing_data_plan_hash: {payload['source_v6_missing_data_plan_hash']}",
+        f"- usable_symbol_universe_before: {', '.join(payload['usable_symbol_universe_before']) or 'none'}",
+        "",
+        "## Backfill plan",
+        f"- planned_download_count: {payload['planned_download_count']}",
+        f"- skipped_existing_count: {payload['skipped_existing_count']}",
+        f"- successful_download_count: {payload['successful_download_count']}",
+        f"- failed_download_count: {payload['failed_download_count']}",
+        f"- raw_data_files_created: {len(payload['raw_data_files_created'])}",
+        f"- raw_data_files_committed: {payload['raw_data_files_committed']}",
+        "",
+        "## Panel after backfill",
+        f"- usable_symbol_universe_after: {', '.join(payload['usable_symbol_universe_after']) or 'none'}",
+        f"- usable_symbol_count_after: {payload['usable_symbol_count_after']}",
+        f"- common_start_after: {payload['common_start_after']}",
+        f"- common_end_after: {payload['common_end_after']}",
+        f"- common_bar_count_after: {payload['common_bar_count_after']}",
+        "",
+        "## Remaining missing data",
+    ]
+    if not remaining:
+        lines.append("- no remaining missing public data rows recorded by the post-backfill audit")
+    else:
+        for row in remaining:
+            lines.append(f"- {row['symbol']} {row['data_type']}: {row['reason']}")
+    lines.extend(
+        [
+            "",
+            "## Safety",
+            "- no live orders submitted: true",
+            "- no testnet orders submitted: true",
+            "- no account/API-key/private order/fill data used: true",
+            "- TSMOM state changed: false",
+            "- holdout retune used: false",
+            "- strategy optimization performed: false",
+            "",
+            "## Claim boundary",
+            payload["claim_boundary"],
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def render_public_multi_asset_panel_coverage_report(
@@ -947,11 +1474,423 @@ def _funding_provenance_rows(
     return rows
 
 
+def _read_v6_source_state(path: Path) -> dict[str, Any]:
+    artifact_dir = path if path.is_dir() else path.parent
+    payload_path = artifact_dir / "public_multi_asset_panel_coverage.json" if path.is_dir() else path
+    required_paths = {
+        "payload": payload_path,
+        "symbol_coverage": artifact_dir / "symbol_coverage.csv",
+        "missing_data_plan": artifact_dir / "missing_data_plan.csv",
+        "panel_readiness": artifact_dir / "panel_readiness.csv",
+        "provenance_manifest": artifact_dir / "provenance_manifest.csv",
+    }
+    missing = [str(item) for item in required_paths.values() if not item.exists()]
+    if missing:
+        raise FileNotFoundError(f"missing required V6 artifact input(s): {missing}")
+    try:
+        payload = json.loads(payload_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid V6 public_multi_asset_panel_coverage.json: {exc}") from exc
+    if "public_multi_asset_data_panel_coverage_v6" not in str(payload.get("loop_namespace", "")):
+        raise ValueError("source_v6_artifact_path must point to a V6 public multi-asset panel coverage artifact")
+    return {
+        "artifact_dir": artifact_dir,
+        "payload_path": payload_path,
+        "payload_hash": sha256_file(payload_path),
+        "missing_data_plan_hash": sha256_file(required_paths["missing_data_plan"]),
+        "payload": payload,
+        "symbol_coverage": _read_csv_records(required_paths["symbol_coverage"], SYMBOL_COVERAGE_COLUMNS),
+        "missing_data_plan": _read_csv_records(required_paths["missing_data_plan"], MISSING_DATA_PLAN_COLUMNS),
+        "panel_readiness": _read_csv_records(required_paths["panel_readiness"], PANEL_READINESS_COLUMNS),
+        "provenance_manifest": _read_csv_records(required_paths["provenance_manifest"], PROVENANCE_MANIFEST_COLUMNS),
+    }
+
+
+def _read_csv_records(path: Path, columns: tuple[str, ...]) -> list[dict[str, Any]]:
+    frame = pd.read_csv(path, dtype=str).fillna("")
+    for column in columns:
+        if column not in frame.columns:
+            frame[column] = ""
+    return cast(list[dict[str, Any]], frame.loc[:, list(columns)].to_dict(orient="records"))
+
+
+def _resolve_v7_backfill_scope(
+    *,
+    source_state: dict[str, Any],
+    requested_symbols: str | Iterable[str] | None,
+    interval: str | None,
+    start_month: str | None,
+    end_month: str | None,
+) -> dict[str, Any]:
+    payload = cast(dict[str, Any], source_state["payload"])
+    source_symbols = payload.get("requested_symbol_universe") or PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE
+    symbols = parse_public_symbol_universe(requested_symbols if requested_symbols is not None else source_symbols)
+    resolved_interval = validate_interval(interval or str(payload.get("interval") or CANONICAL_INTERVAL))
+    source_months = tuple(str(month) for month in payload.get("requested_months", []) if str(month).strip())
+    if not source_months:
+        source_start = _month_from_timestamp(payload.get("common_start")) or "2024-01"
+        source_end = _month_from_timestamp(payload.get("common_end")) or "2025-12"
+        source_months = _month_span(source_start, source_end)
+    else:
+        source_months = normalize_months(source_months)
+
+    if start_month is None and end_month is None:
+        months = source_months
+    else:
+        months = _month_span(start_month or source_months[0], end_month or source_months[-1])
+    return {"symbols": symbols, "interval": resolved_interval, "months": months}
+
+
+def _month_from_timestamp(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        return pd.Timestamp(value).strftime("%Y-%m")
+    except (TypeError, ValueError):
+        return None
+
+
+def _month_span(start_month: str, end_month: str) -> tuple[str, ...]:
+    start = cast(pd.Period, pd.Period(start_month, freq="M"))
+    end = cast(pd.Period, pd.Period(end_month, freq="M"))
+    if end.ordinal < start.ordinal:
+        raise ValueError("end_month must be greater than or equal to start_month")
+    return tuple(str(period) for period in pd.period_range(start=start, end=end, freq="M"))
+
+
+def _target_span_timestamps(months: tuple[str, ...]) -> tuple[pd.Timestamp, pd.Timestamp]:
+    start_period = cast(pd.Period, pd.Period(months[0], freq="M"))
+    end_period = cast(pd.Period, pd.Period(months[-1], freq="M"))
+    start = start_period.start_time.tz_localize("UTC")
+    end = end_period.end_time.floor("h").tz_localize("UTC")
+    return cast(pd.Timestamp, start), cast(pd.Timestamp, end)
+
+
+def _build_backfill_plan_rows(
+    *,
+    symbols: tuple[str, ...],
+    interval: str,
+    months: tuple[str, ...],
+    source_state: dict[str, Any],
+    cache_dir: str | Path,
+    funding_source: str,
+    funding_cache_dir: str | Path,
+    force: bool,
+) -> list[dict[str, Any]]:
+    missing_by_symbol = _v6_missing_ohlcv_months_by_symbol(source_state)
+    start_ts, end_ts = _target_span_timestamps(months)
+    rows: list[dict[str, Any]] = []
+    for symbol in sorted(symbols):
+        for month in months:
+            path = canonical_cache_path(Path(cache_dir), symbol, interval, month)
+            already_cached = path.exists()
+            missing_from_v6 = month in missing_by_symbol.get(symbol, set())
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "data_type": "ohlcv",
+                    "month": month,
+                    "start_time": "",
+                    "end_time": "",
+                    "interval": interval,
+                    "cache_path": str(path),
+                    "already_cached": already_cached,
+                    "force": force,
+                    "plan_action": "skip_existing" if already_cached and not force else "download",
+                    "source_url": _ohlcv_source_url(symbol=symbol, interval=interval, month=month),
+                    "reason": (
+                        "existing_public_cache"
+                        if already_cached and not force
+                        else "missing_ohlcv_month_from_v6_plan"
+                        if missing_from_v6
+                        else "missing_target_month_cache"
+                    ),
+                }
+            )
+        if funding_source == "public-binance":
+            start_ms = int(start_ts.timestamp() * 1000)
+            end_ms = int(end_ts.timestamp() * 1000)
+            path = funding_cache_path(funding_cache_dir, symbol, start_ms, end_ms)
+            already_cached = path.exists()
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "data_type": "funding",
+                    "month": f"{months[0]}..{months[-1]}",
+                    "start_time": _timestamp(start_ts),
+                    "end_time": _timestamp(end_ts),
+                    "interval": interval,
+                    "cache_path": str(path),
+                    "already_cached": already_cached,
+                    "force": force,
+                    "plan_action": "skip_existing" if already_cached and not force else "download",
+                    "source_url": BINANCE_USDM_FUNDING_RATE_URL,
+                    "reason": "existing_public_funding_cache" if already_cached and not force else "target_span_public_funding_cache",
+                }
+            )
+    return sorted(rows, key=lambda row: (str(row["symbol"]), str(row["data_type"]), str(row["month"])))
+
+
+def _v6_missing_ohlcv_months_by_symbol(source_state: dict[str, Any]) -> dict[str, set[str]]:
+    result: dict[str, set[str]] = {}
+    for row in cast(list[dict[str, Any]], source_state["missing_data_plan"]):
+        if str(row.get("data_type")) != "ohlcv":
+            continue
+        symbol = str(row.get("symbol", ""))
+        months = {item.strip() for item in str(row.get("missing_item", "")).split(",") if item.strip()}
+        result.setdefault(symbol, set()).update(months)
+    return result
+
+
+def _ohlcv_source_url(*, symbol: str, interval: str, month: str) -> str:
+    return f"{BINANCE_VISION_BASE}/{symbol}/{interval}/{symbol}-{interval}-{month}.zip"
+
+
+def _append_existing_cache_manifests(
+    *,
+    row: dict[str, Any],
+    download_manifest: list[dict[str, Any]],
+    checksum_manifest: list[dict[str, Any]],
+) -> None:
+    path = Path(str(row["cache_path"]))
+    sha = sha256_file(path) if path.exists() else ""
+    size = path.stat().st_size if path.exists() else 0
+    download_manifest.append(
+        {
+            "symbol": row["symbol"],
+            "data_type": row["data_type"],
+            "month": row["month"],
+            "status": "skipped_existing",
+            "cache_path": str(path),
+            "sha256": sha,
+            "bytes": size,
+            "from_cache": True,
+            "http_status": "",
+            "source_url": row["source_url"],
+            "downloaded_at": "",
+            "error": "",
+        }
+    )
+    checksum_manifest.append(
+        {
+            "symbol": row["symbol"],
+            "data_type": row["data_type"],
+            "month": row["month"],
+            "cache_path": str(path),
+            "sha256": sha,
+            "bytes": size,
+            "source_url": row["source_url"],
+            "from_cache": True,
+            "provenance_status": "present_existing_cache",
+        }
+    )
+
+
+def _append_download_record_manifests(
+    *,
+    row: dict[str, Any],
+    record: DownloadRecord,
+    data_type: str,
+    download_manifest: list[dict[str, Any]],
+    checksum_manifest: list[dict[str, Any]],
+) -> None:
+    status = "skipped_existing" if record.from_cache else "downloaded"
+    download_manifest.append(
+        {
+            "symbol": row["symbol"],
+            "data_type": data_type,
+            "month": row["month"],
+            "status": status,
+            "cache_path": record.cache_path,
+            "sha256": record.sha256,
+            "bytes": record.bytes,
+            "from_cache": record.from_cache,
+            "http_status": record.http_status if record.http_status is not None else "",
+            "source_url": record.url,
+            "downloaded_at": record.downloaded_at,
+            "error": "",
+        }
+    )
+    checksum_manifest.append(
+        {
+            "symbol": row["symbol"],
+            "data_type": data_type,
+            "month": row["month"],
+            "cache_path": record.cache_path,
+            "sha256": record.sha256,
+            "bytes": record.bytes,
+            "source_url": record.url,
+            "from_cache": record.from_cache,
+            "provenance_status": "present_existing_cache" if record.from_cache else "downloaded_public_cache",
+        }
+    )
+
+
+def _append_funding_record_manifests(
+    *,
+    row: dict[str, Any],
+    record: Any,
+    download_manifest: list[dict[str, Any]],
+    checksum_manifest: list[dict[str, Any]],
+) -> None:
+    path = Path(str(record.cache_path))
+    size = path.stat().st_size if path.exists() else 0
+    status = "skipped_existing" if record.from_cache else "downloaded"
+    download_manifest.append(
+        {
+            "symbol": row["symbol"],
+            "data_type": "funding",
+            "month": row["month"],
+            "status": status,
+            "cache_path": record.cache_path,
+            "sha256": record.sha256,
+            "bytes": size,
+            "from_cache": record.from_cache,
+            "http_status": record.http_status if record.http_status is not None else "",
+            "source_url": record.url,
+            "downloaded_at": record.downloaded_at,
+            "error": "",
+        }
+    )
+    checksum_manifest.append(
+        {
+            "symbol": row["symbol"],
+            "data_type": "funding",
+            "month": row["month"],
+            "cache_path": record.cache_path,
+            "sha256": record.sha256,
+            "bytes": size,
+            "source_url": record.url,
+            "from_cache": record.from_cache,
+            "provenance_status": "present_existing_cache" if record.from_cache else "downloaded_public_cache",
+        }
+    )
+
+
+def _failed_download_row(row: dict[str, Any], exc: Exception) -> dict[str, Any]:
+    return {
+        "symbol": row["symbol"],
+        "data_type": row["data_type"],
+        "month": row["month"],
+        "cache_path": row["cache_path"],
+        "source_url": row["source_url"],
+        "error_type": type(exc).__name__,
+        "error": str(exc),
+        "failed_safe": True,
+    }
+
+
+def _symbol_month_coverage_row(
+    *,
+    row: dict[str, Any],
+    before_exists: bool,
+    status: str,
+    cache_path: Path,
+    funding_cache_dir: str | Path,
+) -> dict[str, Any]:
+    after_exists = cache_path.exists()
+    data_type = str(row["data_type"])
+    checksum = sha256_file(cache_path) if after_exists else ""
+    return {
+        "symbol": row["symbol"],
+        "data_type": data_type,
+        "month": row["month"],
+        "ohlcv_cache_present_before": before_exists if data_type == "ohlcv" else "",
+        "ohlcv_cache_present_after": after_exists if data_type == "ohlcv" else "",
+        "ohlcv_valid_after": False if data_type == "ohlcv" else "",
+        "funding_cache_present_after": after_exists if data_type == "funding" else _funding_span_cache_exists(row, funding_cache_dir),
+        "planned_action": row["plan_action"],
+        "download_status": status,
+        "checksum": checksum,
+    }
+
+
+def _apply_post_backfill_ohlcv_validation(
+    symbol_month_coverage: list[dict[str, Any]],
+    symbol_coverage: list[dict[str, Any]],
+) -> None:
+    coverage_by_symbol = {str(row["symbol"]): row for row in symbol_coverage}
+    for row in symbol_month_coverage:
+        if row.get("data_type") != "ohlcv":
+            continue
+        coverage = coverage_by_symbol.get(str(row.get("symbol", "")))
+        if coverage is None or coverage.get("ohlcv_available") is not True:
+            row["ohlcv_valid_after"] = False
+            continue
+        missing_months = {
+            item.strip()
+            for item in str(coverage.get("missing_ohlcv_months", "")).split(",")
+            if item.strip()
+        }
+        row["ohlcv_valid_after"] = bool(
+            row.get("ohlcv_cache_present_after") is True and str(row.get("month", "")) not in missing_months
+        )
+
+
+def _funding_span_cache_exists(row: dict[str, Any], funding_cache_dir: str | Path) -> bool | str:
+    if not row.get("start_time") or not row.get("end_time"):
+        return ""
+    start_ms = int(pd.Timestamp(row["start_time"]).timestamp() * 1000)
+    end_ms = int(pd.Timestamp(row["end_time"]).timestamp() * 1000)
+    return funding_cache_path(funding_cache_dir, str(row["symbol"]), start_ms, end_ms).exists()
+
+
+def _backfill_suite_decision(
+    *,
+    plan_only: bool,
+    panel_ready_for_v5_rerun: bool,
+    planned_download_count: int,
+    successful_download_count: int,
+    skipped_existing_count: int,
+    failed_download_count: int,
+) -> str:
+    if plan_only:
+        return "BACKFILL_PLAN_ONLY"
+    if panel_ready_for_v5_rerun:
+        return "BACKFILL_COMPLETED_PANEL_READY_FOR_V5_RERUN"
+    if failed_download_count and not successful_download_count and not skipped_existing_count:
+        return "BACKFILL_SKIPPED_NETWORK_UNAVAILABLE"
+    if failed_download_count:
+        return "BACKFILL_FAILED_SAFE"
+    if planned_download_count or successful_download_count or skipped_existing_count:
+        return "BACKFILL_COMPLETED_PANEL_STILL_NOT_READY"
+    return "DATA_BACKFILL_INFRA_ONLY"
+
+
 def _data_sources_used(*, funding_source: str) -> list[str]:
     sources = ["public_binance_vision_um_monthly_klines"]
     if funding_source == "public-binance":
         sources.append("public_binance_usdm_funding_history")
     return sources
+
+
+def _filter_report_changed_files(changed_files: Iterable[Any]) -> list[str]:
+    filtered: list[str] = []
+    seen: set[str] = set()
+    for item in changed_files:
+        value = str(item)
+        if not value or _is_raw_cache_changed_file(value):
+            continue
+        if value in seen:
+            continue
+        seen.add(value)
+        filtered.append(value)
+    return filtered
+
+
+def _is_raw_cache_changed_file(value: str) -> bool:
+    normalized = value.replace("\\", "/")
+    if normalized == "data" or normalized.startswith("data/"):
+        return True
+    path = Path(value)
+    if path.is_absolute():
+        try:
+            relative = path.resolve(strict=False).relative_to(Path.cwd().resolve(strict=False))
+        except ValueError:
+            return False
+        relative_normalized = relative.as_posix()
+        return relative_normalized == "data" or relative_normalized.startswith("data/")
+    return False
 
 
 def _csv_frame(rows: list[dict[str, Any]], columns: tuple[str, ...]) -> pd.DataFrame:
@@ -991,6 +1930,49 @@ def _assert_public_panel_payload_safe(payload: dict[str, Any]) -> None:
     for key in required_false:
         if safety.get(key) is not False or payload.get(key) is not False:
             raise ValueError(f"V6 safety gate must be false: {key}")
+
+
+def _assert_public_backfill_payload_safe(payload: dict[str, Any]) -> None:
+    if payload.get("suite_decision") not in PUBLIC_MULTI_ASSET_DATA_BACKFILL_ALLOWED_SUITE_DECISIONS:
+        raise ValueError(f"invalid V7 suite_decision: {payload.get('suite_decision')}")
+    if payload.get("suite_decision") in PUBLIC_MULTI_ASSET_PANEL_FORBIDDEN_OUTPUT_LABELS:
+        raise ValueError("V7 emitted a forbidden suite_decision")
+    if payload.get("readiness_baseline_verdict") != "NOT_READY":
+        raise ValueError("V7 readiness_baseline_verdict must remain NOT_READY")
+    if not payload.get("source_v6_artifact_path"):
+        raise ValueError("V7 must record source_v6_artifact_path")
+    if not payload.get("source_v6_payload_hash") or not payload.get("source_v6_missing_data_plan_hash"):
+        raise ValueError("V7 must record V6 source hashes")
+    if payload.get("raw_public_data_committed") is not False or payload.get("raw_data_files_committed") is not False:
+        raise ValueError("V7 must not mark raw public data files as committed")
+    for changed_file in cast(list[Any], payload.get("changed_files", [])):
+        if _is_raw_cache_changed_file(str(changed_file)):
+            raise ValueError(f"V7 changed_files contains raw cache path: {changed_file}")
+    safety = cast(dict[str, Any], payload.get("safety_gates", {}))
+    required_true = (
+        "no_live_orders_submitted",
+        "no_testnet_orders_submitted",
+        "no_account_data_used",
+        "no_api_key_used",
+        "no_private_order_or_fill_data_used",
+    )
+    for key in required_true:
+        if safety.get(key) is not True or payload.get(key) is not True:
+            raise ValueError(f"V7 safety gate must be true: {key}")
+    required_false = (
+        "holdout_retune_used",
+        "strategy_optimization_performed",
+        "live_or_testnet_path_created",
+        "tsmom_state_changed",
+    )
+    for key in required_false:
+        if safety.get(key) is not False or payload.get(key) is not False:
+            raise ValueError(f"V7 safety gate must be false: {key}")
+    if payload.get("panel_ready_for_v5_rerun") is True:
+        if int(payload.get("usable_symbol_count_after", 0)) < int(payload.get("minimum_required_symbols", 3)):
+            raise ValueError("V7 panel_ready_for_v5_rerun requires at least the minimum usable symbol count")
+        if int(payload.get("common_bar_count_after", 0)) <= 72:
+            raise ValueError("V7 panel_ready_for_v5_rerun requires enough common bars for 72h labels")
 
 
 def _datetime_index_endpoint(index: pd.Index, position: int) -> pd.Timestamp:
