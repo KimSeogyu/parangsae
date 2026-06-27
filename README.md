@@ -419,6 +419,37 @@ entry is paper-only and can only mean a family may deserve another strict
 falsification loop. `readiness_baseline_verdict` remains `NOT_READY`, and
 `tsmom_state_changed` remains `false`.
 
+`public-multi-asset-panel-coverage-run` implements the data-infrastructure-only
+`PUBLIC_MULTI_ASSET_DATA_PANEL_COVERAGE_V6` loop:
+
+```bash
+uv run quantctl public-multi-asset-panel-coverage-run
+```
+
+It writes
+`reports/loops/<YYYYMMDD>-public-multi-asset-data-panel-coverage-v6/` with
+`public_multi_asset_panel_coverage.json`, `symbol_coverage.csv`,
+`missing_data_plan.csv`, `panel_readiness.csv`, `provenance_manifest.csv`,
+`report.md`, `commands.txt`, and `changed_files.txt`.
+
+V6 exists because the V5 strict prefilter expanded the information universe to
+public multi-asset data but the actual V5 artifact had only `BTCUSDT` usable and
+excluded the other requested symbols for missing cached public OHLCV. V6 audits
+that public OHLCV/funding panel coverage, preserves V5 excluded-symbol reasons,
+records provenance, and produces a missing-public-data plan. It does not revive
+V4-falsified families and does not rerun V5 automatically.
+
+V6 is not a trading strategy, not alpha generation, not portfolio construction,
+not signal-weight optimization, and not strategy PnL optimization. It makes no
+profitability, edge, readiness, live-readiness, or execution-readiness claim.
+`panel_ready_for_v5_rerun: true` means only that a separate future paper-only V5
+rerun has enough public panel coverage to be considered. The V5 shortlist, if
+created in a later run, remains paper-only; multiple-testing risk increases with
+signal count and is not solved by this data coverage loop. V6 uses no
+live/testnet/account/API-key/order/fill data, keeps
+`readiness_baseline_verdict: NOT_READY`, and leaves `tsmom_state_changed:
+false`.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

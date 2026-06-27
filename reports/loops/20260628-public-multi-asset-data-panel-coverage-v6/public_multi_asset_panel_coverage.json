@@ -1,0 +1,245 @@
+{
+  "account_data_used": false,
+  "api_key_used": false,
+  "cache_mode": "cache-only",
+  "cached_public_file_count": 25,
+  "changed_files": [
+    "src/parangsae/research/public_multi_asset_panel_coverage.py",
+    "src/parangsae/apps/cli/quantctl.py",
+    "src/parangsae/research/loop_artifacts.py",
+    "tests/test_public_multi_asset_panel_coverage.py",
+    "README.md",
+    "docs/backtesting-paper-trading.md"
+  ],
+  "claim_boundary": "PUBLIC_MULTI_ASSET_DATA_PANEL_COVERAGE_V6 is public-data coverage and provenance infrastructure only. It audits OHLCV/funding availability for a future paper-only V5 rerun. It is not alpha generation, not a trading strategy, not portfolio construction, not signal weight optimization, not profitability evidence, not readiness evidence, and not permission for live/testnet/account/API-key/order/fill use.",
+  "common_bar_count": 17544,
+  "common_end": "2025-12-31T23:00:00Z",
+  "common_start": "2024-01-01T00:00:00Z",
+  "coverage_ratio_by_symbol": {
+    "ADAUSDT": 0.0,
+    "AVAXUSDT": 0.0,
+    "BNBUSDT": 0.0,
+    "BTCUSDT": 1.0,
+    "DOGEUSDT": 0.0,
+    "ETHUSDT": 0.0,
+    "LINKUSDT": 0.0,
+    "SOLUSDT": 0.0,
+    "TONUSDT": 0.0,
+    "XRPUSDT": 0.0
+  },
+  "data_sources_used": [
+    "public_binance_vision_um_monthly_klines",
+    "public_binance_usdm_funding_history"
+  ],
+  "downloaded_public_file_count": 0,
+  "excluded_symbols": [
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "ETHUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "SOLUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "BNBUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "XRPUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "ADAUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "DOGEUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "AVAXUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "LINKUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "TONUSDT",
+      "v5_excluded_reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "v5_excluded_stage": "ohlcv_cache_availability"
+    }
+  ],
+  "funding_coverage_ratio_by_symbol": {
+    "ADAUSDT": 0.0,
+    "AVAXUSDT": 0.0,
+    "BNBUSDT": 0.0,
+    "BTCUSDT": 1.0,
+    "DOGEUSDT": 0.0,
+    "ETHUSDT": 0.0,
+    "LINKUSDT": 0.0,
+    "SOLUSDT": 0.0,
+    "TONUSDT": 0.0,
+    "XRPUSDT": 0.0
+  },
+  "funding_source": "public-binance",
+  "holdout_retune_used": false,
+  "interval": "1h",
+  "live_or_testnet_path_created": false,
+  "loop_id": "20260628-public-multi-asset-data-panel-coverage-v6",
+  "loop_namespace": "public_multi_asset_data_panel_coverage_v6_only_not_alpha",
+  "minimum_common_bar_count": 17544,
+  "minimum_required_symbols": 3,
+  "missing_data_plan_count": 9,
+  "no_account_data_used": true,
+  "no_api_key_used": true,
+  "no_live_orders_submitted": true,
+  "no_private_order_or_fill_data_used": true,
+  "no_testnet_orders_submitted": true,
+  "panel_ready_for_v5_rerun": false,
+  "private_data_used": false,
+  "raw_public_data_committed": false,
+  "readiness_baseline_verdict": "NOT_READY",
+  "requested_months": [
+    "2024-01",
+    "2024-02",
+    "2024-03",
+    "2024-04",
+    "2024-05",
+    "2024-06",
+    "2024-07",
+    "2024-08",
+    "2024-09",
+    "2024-10",
+    "2024-11",
+    "2024-12",
+    "2025-01",
+    "2025-02",
+    "2025-03",
+    "2025-04",
+    "2025-05",
+    "2025-06",
+    "2025-07",
+    "2025-08",
+    "2025-09",
+    "2025-10",
+    "2025-11",
+    "2025-12"
+  ],
+  "requested_symbol_count": 10,
+  "requested_symbol_universe": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "AVAXUSDT",
+    "LINKUSDT",
+    "TONUSDT"
+  ],
+  "safety_gates": {
+    "holdout_retune_used": false,
+    "live_or_testnet_path_created": false,
+    "no_account_data_used": true,
+    "no_api_key_used": true,
+    "no_live_orders_submitted": true,
+    "no_private_order_or_fill_data_used": true,
+    "no_testnet_orders_submitted": true,
+    "readiness_baseline_verdict": "NOT_READY",
+    "strategy_optimization_performed": false,
+    "tsmom_state_changed": false
+  },
+  "schema_version": 6,
+  "source_v5_artifact_path": "reports/loops/20260627-multi-asset-alpha-generator-strict-prefilter-v5",
+  "strategy_optimization_performed": false,
+  "suite_decision": "PANEL_NOT_READY_INSUFFICIENT_SYMBOLS",
+  "tsmom_state_changed": false,
+  "usable_symbol_count": 1,
+  "usable_symbol_universe": [
+    "BTCUSDT"
+  ],
+  "v5_excluded_symbols": [
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "ETHUSDT"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "SOLUSDT"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "BNBUSDT"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "XRPUSDT"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "ADAUSDT"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "DOGEUSDT"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "AVAXUSDT"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "LINKUSDT"
+    },
+    {
+      "reason": "missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06",
+      "stage": "ohlcv_cache_availability",
+      "symbol": "TONUSDT"
+    }
+  ],
+  "v5_excluded_symbols_preserved": true,
+  "v5_state": "present",
+  "v5_symbol_universe_used": [
+    "BTCUSDT"
+  ],
+  "validation_commands": [
+    "uv run quantctl public-multi-asset-panel-coverage-run --source-v5-artifact reports/loops/20260627-multi-asset-alpha-generator-strict-prefilter-v5 --symbols BTCUSDT,ETHUSDT,SOLUSDT,BNBUSDT,XRPUSDT,ADAUSDT,DOGEUSDT,AVAXUSDT,LINKUSDT,TONUSDT --interval 1h --months 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06,2024-07,2024-08,2024-09,2024-10,2024-11,2024-12,2025-01,2025-02,2025-03,2025-04,2025-05,2025-06,2025-07,2025-08,2025-09,2025-10,2025-11,2025-12 --cache-dir data/binance-vision --funding-source public-binance --funding-cache-dir data/binance-funding --cache-mode cache-only --minimum-required-symbols 3 --output-dir reports/loops/20260628-public-multi-asset-data-panel-coverage-v6 --overwrite"
+  ]
+}

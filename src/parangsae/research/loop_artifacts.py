@@ -120,6 +120,16 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             payload.get("loop_namespace")
         ):
             return "multi-asset-alpha-generator-strict-prefilter-run"
+    public_multi_asset_panel_json = path / "public_multi_asset_panel_coverage.json"
+    if public_multi_asset_panel_json.exists():
+        try:
+            payload = json.loads(public_multi_asset_panel_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "public_multi_asset_data_panel_coverage_v6" in str(
+            payload.get("loop_namespace")
+        ):
+            return "public-multi-asset-panel-coverage-run"
     return None
 
 

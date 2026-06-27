@@ -838,6 +838,62 @@ profitability, readiness, execution readiness, live/testnet permission, or
 permission to trade. `readiness_baseline_verdict` remains `NOT_READY`, and
 `tsmom_state_changed` remains `false`.
 
+## Public multi-asset panel coverage loop
+
+`public-multi-asset-panel-coverage-run` implements
+`PUBLIC_MULTI_ASSET_DATA_PANEL_COVERAGE_V6`, a public-data coverage and
+provenance loop for the V5 multi-asset panel. It is not an alpha generator, not
+a trading strategy, not portfolio construction, not signal-weight optimization,
+not strategy PnL optimization, not live/testnet readiness, and not a
+profitability claim.
+
+```bash
+uv run quantctl public-multi-asset-panel-coverage-run
+```
+
+The command writes a new artifact directory:
+
+- `public_multi_asset_panel_coverage.json`
+- `symbol_coverage.csv`
+- `missing_data_plan.csv`
+- `panel_readiness.csv`
+- `provenance_manifest.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+V6 exists because the V5 multi-asset strict prefilter changed the information
+axis to a public multi-asset panel but the durable V5 artifact had only
+`BTCUSDT` usable. The other requested symbols were excluded for missing cached
+public OHLCV. V6 therefore audits the requested public Binance universe,
+records which symbols have usable OHLCV, records public funding availability
+when present, preserves V5 excluded-symbol reasons, and writes a missing public
+data plan. It does not modify V5, does not revive V4-falsified families, and
+does not automatically rerun V5.
+
+The default requested universe remains:
+`BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `BNBUSDT`, `XRPUSDT`, `ADAUSDT`, `DOGEUSDT`,
+`AVAXUSDT`, `LINKUSDT`, and `TONUSDT`. A symbol is usable only when public
+OHLCV for the requested monthly range is present and validates through the
+existing Binance Vision loader. Missing cache files are recorded as coverage
+loss; V6 does not fabricate rows. Public funding is optional for panel
+inclusion: missing or invalid funding is recorded in `symbol_coverage.csv` and
+`missing_data_plan.csv`, but it does not exclude an OHLCV-usable symbol.
+
+`panel_ready_for_v5_rerun: true` is a narrow data-readiness flag for a separate
+future paper-only V5 rerun. It requires at least the configured minimum number
+of OHLCV-usable symbols and a common chronological public OHLCV span. It is not
+an alpha, edge, profitability, strategy, portfolio, execution, testnet, or live
+readiness claim. Any later V5 shortlist remains paper-only, and
+multiple-testing risk still increases with the generated signal count.
+
+V6 uses only public/no-key Binance Vision OHLCV cache/download paths and the
+public/no-key Binance USDⓈ-M funding history path when funding is enabled. It
+does not read account state, API keys, orders, fills, signed endpoints, testnet,
+or live data. `readiness_baseline_verdict` remains `NOT_READY`, no holdout
+retune is used, no strategy optimization is performed, and
+`tsmom_state_changed` remains `false`.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

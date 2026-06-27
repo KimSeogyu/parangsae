@@ -100,6 +100,15 @@ from parangsae.research.multi_asset_alpha_factory import (
     parse_symbol_universe,
     write_multi_asset_alpha_prefilter_artifacts,
 )
+from parangsae.research.public_multi_asset_panel_coverage import (
+    DEFAULT_PUBLIC_MULTI_ASSET_PANEL_MINIMUM_REQUIRED_SYMBOLS,
+    DEFAULT_PUBLIC_MULTI_ASSET_PANEL_V5_ARTIFACT,
+    PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE,
+    default_public_multi_asset_panel_coverage_output_dir,
+    evaluate_public_multi_asset_panel_coverage,
+    parse_public_symbol_universe,
+    write_public_multi_asset_panel_coverage_artifacts,
+)
 from parangsae.research.null_baselines import (
     DEFAULT_TSMOM_REGIME_ONLY_ARTIFACT,
     build_research_null_baseline_harness_payload,
@@ -463,6 +472,25 @@ def _default_multi_asset_alpha_prefilter_command(args: argparse.Namespace) -> st
         f"--max-depth {args.max_depth}",
         f"--min-bars-per-symbol {args.min_bars_per_symbol}",
         f"--output-dir {args.output_dir or default_multi_asset_alpha_prefilter_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_public_multi_asset_panel_coverage_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl public-multi-asset-panel-coverage-run",
+        f"--source-v5-artifact {args.source_v5_artifact}",
+        f"--symbols {args.symbols}",
+        f"--interval {args.interval}",
+        f"--months {args.months}",
+        f"--cache-dir {args.cache_dir}",
+        f"--funding-source {args.funding_source}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--cache-mode {args.cache_mode}",
+        f"--minimum-required-symbols {args.minimum_required_symbols}",
+        f"--output-dir {args.output_dir or default_public_multi_asset_panel_coverage_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
     if args.overwrite:
         command.append("--overwrite")
@@ -1751,6 +1779,96 @@ def cmd_multi_asset_alpha_generator_strict_prefilter_run(args: argparse.Namespac
         return 2
 
 
+def cmd_public_multi_asset_panel_coverage_run(args: argparse.Namespace) -> int:
+    symbols = PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE
+    interval = CANONICAL_INTERVAL
+    months = default_data_depth_months()
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_public_multi_asset_panel_coverage_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        symbols = parse_public_symbol_universe(args.symbols)
+        interval = validate_interval(args.interval)
+        months = _parse_months(args.months)
+        commands = args.command or [_default_public_multi_asset_panel_coverage_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_public_multi_asset_panel_coverage(
+            requested_symbols=symbols,
+            interval=interval,
+            months=months,
+            cache_dir=args.cache_dir,
+            funding_source=args.funding_source,
+            funding_cache_dir=args.funding_cache_dir,
+            cache_mode=args.cache_mode,
+            minimum_required_symbols=args.minimum_required_symbols,
+            source_v5_artifact_path=args.source_v5_artifact,
+            market_loader=load_market_data_bundle,
+            funding_loader=fetch_funding_rate_history,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_public_multi_asset_panel_coverage_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "public-multi-asset-panel-coverage-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v5_artifact_path": result.payload["source_v5_artifact_path"],
+                    "requested_symbol_universe": result.payload["requested_symbol_universe"],
+                    "usable_symbol_universe": result.payload["usable_symbol_universe"],
+                    "excluded_symbols": result.payload["excluded_symbols"],
+                    "panel_ready_for_v5_rerun": result.payload["panel_ready_for_v5_rerun"],
+                    "common_start": result.payload["common_start"],
+                    "common_end": result.payload["common_end"],
+                    "common_bar_count": result.payload["common_bar_count"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "strategy_optimization_performed": result.payload["strategy_optimization_performed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (ValueError, FileExistsError, FileNotFoundError, requests.RequestException) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "public-multi-asset-panel-coverage-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v5_artifact_path": str(args.source_v5_artifact),
+                    "symbols": symbols,
+                    "interval": interval,
+                    "months": months,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def _two_way_regime_segments(frame: pd.DataFrame, split_index: int) -> pd.Series:
     segments = pd.Series(["backtest"] * len(frame), index=frame.index, dtype="object")
     segments.iloc[split_index:] = "holdout_paper"
@@ -2700,6 +2818,52 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     multi_asset_alpha.set_defaults(func=cmd_multi_asset_alpha_generator_strict_prefilter_run)
+
+    public_panel = sub.add_parser("public-multi-asset-panel-coverage-run")
+    public_panel.add_argument(
+        "--source-v5-artifact",
+        default=str(DEFAULT_PUBLIC_MULTI_ASSET_PANEL_V5_ARTIFACT),
+        help="V5 multi-asset alpha prefilter artifact path used only to preserve excluded symbol reasons",
+    )
+    public_panel.add_argument(
+        "--symbols",
+        default=",".join(PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE),
+        help="comma-separated requested public symbol universe; normalized and recorded before exclusions",
+    )
+    public_panel.add_argument("--interval", default=CANONICAL_INTERVAL)
+    public_panel.add_argument(
+        "--months",
+        default=",".join(default_data_depth_months()),
+        help="public Binance Vision months for V6 data coverage/provenance audit",
+    )
+    public_panel.add_argument("--cache-dir", default="data/binance-vision")
+    public_panel.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    public_panel.add_argument("--funding-cache-dir", default="data/binance-funding")
+    public_panel.add_argument(
+        "--cache-mode",
+        default="cache-only",
+        choices=["cache-only", "download-missing"],
+        help="cache-only records missing public files without downloading; download-missing delegates to existing public loaders",
+    )
+    public_panel.add_argument(
+        "--minimum-required-symbols",
+        type=int,
+        default=DEFAULT_PUBLIC_MULTI_ASSET_PANEL_MINIMUM_REQUIRED_SYMBOLS,
+    )
+    public_panel.add_argument("--reports-root", default="reports")
+    public_panel.add_argument("--output-dir")
+    public_panel.add_argument("--overwrite", action="store_true")
+    public_panel.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    public_panel.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    public_panel.set_defaults(func=cmd_public_multi_asset_panel_coverage_run)
 
     real = sub.add_parser("real-run")
     real.add_argument("--symbol", default=CANONICAL_SYMBOL, help="canonical validation only; non-BTCUSDT is rejected")
