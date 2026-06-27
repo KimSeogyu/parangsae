@@ -299,6 +299,41 @@ families that may deserve a separate pre-registered paper-only OOS falsification
 loop. `readiness_baseline_verdict` remains `NOT_READY`, and
 `tsmom_state_changed` remains `false`.
 
+`alpha-signal-oos-fdr-validation-run` implements the paper-only
+`ALPHA_SIGNAL_OOS_FDR_VALIDATION_PROTOCOL_V3` harness:
+
+```bash
+uv run quantctl alpha-signal-oos-fdr-validation-run
+```
+
+It reads the frozen V2 artifact at
+`reports/loops/20260627-alpha-signal-dag-combinatorial-expansion-v2/` by
+default and writes
+`reports/loops/<YYYYMMDD>-alpha-signal-oos-fdr-validation-protocol-v3/` with
+`alpha_signal_oos_fdr_validation.json`, `frozen_candidate_universe.jsonl`,
+`chronological_folds.csv`, `signal_oos_diagnostics.csv`,
+`family_oos_summary.csv`, `representative_signal_summary.csv`,
+`oos_null_baseline_comparison.csv`, `multiple_testing_fdr_summary.csv`,
+`failed_gate_rollup.csv`, `next_falsification_queue.csv`, `report.md`,
+`commands.txt`, and `changed_files.txt`.
+
+V3 freezes the V2 candidate universe: it does not generate new Signal DAGs,
+rename `signal_id`s, tune horizons, tune thresholds, optimize signal weights, or
+select candidates by performance. It applies deterministic chronological folds
+with purge and embargo metadata, evaluates train/validation/test IC and rank-IC
+diagnostics, reports the corresponding test metric for the best validation
+signal, and aggregates results by family with duplicate-adjusted breadth.
+
+Multiple-testing and false-discovery risk remain first-class outputs. The V3
+summary may only create a paper-only next-falsification queue; even OOS family
+survival is not proof of alpha, profitability, readiness, execution readiness,
+or permission to use live/testnet/account/API-key/order/fill data. Allowed
+family decisions are limited to paper-research statuses such as `KILL_FAMILY`,
+`DUPLICATE_DOMINATED`, `FAILS_OOS_CONSISTENCY`,
+`FAILS_NULL_ROBUSTNESS`, `NEEDS_STRICTER_OOS_FALSIFICATION`, and
+`WATCH_FAMILY_ONLY`. `readiness_baseline_verdict` remains `NOT_READY`, and
+`tsmom_state_changed` remains `false`.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

@@ -1,0 +1,6 @@
+gate,status,reason
+duplicate_adjusted_breadth,watch,1273 V2 duplicate candidates remain duplicate-adjusted
+multiple_testing_fdr_boundary,unclaimed,FDR-style warnings prevent edge/profit/readiness claims
+family_oos_survival,watch,13 family-horizon rows failed or were killed
+readiness_boundary,passed,readiness_baseline_verdict remains NOT_READY
+tsmom_state_unchanged,passed,TSMOM artifacts are not modified or restored

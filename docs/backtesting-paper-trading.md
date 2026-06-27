@@ -614,6 +614,79 @@ include `READY`, `TRADE`, `LIVE_READY`, `PROFITABLE`, `DEPLOY`, and
 `holdout_retune_used` remains `false`, and `tsmom_state_changed` remains
 `false`.
 
+## Alpha Signal OOS/FDR validation protocol
+
+`alpha-signal-oos-fdr-validation-run` implements
+`ALPHA_SIGNAL_OOS_FDR_VALIDATION_PROTOCOL_V3`, a paper-only OOS and
+false-discovery-control validation protocol over the frozen V2 Signal DAG
+candidate universe. It is not new alpha generation, not strategy optimization,
+not signal weight optimization, not live/testnet readiness, and not a
+profitability claim.
+
+```bash
+uv run quantctl alpha-signal-oos-fdr-validation-run
+```
+
+The command reads the existing V2 artifact directory and writes a new artifact
+directory:
+
+- `alpha_signal_oos_fdr_validation.json`
+- `frozen_candidate_universe.jsonl`
+- `chronological_folds.csv`
+- `signal_oos_diagnostics.csv`
+- `family_oos_summary.csv`
+- `representative_signal_summary.csv`
+- `oos_null_baseline_comparison.csv`
+- `multiple_testing_fdr_summary.csv`
+- `failed_gate_rollup.csv`
+- `next_falsification_queue.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+V3 freezes the V2 candidate universe exactly for validation. It does not
+generate new DAGs, change `signal_id`s, retune horizons, retune thresholds,
+optimize weights, or add candidates based on performance. Chronological folds
+record train/validation/test boundaries, purge bars, embargo bars, horizon bars,
+sample counts, event counts, and purged observation counts. Forward-return label
+overlap across fold boundaries is treated as a leakage risk and is purged before
+diagnostics are reported.
+
+For each frozen `signal_id` by horizon and fold, V3 records train/validation/test
+IC, rank-IC, hit rate, coverage, turnover proxy, missingness, sign consistency,
+degradation, null status, and leakage status. Family summaries use
+duplicate-adjusted breadth and report the corresponding test metric for the
+best validation signal rather than picking the best test metric after the fact.
+Representative signals come from V2 cluster representatives where available, or
+from deterministic non-performance rules: lowest complexity score, then
+smallest depth, then lexicographic `signal_id`.
+
+Multiple-testing risk is mandatory in every V3 artifact. The protocol reports
+total signal/family/horizon tests, duplicate-adjusted test count, effective
+signal breadth, best raw metric warnings, family median metrics, corresponding
+OOS metrics, conservative false-discovery warnings, and
+`cannot_claim_edge_due_to_multiple_testing=True` when statistical precision is
+not justified. It must not manufacture pseudo-significant p-values.
+
+Null/baseline comparison is OOS-aware and covers zero/cash-null, deterministic
+random sign, lagged signal, inverse signal, shuffled timestamp signal,
+family-permuted signal, buy-and-hold same-window where applicable, and frozen
+TSMOM negative-control references when durable evidence exists. In-sample null
+wins are not OOS evidence.
+
+Allowed family decisions are limited to `KILL_FAMILY`,
+`DUPLICATE_DOMINATED`, `FAILS_OOS_CONSISTENCY`,
+`FAILS_NULL_ROBUSTNESS`, `NEEDS_STRICTER_OOS_FALSIFICATION`, and
+`WATCH_FAMILY_ONLY`. Allowed suite decisions are paper-only infrastructure or
+paper-only follow-up statuses. Forbidden labels include `READY`, `TRADE`,
+`LIVE_READY`, `PROFITABLE`, `DEPLOY`, `CAPITAL_ALLOCATE`, and
+`EDGE_CONFIRMED`. `WATCH_FAMILY_ONLY` means only that a family may deserve a
+separate pre-registered paper-only falsification loop; it does not imply alpha,
+edge, profitability, readiness, execution readiness, live/testnet permission, or
+permission to trade real money. `readiness_baseline_verdict` remains
+`NOT_READY`, `holdout_retune_used` remains `false`, and `tsmom_state_changed`
+remains `false`.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

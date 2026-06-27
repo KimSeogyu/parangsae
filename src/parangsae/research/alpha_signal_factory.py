@@ -26,10 +26,15 @@ ALPHA_SIGNAL_FACTORY_SCHEMA_VERSION = 1
 ALPHA_SIGNAL_FACTORY_LOOP_SLUG = "alpha-signal-factory-composition-harness-v1"
 ALPHA_SIGNAL_DAG_SCHEMA_VERSION = 2
 ALPHA_SIGNAL_DAG_LOOP_SLUG = "alpha-signal-dag-combinatorial-expansion-v2"
+ALPHA_SIGNAL_OOS_FDR_SCHEMA_VERSION = 3
+ALPHA_SIGNAL_OOS_FDR_LOOP_SLUG = "alpha-signal-oos-fdr-validation-protocol-v3"
+DEFAULT_ALPHA_SIGNAL_DAG_V2_ARTIFACT = Path("reports/loops/20260627-alpha-signal-dag-combinatorial-expansion-v2")
 ALPHA_SIGNAL_FACTORY_NAMESPACE = "alpha_signal_factory_composition_harness_only_not_readiness"
 ALPHA_SIGNAL_DAG_NAMESPACE = "alpha_signal_dag_combinatorial_expansion_v2_only_not_readiness"
+ALPHA_SIGNAL_OOS_FDR_NAMESPACE = "alpha_signal_oos_fdr_validation_protocol_v3_only_not_readiness"
 ALPHA_SIGNAL_FACTORY_DECISION = "SIGNAL_FACTORY_INFRA_ONLY"
 ALPHA_SIGNAL_DAG_DECISION = "SIGNAL_DAG_INFRA_ONLY"
+ALPHA_SIGNAL_OOS_FDR_DECISION = "OOS_FDR_PROTOCOL_INFRA_ONLY"
 READINESS_BASELINE_VERDICT = "NOT_READY"
 DEFAULT_SIGNAL_GENERATION_SEED = 20260627
 DEFAULT_SIGNAL_DAG_GENERATION_SEED = 20260628
@@ -64,6 +69,19 @@ MULTIPLE_TESTING_BOUNDARY = (
     "false-discovery risk. It may only produce paper-only family follow-up queues; it cannot "
     "claim edge without a separate future pre-registered OOS falsification protocol."
 )
+OOS_FDR_CLAIM_BOUNDARY = (
+    "ALPHA_SIGNAL_OOS_FDR_VALIDATION_PROTOCOL_V3 is paper-only OOS/FDR validation "
+    "infrastructure over a frozen V2 Signal DAG candidate universe. It is not new alpha "
+    "generation, not a trading strategy, not signal-weight optimization, not profitability "
+    "evidence, not readiness or live readiness, and not permission for live/testnet/account/"
+    "API-key/order/fill use."
+)
+OOS_FDR_MULTIPLE_TESTING_BOUNDARY = (
+    "V3 evaluates a frozen large candidate universe with duplicate-adjusted breadth and "
+    "conservative false-discovery warnings. It may only create a paper-only next "
+    "falsification queue; OOS consistency is not proof of alpha without separate future "
+    "protocols and live/execution-readiness evidence."
+)
 ALLOWED_SHORTLIST_CATEGORIES = (
     "KILL_SIGNAL",
     "DUPLICATE_SIGNAL",
@@ -73,6 +91,7 @@ ALLOWED_SHORTLIST_CATEGORIES = (
 )
 DAG_ALLOWED_SHORTLIST_CATEGORIES = ALLOWED_SHORTLIST_CATEGORIES + ("NEEDS_OOS_FALSIFICATION",)
 FORBIDDEN_OUTPUT_LABELS = {"READY", "TRADE", "LIVE_READY", "PROFITABLE", "DEPLOY", "CAPITAL_ALLOCATE"}
+OOS_FORBIDDEN_OUTPUT_LABELS = FORBIDDEN_OUTPUT_LABELS | {"EDGE_CONFIRMED"}
 NULL_BASELINES_USED = (
     "zero_signal_cash_null",
     "random_sign_signal",
@@ -116,6 +135,22 @@ ALPHA_DAG_REQUIRED_FILES = (
     "changed_files.txt",
 )
 ALPHA_DAG_KNOWN_FILES = set(ALPHA_DAG_REQUIRED_FILES)
+ALPHA_OOS_FDR_REQUIRED_FILES = (
+    "alpha_signal_oos_fdr_validation.json",
+    "frozen_candidate_universe.jsonl",
+    "chronological_folds.csv",
+    "signal_oos_diagnostics.csv",
+    "family_oos_summary.csv",
+    "representative_signal_summary.csv",
+    "oos_null_baseline_comparison.csv",
+    "multiple_testing_fdr_summary.csv",
+    "failed_gate_rollup.csv",
+    "next_falsification_queue.csv",
+    "report.md",
+    "commands.txt",
+    "changed_files.txt",
+)
+ALPHA_OOS_FDR_KNOWN_FILES = set(ALPHA_OOS_FDR_REQUIRED_FILES)
 
 SignalDecision = Literal[
     "KILL_SIGNAL",
@@ -273,6 +308,20 @@ class SignalDagExpansionResult:
     multiple_testing_summary: list[dict[str, Any]]
     shortlist: list[dict[str, Any]]
     failed_gates: list[dict[str, Any]]
+
+
+@dataclass(frozen=True)
+class SignalOosFdrValidationResult:
+    payload: dict[str, Any]
+    frozen_candidate_universe: list[dict[str, Any]]
+    chronological_folds: list[dict[str, Any]]
+    signal_oos_diagnostics: list[dict[str, Any]]
+    family_oos_summary: list[dict[str, Any]]
+    representative_signal_summary: list[dict[str, Any]]
+    oos_null_baseline_comparison: list[dict[str, Any]]
+    multiple_testing_fdr_summary: list[dict[str, Any]]
+    failed_gates: list[dict[str, Any]]
+    next_falsification_queue: list[dict[str, Any]]
 
 
 def default_alpha_signal_factory_output_dir(
@@ -2421,3 +2470,739 @@ def _operator_families_used(specs: list[SignalDagSpec]) -> list[str]:
         for operator in spec.operator_sequence:
             families.add(_operator_node_type(operator))
     return sorted(families)
+
+
+def default_alpha_signal_oos_fdr_validation_output_dir(
+    *,
+    root: str | Path = "reports/loops",
+    today: str | None = None,
+) -> Path:
+    stamp = today or datetime.now(UTC).strftime("%Y%m%d")
+    return Path(root) / f"{stamp}-{ALPHA_SIGNAL_OOS_FDR_LOOP_SLUG}"
+
+
+def evaluate_alpha_signal_oos_fdr_validation(
+    *,
+    source_v2_artifact_path: str | Path = DEFAULT_ALPHA_SIGNAL_DAG_V2_ARTIFACT,
+    market_bundle: MarketDataBundle,
+    funding_bundle: FundingRateBundle | None = None,
+    horizons: Iterable[int] = FORWARD_HORIZONS,
+    fold_count: int = 3,
+    commands: Iterable[str] = (),
+    changed_files: Iterable[str] = (),
+) -> SignalOosFdrValidationResult:
+    source_path = Path(source_v2_artifact_path)
+    source_payload, frozen_catalog, source_clusters, _source_shortlist = _load_v2_frozen_candidate_artifact(source_path)
+    specs = [SignalDagSpec.from_dict(row) for row in frozen_catalog]
+    frame = _normalize_ohlcv(market_bundle.frame)
+    funding = _align_public_funding(frame.index, funding_bundle.frame if funding_bundle is not None else None)
+    horizon_tuple = tuple(int(item) for item in horizons)
+    max_horizon = max(horizon_tuple)
+    folds = build_oos_chronological_folds(frame.index, horizons=horizon_tuple, fold_count=fold_count, purge_bars=max_horizon, embargo_bars=max_horizon)
+    labels = _forward_return_labels(frame, horizons=horizon_tuple)
+    base_series = _dag_base_series(frame, funding)
+    signals: dict[str, pd.Series] = {}
+    for spec in specs:
+        raw_signal = _build_signal_dag_series_prepared(spec, frame=frame, funding=funding, base_series=base_series)
+        signals[spec.signal_id] = lag_signal_for_labels(raw_signal, lag_bars=spec.lag_bars)
+    diagnostic_rows = _oos_signal_diagnostic_rows(specs=specs, signals=signals, labels=labels, folds=folds)
+    representatives = _representative_signal_rows(specs=specs, clusters=source_clusters, signals=signals)
+    null_rows = _oos_null_baseline_rows(signals=signals, specs=specs, representatives=representatives, labels=labels, folds=folds)
+    family_rows = _oos_family_summary_rows(diagnostic_rows, null_rows, source_clusters)
+    multiple_testing_rows = _oos_multiple_testing_summary_rows(
+        diagnostic_rows=diagnostic_rows,
+        family_rows=family_rows,
+        source_clusters=source_clusters,
+        horizon_count=len(horizon_tuple),
+    )
+    next_queue = _next_falsification_queue_rows(family_rows)
+    failed_gates = _oos_failed_gate_rows(family_rows, multiple_testing_rows, source_clusters)
+    family_count = len({spec.signal_family for spec in specs})
+    total_signal_tests = len(diagnostic_rows)
+    effective_breadth = len({str(row["representative_signal_id"]) for row in source_clusters})
+    duplicate_adjusted_test_count = effective_breadth * len(folds)
+    families_killed = sum(1 for row in family_rows if row["family_decision"] in {"KILL_FAMILY", "DUPLICATE_DOMINATED", "FAILS_OOS_CONSISTENCY", "FAILS_NULL_ROBUSTNESS"})
+    families_watch = sum(1 for row in family_rows if row["family_decision"] in {"WATCH_FAMILY_ONLY", "NEEDS_STRICTER_OOS_FALSIFICATION"})
+    payload = {
+        "schema_version": ALPHA_SIGNAL_OOS_FDR_SCHEMA_VERSION,
+        "loop_id": f"{datetime.now(UTC).strftime('%Y%m%d')}-{ALPHA_SIGNAL_OOS_FDR_LOOP_SLUG}",
+        "loop_namespace": ALPHA_SIGNAL_OOS_FDR_NAMESPACE,
+        "loop_type": "validation_infrastructure",
+        "status": "IMPLEMENTED",
+        "suite_decision": ALPHA_SIGNAL_OOS_FDR_DECISION,
+        "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+        "source_v2_artifact_path": str(source_path),
+        "source_v2_generated_signal_count": int(source_payload.get("generated_signal_count", len(frozen_catalog))),
+        "frozen_candidate_count": len(frozen_catalog),
+        "evaluated_signal_count": len(signals),
+        "family_count": family_count,
+        "horizon_count": len(horizon_tuple),
+        "chronological_fold_count": len(folds),
+        "purge_bars": max_horizon,
+        "embargo_bars": max_horizon,
+        "total_signal_tests": total_signal_tests,
+        "effective_signal_breadth": effective_breadth,
+        "duplicate_adjusted_test_count": duplicate_adjusted_test_count,
+        "families_killed_count": families_killed,
+        "families_watch_count": families_watch,
+        "multiple_testing_boundary": OOS_FDR_MULTIPLE_TESTING_BOUNDARY,
+        "leakage_boundary": LEAKAGE_BOUNDARY,
+        "claim_boundary": OOS_FDR_CLAIM_BOUNDARY,
+        "safety_gates": {
+            "no_live_orders_submitted": True,
+            "no_testnet_orders_submitted": True,
+            "no_account_data_used": True,
+            "no_api_key_used": True,
+            "no_private_order_or_fill_data_used": True,
+            "live_orders_submitted": False,
+            "testnet_orders_submitted": False,
+            "api_keys_required_for_research": False,
+            "account_or_fill_data_used": False,
+            "profit_or_live_ready_claim": False,
+            "live_trading_path_introduced": False,
+        },
+        "tsmom_state_changed": False,
+        "holdout_retune_used": False,
+        "strategy_optimization_performed": False,
+        "live_or_testnet_path_created": False,
+        "candidate_universe_freeze": {
+            "source_signal_ids_preserved": True,
+            "new_signal_dags_generated": False,
+            "signal_ids_changed": False,
+            "performance_based_candidate_addition": False,
+            "threshold_or_horizon_retune_based_on_results": False,
+        },
+        "dataset_provenance": _dataset_provenance(market_bundle, funding_bundle),
+        "summary": {
+            "forbidden_outputs": sorted(OOS_FORBIDDEN_OUTPUT_LABELS),
+            "cannot_claim_edge_due_to_multiple_testing": True,
+            "paper_only_follow_up_queue": True,
+        },
+        "validation_commands": list(commands),
+        "changed_files": list(changed_files),
+        "evidence_artifacts": list(ALPHA_OOS_FDR_REQUIRED_FILES),
+        "next_loop": "Use next_falsification_queue.csv only as input to a separate paper-only pre-registered falsification loop; do not trade or claim readiness.",
+    }
+    return SignalOosFdrValidationResult(
+        payload=payload,
+        frozen_candidate_universe=frozen_catalog,
+        chronological_folds=_public_fold_rows(folds),
+        signal_oos_diagnostics=diagnostic_rows,
+        family_oos_summary=family_rows,
+        representative_signal_summary=representatives,
+        oos_null_baseline_comparison=null_rows,
+        multiple_testing_fdr_summary=multiple_testing_rows,
+        failed_gates=failed_gates,
+        next_falsification_queue=next_queue,
+    )
+
+
+def build_oos_chronological_folds(
+    index: pd.Index,
+    *,
+    horizons: Iterable[int] = FORWARD_HORIZONS,
+    fold_count: int = 3,
+    purge_bars: int | None = None,
+    embargo_bars: int | None = None,
+) -> list[dict[str, Any]]:
+    dt_index = pd.DatetimeIndex(index)
+    if len(dt_index) < 60:
+        raise ValueError("not enough observations for chronological OOS folds")
+    horizon_tuple = tuple(int(item) for item in horizons)
+    max_horizon = max(horizon_tuple)
+    purge = int(max_horizon if purge_bars is None else purge_bars)
+    embargo = int(max_horizon if embargo_bars is None else embargo_bars)
+    base_fold_width = max(max_horizon * 4, len(dt_index) // max(fold_count + 4, 5))
+    folds: list[dict[str, Any]] = []
+    for fold_idx in range(fold_count):
+        train_start = 0
+        train_end_raw = base_fold_width * (fold_idx + 1)
+        validation_start = train_end_raw + purge + embargo
+        validation_end_raw = validation_start + base_fold_width
+        test_start = validation_end_raw + purge + embargo
+        test_end_raw = test_start + base_fold_width
+        if test_end_raw >= len(dt_index):
+            break
+        for horizon in horizon_tuple:
+            train_end = max(train_start, train_end_raw - int(horizon))
+            validation_end = max(validation_start, validation_end_raw - int(horizon))
+            test_end = max(test_start, test_end_raw - int(horizon))
+            if train_end <= train_start or validation_end <= validation_start or test_end <= test_start:
+                continue
+            folds.append(
+                {
+                    "fold_id": f"fold{fold_idx + 1:02d}_h{horizon}",
+                    "fold_number": fold_idx + 1,
+                    "horizon_bars": int(horizon),
+                    "purge_bars": purge,
+                    "embargo_bars": embargo,
+                    "train_start_pos": train_start,
+                    "train_end_pos": train_end,
+                    "validation_start_pos": validation_start,
+                    "validation_end_pos": validation_end,
+                    "test_start_pos": test_start,
+                    "test_end_pos": test_end,
+                    "train_start": _timestamp(cast(pd.Timestamp, dt_index[train_start])),
+                    "train_end": _timestamp(cast(pd.Timestamp, dt_index[train_end - 1])),
+                    "validation_start": _timestamp(cast(pd.Timestamp, dt_index[validation_start])),
+                    "validation_end": _timestamp(cast(pd.Timestamp, dt_index[validation_end - 1])),
+                    "test_start": _timestamp(cast(pd.Timestamp, dt_index[test_start])),
+                    "test_end": _timestamp(cast(pd.Timestamp, dt_index[test_end - 1])),
+                    "fold_sample_count": int((train_end - train_start) + (validation_end - validation_start) + (test_end - test_start)),
+                    "fold_event_count": int((validation_end - validation_start) + (test_end - test_start)),
+                    "purged_observation_count": int(horizon * 3),
+                    "label_overlap_allowed": False,
+                }
+            )
+    if not folds:
+        raise ValueError("chronological OOS fold construction produced no valid folds")
+    return folds
+
+
+def write_alpha_signal_oos_fdr_validation_artifacts(
+    output_dir: str | Path,
+    result: SignalOosFdrValidationResult,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    out = prepare_alpha_signal_oos_fdr_validation_output_dir(output_dir, overwrite=overwrite)
+    payload = dict(result.payload)
+    if out.name.endswith(ALPHA_SIGNAL_OOS_FDR_LOOP_SLUG):
+        payload["loop_id"] = out.name
+    _write_json(out / "alpha_signal_oos_fdr_validation.json", payload)
+    _atomic_write_text(
+        out / "frozen_candidate_universe.jsonl",
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in result.frozen_candidate_universe),
+    )
+    pd.DataFrame(result.chronological_folds).to_csv(out / "chronological_folds.csv", index=False)
+    pd.DataFrame(result.signal_oos_diagnostics).to_csv(out / "signal_oos_diagnostics.csv", index=False)
+    pd.DataFrame(result.family_oos_summary).to_csv(out / "family_oos_summary.csv", index=False)
+    pd.DataFrame(result.representative_signal_summary).to_csv(out / "representative_signal_summary.csv", index=False)
+    pd.DataFrame(result.oos_null_baseline_comparison).to_csv(out / "oos_null_baseline_comparison.csv", index=False)
+    pd.DataFrame(result.multiple_testing_fdr_summary).to_csv(out / "multiple_testing_fdr_summary.csv", index=False)
+    pd.DataFrame(result.failed_gates).to_csv(out / "failed_gate_rollup.csv", index=False)
+    pd.DataFrame(result.next_falsification_queue).to_csv(out / "next_falsification_queue.csv", index=False)
+    _atomic_write_text(out / "report.md", render_alpha_signal_oos_fdr_validation_report(payload, result))
+    _atomic_write_text(out / "commands.txt", "\n".join(payload.get("validation_commands", [])) + "\n")
+    _atomic_write_text(out / "changed_files.txt", "\n".join(payload.get("changed_files", [])) + "\n")
+    return out
+
+
+def prepare_alpha_signal_oos_fdr_validation_output_dir(output_dir: str | Path, *, overwrite: bool = False) -> Path:
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="alpha-signal-oos-fdr-validation-run",
+        known_files=ALPHA_OOS_FDR_KNOWN_FILES,
+        overwrite=overwrite,
+    )
+
+
+def render_alpha_signal_oos_fdr_validation_report(payload: dict[str, Any], result: SignalOosFdrValidationResult) -> str:
+    lines = [
+        f"# Quant Loop Report: {payload['loop_id']}",
+        "",
+        "## Purpose",
+        "Validate the frozen V2 Signal DAG universe with paper-only chronological OOS, purge/embargo, duplicate-adjusted, and multiple-testing/FDR-style diagnostics.",
+        "",
+        "## Claim boundary",
+        f"- suite_decision: {payload['suite_decision']}",
+        f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+        f"- source_v2_artifact_path: {payload['source_v2_artifact_path']}",
+        f"- claim_boundary: {payload['claim_boundary']}",
+        f"- multiple_testing_boundary: {payload['multiple_testing_boundary']}",
+        "- WATCH_FAMILY_ONLY or NEEDS_STRICTER_OOS_FALSIFICATION is a paper-only follow-up queue, not alpha confirmation.",
+        "",
+        "## Safety boundary",
+        f"- no_live_orders_submitted: {payload['safety_gates']['no_live_orders_submitted']}",
+        f"- no_testnet_orders_submitted: {payload['safety_gates']['no_testnet_orders_submitted']}",
+        f"- no_account_data_used: {payload['safety_gates']['no_account_data_used']}",
+        f"- no_api_key_used: {payload['safety_gates']['no_api_key_used']}",
+        f"- no_private_order_or_fill_data_used: {payload['safety_gates']['no_private_order_or_fill_data_used']}",
+        f"- holdout_retune_used: {payload['holdout_retune_used']}",
+        f"- strategy_optimization_performed: {payload['strategy_optimization_performed']}",
+        f"- live_or_testnet_path_created: {payload['live_or_testnet_path_created']}",
+        f"- tsmom_state_changed: {payload['tsmom_state_changed']}",
+        "",
+        "## Frozen candidate universe",
+        f"- source_v2_generated_signal_count: {payload['source_v2_generated_signal_count']}",
+        f"- frozen_candidate_count: {payload['frozen_candidate_count']}",
+        f"- evaluated_signal_count: {payload['evaluated_signal_count']}",
+        f"- signal IDs preserved: {payload['candidate_universe_freeze']['source_signal_ids_preserved']}",
+        "",
+        "## OOS folds",
+        f"- chronological_fold_count: {payload['chronological_fold_count']}",
+        f"- horizon_count: {payload['horizon_count']}",
+        f"- purge_bars: {payload['purge_bars']}",
+        f"- embargo_bars: {payload['embargo_bars']}",
+        "",
+        "## Multiple-testing / FDR boundary",
+        f"- total_signal_tests: {payload['total_signal_tests']}",
+        f"- effective_signal_breadth: {payload['effective_signal_breadth']}",
+        f"- duplicate_adjusted_test_count: {payload['duplicate_adjusted_test_count']}",
+        "- cannot_claim_edge_due_to_multiple_testing: True",
+        "",
+        "## Family decisions",
+    ]
+    for row in result.family_oos_summary:
+        lines.append(
+            f"- {row['signal_family']} / h{row['horizon_bars']}: {row['family_decision']} "
+            f"(median_test_ic={row['median_test_ic']}, sign_consistency_rate={row['sign_consistency_rate']})"
+        )
+    lines.extend(["", "## Next falsification queue"])
+    if result.next_falsification_queue:
+        for row in result.next_falsification_queue:
+            lines.append(f"- {row['signal_family']} / h{row['horizon_bars']}: {row['queue_decision']} ({row['reason']})")
+    else:
+        lines.append("- empty")
+    lines.extend(["", "## Failed gates / unclaimed checks"])
+    for row in result.failed_gates:
+        lines.append(f"- {row['gate']}: {row['status']} ({row['reason']})")
+    lines.extend(
+        [
+            "",
+            "## What cannot be claimed",
+            "- alpha confirmed",
+            "- profitability",
+            "- live readiness",
+            "- execution readiness",
+            "- permission to trade real money",
+            "- restoration of TSMOM active development",
+            "",
+            "## Next loop",
+            payload["next_loop"],
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _load_v2_frozen_candidate_artifact(source_path: Path) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    required = (
+        "alpha_signal_dag_expansion.json",
+        "signal_dag_catalog.jsonl",
+        "signal_correlation_clusters.csv",
+        "shortlist.csv",
+        "multiple_testing_summary.csv",
+        "null_baseline_comparison.csv",
+        "signal_family_summary.csv",
+        "signal_diagnostics.csv",
+    )
+    missing = [name for name in required if not (source_path / name).exists()]
+    if missing:
+        raise FileNotFoundError(f"source V2 artifact missing required files: {missing}")
+    payload = json.loads((source_path / "alpha_signal_dag_expansion.json").read_text())
+    catalog = [json.loads(line) for line in (source_path / "signal_dag_catalog.jsonl").read_text().splitlines() if line.strip()]
+    clusters = _frame(pd.read_csv(source_path / "signal_correlation_clusters.csv")).to_dict(orient="records")
+    shortlist = _frame(pd.read_csv(source_path / "shortlist.csv")).to_dict(orient="records")
+    source_count = int(payload.get("generated_signal_count", len(catalog)))
+    if len(catalog) != source_count:
+        raise ValueError(f"frozen catalog count {len(catalog)} does not match source V2 generated count {source_count}")
+    return payload, catalog, clusters, shortlist
+
+
+def _public_fold_rows(folds: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    hidden = {"train_start_pos", "train_end_pos", "validation_start_pos", "validation_end_pos", "test_start_pos", "test_end_pos"}
+    return [{key: value for key, value in row.items() if key not in hidden} for row in folds]
+
+
+def _oos_signal_diagnostic_rows(
+    *,
+    specs: list[SignalDagSpec],
+    signals: dict[str, pd.Series],
+    labels: dict[int, pd.Series],
+    folds: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for spec in specs:
+        signal = signals[spec.signal_id]
+        for fold in folds:
+            horizon = int(fold["horizon_bars"])
+            label = labels[horizon]
+            train_metrics = _window_pair_metrics(signal, label, int(fold["train_start_pos"]), int(fold["train_end_pos"]))
+            validation_metrics = _window_pair_metrics(signal, label, int(fold["validation_start_pos"]), int(fold["validation_end_pos"]))
+            test_metrics = _window_pair_metrics(signal, label, int(fold["test_start_pos"]), int(fold["test_end_pos"]))
+            validation_ic = validation_metrics["ic"]
+            test_ic = test_metrics["ic"]
+            rows.append(
+                {
+                    "signal_id": spec.signal_id,
+                    "dag_id": spec.dag_id,
+                    "signal_family": spec.signal_family,
+                    "horizon_bars": horizon,
+                    "fold_id": fold["fold_id"],
+                    "train_ic": train_metrics["ic"],
+                    "validation_ic": validation_ic,
+                    "test_ic": test_ic,
+                    "train_rank_ic": train_metrics["rank_ic"],
+                    "validation_rank_ic": validation_metrics["rank_ic"],
+                    "test_rank_ic": test_metrics["rank_ic"],
+                    "validation_hit_rate": validation_metrics["hit_rate"],
+                    "test_hit_rate": test_metrics["hit_rate"],
+                    "validation_coverage": validation_metrics["coverage"],
+                    "test_coverage": test_metrics["coverage"],
+                    "validation_turnover_proxy": validation_metrics["turnover_proxy"],
+                    "test_turnover_proxy": test_metrics["turnover_proxy"],
+                    "validation_missing_ratio": validation_metrics["missing_ratio"],
+                    "test_missing_ratio": test_metrics["missing_ratio"],
+                    "validation_null_status": "evaluated_oos",
+                    "test_null_status": "evaluated_oos",
+                    "sign_consistency_train_to_test": _same_sign(train_metrics["ic"], test_ic),
+                    "validation_to_test_sign_consistency": _same_sign(validation_ic, test_ic),
+                    "degradation_ratio": _degradation_ratio(validation_ic, test_ic),
+                    "leakage_check_status": "passed_shifted_by_decision_lag" if spec.lag_bars >= 1 and not spec.uses_future_data else "failed",
+                    "claim_boundary": OOS_FDR_CLAIM_BOUNDARY,
+                }
+            )
+    return rows
+
+
+def _representative_signal_rows(
+    *,
+    specs: list[SignalDagSpec],
+    clusters: list[dict[str, Any]],
+    signals: dict[str, pd.Series],
+) -> list[dict[str, Any]]:
+    spec_by_id = {spec.signal_id: spec for spec in specs}
+    representative_ids = sorted({str(row["representative_signal_id"]) for row in clusters})
+    rows: list[dict[str, Any]] = []
+    for signal_id in representative_ids:
+        spec = spec_by_id[signal_id]
+        cluster_rows = [row for row in clusters if str(row["representative_signal_id"]) == signal_id]
+        rows.append(
+            {
+                "signal_id": signal_id,
+                "dag_id": spec.dag_id,
+                "signal_family": spec.signal_family,
+                "depth": spec.depth,
+                "complexity_score": spec.complexity_score,
+                "cluster_count_represented": len(cluster_rows),
+                "selection_rule": "v2_cluster_representative_lowest_complexity_then_depth_then_lexicographic_signal_id",
+                "selected_by_performance": False,
+                "non_null_observation_count": int(_coerce_float_series(signals[signal_id]).dropna().shape[0]),
+                "claim_boundary": OOS_FDR_CLAIM_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _oos_null_baseline_rows(
+    *,
+    signals: dict[str, pd.Series],
+    specs: list[SignalDagSpec],
+    representatives: list[dict[str, Any]],
+    labels: dict[int, pd.Series],
+    folds: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    specs_by_family: dict[str, list[SignalDagSpec]] = {}
+    for spec in specs:
+        specs_by_family.setdefault(spec.signal_family, []).append(spec)
+    for family, family_specs in sorted(specs_by_family.items()):
+        family_signal = _mean_signal([signals[spec.signal_id] for spec in family_specs])
+        rows.extend(_oos_baseline_rows_for_signal(family_signal, family=family, signal_id="family_mean", comparison_level="family", labels=labels, folds=folds))
+    for representative in representatives:
+        signal_id = str(representative["signal_id"])
+        rows.extend(
+            _oos_baseline_rows_for_signal(
+                signals[signal_id],
+                family=str(representative["signal_family"]),
+                signal_id=signal_id,
+                comparison_level="cluster_representative",
+                labels=labels,
+                folds=folds,
+            )
+        )
+    return rows
+
+
+def _oos_baseline_rows_for_signal(
+    signal: pd.Series,
+    *,
+    family: str,
+    signal_id: str,
+    comparison_level: str,
+    labels: dict[int, pd.Series],
+    folds: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for fold in folds:
+        horizon = int(fold["horizon_bars"])
+        label = labels[horizon]
+        start = int(fold["test_start_pos"])
+        end = int(fold["test_end_pos"])
+        signal_ic = _series_corr(_series(signal.iloc[start:end]), _series(label.iloc[start:end]))
+        random_signal, random_seed = deterministic_random_sign_signal(signal, f"oos-{family}-{signal_id}-{fold['fold_id']}", seed_base=DEFAULT_SIGNAL_DAG_GENERATION_SEED)
+        shuffled, shuffled_seed = shuffled_timestamp_signal(signal, f"oos-{family}-{signal_id}-{fold['fold_id']}", seed_base=DEFAULT_SIGNAL_DAG_GENERATION_SEED)
+        family_permuted, permuted_seed = shuffled_timestamp_signal(signal, f"oos-family-permuted-{family}-{fold['fold_id']}", seed_base=DEFAULT_SIGNAL_DAG_GENERATION_SEED + 37)
+        candidates: list[tuple[str, pd.Series | None, str, int | None, bool]] = [
+            ("zero_signal_cash_null", pd.Series(0.0, index=signal.index, dtype=float), "available", None, False),
+            ("deterministic_random_sign", random_signal, "available", random_seed, False),
+            ("lagged_signal", lagged_signal_position(signal, lag_bars=max(2, DEFAULT_DECISION_LAG_BARS + horizon // 8)), "available", None, False),
+            ("inverse_signal", inverse_signal_position(signal), "available", None, False),
+            ("shuffled_timestamp_signal", shuffled, "available", shuffled_seed, False),
+            ("family_permuted_signal", family_permuted, "available", permuted_seed, False),
+            ("buy_and_hold_same_window", None, "unavailable_constant_position_no_signal_ic", None, False),
+            (
+                "frozen_tsmom_negative_control",
+                None,
+                "available_summary_only" if DEFAULT_TSMOM_REGIME_ONLY_ARTIFACT.exists() else "unavailable_missing_artifact",
+                None,
+                False,
+            ),
+        ]
+        for baseline_name, baseline_signal, baseline_status, deterministic_seed_value, uses_current_bar in candidates:
+            baseline_ic = _series_corr(_series(baseline_signal.iloc[start:end]), _series(label.iloc[start:end])) if baseline_signal is not None else None
+            rows.append(
+                {
+                    "comparison_level": comparison_level,
+                    "signal_family": family,
+                    "signal_id": signal_id,
+                    "fold_id": fold["fold_id"],
+                    "horizon_bars": horizon,
+                    "signal_test_ic": signal_ic,
+                    "baseline_name": baseline_name,
+                    "baseline_test_ic": baseline_ic,
+                    "signal_beats_baseline_oos": _beats_baseline(signal_ic, baseline_ic),
+                    "baseline_status": baseline_status,
+                    "deterministic_seed": deterministic_seed_value,
+                    "baseline_uses_current_bar_signal": uses_current_bar,
+                    "oos_aware": True,
+                    "holdout_retune_used": False,
+                    "claim_boundary": OOS_FDR_CLAIM_BOUNDARY,
+                }
+            )
+    return rows
+
+
+def _oos_family_summary_rows(
+    diagnostic_rows: list[dict[str, Any]],
+    null_rows: list[dict[str, Any]],
+    clusters: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    diagnostics = _frame(pd.DataFrame(diagnostic_rows))
+    cluster_frame = _frame(pd.DataFrame(clusters))
+    rows: list[dict[str, Any]] = []
+    for group_key, group in diagnostics.groupby(["signal_family", "horizon_bars"], sort=True):
+        family, horizon = cast(tuple[Any, Any], group_key)
+        gf = _frame(group)
+        family_clusters = _frame(cluster_frame[cluster_frame["signal_family"] == family]) if "signal_family" in cluster_frame.columns else pd.DataFrame()
+        evaluated_count = int(_series(gf["signal_id"]).nunique())
+        representative_count = int(_series(family_clusters["representative_signal_id"]).nunique()) if not family_clusters.empty else evaluated_count
+        duplicate_ratio = 1.0 - _safe_div(representative_count, evaluated_count)
+        validation_values = _series(pd.to_numeric(gf["validation_ic"], errors="coerce")).dropna()
+        test_values = _series(pd.to_numeric(gf["test_ic"], errors="coerce")).dropna()
+        best_idx = _best_validation_idx(gf)
+        best_validation_ic = _finite_or_none(gf.loc[best_idx, "validation_ic"]) if best_idx is not None else None
+        corresponding_test_ic = _finite_or_none(gf.loc[best_idx, "test_ic"]) if best_idx is not None else None
+        median_validation = _finite_or_none(validation_values.median()) if not validation_values.empty else None
+        median_test = _finite_or_none(test_values.median()) if not test_values.empty else None
+        family_null_rows = [row for row in null_rows if row["comparison_level"] == "family" and row["signal_family"] == family and int(row["horizon_bars"]) == int(horizon)]
+        null_available = [row for row in family_null_rows if row["signal_beats_baseline_oos"] is not None]
+        null_robustness_rate = _safe_div(sum(1 for row in null_available if row["signal_beats_baseline_oos"] is True), len(null_available)) if null_available else 0.0
+        sign_consistency_rate = _finite_or_none(_series(gf["sign_consistency_train_to_test"]).dropna().astype(float).mean())
+        fold_consistency_rate = _fold_consistency_rate(gf)
+        degradation = _degradation_ratio(median_validation, median_test)
+        decision = _oos_family_decision(
+            duplicate_ratio=duplicate_ratio,
+            sign_consistency_rate=sign_consistency_rate,
+            fold_consistency_rate=fold_consistency_rate,
+            null_robustness_rate=null_robustness_rate,
+            degradation_ratio=degradation,
+        )
+        rows.append(
+            {
+                "signal_family": str(family),
+                "horizon_bars": int(horizon),
+                "evaluated_signal_count": evaluated_count,
+                "duplicate_adjusted_signal_count": representative_count,
+                "effective_signal_breadth": representative_count,
+                "median_validation_ic": median_validation,
+                "median_test_ic": median_test,
+                "mean_validation_ic": _finite_or_none(validation_values.mean()) if not validation_values.empty else None,
+                "mean_test_ic": _finite_or_none(test_values.mean()) if not test_values.empty else None,
+                "best_validation_ic": best_validation_ic,
+                "corresponding_test_ic_for_best_validation_signal": corresponding_test_ic,
+                "best_validation_signal_id": str(gf.loc[best_idx, "signal_id"]) if best_idx is not None else None,
+                "best_validation_fold_id": str(gf.loc[best_idx, "fold_id"]) if best_idx is not None else None,
+                "validation_to_test_degradation": degradation,
+                "sign_consistency_rate": sign_consistency_rate,
+                "fold_consistency_rate": fold_consistency_rate,
+                "null_robustness_rate": null_robustness_rate,
+                "duplicate_ratio": duplicate_ratio,
+                "selection_bias_warning": "best validation metric is reported with corresponding test metric, not best test metric",
+                "family_decision": decision,
+                "claim_boundary": OOS_FDR_CLAIM_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _oos_multiple_testing_summary_rows(
+    *,
+    diagnostic_rows: list[dict[str, Any]],
+    family_rows: list[dict[str, Any]],
+    source_clusters: list[dict[str, Any]],
+    horizon_count: int,
+) -> list[dict[str, Any]]:
+    effective_breadth = len({str(row["representative_signal_id"]) for row in source_clusters})
+    total_signal_tests = len(diagnostic_rows)
+    total_family_tests = len(family_rows)
+    total_horizon_tests = len({int(row["horizon_bars"]) for row in family_rows})
+    family_best_values = [abs(float(row["best_validation_ic"] or 0.0)) for row in family_rows]
+    family_median_values = [float(row["median_test_ic"] or 0.0) for row in family_rows]
+    rows: list[dict[str, Any]] = [
+        {
+            "scope": "overall",
+            "total_signal_tests": total_signal_tests,
+            "total_family_tests": total_family_tests,
+            "total_horizon_tests": total_horizon_tests,
+            "effective_signal_breadth": effective_breadth,
+            "duplicate_adjusted_test_count": effective_breadth * max(1, horizon_count),
+            "best_raw_metric_warning": "best validation IC is not evidence of edge after testing many frozen DAGs",
+            "family_level_median_metric": _finite_or_none(pd.Series(family_median_values, dtype=float).median()) if family_median_values else None,
+            "family_level_best_metric": max(family_best_values) if family_best_values else None,
+            "corresponding_oos_metric": _corresponding_oos_for_overall_best(family_rows),
+            "approximate_false_discovery_warning": "large candidate universe; conservative paper-only FDR warning instead of pseudo-precise p-values",
+            "multiple_testing_boundary": OOS_FDR_MULTIPLE_TESTING_BOUNDARY,
+            "cannot_claim_edge_due_to_multiple_testing": True,
+            "claim_boundary": OOS_FDR_CLAIM_BOUNDARY,
+        }
+    ]
+    for row in family_rows:
+        rows.append(
+            {
+                "scope": f"{row['signal_family']}_h{row['horizon_bars']}",
+                "total_signal_tests": row["evaluated_signal_count"],
+                "total_family_tests": 1,
+                "total_horizon_tests": 1,
+                "effective_signal_breadth": row["effective_signal_breadth"],
+                "duplicate_adjusted_test_count": row["effective_signal_breadth"],
+                "best_raw_metric_warning": "family best validation metric is unconfirmed after multiple testing",
+                "family_level_median_metric": row["median_test_ic"],
+                "family_level_best_metric": row["best_validation_ic"],
+                "corresponding_oos_metric": row["corresponding_test_ic_for_best_validation_signal"],
+                "approximate_false_discovery_warning": "requires stricter pre-registered OOS follow-up before any edge claim",
+                "multiple_testing_boundary": OOS_FDR_MULTIPLE_TESTING_BOUNDARY,
+                "cannot_claim_edge_due_to_multiple_testing": True,
+                "claim_boundary": OOS_FDR_CLAIM_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _next_falsification_queue_rows(family_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for row in family_rows:
+        if row["family_decision"] in {"WATCH_FAMILY_ONLY", "NEEDS_STRICTER_OOS_FALSIFICATION"}:
+            rows.append(
+                {
+                    "signal_family": row["signal_family"],
+                    "horizon_bars": row["horizon_bars"],
+                    "queue_decision": row["family_decision"],
+                    "median_test_ic": row["median_test_ic"],
+                    "effective_signal_breadth": row["effective_signal_breadth"],
+                    "reason": "paper-only OOS diagnostics warrant stricter falsification, not trading",
+                    "claim_boundary": OOS_FDR_CLAIM_BOUNDARY,
+                }
+            )
+    return rows
+
+
+def _oos_failed_gate_rows(
+    family_rows: list[dict[str, Any]],
+    multiple_testing_rows: list[dict[str, Any]],
+    clusters: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    duplicate_count = sum(1 for row in clusters if bool(row.get("is_redundant_duplicate")))
+    if duplicate_count:
+        rows.append({"gate": "duplicate_adjusted_breadth", "status": "watch", "reason": f"{duplicate_count} V2 duplicate candidates remain duplicate-adjusted"})
+    if any(bool(row.get("cannot_claim_edge_due_to_multiple_testing")) for row in multiple_testing_rows):
+        rows.append({"gate": "multiple_testing_fdr_boundary", "status": "unclaimed", "reason": "FDR-style warnings prevent edge/profit/readiness claims"})
+    failed_families = [row for row in family_rows if str(row["family_decision"]).startswith("FAILS") or row["family_decision"] in {"KILL_FAMILY", "DUPLICATE_DOMINATED"}]
+    if failed_families:
+        rows.append({"gate": "family_oos_survival", "status": "watch", "reason": f"{len(failed_families)} family-horizon rows failed or were killed"})
+    rows.append({"gate": "readiness_boundary", "status": "passed", "reason": "readiness_baseline_verdict remains NOT_READY"})
+    rows.append({"gate": "tsmom_state_unchanged", "status": "passed", "reason": "TSMOM artifacts are not modified or restored"})
+    return rows
+
+
+def _window_pair_metrics(signal: pd.Series, label: pd.Series, start: int, end: int) -> dict[str, Any]:
+    signal_window = _coerce_float_series(signal.iloc[start:end])
+    label_window = _coerce_float_series(label.iloc[start:end])
+    valid = pd.concat([signal_window.rename("signal"), label_window.rename("label")], axis=1).dropna()
+    coverage = _safe_div(len(valid), max(1, end - start))
+    hit_rate = None
+    if not valid.empty:
+        signed = _series(valid["signal"]).apply(_safe_sign) * _series(valid["label"]).apply(_safe_sign)
+        hit_rate = _finite_or_none((signed > 0).mean())
+    return {
+        "ic": _series_corr(signal_window, label_window),
+        "rank_ic": _series_corr(signal_window.rank(), label_window.rank()),
+        "hit_rate": hit_rate,
+        "coverage": coverage,
+        "missing_ratio": 1.0 - coverage,
+        "turnover_proxy": _finite_or_none(signal_window.diff().abs().mean()),
+    }
+
+
+def _same_sign(left: float | None, right: float | None) -> bool | None:
+    if left is None or right is None:
+        return None
+    return _safe_sign(left) == _safe_sign(right)
+
+
+def _degradation_ratio(validation_ic: float | None, test_ic: float | None) -> float | None:
+    if validation_ic is None or test_ic is None or abs(float(validation_ic)) == 0.0:
+        return None
+    return _finite_or_none(abs(float(test_ic)) / abs(float(validation_ic)))
+
+
+def _best_validation_idx(frame: pd.DataFrame) -> Any | None:
+    values = _series(pd.to_numeric(frame["validation_ic"], errors="coerce")).abs()
+    values = values.dropna()
+    if values.empty:
+        return None
+    return values.sort_values(ascending=False).index[0]
+
+
+def _fold_consistency_rate(frame: pd.DataFrame) -> float | None:
+    rates: list[bool] = []
+    for _fold_id, group in frame.groupby("fold_id", sort=True):
+        gf = _frame(group)
+        validation_median = _finite_or_none(_series(pd.to_numeric(gf["validation_ic"], errors="coerce")).median())
+        test_median = _finite_or_none(_series(pd.to_numeric(gf["test_ic"], errors="coerce")).median())
+        same = _same_sign(validation_median, test_median)
+        if same is not None:
+            rates.append(same)
+    if not rates:
+        return None
+    return _safe_div(sum(1 for item in rates if item), len(rates))
+
+
+def _oos_family_decision(
+    *,
+    duplicate_ratio: float,
+    sign_consistency_rate: float | None,
+    fold_consistency_rate: float | None,
+    null_robustness_rate: float,
+    degradation_ratio: float | None,
+) -> str:
+    if duplicate_ratio >= 0.9:
+        return "DUPLICATE_DOMINATED"
+    if sign_consistency_rate is None or sign_consistency_rate < 0.45 or fold_consistency_rate is None or fold_consistency_rate < 0.34:
+        return "FAILS_OOS_CONSISTENCY"
+    if null_robustness_rate < 0.45:
+        return "FAILS_NULL_ROBUSTNESS"
+    if degradation_ratio is None or degradation_ratio < 0.35:
+        return "FAILS_OOS_CONSISTENCY"
+    if sign_consistency_rate >= 0.6 and null_robustness_rate >= 0.6:
+        return "WATCH_FAMILY_ONLY"
+    return "NEEDS_STRICTER_OOS_FALSIFICATION"
+
+
+def _corresponding_oos_for_overall_best(family_rows: list[dict[str, Any]]) -> float | None:
+    if not family_rows:
+        return None
+    best = max(family_rows, key=lambda row: abs(float(row["best_validation_ic"] or 0.0)))
+    return _finite_or_none(best.get("corresponding_test_ic_for_best_validation_signal"))

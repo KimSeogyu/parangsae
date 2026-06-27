@@ -12,14 +12,19 @@ import pytest
 from parangsae.apps.cli import quantctl
 from parangsae.marketdata.binance_funding import FundingRateBundle
 from parangsae.marketdata.binance_vision import MarketDataBundle
+from parangsae.research import alpha_signal_factory as alpha_signal_factory_module
 from parangsae.research.alpha_signal_factory import (
     ALPHA_SIGNAL_FACTORY_DECISION,
     ALPHA_SIGNAL_DAG_DECISION,
     ALPHA_SIGNAL_DAG_NAMESPACE,
     ALPHA_SIGNAL_FACTORY_NAMESPACE,
+    ALPHA_SIGNAL_OOS_FDR_DECISION,
+    ALPHA_SIGNAL_OOS_FDR_NAMESPACE,
     CLAIM_BOUNDARY,
     DEFAULT_SIGNAL_DAG_CANDIDATE_BUDGET,
     DEFAULT_SIGNAL_DAG_MAX_DEPTH,
+    OOS_FDR_CLAIM_BOUNDARY,
+    OOS_FORBIDDEN_OUTPUT_LABELS,
     READINESS_BASELINE_VERDICT,
     SIGNAL_DAG_CLAIM_BOUNDARY,
     SignalSpec,
@@ -32,16 +37,19 @@ from parangsae.research.alpha_signal_factory import (
     duplicate_correlation_clusters_for_dags,
     evaluate_alpha_signal_factory,
     evaluate_alpha_signal_dag_expansion,
+    evaluate_alpha_signal_oos_fdr_validation,
     generate_signal_specs,
     generate_signal_dag_specs,
     inverse_signal_position,
     lag_signal_for_labels,
     lagged_signal_position,
     rolling_zscore,
+    build_oos_chronological_folds,
     deterministic_random_sign_signal,
     shuffled_timestamp_signal,
     write_alpha_signal_factory_artifacts,
     write_alpha_signal_dag_expansion_artifacts,
+    write_alpha_signal_oos_fdr_validation_artifacts,
 )
 
 
@@ -118,6 +126,19 @@ def cli_args(tmp_path: Path) -> Namespace:
         command=None,
         changed_file=None,
     )
+
+
+def write_v2_fixture_artifact(tmp_path: Path, frame: pd.DataFrame, *, candidate_budget: int = 30) -> Path:
+    result = evaluate_alpha_signal_dag_expansion(
+        market_bundle=market_bundle(frame),
+        funding_bundle=funding_bundle(frame),
+        seed=2718,
+        max_depth=4,
+        candidate_budget=candidate_budget,
+        commands=["uv run quantctl alpha-signal-dag-expansion-run"],
+        changed_files=["src/parangsae/research/alpha_signal_factory.py"],
+    )
+    return write_alpha_signal_dag_expansion_artifacts(tmp_path / "v2-source", result)
 
 
 def test_signal_spec_schema_serializes_and_forbids_future_data() -> None:
@@ -504,3 +525,134 @@ def test_v1_alpha_signal_factory_command_still_works(monkeypatch, tmp_path: Path
     payload = json.loads((report_dirs[0] / "alpha_signal_factory.json").read_text())
     assert payload["suite_decision"] == "SIGNAL_FACTORY_INFRA_ONLY"
     assert payload["readiness_baseline_verdict"] == "NOT_READY"
+
+
+def test_oos_fdr_chronological_folds_are_ordered_purged_and_embargoed() -> None:
+    index = pd.date_range("2024-01-01", periods=220, freq="1h", tz="UTC")
+    folds = build_oos_chronological_folds(index, horizons=(2, 4), fold_count=2)
+    assert folds
+    for fold in folds:
+        assert fold["train_start_pos"] < fold["train_end_pos"] < fold["validation_start_pos"]
+        assert fold["validation_start_pos"] < fold["validation_end_pos"] < fold["test_start_pos"]
+        assert fold["test_start_pos"] < fold["test_end_pos"]
+        assert fold["validation_start_pos"] - fold["train_end_pos"] >= fold["purge_bars"] + fold["embargo_bars"]
+        assert fold["test_start_pos"] - fold["validation_end_pos"] >= fold["purge_bars"] + fold["embargo_bars"]
+        assert fold["purged_observation_count"] > 0
+        assert fold["label_overlap_allowed"] is False
+
+
+def test_oos_fdr_freezes_v2_candidate_universe_and_preserves_signal_ids(monkeypatch, tmp_path: Path) -> None:
+    frame = synthetic_frame(rows=220)
+    v2_artifact = write_v2_fixture_artifact(tmp_path, frame, candidate_budget=28)
+
+    def forbidden_generation(*_args, **_kwargs):
+        raise AssertionError("V3 must not generate new Signal DAG candidates")
+
+    monkeypatch.setattr(alpha_signal_factory_module, "generate_signal_dag_specs", forbidden_generation)
+    result = evaluate_alpha_signal_oos_fdr_validation(
+        source_v2_artifact_path=v2_artifact,
+        market_bundle=market_bundle(frame),
+        funding_bundle=funding_bundle(frame),
+        horizons=(2, 4),
+        fold_count=2,
+        commands=["uv run quantctl alpha-signal-oos-fdr-validation-run"],
+        changed_files=["src/parangsae/research/alpha_signal_factory.py"],
+    )
+    source_signal_ids = [json.loads(line)["signal_id"] for line in (v2_artifact / "signal_dag_catalog.jsonl").read_text().splitlines()]
+    frozen_signal_ids = [row["signal_id"] for row in result.frozen_candidate_universe]
+    assert frozen_signal_ids == source_signal_ids
+    assert result.payload["suite_decision"] == ALPHA_SIGNAL_OOS_FDR_DECISION
+    assert result.payload["loop_namespace"] == ALPHA_SIGNAL_OOS_FDR_NAMESPACE
+    assert result.payload["readiness_baseline_verdict"] == READINESS_BASELINE_VERDICT
+    assert result.payload["candidate_universe_freeze"]["new_signal_dags_generated"] is False
+    assert result.payload["candidate_universe_freeze"]["signal_ids_changed"] is False
+    assert result.payload["strategy_optimization_performed"] is False
+    assert result.payload["tsmom_state_changed"] is False
+    assert result.payload["safety_gates"]["no_private_order_or_fill_data_used"] is True
+    assert all(row["leakage_check_status"] == "passed_shifted_by_decision_lag" for row in result.signal_oos_diagnostics)
+
+
+def test_oos_fdr_artifacts_boundaries_baselines_and_nonperformance_representatives(tmp_path: Path) -> None:
+    frame = synthetic_frame(rows=220)
+    v2_artifact = write_v2_fixture_artifact(tmp_path, frame, candidate_budget=32)
+    result = evaluate_alpha_signal_oos_fdr_validation(
+        source_v2_artifact_path=v2_artifact,
+        market_bundle=market_bundle(frame),
+        funding_bundle=funding_bundle(frame),
+        horizons=(2, 4),
+        fold_count=2,
+        commands=["uv run pytest tests/test_alpha_signal_factory.py -q"],
+        changed_files=["src/parangsae/research/alpha_signal_factory.py"],
+    )
+    payload = result.payload
+    assert payload["claim_boundary"] == OOS_FDR_CLAIM_BOUNDARY
+    assert payload["summary"]["cannot_claim_edge_due_to_multiple_testing"] is True
+    assert payload["suite_decision"] not in OOS_FORBIDDEN_OUTPUT_LABELS
+    assert all(row["family_decision"] not in OOS_FORBIDDEN_OUTPUT_LABELS for row in result.family_oos_summary)
+    assert any(row["cannot_claim_edge_due_to_multiple_testing"] for row in result.multiple_testing_fdr_summary)
+    assert all(row["baseline_uses_current_bar_signal"] is False for row in result.oos_null_baseline_comparison)
+    assert {"deterministic_random_sign", "lagged_signal", "inverse_signal", "shuffled_timestamp_signal", "family_permuted_signal"}.issubset(
+        {row["baseline_name"] for row in result.oos_null_baseline_comparison}
+    )
+    assert all(
+        row["selection_rule"] == "v2_cluster_representative_lowest_complexity_then_depth_then_lexicographic_signal_id"
+        for row in result.representative_signal_summary
+    )
+    assert all(
+        "corresponding_test_ic_for_best_validation_signal" in row and "best_validation_signal_id" in row
+        for row in result.family_oos_summary
+    )
+    out = write_alpha_signal_oos_fdr_validation_artifacts(tmp_path / "v3", result)
+    assert {path.name for path in out.iterdir()} == set(payload["evidence_artifacts"])
+    saved = json.loads((out / "alpha_signal_oos_fdr_validation.json").read_text())
+    assert saved["readiness_baseline_verdict"] == "NOT_READY"
+    assert saved["candidate_universe_freeze"]["new_signal_dags_generated"] is False
+    assert len((out / "frozen_candidate_universe.jsonl").read_text().splitlines()) == payload["frozen_candidate_count"]
+
+
+def test_cli_oos_fdr_validation_uses_public_no_credential_no_live_path(monkeypatch, tmp_path: Path) -> None:
+    source_frame = synthetic_frame(rows=220)
+    v2_artifact = write_v2_fixture_artifact(tmp_path, source_frame, candidate_budget=24)
+    frame = synthetic_frame(rows=1300)
+    args = Namespace(
+        source_v2_artifact=str(v2_artifact),
+        symbol="BTCUSDT",
+        interval="1h",
+        months="2024-01,2024-02",
+        cache_dir="unused-cache",
+        funding_source="public-binance",
+        funding_cache_dir="unused-funding-cache",
+        reports_root=str(tmp_path / "reports"),
+        output_dir=None,
+        overwrite=False,
+        command=None,
+        changed_file=None,
+    )
+    monkeypatch.setattr(quantctl, "load_market_data_bundle", lambda **_: market_bundle(frame))
+    monkeypatch.setattr(quantctl, "fetch_funding_rate_history", lambda **_: funding_bundle(frame))
+    monkeypatch.setenv("BINANCE_API_KEY", "SHOULD_NOT_BE_READ")
+    monkeypatch.setenv("BINANCE_API_SECRET", "SHOULD_NOT_BE_READ")
+    real_getenv = os.getenv
+
+    def guarded_getenv(key, default=None):
+        if key in {"BINANCE_API_KEY", "BINANCE_API_SECRET"}:
+            raise AssertionError(f"alpha signal OOS/FDR validation must not read {key}")
+        return real_getenv(key, default)
+
+    monkeypatch.setattr(os, "getenv", guarded_getenv)
+    assert quantctl.cmd_alpha_signal_oos_fdr_validation_run(args) == 0
+    report_dirs = list((tmp_path / "reports" / "loops").iterdir())
+    assert len(report_dirs) == 1
+    payload = json.loads((report_dirs[0] / "alpha_signal_oos_fdr_validation.json").read_text())
+    assert payload["suite_decision"] == "OOS_FDR_PROTOCOL_INFRA_ONLY"
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert payload["tsmom_state_changed"] is False
+    assert payload["safety_gates"]["no_api_key_used"] is True
+    assert payload["live_or_testnet_path_created"] is False
+
+
+def test_v1_v2_v3_alpha_commands_are_wired() -> None:
+    parser = quantctl.build_parser()
+    assert parser.parse_args(["alpha-signal-factory-composition-run"]).func is quantctl.cmd_alpha_signal_factory_composition_run
+    assert parser.parse_args(["alpha-signal-dag-expansion-run"]).func is quantctl.cmd_alpha_signal_dag_expansion_run
+    assert parser.parse_args(["alpha-signal-oos-fdr-validation-run"]).func is quantctl.cmd_alpha_signal_oos_fdr_validation_run
