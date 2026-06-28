@@ -1,0 +1,144 @@
+{
+  "baseline": "reports/loops/20260628-public-derivatives-microstructure-recent-window-v12",
+  "cost_model": {
+    "fees": "not_strategy_pnl",
+    "slippage": "not_strategy_pnl",
+    "spread": "not_strategy_pnl"
+  },
+  "data_scope": "public Binance Vision raw USD-M futures 1h klines, 2024-01-01 through 2025-12-31",
+  "decision": "NO_SURVIVING_SIGNAL_FAMILY",
+  "edge_source": "structural_microstructure",
+  "evidence_artifacts": [
+    "historical_kline_microstructure_signal_factory.json",
+    "microstructure_panel_summary.csv",
+    "signal_catalog.jsonl",
+    "signal_diagnostics.csv",
+    "signal_family_summary.csv",
+    "signal_correlation_clusters.csv",
+    "oos_prefilter_summary.csv",
+    "null_baseline_comparison.csv",
+    "multiple_testing_summary.csv",
+    "shortlist.csv",
+    "failed_gate_rollup.csv",
+    "next_strict_falsification_queue.csv",
+    "report.md",
+    "commands.txt",
+    "changed_files.txt"
+  ],
+  "expected_failure_modes": [
+    "duplicate_family_dominance",
+    "null_fragility",
+    "chronological_oos_inconsistency",
+    "multiple_testing_boundary"
+  ],
+  "failed_gates": [
+    {
+      "failure_reason": "TONUSDT: excluded by default because previous coverage left TONUSDT missing in V7/V8 public panel artifacts",
+      "gate": "symbol_excluded_with_reason",
+      "status": "diagnostic"
+    },
+    {
+      "failure_reason": "killed_oos_inconsistent",
+      "gate": "family_taker_imbalance_momentum",
+      "status": "failed"
+    },
+    {
+      "failure_reason": "killed_null_fragile",
+      "gate": "family_taker_imbalance_reversal",
+      "status": "failed"
+    },
+    {
+      "failure_reason": "killed_oos_inconsistent",
+      "gate": "family_trade_count_pressure",
+      "status": "failed"
+    },
+    {
+      "failure_reason": "killed_oos_inconsistent",
+      "gate": "family_quote_volume_pressure",
+      "status": "failed"
+    },
+    {
+      "failure_reason": "killed_oos_inconsistent",
+      "gate": "family_avg_trade_size_proxy",
+      "status": "failed"
+    },
+    {
+      "failure_reason": "killed_oos_inconsistent",
+      "gate": "family_microstructure_divergence",
+      "status": "failed"
+    },
+    {
+      "failure_reason": "killed_oos_inconsistent",
+      "gate": "family_cross_sectional_microstructure_rank",
+      "status": "failed"
+    },
+    {
+      "failure_reason": "killed_no_signals",
+      "gate": "family_lead_lag_microstructure",
+      "status": "failed"
+    },
+    {
+      "failure_reason": "killed_no_signals",
+      "gate": "family_microstructure_x_funding",
+      "status": "failed"
+    },
+    {
+      "failure_reason": "killed_no_signals",
+      "gate": "family_microstructure_x_volatility_regime",
+      "status": "failed"
+    }
+  ],
+  "hypothesis": "Historical public kline-derived microstructure proxy features may expose non-duplicative paper-only signal hypotheses; V13 only prefilters and may not claim edge.",
+  "loop_id": "20260628-historical-kline-microstructure-proxy-signal-factory-v13",
+  "loop_type": "validation_infrastructure",
+  "next_loop": "If next_strict_falsification_queue.csv is non-empty, use it only as a frozen input to V14 strict OOS/FDR falsification. If empty, stop this data axis without retuning.",
+  "pre_registered_grid": {
+    "candidate_budget": 5000,
+    "families": [
+      "taker_imbalance_momentum",
+      "taker_imbalance_reversal",
+      "trade_count_pressure",
+      "quote_volume_pressure",
+      "avg_trade_size_proxy",
+      "microstructure_divergence",
+      "cross_sectional_microstructure_rank",
+      "lead_lag_microstructure",
+      "microstructure_x_funding",
+      "microstructure_x_volatility_regime"
+    ],
+    "horizons": [
+      8,
+      24,
+      72
+    ],
+    "max_depth": 4
+  },
+  "safety_gates": {
+    "data_download_performed": false,
+    "holdout_retune_used": false,
+    "live_or_testnet_path_created": false,
+    "no_account_data_used": true,
+    "no_api_key_used": true,
+    "no_live_orders_submitted": true,
+    "no_private_order_or_fill_data_used": true,
+    "no_testnet_orders_submitted": true,
+    "readiness_baseline_verdict": "NOT_READY",
+    "strategy_optimization_performed": false,
+    "tsmom_state_changed": false
+  },
+  "selection_excludes": [
+    "holdout",
+    "live_orders",
+    "api_keys",
+    "account_state",
+    "recent_window_endpoint_data"
+  ],
+  "selection_inputs": [
+    "diagnostic_prefilter_only"
+  ],
+  "status": "IMPLEMENTED",
+  "strategy_family": "HISTORICAL_KLINE_MICROSTRUCTURE_PROXY_SIGNAL_FACTORY_V13",
+  "validation_commands": [
+    "uv run quantctl historical-kline-microstructure-proxy-signal-factory-run --source-v12-artifact reports/loops/20260628-public-derivatives-microstructure-recent-window-v12 --symbols ADAUSDT,AVAXUSDT,BNBUSDT,BTCUSDT,DOGEUSDT,ETHUSDT,LINKUSDT,SOLUSDT,XRPUSDT --binance-vision-cache-dir data/binance-vision --interval 1h --target-start 2024-01-01 --target-end 2025-12-31 --seed 20260629 --candidate-budget 5000 --max-depth 4 --output-dir reports/loops/20260628-historical-kline-microstructure-proxy-signal-factory-v13 --overwrite"
+  ]
+}

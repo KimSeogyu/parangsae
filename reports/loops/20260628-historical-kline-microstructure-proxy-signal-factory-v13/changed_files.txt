@@ -1,0 +1,6 @@
+src/parangsae/research/kline_microstructure_signal_factory.py
+src/parangsae/apps/cli/quantctl.py
+src/parangsae/research/loop_artifacts.py
+tests/test_kline_microstructure_signal_factory.py
+README.md
+docs/backtesting-paper-trading.md

@@ -89,6 +89,13 @@ from parangsae.research.data_depth import (
     write_data_depth_loop_artifacts,
 )
 from parangsae.research.forward_paper import ForwardPaperConfig, run_forward_paper
+from parangsae.research.kline_microstructure_signal_factory import (
+    DEFAULT_HISTORICAL_KLINE_MICROSTRUCTURE_V12_ARTIFACT,
+    HISTORICAL_KLINE_MICROSTRUCTURE_DEFAULT_UNIVERSE,
+    default_historical_kline_microstructure_signal_factory_output_dir,
+    evaluate_historical_kline_microstructure_signal_factory,
+    write_historical_kline_microstructure_signal_factory_artifacts,
+)
 from parangsae.research.multi_asset_alpha_factory import (
     DEFAULT_MIN_BARS_PER_SYMBOL,
     DEFAULT_MULTI_ASSET_ALPHA_V4_ARTIFACT,
@@ -603,6 +610,25 @@ def _default_public_derivatives_microstructure_recent_window_command(args: argpa
         command.append("--download-recent")
     if args.force:
         command.append("--force")
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_historical_kline_microstructure_signal_factory_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl historical-kline-microstructure-proxy-signal-factory-run",
+        f"--source-v12-artifact {args.source_v12_artifact}",
+        f"--symbols {args.symbols}",
+        f"--binance-vision-cache-dir {args.binance_vision_cache_dir}",
+        f"--interval {args.interval}",
+        f"--target-start {args.target_start}",
+        f"--target-end {args.target_end}",
+        f"--seed {args.seed}",
+        f"--candidate-budget {args.candidate_budget}",
+        f"--max-depth {args.max_depth}",
+        f"--output-dir {args.output_dir or default_historical_kline_microstructure_signal_factory_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
     if args.overwrite:
         command.append("--overwrite")
     return " ".join(command)
@@ -2456,6 +2482,100 @@ def cmd_public_derivatives_microstructure_recent_window_run(args: argparse.Names
         return 2
 
 
+def cmd_historical_kline_microstructure_proxy_signal_factory_run(args: argparse.Namespace) -> int:
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_historical_kline_microstructure_signal_factory_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        commands = args.command or [_default_historical_kline_microstructure_signal_factory_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_historical_kline_microstructure_signal_factory(
+            source_v12_artifact_path=args.source_v12_artifact,
+            requested_symbols=args.symbols.split(","),
+            binance_vision_cache_dir=args.binance_vision_cache_dir,
+            interval=args.interval,
+            target_start=args.target_start,
+            target_end=args.target_end,
+            seed=args.seed,
+            candidate_budget=args.candidate_budget,
+            max_depth=args.max_depth,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_historical_kline_microstructure_signal_factory_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "historical-kline-microstructure-proxy-signal-factory-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v12_artifact_path": result.payload["source_v12_artifact_path"],
+                    "source_v12_coverage_sufficient_for_future_v13": result.payload[
+                        "source_v12_coverage_sufficient_for_future_v13"
+                    ],
+                    "source_v12_historical_microstructure_proxy_readiness": result.payload[
+                        "source_v12_historical_microstructure_proxy_readiness"
+                    ],
+                    "source_v12_recent_window_microstructure_readiness": result.payload[
+                        "source_v12_recent_window_microstructure_readiness"
+                    ],
+                    "recent_window_data_used": result.payload["recent_window_data_used"],
+                    "symbol_universe_used": result.payload["symbol_universe_used"],
+                    "generated_signal_count": result.payload["generated_signal_count"],
+                    "evaluated_signal_count": result.payload["evaluated_signal_count"],
+                    "effective_signal_breadth": result.payload["effective_signal_breadth"],
+                    "duplicate_ratio": result.payload["duplicate_ratio"],
+                    "next_strict_falsification_queue_count": len(result.next_strict_falsification_queue),
+                    "data_download_performed": result.payload["data_download_performed"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "strategy_optimization_performed": result.payload["strategy_optimization_performed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (ValueError, FileExistsError, FileNotFoundError) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "historical-kline-microstructure-proxy-signal-factory-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v12_artifact_path": str(args.source_v12_artifact),
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                    "alpha_generation_performed": False,
+                    "live_or_testnet_path_created": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def cmd_public_multi_asset_panel_coverage_run(args: argparse.Namespace) -> int:
     symbols = PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE
     interval = CANONICAL_INTERVAL
@@ -3772,6 +3892,43 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     microstructure_v12.set_defaults(func=cmd_public_derivatives_microstructure_recent_window_run)
+
+    kline_micro_v13 = sub.add_parser("historical-kline-microstructure-proxy-signal-factory-run")
+    kline_micro_v13.add_argument(
+        "--source-v12-artifact",
+        default=str(DEFAULT_HISTORICAL_KLINE_MICROSTRUCTURE_V12_ARTIFACT),
+        help="V12 microstructure recent-window artifact proving historical kline proxy readiness",
+    )
+    kline_micro_v13.add_argument(
+        "--symbols",
+        default=",".join(HISTORICAL_KLINE_MICROSTRUCTURE_DEFAULT_UNIVERSE),
+        help="comma-separated V12 historical kline microstructure proxy universe; TONUSDT remains excluded",
+    )
+    kline_micro_v13.add_argument(
+        "--binance-vision-cache-dir",
+        default="data/binance-vision",
+        help="existing public Binance Vision raw kline cache root; V13 never downloads data",
+    )
+    kline_micro_v13.add_argument("--interval", default="1h")
+    kline_micro_v13.add_argument("--target-start", default="2024-01-01")
+    kline_micro_v13.add_argument("--target-end", default="2025-12-31")
+    kline_micro_v13.add_argument("--seed", type=int, default=DEFAULT_MULTI_ASSET_GENERATION_SEED)
+    kline_micro_v13.add_argument("--candidate-budget", type=int, default=DEFAULT_MULTI_ASSET_CANDIDATE_BUDGET)
+    kline_micro_v13.add_argument("--max-depth", type=int, default=DEFAULT_MULTI_ASSET_MAX_DEPTH)
+    kline_micro_v13.add_argument("--reports-root", default="reports")
+    kline_micro_v13.add_argument("--output-dir")
+    kline_micro_v13.add_argument("--overwrite", action="store_true")
+    kline_micro_v13.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    kline_micro_v13.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    kline_micro_v13.set_defaults(func=cmd_historical_kline_microstructure_proxy_signal_factory_run)
 
     public_panel = sub.add_parser("public-multi-asset-panel-coverage-run")
     public_panel.add_argument(

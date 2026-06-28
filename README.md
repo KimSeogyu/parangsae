@@ -618,6 +618,33 @@ unless repo policy explicitly allows it. V13 should only run when
 research input gate, not an edge, profitability, readiness, or live/testnet
 claim.
 
+`historical-kline-microstructure-proxy-signal-factory-run` implements the
+paper-only
+`HISTORICAL_KLINE_MICROSTRUCTURE_PROXY_SIGNAL_FACTORY_V13` loop:
+
+```bash
+uv run quantctl historical-kline-microstructure-proxy-signal-factory-run
+```
+
+V13 is the single allowed follow-up when V12 proves long-span historical
+`kline_derived_microstructure_proxy` coverage. It uses only existing public
+Binance Vision raw kline cache fields such as trade count, quote volume, and
+taker-buy volume columns to generate microstructure-aware signal hypotheses.
+It does not use recent-window endpoint data, download or backfill data, rerun
+V8/V9/V10/V11/V12, implement a strategy, optimize portfolios or signal weights,
+or claim alpha, edge, profitability, readiness, execution readiness, or
+live/testnet permission.
+
+V13 writes
+`reports/loops/<YYYYMMDD>-historical-kline-microstructure-proxy-signal-factory-v13/`
+with `historical_kline_microstructure_signal_factory.json`,
+`microstructure_panel_summary.csv`, `signal_catalog.jsonl`,
+`signal_diagnostics.csv`, duplicate-correlation clusters, OOS/null/multiple
+testing summaries, and `next_strict_falsification_queue.csv`. If that queue is
+empty, the historical OHLCV/funding/kline-proxy chain stops without retuning.
+If it is non-empty, the only next action is a frozen paper-only strict
+OOS/FDR falsification loop.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

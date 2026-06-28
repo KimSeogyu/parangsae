@@ -190,6 +190,16 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             payload.get("loop_namespace")
         ):
             return "public-derivatives-microstructure-recent-window-run"
+    historical_kline_microstructure_json = path / "historical_kline_microstructure_signal_factory.json"
+    if historical_kline_microstructure_json.exists():
+        try:
+            payload = json.loads(historical_kline_microstructure_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "historical_kline_microstructure_proxy_signal_factory_v13" in str(
+            payload.get("loop_namespace")
+        ):
+            return "historical-kline-microstructure-proxy-signal-factory-run"
     return None
 
 

@@ -1195,6 +1195,51 @@ explicitly allows it. V13 should only run when
 input gate and does not claim alpha, edge, profitability, execution readiness,
 or live/testnet permission.
 
+## Historical kline microstructure proxy signal factory
+
+`historical-kline-microstructure-proxy-signal-factory-run` implements
+`HISTORICAL_KLINE_MICROSTRUCTURE_PROXY_SIGNAL_FACTORY_V13`, a paper-only signal
+factory over the V12 historical `kline_derived_microstructure_proxy` input gate.
+It is not a trading strategy, not portfolio construction, not signal-weight
+optimization, not live/testnet readiness, and not a profitability or edge claim.
+
+```bash
+uv run quantctl historical-kline-microstructure-proxy-signal-factory-run
+```
+
+V13 uses only existing public Binance Vision raw kline cache fields for the
+2024-2025 historical panel: OHLCV, quote volume, number of trades, and taker-buy
+base/quote volume. It derives microstructure proxy features such as taker
+imbalance, trade-count pressure, quote-volume pressure, average trade-size
+proxies, cross-sectional microstructure ranks, and volatility interactions. It
+does not use recent-window endpoint data and does not download or backfill data.
+Recent-window endpoint observations must not be mixed with 2024-2025 labels.
+
+V13 writes a new artifact directory:
+
+- `historical_kline_microstructure_signal_factory.json`
+- `microstructure_panel_summary.csv`
+- `signal_catalog.jsonl`
+- `signal_diagnostics.csv`
+- `signal_family_summary.csv`
+- `signal_correlation_clusters.csv`
+- `oos_prefilter_summary.csv`
+- `null_baseline_comparison.csv`
+- `multiple_testing_summary.csv`
+- `shortlist.csv`
+- `failed_gate_rollup.csv`
+- `next_strict_falsification_queue.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+Generated V13 signals are hypotheses, not edges. The `shortlist.csv` and
+`next_strict_falsification_queue.csv` are paper-only. If the queue is empty,
+the OHLCV/funding/historical-kline-proxy hypothesis space stops without retune.
+If the queue is non-empty, the only allowed next step is a frozen strict
+OOS/FDR falsification loop; it still cannot claim alpha, readiness, or trading
+permission.
+
 Raw public data cache files should not be committed unless repo policy
 explicitly allows it. The V11 artifact records created/committed raw data status
 and filters raw cache paths out of `changed_files.txt`. Existing V10/V9/V8
