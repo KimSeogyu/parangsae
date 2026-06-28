@@ -160,6 +160,16 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             payload.get("loop_namespace")
         ):
             return "multi-asset-strict-oos-fdr-falsification-run"
+    v9_governance_v10_json = path / "v9_falsification_lineage_governance.json"
+    if v9_governance_v10_json.exists():
+        try:
+            payload = json.loads(v9_governance_v10_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "v9_falsification_lineage_negative_control_governance_v10" in str(
+            payload.get("loop_namespace")
+        ):
+            return "multi-asset-v9-falsification-lineage-governance-run"
     return None
 
 

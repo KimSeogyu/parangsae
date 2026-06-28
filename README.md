@@ -543,6 +543,28 @@ Multiple-testing risk remains central, `readiness_baseline_verdict` remains
 `NOT_READY`, no private/account/API-key/order/fill data is used, and no TSMOM
 state is changed.
 
+`multi-asset-v9-falsification-lineage-governance-run` implements the paper-only
+`V9_FALSIFICATION_LINEAGE_AND_NEGATIVE_CONTROL_GOVERNANCE_V10` loop:
+
+```bash
+uv run quantctl multi-asset-v9-falsification-lineage-governance-run
+```
+
+V10 does not generate alpha, rerun V8/V9, download data, implement a strategy,
+or revive killed families. It reads the committed V9 strict falsification
+artifact and its source V8 artifact, writes deterministic SHA-256 lineage
+manifests, checks the committed V9 artifact invariants, and records
+V9-falsified families as paper-only negative controls.
+
+V10 writes
+`reports/loops/<YYYYMMDD>-v9-falsification-lineage-negative-control-governance-v10/`
+with V8/V9 lineage manifests, committed artifact invariants, a negative-control
+registry, a disallowed-revival registry, and a post-mortem. The V9 kill state is
+preserved as evidence: future work must start from a new pre-registered
+mechanism with its own edge-source hypothesis, counterparty, data requirement,
+and failure mode. V10 makes no profitability, edge, readiness, live/testnet, or
+capital-allocation claim.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

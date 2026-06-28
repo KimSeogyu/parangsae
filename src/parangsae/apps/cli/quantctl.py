@@ -111,9 +111,13 @@ from parangsae.research.multi_asset_strict_falsification import (
     DEFAULT_MULTI_ASSET_STRICT_FALSIFICATION_V8_ARTIFACT,
     DEFAULT_MULTI_ASSET_STRICT_FOLD_COUNT,
     DEFAULT_MULTI_ASSET_STRICT_PERMUTATION_COUNT,
+    DEFAULT_V9_FALSIFICATION_GOVERNANCE_SOURCE_V9_ARTIFACT,
+    default_v9_falsification_lineage_governance_output_dir,
     default_multi_asset_strict_oos_fdr_falsification_output_dir,
     evaluate_multi_asset_strict_oos_fdr_falsification,
+    evaluate_v9_falsification_lineage_governance,
     read_v8_strict_falsification_source_state,
+    write_v9_falsification_lineage_governance_artifacts,
     write_multi_asset_strict_oos_fdr_falsification_artifacts,
 )
 from parangsae.research.public_multi_asset_panel_coverage import (
@@ -534,6 +538,19 @@ def _default_multi_asset_strict_oos_fdr_falsification_command(args: argparse.Nam
     ]
     if args.interval is not None:
         command.append(f"--interval {args.interval}")
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_multi_asset_v9_falsification_lineage_governance_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl multi-asset-v9-falsification-lineage-governance-run",
+        f"--source-v9-artifact {args.source_v9_artifact}",
+        f"--output-dir {args.output_dir or default_v9_falsification_lineage_governance_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.source_v8_artifact:
+        command.append(f"--source-v8-artifact {args.source_v8_artifact}")
     if args.overwrite:
         command.append("--overwrite")
     return " ".join(command)
@@ -2129,6 +2146,82 @@ def cmd_multi_asset_strict_oos_fdr_falsification_run(args: argparse.Namespace) -
         return 2
 
 
+def cmd_multi_asset_v9_falsification_lineage_governance_run(args: argparse.Namespace) -> int:
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_v9_falsification_lineage_governance_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        commands = args.command or [_default_multi_asset_v9_falsification_lineage_governance_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_v9_falsification_lineage_governance(
+            source_v9_artifact_path=args.source_v9_artifact,
+            source_v8_artifact_path=args.source_v8_artifact,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_v9_falsification_lineage_governance_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "multi-asset-v9-falsification-lineage-governance-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v9_artifact_path": result.payload["source_v9_artifact_path"],
+                    "source_v8_artifact_path": result.payload["source_v8_artifact_path"],
+                    "source_v9_suite_decision": result.payload["source_v9_suite_decision"],
+                    "source_v9_next_queue_empty": result.payload["source_v9_next_queue_empty"],
+                    "lineage_hash_count": result.payload["lineage_hash_count"],
+                    "invariant_check_count": result.payload["invariant_check_count"],
+                    "invariant_failure_count": result.payload["invariant_failure_count"],
+                    "negative_control_family_count": result.payload["negative_control_family_count"],
+                    "disallowed_revival_family_count": result.payload["disallowed_revival_family_count"],
+                    "data_download_performed": result.payload["data_download_performed"],
+                    "alpha_generation_performed": result.payload["alpha_generation_performed"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (FileExistsError, FileNotFoundError, ValueError, KeyError) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "multi-asset-v9-falsification-lineage-governance-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v9_artifact_path": str(args.source_v9_artifact),
+                    "source_v8_artifact_path": str(args.source_v8_artifact),
+                    "data_download_performed": False,
+                    "alpha_generation_performed": False,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def cmd_public_multi_asset_panel_coverage_run(args: argparse.Namespace) -> int:
     symbols = PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE
     interval = CANONICAL_INTERVAL
@@ -3329,6 +3422,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     strict_v9.set_defaults(func=cmd_multi_asset_strict_oos_fdr_falsification_run)
+
+    governance_v10 = sub.add_parser("multi-asset-v9-falsification-lineage-governance-run")
+    governance_v10.add_argument(
+        "--source-v9-artifact",
+        default=str(DEFAULT_V9_FALSIFICATION_GOVERNANCE_SOURCE_V9_ARTIFACT),
+        help="committed V9 strict falsification artifact to seal as killed evidence",
+    )
+    governance_v10.add_argument(
+        "--source-v8-artifact",
+        default=None,
+        help="optional V8 artifact assertion; omitted means use source_v8_artifact_path from V9",
+    )
+    governance_v10.add_argument("--reports-root", default="reports")
+    governance_v10.add_argument("--output-dir")
+    governance_v10.add_argument("--overwrite", action="store_true")
+    governance_v10.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    governance_v10.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    governance_v10.set_defaults(func=cmd_multi_asset_v9_falsification_lineage_governance_run)
 
     public_panel = sub.add_parser("public-multi-asset-panel-coverage-run")
     public_panel.add_argument(

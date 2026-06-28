@@ -1,6 +1,7 @@
 # pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportCallIssue=false
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import random
@@ -37,8 +38,16 @@ MULTI_ASSET_STRICT_FALSIFICATION_LOOP_SLUG = "multi-asset-strict-oos-fdr-falsifi
 MULTI_ASSET_STRICT_FALSIFICATION_NAMESPACE = (
     "multi_asset_strict_oos_fdr_falsification_v9_only_not_readiness"
 )
+V9_FALSIFICATION_GOVERNANCE_SCHEMA_VERSION = 10
+V9_FALSIFICATION_GOVERNANCE_LOOP_SLUG = "v9-falsification-lineage-negative-control-governance-v10"
+V9_FALSIFICATION_GOVERNANCE_NAMESPACE = (
+    "v9_falsification_lineage_negative_control_governance_v10_only_not_readiness"
+)
 DEFAULT_MULTI_ASSET_STRICT_FALSIFICATION_V8_ARTIFACT = Path(
     "reports/loops/20260628-panel-ready-multi-asset-alpha-prefilter-rerun-v8"
+)
+DEFAULT_V9_FALSIFICATION_GOVERNANCE_SOURCE_V9_ARTIFACT = Path(
+    "reports/loops/20260628-multi-asset-strict-oos-fdr-falsification-v9"
 )
 DEFAULT_MULTI_ASSET_STRICT_FALSIFICATION_SEED = 20260630
 DEFAULT_MULTI_ASSET_STRICT_PERMUTATION_COUNT = 1000
@@ -65,6 +74,12 @@ MULTI_ASSET_STRICT_FALSIFICATION_SUITE_DECISIONS = (
     "FAILS_OOS_ROBUSTNESS",
     "NEEDS_MECHANISM_RESEARCH",
     "WATCH_FAMILY_ONLY_PAPER_RESEARCH",
+)
+V9_FALSIFICATION_GOVERNANCE_SUITE_DECISIONS = (
+    "V9_FALSIFICATION_GOVERNANCE_INFRA_ONLY",
+    "V9_KILL_STATE_GOVERNANCE_LOCKED",
+    "V9_ARTIFACT_INVARIANT_FAILURE",
+    "V9_LINEAGE_HASH_MISSING",
 )
 MULTI_ASSET_STRICT_FALSIFICATION_FORBIDDEN_OUTPUTS = set(MULTI_ASSET_FORBIDDEN_OUTPUT_LABELS)
 MULTI_ASSET_STRICT_MULTIPLE_TESTING_BOUNDARY = (
@@ -121,6 +136,20 @@ MULTI_ASSET_STRICT_FALSIFICATION_REQUIRED_FILES = (
     "changed_files.txt",
 )
 MULTI_ASSET_STRICT_FALSIFICATION_KNOWN_FILES = set(MULTI_ASSET_STRICT_FALSIFICATION_REQUIRED_FILES)
+V9_FALSIFICATION_GOVERNANCE_REQUIRED_FILES = (
+    "loop.json",
+    "v9_falsification_lineage_governance.json",
+    "v8_lineage_manifest.csv",
+    "v9_lineage_manifest.csv",
+    "committed_artifact_invariants.csv",
+    "negative_control_registry.csv",
+    "disallowed_revival_registry.csv",
+    "post_mortem.md",
+    "report.md",
+    "commands.txt",
+    "changed_files.txt",
+)
+V9_FALSIFICATION_GOVERNANCE_KNOWN_FILES = set(V9_FALSIFICATION_GOVERNANCE_REQUIRED_FILES)
 FROZEN_QUEUE_COLUMNS = (
     "source_v8_signal_family",
     "signal_family",
@@ -315,6 +344,37 @@ NEXT_MECHANISM_RESEARCH_QUEUE_COLUMNS = (
     "reason",
     "claim_boundary",
 )
+LINEAGE_MANIFEST_COLUMNS = (
+    "source_role",
+    "relative_path",
+    "sha256",
+    "byte_count",
+    "exists",
+)
+COMMITTED_ARTIFACT_INVARIANT_COLUMNS = (
+    "invariant",
+    "status",
+    "observed_value",
+    "expected_value",
+    "failure_reason",
+)
+NEGATIVE_CONTROL_REGISTRY_COLUMNS = (
+    "signal_family",
+    "source_v9_family_decision",
+    "source_v9_horizons",
+    "negative_control_status",
+    "paper_only",
+    "reason",
+    "claim_boundary",
+)
+DISALLOWED_REVIVAL_REGISTRY_COLUMNS = (
+    "signal_family",
+    "source_v9_family_decision",
+    "revival_allowed_without_new_preregistration",
+    "required_reentry_boundary",
+    "paper_only",
+    "claim_boundary",
+)
 
 
 @dataclass(frozen=True)
@@ -333,6 +393,17 @@ class MultiAssetStrictFalsificationResult:
     next_mechanism_research_queue: list[dict[str, Any]]
 
 
+@dataclass(frozen=True)
+class V9FalsificationGovernanceResult:
+    payload: dict[str, Any]
+    v8_lineage_manifest: list[dict[str, Any]]
+    v9_lineage_manifest: list[dict[str, Any]]
+    committed_artifact_invariants: list[dict[str, Any]]
+    negative_control_registry: list[dict[str, Any]]
+    disallowed_revival_registry: list[dict[str, Any]]
+    post_mortem_markdown: str
+
+
 def default_multi_asset_strict_oos_fdr_falsification_output_dir(
     *,
     root: str | Path = "reports/loops",
@@ -340,6 +411,172 @@ def default_multi_asset_strict_oos_fdr_falsification_output_dir(
 ) -> Path:
     stamp = today or datetime.now(UTC).strftime("%Y%m%d")
     return Path(root) / f"{stamp}-{MULTI_ASSET_STRICT_FALSIFICATION_LOOP_SLUG}"
+
+
+def default_v9_falsification_lineage_governance_output_dir(
+    *,
+    root: str | Path = "reports/loops",
+    today: str | None = None,
+) -> Path:
+    stamp = today or datetime.now(UTC).strftime("%Y%m%d")
+    return Path(root) / f"{stamp}-{V9_FALSIFICATION_GOVERNANCE_LOOP_SLUG}"
+
+
+def build_artifact_hash_manifest(
+    artifact_dir: str | Path,
+    filenames: Iterable[str],
+    *,
+    source_role: str,
+) -> list[dict[str, Any]]:
+    root = Path(artifact_dir)
+    rows: list[dict[str, Any]] = []
+    for filename in [str(item) for item in filenames]:
+        path = root / filename
+        exists = path.exists()
+        rows.append(
+            {
+                "source_role": source_role,
+                "relative_path": filename,
+                "sha256": _sha256_file(path) if exists else "",
+                "byte_count": int(path.stat().st_size) if exists else 0,
+                "exists": bool(exists),
+            }
+        )
+    return rows
+
+
+def validate_v9_falsification_artifact_invariants(v9_artifact_path: str | Path) -> list[dict[str, Any]]:
+    artifact_dir = Path(v9_artifact_path)
+    payload_path = artifact_dir / "multi_asset_strict_oos_fdr_falsification.json"
+    rows: list[dict[str, Any]] = []
+
+    missing = [filename for filename in MULTI_ASSET_STRICT_FALSIFICATION_REQUIRED_FILES if not (artifact_dir / filename).exists()]
+    _append_invariant(
+        rows,
+        "required_files_present",
+        observed=",".join(missing) if missing else "all_present",
+        expected="all_present",
+        passed=not missing,
+        failure_reason=f"missing required V9 file(s): {missing}" if missing else "",
+    )
+    if missing or not payload_path.exists():
+        return rows
+
+    payload: dict[str, Any] = {}
+    try:
+        payload = _read_json(payload_path)
+        _assert_payload_safe(payload)
+        payload_safe = True
+        payload_reason = ""
+    except (FileNotFoundError, ValueError, TypeError, KeyError) as exc:
+        payload_safe = False
+        payload_reason = str(exc)
+    _append_invariant(
+        rows,
+        "payload_safety_fields",
+        observed="passed" if payload_safe else "failed",
+        expected="passed",
+        passed=payload_safe,
+        failure_reason=payload_reason,
+    )
+    if not payload:
+        return rows
+
+    _append_invariant(
+        rows,
+        "suite_decision",
+        observed=str(payload.get("suite_decision")),
+        expected="NO_FAMILY_SURVIVES_STRICT_FALSIFICATION",
+        passed=payload.get("suite_decision") == "NO_FAMILY_SURVIVES_STRICT_FALSIFICATION",
+        failure_reason="V10 governance only locks the V9 killed-family state",
+    )
+    _append_invariant(
+        rows,
+        "readiness_boundary",
+        observed=str(payload.get("readiness_baseline_verdict")),
+        expected=READINESS_BASELINE_VERDICT,
+        passed=payload.get("readiness_baseline_verdict") == READINESS_BASELINE_VERDICT,
+        failure_reason="readiness_baseline_verdict must remain NOT_READY",
+    )
+    _append_invariant(
+        rows,
+        "no_data_download",
+        observed=str(payload.get("data_download_performed")),
+        expected="False",
+        passed=payload.get("data_download_performed") is False,
+        failure_reason="V9 governance cannot accept downloaded data in strict falsification",
+    )
+    _append_invariant(
+        rows,
+        "tsmom_unchanged",
+        observed=str(payload.get("tsmom_state_changed")),
+        expected="False",
+        passed=payload.get("tsmom_state_changed") is False,
+        failure_reason="TSMOM state must remain unchanged",
+    )
+
+    next_queue = _read_csv_records(artifact_dir / "next_mechanism_research_queue.csv")
+    _append_invariant(
+        rows,
+        "next_mechanism_queue_empty",
+        observed=str(len(next_queue)),
+        expected="0",
+        passed=len(next_queue) == 0,
+        failure_reason="killed V9 queue must not leave paper follow-up candidates",
+    )
+
+    family_rows = _read_csv_records(artifact_dir / "family_strict_summary.csv")
+    falsified_count = sum(
+        1
+        for row in family_rows
+        if str(row.get("family_decision", "")).startswith("FALSIFIED")
+        or str(row.get("family_decision", "")) == "KILL_FAMILY"
+    )
+    _append_invariant(
+        rows,
+        "family_decisions_falsified",
+        observed=f"{falsified_count}/{len(family_rows)}",
+        expected=f"{len(family_rows)}/{len(family_rows)}",
+        passed=bool(family_rows) and falsified_count == len(family_rows),
+        failure_reason="every V9 family x horizon row must remain killed/falsified",
+    )
+
+    forbidden_values = _forbidden_values_in_v9_artifact(payload, family_rows)
+    _append_invariant(
+        rows,
+        "forbidden_outputs_absent",
+        observed=",".join(forbidden_values) if forbidden_values else "none",
+        expected="none",
+        passed=not forbidden_values,
+        failure_reason="forbidden readiness/trading/profit labels cannot appear in V9 decisions",
+    )
+
+    source_v8 = Path(str(payload.get("source_v8_artifact_path", "")))
+    _append_invariant(
+        rows,
+        "source_v8_artifact_present",
+        observed=str(source_v8),
+        expected="existing_source_v8_artifact_path",
+        passed=source_v8.exists(),
+        failure_reason="V9 source_v8_artifact_path must be available for lineage hashing",
+    )
+
+    for filename, expected_columns in _v9_csv_schema_map().items():
+        csv_path = artifact_dir / filename
+        try:
+            columns = list(pd.read_csv(csv_path, nrows=0).columns)
+        except pd.errors.EmptyDataError:
+            columns = []
+        missing_columns = [column for column in expected_columns if column not in columns]
+        _append_invariant(
+            rows,
+            f"schema:{filename}",
+            observed=",".join(missing_columns) if missing_columns else "all_columns_present",
+            expected="all_columns_present",
+            passed=not missing_columns,
+            failure_reason=f"missing expected column(s): {missing_columns}" if missing_columns else "",
+        )
+    return rows
 
 
 def read_v8_strict_falsification_source_state(path: str | Path) -> dict[str, Any]:
@@ -945,6 +1182,243 @@ def render_multi_asset_strict_oos_fdr_falsification_report(
     )
 
 
+def evaluate_v9_falsification_lineage_governance(
+    *,
+    source_v9_artifact_path: str | Path = DEFAULT_V9_FALSIFICATION_GOVERNANCE_SOURCE_V9_ARTIFACT,
+    source_v8_artifact_path: str | Path | None = None,
+    commands: Iterable[str] = (),
+    changed_files: Iterable[str] = (),
+) -> V9FalsificationGovernanceResult:
+    v9_dir = Path(source_v9_artifact_path)
+    v9_payload = _read_json(v9_dir / "multi_asset_strict_oos_fdr_falsification.json")
+    v8_dir = Path(source_v8_artifact_path) if source_v8_artifact_path else Path(str(v9_payload["source_v8_artifact_path"]))
+    v9_manifest = build_artifact_hash_manifest(
+        v9_dir,
+        MULTI_ASSET_STRICT_FALSIFICATION_REQUIRED_FILES,
+        source_role="source_v9",
+    )
+    v8_manifest = build_artifact_hash_manifest(
+        v8_dir,
+        V8_REQUIRED_INPUT_FILES,
+        source_role="source_v8",
+    )
+    invariant_rows = validate_v9_falsification_artifact_invariants(v9_dir)
+    family_rows = _read_csv_records(v9_dir / "family_strict_summary.csv")
+    negative_controls = _negative_control_registry_rows(family_rows)
+    disallowed_revivals = _disallowed_revival_registry_rows(negative_controls)
+    invariant_failures = [row for row in invariant_rows if row.get("status") != "passed"]
+    missing_lineage = [
+        row
+        for row in [*v8_manifest, *v9_manifest]
+        if row.get("exists") is not True or not str(row.get("sha256", ""))
+    ]
+    suite_decision = "V9_KILL_STATE_GOVERNANCE_LOCKED"
+    if invariant_failures:
+        suite_decision = "V9_ARTIFACT_INVARIANT_FAILURE"
+    elif missing_lineage:
+        suite_decision = "V9_LINEAGE_HASH_MISSING"
+    payload = {
+        "schema_version": V9_FALSIFICATION_GOVERNANCE_SCHEMA_VERSION,
+        "loop_id": f"{datetime.now(UTC).strftime('%Y%m%d')}-{V9_FALSIFICATION_GOVERNANCE_LOOP_SLUG}",
+        "loop_namespace": V9_FALSIFICATION_GOVERNANCE_NAMESPACE,
+        "suite_decision": suite_decision,
+        "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+        "source_v9_artifact_path": str(v9_dir),
+        "source_v8_artifact_path": str(v8_dir),
+        "source_v9_suite_decision": str(v9_payload.get("suite_decision")),
+        "source_v9_next_queue_empty": int(v9_payload.get("families_watch_count", 0)) == 0
+        and not _read_csv_records(v9_dir / "next_mechanism_research_queue.csv"),
+        "source_v9_family_count": int(v9_payload.get("family_count", 0)),
+        "source_v9_frozen_queue_count": int(v9_payload.get("frozen_queue_count", 0)),
+        "source_v9_evaluated_signal_count": int(v9_payload.get("evaluated_signal_count", 0)),
+        "source_v9_hash_manifest_digest": _hash_manifest_digest(v9_manifest),
+        "source_v8_hash_manifest_digest": _hash_manifest_digest(v8_manifest),
+        "lineage_hash_count": int(
+            sum(1 for row in [*v8_manifest, *v9_manifest] if row.get("exists") is True)
+        ),
+        "invariant_check_count": int(len(invariant_rows)),
+        "invariant_pass_count": int(sum(1 for row in invariant_rows if row.get("status") == "passed")),
+        "invariant_failure_count": int(len(invariant_failures)),
+        "negative_control_family_count": int(len(negative_controls)),
+        "disallowed_revival_family_count": int(len(disallowed_revivals)),
+        "new_mechanism_research_requires_preregistration": True,
+        "v8_or_v9_artifact_modified": False,
+        "data_download_performed": False,
+        "alpha_generation_performed": False,
+        "strategy_optimization_performed": False,
+        "holdout_retune_used": False,
+        "live_or_testnet_path_created": False,
+        "tsmom_state_changed": False,
+        "readiness_claim_made": False,
+        "claim_boundary": (
+            "V10 is lineage and negative-control governance over the already-falsified V9 queue. "
+            "It does not generate alpha, rerun V8/V9 selection, download data, implement a strategy, "
+            "optimize weights, claim edge/profit/readiness, or permit live/testnet/account/API-key/order/fill use."
+        ),
+        "safety_gates": _safety_gates(),
+        "no_live_orders_submitted": True,
+        "no_testnet_orders_submitted": True,
+        "no_account_data_used": True,
+        "no_api_key_used": True,
+        "no_private_order_or_fill_data_used": True,
+        "validation_commands": list(commands),
+        "changed_files": list(changed_files),
+    }
+    _assert_v10_payload_safe(payload)
+    post_mortem = render_v9_falsification_post_mortem(
+        payload,
+        negative_controls=negative_controls,
+        invariant_rows=invariant_rows,
+    )
+    return V9FalsificationGovernanceResult(
+        payload=payload,
+        v8_lineage_manifest=v8_manifest,
+        v9_lineage_manifest=v9_manifest,
+        committed_artifact_invariants=invariant_rows,
+        negative_control_registry=negative_controls,
+        disallowed_revival_registry=disallowed_revivals,
+        post_mortem_markdown=post_mortem,
+    )
+
+
+def prepare_v9_falsification_lineage_governance_output_dir(
+    output_dir: str | Path,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="multi-asset-v9-falsification-lineage-governance-run",
+        known_files=V9_FALSIFICATION_GOVERNANCE_KNOWN_FILES,
+        overwrite=overwrite,
+    )
+
+
+def write_v9_falsification_lineage_governance_artifacts(
+    output_dir: str | Path,
+    result: V9FalsificationGovernanceResult,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    out = prepare_v9_falsification_lineage_governance_output_dir(output_dir, overwrite=overwrite)
+    payload = dict(result.payload)
+    if out.name.endswith(V9_FALSIFICATION_GOVERNANCE_LOOP_SLUG):
+        payload["loop_id"] = out.name
+    _assert_v10_payload_safe(payload)
+    _write_json(out / "loop.json", _generic_v10_loop_payload(payload))
+    _write_json(out / "v9_falsification_lineage_governance.json", payload)
+    _frame_with_columns(result.v8_lineage_manifest, LINEAGE_MANIFEST_COLUMNS).to_csv(
+        out / "v8_lineage_manifest.csv",
+        index=False,
+    )
+    _frame_with_columns(result.v9_lineage_manifest, LINEAGE_MANIFEST_COLUMNS).to_csv(
+        out / "v9_lineage_manifest.csv",
+        index=False,
+    )
+    _frame_with_columns(result.committed_artifact_invariants, COMMITTED_ARTIFACT_INVARIANT_COLUMNS).to_csv(
+        out / "committed_artifact_invariants.csv",
+        index=False,
+    )
+    _frame_with_columns(result.negative_control_registry, NEGATIVE_CONTROL_REGISTRY_COLUMNS).to_csv(
+        out / "negative_control_registry.csv",
+        index=False,
+    )
+    _frame_with_columns(result.disallowed_revival_registry, DISALLOWED_REVIVAL_REGISTRY_COLUMNS).to_csv(
+        out / "disallowed_revival_registry.csv",
+        index=False,
+    )
+    _atomic_write_text(out / "post_mortem.md", result.post_mortem_markdown)
+    _atomic_write_text(out / "report.md", render_v9_falsification_lineage_governance_report(payload, result))
+    _atomic_write_text(out / "commands.txt", "\n".join(payload.get("validation_commands", [])) + "\n")
+    _atomic_write_text(out / "changed_files.txt", "\n".join(payload.get("changed_files", [])) + "\n")
+    return out
+
+
+def render_v9_falsification_post_mortem(
+    payload: dict[str, Any],
+    *,
+    negative_controls: list[dict[str, Any]],
+    invariant_rows: list[dict[str, Any]],
+) -> str:
+    control_lines = [
+        f"- {row['signal_family']}: {row['source_v9_family_decision']} "
+        "(revival requires a new pre-registered mechanism)"
+        for row in negative_controls
+    ]
+    failed_invariants = [row for row in invariant_rows if row.get("status") != "passed"]
+    invariant_lines = [
+        f"- {row['invariant']}: {row['status']} ({row.get('failure_reason') or 'ok'})"
+        for row in failed_invariants
+    ]
+    return "\n".join(
+        [
+            "# V9 Falsification Post-Mortem",
+            "",
+            "## Decision",
+            f"- suite_decision: {payload['suite_decision']}",
+            f"- source_v9_suite_decision: {payload['source_v9_suite_decision']}",
+            f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+            "",
+            "## Negative Controls",
+            *(control_lines or ["- none"]),
+            "",
+            "## Invariant Failures",
+            *(invariant_lines or ["- none"]),
+            "",
+            "## Boundary",
+            f"- {payload['claim_boundary']}",
+            "- Future research must start from a new pre-registered mechanism, not from V9 family revival.",
+            "",
+        ]
+    )
+
+
+def render_v9_falsification_lineage_governance_report(
+    payload: dict[str, Any],
+    result: V9FalsificationGovernanceResult,
+) -> str:
+    family_lines = [
+        f"- {row['signal_family']}: {row['negative_control_status']}"
+        for row in result.negative_control_registry
+    ]
+    return "\n".join(
+        [
+            "# V9_FALSIFICATION_LINEAGE_AND_NEGATIVE_CONTROL_GOVERNANCE_V10",
+            "",
+            "## Verdict",
+            f"- suite_decision: {payload['suite_decision']}",
+            f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+            f"- source_v9_artifact_path: {payload['source_v9_artifact_path']}",
+            f"- source_v8_artifact_path: {payload['source_v8_artifact_path']}",
+            "",
+            "## Lineage",
+            f"- source_v9_hash_manifest_digest: {payload['source_v9_hash_manifest_digest']}",
+            f"- source_v8_hash_manifest_digest: {payload['source_v8_hash_manifest_digest']}",
+            f"- lineage_hash_count: {payload['lineage_hash_count']}",
+            "",
+            "## Invariants",
+            f"- invariant_check_count: {payload['invariant_check_count']}",
+            f"- invariant_pass_count: {payload['invariant_pass_count']}",
+            f"- invariant_failure_count: {payload['invariant_failure_count']}",
+            "",
+            "## Negative Controls",
+            *(family_lines or ["- none"]),
+            "",
+            "## Safety",
+            f"- data_download_performed: {payload['data_download_performed']}",
+            f"- alpha_generation_performed: {payload['alpha_generation_performed']}",
+            f"- tsmom_state_changed: {payload['tsmom_state_changed']}",
+            "",
+            "## What cannot be claimed",
+            "- alpha or edge confirmed",
+            "- profitability",
+            "- readiness or live/testnet permission",
+            "- strategy, portfolio, or signal-weight optimization",
+            "",
+        ]
+    )
+
+
 def _select_frozen_representative(
     *,
     family: str,
@@ -1472,6 +1946,11 @@ def _payload(
     source_queue_count = len(cast(list[dict[str, Any]], v8_state.get("queue_rows", [])))
     families = sorted({str(row["signal_family"]) for row in frozen_queue})
     family_decisions = {str(row["signal_family"]): str(row["family_decision"]) for row in family_summary}
+    source_v8_manifest = build_artifact_hash_manifest(
+        v8_state["artifact_dir"],
+        V8_REQUIRED_INPUT_FILES,
+        source_role="source_v8",
+    )
     killed = sum(
         1
         for decision in family_decisions.values()
@@ -1490,6 +1969,8 @@ def _payload(
         "suite_decision": suite_decision,
         "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
         "source_v8_artifact_path": str(v8_state["artifact_dir"]),
+        "source_v8_artifact_hash_manifest": source_v8_manifest,
+        "source_v8_artifact_manifest_digest": _hash_manifest_digest(source_v8_manifest),
         "source_v8_queue_count": int(source_queue_count),
         "frozen_queue_count": int(len(frozen_queue)),
         "evaluated_signal_count": int(len(diagnostics)),
@@ -1744,6 +2225,132 @@ def _generic_loop_payload(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _generic_v10_loop_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    status = "IMPLEMENTED" if payload["suite_decision"] == "V9_KILL_STATE_GOVERNANCE_LOCKED" else "BLOCKED"
+    return {
+        "loop_id": payload["loop_id"],
+        "status": status,
+        "loop_type": "validation",
+        "hypothesis": (
+            "The V9 killed-family state should be preserved as immutable lineage and "
+            "negative-control governance before any new mechanism research."
+        ),
+        "edge_source": "information_processing",
+        "suite_decision": payload["suite_decision"],
+        "readiness_baseline_verdict": payload["readiness_baseline_verdict"],
+        "source_v9_artifact_path": payload["source_v9_artifact_path"],
+        "source_v8_artifact_path": payload["source_v8_artifact_path"],
+        "negative_control_family_count": payload["negative_control_family_count"],
+        "claim_boundary": payload["claim_boundary"],
+        "no_live_orders_submitted": True,
+        "no_testnet_orders_submitted": True,
+        "no_account_data_used": True,
+        "no_api_key_used": True,
+        "no_private_order_or_fill_data_used": True,
+        "data_download_performed": False,
+        "alpha_generation_performed": False,
+        "tsmom_state_changed": False,
+    }
+
+
+def _assert_v10_payload_safe(payload: dict[str, Any]) -> None:
+    required = {
+        "loop_id",
+        "loop_namespace",
+        "suite_decision",
+        "readiness_baseline_verdict",
+        "source_v9_artifact_path",
+        "source_v8_artifact_path",
+        "source_v9_suite_decision",
+        "source_v9_hash_manifest_digest",
+        "source_v8_hash_manifest_digest",
+        "negative_control_family_count",
+        "disallowed_revival_family_count",
+        "claim_boundary",
+        "safety_gates",
+        "validation_commands",
+        "changed_files",
+    }
+    missing = sorted(required - set(payload))
+    if missing:
+        raise ValueError(f"V10 payload missing required field(s): {missing}")
+    if payload["loop_namespace"] != V9_FALSIFICATION_GOVERNANCE_NAMESPACE:
+        raise ValueError("V10 payload has wrong loop_namespace")
+    if payload["suite_decision"] not in V9_FALSIFICATION_GOVERNANCE_SUITE_DECISIONS:
+        raise ValueError(f"forbidden V10 suite decision emitted: {payload['suite_decision']}")
+    if payload["readiness_baseline_verdict"] != READINESS_BASELINE_VERDICT:
+        raise ValueError("V10 payload must preserve readiness_baseline_verdict=NOT_READY")
+    for field, expected in (
+        ("no_live_orders_submitted", True),
+        ("no_testnet_orders_submitted", True),
+        ("no_account_data_used", True),
+        ("no_api_key_used", True),
+        ("no_private_order_or_fill_data_used", True),
+        ("holdout_retune_used", False),
+        ("strategy_optimization_performed", False),
+        ("live_or_testnet_path_created", False),
+        ("data_download_performed", False),
+        ("alpha_generation_performed", False),
+        ("tsmom_state_changed", False),
+        ("readiness_claim_made", False),
+        ("v8_or_v9_artifact_modified", False),
+    ):
+        if payload.get(field) is not expected:
+            raise ValueError(f"V10 payload safety field {field} must be {expected}")
+
+
+def _negative_control_registry_rows(family_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_family: dict[str, dict[str, Any]] = {}
+    for row in family_rows:
+        family = str(row.get("signal_family", ""))
+        decision = str(row.get("family_decision", ""))
+        if not family or not (decision.startswith("FALSIFIED") or decision == "KILL_FAMILY"):
+            continue
+        existing = by_family.setdefault(
+            family,
+            {
+                "signal_family": family,
+                "source_v9_family_decision": decision,
+                "horizons": set(),
+            },
+        )
+        cast(set[int], existing["horizons"]).add(int(row.get("horizon_bars", 0)))
+        if decision == "FALSIFIED_SIGN_FLIP":
+            existing["source_v9_family_decision"] = decision
+    rows: list[dict[str, Any]] = []
+    for family, item in sorted(by_family.items()):
+        horizons = sorted(cast(set[int], item["horizons"]))
+        rows.append(
+            {
+                "signal_family": family,
+                "source_v9_family_decision": item["source_v9_family_decision"],
+                "source_v9_horizons": ";".join(str(horizon) for horizon in horizons),
+                "negative_control_status": "frozen_negative_control",
+                "paper_only": True,
+                "reason": "V9 strict OOS/FDR falsified every fixed horizon for this family",
+                "claim_boundary": MULTI_ASSET_STRICT_CLAIM_BOUNDARY,
+            }
+        )
+    return rows
+
+
+def _disallowed_revival_registry_rows(negative_controls: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "signal_family": row["signal_family"],
+            "source_v9_family_decision": row["source_v9_family_decision"],
+            "revival_allowed_without_new_preregistration": False,
+            "required_reentry_boundary": (
+                "new hypothesis contract with independent mechanism, counterparty, failure mode, "
+                "data requirement, and pre-committed validation before metrics"
+            ),
+            "paper_only": True,
+            "claim_boundary": MULTI_ASSET_STRICT_CLAIM_BOUNDARY,
+        }
+        for row in negative_controls
+    ]
+
+
 def _regime_masks(panel: pd.DataFrame) -> dict[str, pd.Series]:
     frame = panel.copy()
     btc = _frame(frame[frame["symbol"] == "BTCUSDT"].set_index("timestamp"))
@@ -1960,6 +2567,74 @@ def _safety_gates() -> dict[str, Any]:
         "profit_or_live_ready_claim": False,
         "live_trading_path_introduced": False,
     }
+
+
+def _append_invariant(
+    rows: list[dict[str, Any]],
+    invariant: str,
+    *,
+    observed: str,
+    expected: str,
+    passed: bool,
+    failure_reason: str,
+) -> None:
+    rows.append(
+        {
+            "invariant": invariant,
+            "status": "passed" if passed else "failed",
+            "observed_value": observed,
+            "expected_value": expected,
+            "failure_reason": "" if passed else failure_reason,
+        }
+    )
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _hash_manifest_digest(rows: list[dict[str, Any]]) -> str:
+    normalized = [
+        {
+            "source_role": row.get("source_role"),
+            "relative_path": row.get("relative_path"),
+            "sha256": row.get("sha256"),
+            "byte_count": row.get("byte_count"),
+            "exists": row.get("exists"),
+        }
+        for row in rows
+    ]
+    payload = json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _v9_csv_schema_map() -> dict[str, tuple[str, ...]]:
+    return {
+        "frozen_v8_queue.csv": FROZEN_QUEUE_COLUMNS,
+        "chronological_folds.csv": CHRONOLOGICAL_FOLD_COLUMNS,
+        "signal_strict_oos_diagnostics.csv": SIGNAL_STRICT_OOS_DIAGNOSTIC_COLUMNS,
+        "family_strict_summary.csv": FAMILY_STRICT_SUMMARY_COLUMNS,
+        "permutation_null_results.csv": PERMUTATION_NULL_COLUMNS,
+        "bh_fdr_summary.csv": BH_FDR_COLUMNS,
+        "regime_robustness.csv": REGIME_ROBUSTNESS_COLUMNS,
+        "symbol_robustness.csv": SYMBOL_ROBUSTNESS_COLUMNS,
+        "null_baseline_stress.csv": NULL_BASELINE_STRESS_COLUMNS,
+        "failed_gate_rollup.csv": FAILED_GATE_COLUMNS,
+        "next_mechanism_research_queue.csv": NEXT_MECHANISM_RESEARCH_QUEUE_COLUMNS,
+    }
+
+
+def _forbidden_values_in_v9_artifact(payload: dict[str, Any], family_rows: list[dict[str, Any]]) -> list[str]:
+    values: list[str] = []
+    for value in [payload.get("suite_decision"), *(row.get("family_decision") for row in family_rows)]:
+        text = str(value)
+        if text in MULTI_ASSET_STRICT_FALSIFICATION_FORBIDDEN_OUTPUTS:
+            values.append(text)
+    return sorted(set(values))
 
 
 def _read_json(path: Path) -> dict[str, Any]:

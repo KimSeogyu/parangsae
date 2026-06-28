@@ -1061,6 +1061,46 @@ permission, capital allocation permission, or permission to trade. Multiple
 testing risk remains central; `cannot_claim_edge_due_to_multiple_testing` stays
 true and `readiness_baseline_verdict` remains `NOT_READY`.
 
+## V9 lineage and negative-control governance
+
+`multi-asset-v9-falsification-lineage-governance-run` implements
+`V9_FALSIFICATION_LINEAGE_AND_NEGATIVE_CONTROL_GOVERNANCE_V10`, a paper-only
+governance loop over the committed V9 strict falsification artifact. It is not
+signal generation, not a V8/V9 rerun, not data download/backfill, not strategy
+implementation, not portfolio construction, not signal-weight optimization, and
+not a profitability, edge, readiness, or live/testnet claim.
+
+```bash
+uv run quantctl multi-asset-v9-falsification-lineage-governance-run
+```
+
+The command reads the V9 artifact and the V8 artifact named by V9, computes
+deterministic SHA-256 lineage manifests for both artifact directories, validates
+the committed V9 kill-state invariants, and records V9-falsified families as
+negative controls. It does not modify V8 or V9 artifacts. It does not read
+private/account/API-key/order/fill data and does not touch public data loaders.
+
+V10 writes a new artifact directory:
+
+- `v9_falsification_lineage_governance.json`
+- `loop.json`
+- `v8_lineage_manifest.csv`
+- `v9_lineage_manifest.csv`
+- `committed_artifact_invariants.csv`
+- `negative_control_registry.csv`
+- `disallowed_revival_registry.csv`
+- `post_mortem.md`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+If V9 killed every queued family and the next mechanism queue is empty, V10
+locks that evidence as governance state. Killed V9 families cannot be revived by
+horizon cherry-picking, p-value picking, representative changes, or threshold
+changes. Future research must start from a new pre-registered mechanism with a
+declared edge source, counterparty, data requirement, validation rule, and
+failure mode before metrics are inspected.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

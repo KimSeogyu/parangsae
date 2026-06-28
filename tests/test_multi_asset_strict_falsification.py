@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from argparse import Namespace
 from pathlib import Path
 from typing import Any, cast
@@ -17,16 +18,21 @@ from parangsae.research.multi_asset_alpha_factory import MultiAssetSignalSpec
 from parangsae.research.multi_asset_strict_falsification import (
     MULTI_ASSET_STRICT_FALSIFICATION_FORBIDDEN_OUTPUTS,
     MULTI_ASSET_STRICT_FALSIFICATION_REQUIRED_FILES,
+    V9_FALSIFICATION_GOVERNANCE_REQUIRED_FILES,
     benjamini_hochberg_q_values,
     block_permutation_indices,
+    build_artifact_hash_manifest,
     build_strict_chronological_folds,
     default_multi_asset_strict_oos_fdr_falsification_output_dir,
     evaluate_multi_asset_strict_oos_fdr_falsification,
+    evaluate_v9_falsification_lineage_governance,
     family_passes_all_horizons,
     materialize_frozen_v8_queue,
     moving_block_permutation_null,
     read_v8_strict_falsification_source_state,
     strict_symbol_concentration_status,
+    validate_v9_falsification_artifact_invariants,
+    write_v9_falsification_lineage_governance_artifacts,
     write_multi_asset_strict_oos_fdr_falsification_artifacts,
 )
 
@@ -530,6 +536,128 @@ def test_v9_artifact_writing_and_required_fields(tmp_path: Path) -> None:
     assert loop_payload["cannot_claim_edge_due_to_multiple_testing"] is True
 
 
+def test_v10_lineage_manifest_is_deterministic_and_hashes_source_files(tmp_path: Path) -> None:
+    artifact = v8_artifact(tmp_path)
+    first = build_artifact_hash_manifest(
+        artifact,
+        ("panel_ready_multi_asset_alpha_prefilter.json", "next_strict_falsification_queue.csv"),
+        source_role="source_v8",
+    )
+    second = build_artifact_hash_manifest(
+        artifact,
+        ("panel_ready_multi_asset_alpha_prefilter.json", "next_strict_falsification_queue.csv"),
+        source_role="source_v8",
+    )
+    assert first == second
+    assert [row["relative_path"] for row in first] == [
+        "panel_ready_multi_asset_alpha_prefilter.json",
+        "next_strict_falsification_queue.csv",
+    ]
+    assert all(row["exists"] is True for row in first)
+    assert all(len(str(row["sha256"])) == 64 for row in first)
+    before_hash = first[1]["sha256"]
+    (artifact / "next_strict_falsification_queue.csv").write_text("signal_family\nchanged_family\n")
+    changed = build_artifact_hash_manifest(
+        artifact,
+        ("next_strict_falsification_queue.csv",),
+        source_role="source_v8",
+    )
+    assert changed[0]["sha256"] != before_hash
+
+
+def test_v10_validates_committed_v9_kill_state_and_detects_mutated_queue(tmp_path: Path) -> None:
+    committed_v9 = Path("reports/loops/20260628-multi-asset-strict-oos-fdr-falsification-v9")
+    invariants = validate_v9_falsification_artifact_invariants(committed_v9)
+    assert invariants
+    assert {row["status"] for row in invariants} == {"passed"}
+    by_name = {row["invariant"]: row for row in invariants}
+    assert by_name["suite_decision"]["observed_value"] == "NO_FAMILY_SURVIVES_STRICT_FALSIFICATION"
+    assert by_name["next_mechanism_queue_empty"]["observed_value"] == "0"
+    assert by_name["family_decisions_falsified"]["observed_value"] == "6/6"
+
+    mutated_v9 = tmp_path / "mutated-v9"
+    shutil.copytree(committed_v9, mutated_v9)
+    pd.DataFrame(
+        [
+            {
+                "signal_family": "correlation_breakdown",
+                "queue_decision": "WATCH_FAMILY_ONLY",
+                "paper_only": True,
+                "reason": "mutation should fail governance",
+                "claim_boundary": "paper only",
+            }
+        ]
+    ).to_csv(mutated_v9 / "next_mechanism_research_queue.csv", index=False)
+    mutated_invariants = validate_v9_falsification_artifact_invariants(mutated_v9)
+    assert any(
+        row["invariant"] == "next_mechanism_queue_empty" and row["status"] == "failed"
+        for row in mutated_invariants
+    )
+
+
+def test_v10_governance_freezes_killed_families_as_negative_controls_and_writes_artifacts(tmp_path: Path) -> None:
+    committed_v9 = Path("reports/loops/20260628-multi-asset-strict-oos-fdr-falsification-v9")
+    result = evaluate_v9_falsification_lineage_governance(
+        source_v9_artifact_path=committed_v9,
+        commands=["uv run quantctl multi-asset-v9-falsification-lineage-governance-run"],
+        changed_files=["src/parangsae/research/multi_asset_strict_falsification.py"],
+    )
+    assert result.payload["suite_decision"] == "V9_KILL_STATE_GOVERNANCE_LOCKED"
+    assert result.payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert result.payload["source_v9_suite_decision"] == "NO_FAMILY_SURVIVES_STRICT_FALSIFICATION"
+    assert result.payload["source_v9_next_queue_empty"] is True
+    assert result.payload["negative_control_family_count"] == 2
+    assert result.payload["disallowed_revival_family_count"] == 2
+    assert result.payload["data_download_performed"] is False
+    assert result.payload["tsmom_state_changed"] is False
+    assert all(row["negative_control_status"] == "frozen_negative_control" for row in result.negative_control_registry)
+    assert all(
+        row["revival_allowed_without_new_preregistration"] is False
+        for row in result.disallowed_revival_registry
+    )
+    out = write_v9_falsification_lineage_governance_artifacts(tmp_path / "v10", result)
+    assert {path.name for path in out.iterdir()} == set(V9_FALSIFICATION_GOVERNANCE_REQUIRED_FILES)
+    assert existing_loop_artifact_type(out) == "multi-asset-v9-falsification-lineage-governance-run"
+    payload = json.loads((out / "v9_falsification_lineage_governance.json").read_text())
+    assert payload["suite_decision"] == "V9_KILL_STATE_GOVERNANCE_LOCKED"
+    assert payload["no_live_orders_submitted"] is True
+    assert payload["no_testnet_orders_submitted"] is True
+    assert pd.read_csv(out / "negative_control_registry.csv")["signal_family"].tolist() == [
+        "correlation_breakdown",
+        "volatility_dispersion",
+    ]
+
+
+def test_cli_v10_is_no_credential_no_live_no_download_path(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("BINANCE_API_KEY", "SHOULD_NOT_BE_READ")
+    monkeypatch.setenv("BINANCE_API_SECRET", "SHOULD_NOT_BE_READ")
+    real_getenv = os.getenv
+
+    def guarded_getenv(key: str, default: str | None = None) -> str | None:
+        if key in {"BINANCE_API_KEY", "BINANCE_API_SECRET"}:
+            raise AssertionError(f"V10 must not read {key}")
+        return real_getenv(key, default)
+
+    monkeypatch.setattr(os, "getenv", guarded_getenv)
+    args = Namespace(
+        source_v9_artifact="reports/loops/20260628-multi-asset-strict-oos-fdr-falsification-v9",
+        source_v8_artifact=None,
+        reports_root=str(tmp_path / "reports"),
+        output_dir=None,
+        overwrite=False,
+        command=None,
+        changed_file=None,
+    )
+    assert quantctl.cmd_multi_asset_v9_falsification_lineage_governance_run(args) == 0
+    report_dirs = list((tmp_path / "reports" / "loops").iterdir())
+    assert len(report_dirs) == 1
+    payload = json.loads((report_dirs[0] / "v9_falsification_lineage_governance.json").read_text())
+    assert payload["data_download_performed"] is False
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert payload["safety_gates"]["no_api_key_used"] is True
+    assert payload["live_or_testnet_path_created"] is False
+
+
 def test_cli_v9_is_no_credential_no_live_no_download_path(monkeypatch, tmp_path: Path) -> None:
     frames = {symbol: synthetic_asset_frame(symbol) for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT")}
     loader_calls = 0
@@ -601,7 +729,7 @@ def test_cli_v9_is_no_credential_no_live_no_download_path(monkeypatch, tmp_path:
     assert payload["live_or_testnet_path_created"] is False
 
 
-def test_v5_v6_v7_v8_and_v9_commands_are_wired() -> None:
+def test_v5_v6_v7_v8_v9_and_v10_commands_are_wired() -> None:
     parser = quantctl.build_parser()
     assert parser.parse_args(["multi-asset-alpha-generator-strict-prefilter-run"]).func is (
         quantctl.cmd_multi_asset_alpha_generator_strict_prefilter_run
@@ -614,6 +742,9 @@ def test_v5_v6_v7_v8_and_v9_commands_are_wired() -> None:
     parsed = parser.parse_args(["multi-asset-strict-oos-fdr-falsification-run"])
     assert parsed.func is quantctl.cmd_multi_asset_strict_oos_fdr_falsification_run
     assert parsed.source_v8_artifact.endswith("panel-ready-multi-asset-alpha-prefilter-rerun-v8")
+    parsed_v10 = parser.parse_args(["multi-asset-v9-falsification-lineage-governance-run"])
+    assert parsed_v10.func is quantctl.cmd_multi_asset_v9_falsification_lineage_governance_run
+    assert parsed_v10.source_v9_artifact.endswith("multi-asset-strict-oos-fdr-falsification-v9")
     assert default_multi_asset_strict_oos_fdr_falsification_output_dir(today="20260628").name.endswith(
         "multi-asset-strict-oos-fdr-falsification-v9"
     )

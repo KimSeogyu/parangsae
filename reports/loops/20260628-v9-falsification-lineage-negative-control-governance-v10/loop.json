@@ -1,0 +1,21 @@
+{
+  "alpha_generation_performed": false,
+  "claim_boundary": "V10 is lineage and negative-control governance over the already-falsified V9 queue. It does not generate alpha, rerun V8/V9 selection, download data, implement a strategy, optimize weights, claim edge/profit/readiness, or permit live/testnet/account/API-key/order/fill use.",
+  "data_download_performed": false,
+  "edge_source": "information_processing",
+  "hypothesis": "The V9 killed-family state should be preserved as immutable lineage and negative-control governance before any new mechanism research.",
+  "loop_id": "20260628-v9-falsification-lineage-negative-control-governance-v10",
+  "loop_type": "validation",
+  "negative_control_family_count": 2,
+  "no_account_data_used": true,
+  "no_api_key_used": true,
+  "no_live_orders_submitted": true,
+  "no_private_order_or_fill_data_used": true,
+  "no_testnet_orders_submitted": true,
+  "readiness_baseline_verdict": "NOT_READY",
+  "source_v8_artifact_path": "reports/loops/20260628-panel-ready-multi-asset-alpha-prefilter-rerun-v8",
+  "source_v9_artifact_path": "reports/loops/20260628-multi-asset-strict-oos-fdr-falsification-v9",
+  "status": "IMPLEMENTED",
+  "suite_decision": "V9_KILL_STATE_GOVERNANCE_LOCKED",
+  "tsmom_state_changed": false
+}
