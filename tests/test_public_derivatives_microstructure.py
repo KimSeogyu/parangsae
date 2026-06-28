@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import zipfile
 from argparse import Namespace
 from pathlib import Path
 from typing import Any, cast
@@ -16,11 +17,16 @@ from parangsae.research.public_derivatives_microstructure import (
     PUBLIC_DERIVATIVES_MICROSTRUCTURE_DEFAULT_UNIVERSE,
     PUBLIC_DERIVATIVES_MICROSTRUCTURE_REQUIRED_FILES,
     PUBLIC_DERIVATIVES_MICROSTRUCTURE_TARGET_FAMILIES,
+    PUBLIC_DERIVATIVES_MICROSTRUCTURE_RECENT_WINDOW_REQUIRED_FILES,
+    RECENT_WINDOW_ENDPOINT_FEASIBILITY_COLUMNS,
+    RECENT_WINDOW_KLINE_PROXY_COVERAGE_COLUMNS,
     READINESS_BY_FAMILY_COLUMNS,
     SYMBOL_DATA_COVERAGE_COLUMNS,
     evaluate_public_derivatives_microstructure_axis,
+    evaluate_public_derivatives_microstructure_recent_window_connector,
     parse_public_derivatives_symbol_universe,
     write_public_derivatives_microstructure_axis_artifacts,
+    write_public_derivatives_microstructure_recent_window_artifacts,
 )
 
 
@@ -457,6 +463,451 @@ def test_written_outputs_do_not_emit_forbidden_positive_labels(tmp_path: Path) -
             continue
         text = path.read_text()
         for label in forbidden:
+            assert not re.search(rf"(?<![A-Z_]){re.escape(label)}(?![A-Z_])", text), (
+                f"{label} leaked into {path}"
+            )
+
+
+def v11_fixture(tmp_path: Path) -> Path:
+    out = tmp_path / "v11"
+    out.mkdir(exist_ok=True)
+    payload = {
+        "loop_namespace": "public_derivatives_microstructure_data_axis_v11_only_not_alpha",
+        "suite_decision": "MICROSTRUCTURE_AXIS_NOT_READY_INSUFFICIENT_SYMBOLS",
+        "readiness_baseline_verdict": "NOT_READY",
+        "coverage_sufficient_for_future_v12": False,
+        "v10_kill_state_preserved": True,
+        "v9_next_queue_empty": True,
+        "data_families_available": ["funding_rate_extensions"],
+        "usable_symbol_universe": [],
+        "negative_control_families": ["correlation_breakdown"],
+        "disallowed_revival_entries": ["correlation_breakdown"],
+        "alpha_generation_performed": False,
+        "tsmom_state_changed": False,
+        "private_data_used": False,
+        "account_data_used": False,
+        "api_key_used": False,
+        "live_or_testnet_path_created": False,
+    }
+    (out / "public_derivatives_microstructure_axis.json").write_text(json.dumps(payload, indent=2) + "\n")
+    return out
+
+
+def write_kline_proxy_zip(
+    cache_dir: Path,
+    *,
+    symbol: str,
+    month: str = "2024-01",
+    include_microstructure_columns: bool = True,
+) -> Path:
+    path = cache_dir / "futures" / "um" / "monthly" / "klines" / symbol / "1h" / f"{symbol}-1h-{month}.zip"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    start = pd.Timestamp(f"{month}-01 00:00:00", tz="UTC")
+    end = (start + pd.offsets.MonthEnd(0)).replace(hour=23)
+    header = [
+        "open_time",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "close_time",
+    ]
+    if include_microstructure_columns:
+        header.extend(["quote_volume", "count", "taker_buy_volume", "taker_buy_quote_volume"])
+    header.append("ignore")
+    rows: list[list[str]] = []
+    for ts in (start, end):
+        open_ms = int(cast(pd.Timestamp, ts).timestamp() * 1000)
+        row = [
+            str(open_ms),
+            "1",
+            "2",
+            "0.5",
+            "1.5",
+            "10",
+            str(open_ms + 3_599_999),
+        ]
+        if include_microstructure_columns:
+            row.extend(["100", "7", "4", "40"])
+        row.append("0")
+        rows.append(row)
+    body = ",".join(header) + "\n" + "\n".join(",".join(row) for row in rows) + "\n"
+    with zipfile.ZipFile(path, mode="w") as zf:
+        zf.writestr(f"{symbol}-1h-{month}.csv", body)
+    return path
+
+
+def write_recent_endpoint_cache(
+    cache_root: Path,
+    *,
+    symbol: str,
+    data_family: str = "open_interest_statistics_recent",
+    start_ms: int = 1_704_067_200_000,
+    end_ms: int = 1_704_153_600_000,
+) -> Path:
+    path = (
+        cache_root
+        / data_family
+        / symbol
+        / "1h"
+        / f"{symbol}-{data_family}-1h-{start_ms}-{end_ms}.json"
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = [
+        {
+            "symbol": symbol,
+            "sumOpenInterest": "10",
+            "sumOpenInterestValue": "100",
+            "timestamp": start_ms,
+        },
+        {
+            "symbol": symbol,
+            "sumOpenInterest": "11",
+            "sumOpenInterestValue": "101",
+            "timestamp": end_ms,
+        },
+    ]
+    path.write_text(json.dumps(payload) + "\n")
+    return path
+
+
+def recent_fixture(tmp_path: Path, **kwargs: Any):
+    source_v11 = kwargs.pop("source_v11_artifact_path", None)
+    if source_v11 is None:
+        source_v11 = v11_fixture(tmp_path)
+    return evaluate_public_derivatives_microstructure_recent_window_connector(
+        source_v11_artifact_path=source_v11,
+        binance_vision_cache_dir=kwargs.pop("binance_vision_cache_dir", tmp_path / "vision-cache"),
+        recent_cache_root=kwargs.pop("recent_cache_root", tmp_path / "recent-cache"),
+        commands=["uv run quantctl public-derivatives-microstructure-recent-window-run"],
+        changed_files=[
+            "src/parangsae/research/public_derivatives_microstructure.py",
+            "data/recent-window-cache.json",
+        ],
+        download_recent=kwargs.pop("download_recent", False),
+        **kwargs,
+    )
+
+
+def test_v12_reads_v11_artifact_and_preserves_state(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path)
+    assert result.payload["v11_state_preserved"] is True
+    assert result.payload["source_v11_artifact_path"].endswith("v11")
+    assert result.payload["source_v11_suite_decision"] == "MICROSTRUCTURE_AXIS_NOT_READY_INSUFFICIENT_SYMBOLS"
+    assert result.payload["source_v11_coverage_sufficient_for_future_v12"] is False
+    assert result.payload["source_v11_payload_hash"]
+
+
+def test_v12_tonusdt_remains_excluded_with_reason(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path, requested_symbols=("TONUSDT", "BTCUSDT"))
+    assert "TONUSDT" not in result.payload["requested_symbol_universe"]
+    excluded = {row["symbol"]: row["reason"] for row in result.payload["excluded_symbols"]}
+    assert "TONUSDT" in excluded
+    assert "previous coverage" in excluded["TONUSDT"]
+
+
+def test_v12_endpoint_feasibility_schema_and_retention_boundary(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path)
+    frame = pd.DataFrame(result.endpoint_feasibility)
+    assert list(frame.columns) == list(RECENT_WINDOW_ENDPOINT_FEASIBILITY_COLUMNS)
+    boundaries = {row["data_family"]: row["retention_boundary"] for row in result.endpoint_feasibility}
+    assert "latest_one_month" in boundaries["open_interest_statistics_recent"]
+    assert "latest_30_days" in boundaries["global_long_short_ratio_recent"]
+
+
+def test_v12_recent_window_not_treated_as_historical_coverage(tmp_path: Path) -> None:
+    cache_root = tmp_path / "recent-cache"
+    for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
+        write_recent_endpoint_cache(
+                cache_root,
+                symbol=symbol,
+                start_ms=1_780_012_800_000,
+                end_ms=1_782_604_800_000,
+            )
+    result = recent_fixture(
+        tmp_path,
+        recent_cache_root=cache_root,
+        requested_symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT"),
+        data_families=("open_interest_statistics_recent",),
+        recent_start="2026-05-29",
+        recent_end="2026-06-28",
+    )
+    assert result.payload["recent_window_microstructure_readiness"] is True
+    assert result.payload["historical_microstructure_proxy_readiness"] is False
+    assert result.payload["coverage_sufficient_for_future_v13"] is True
+    assert result.payload["recent_window_only"] is True
+    assert result.payload["temporal_mismatch_warning"]
+
+
+def test_v12_kline_proxy_uses_existing_public_kline_columns(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "vision-cache"
+    for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
+        write_kline_proxy_zip(cache_dir, symbol=symbol)
+    result = recent_fixture(
+        tmp_path,
+        binance_vision_cache_dir=cache_dir,
+        requested_symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT"),
+        target_start="2024-01-01",
+        target_end="2024-01-31",
+        data_families=("kline_derived_microstructure_proxy",),
+    )
+    assert result.payload["historical_microstructure_proxy_readiness"] is True
+    assert list(pd.DataFrame(result.kline_microstructure_proxy_coverage).columns) == list(
+        RECENT_WINDOW_KLINE_PROXY_COVERAGE_COLUMNS
+    )
+    row = result.kline_microstructure_proxy_coverage[0]
+    assert row["available"] is True
+    assert "taker_buy_volume_ratio" in row["schema_columns"]
+
+
+def test_v12_missing_kline_microstructure_columns_are_not_fabricated(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "vision-cache"
+    write_kline_proxy_zip(cache_dir, symbol="BTCUSDT", include_microstructure_columns=False)
+    result = recent_fixture(
+        tmp_path,
+        binance_vision_cache_dir=cache_dir,
+        requested_symbols=("BTCUSDT",),
+        target_start="2024-01-01",
+        target_end="2024-01-31",
+        data_families=("kline_derived_microstructure_proxy",),
+    )
+    row = result.kline_microstructure_proxy_coverage[0]
+    assert row["available"] is False
+    assert "missing required raw kline microstructure columns" in row["unavailable_reason"]
+    assert "taker_buy_volume_ratio" not in row["schema_columns"]
+
+
+def test_v12_unavailable_endpoint_records_reason(tmp_path: Path) -> None:
+    result = recent_fixture(
+        tmp_path,
+        requested_symbols=("BTCUSDT",),
+        data_families=("open_interest_statistics_recent",),
+    )
+    row = result.recent_window_coverage[0]
+    assert row["available"] is False
+    assert row["unavailable_reason"]
+    assert row["requires_api_key"] is False
+
+
+def test_v12_failed_download_is_recorded_safely(tmp_path: Path) -> None:
+    def fail_fetch(_request: dict[str, Any]) -> list[dict[str, Any]]:
+        raise RuntimeError("network unavailable")
+
+    result = recent_fixture(
+        tmp_path,
+        requested_symbols=("BTCUSDT",),
+        data_families=("open_interest_statistics_recent",),
+        download_recent=True,
+        endpoint_fetcher=fail_fetch,
+    )
+    assert result.payload["failed_download_count"] == 1
+    assert result.failed_downloads[0]["error_type"] == "RuntimeError"
+    assert result.recent_window_coverage[0]["available"] is False
+
+
+def test_v12_idempotent_cache_skip_behavior(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    def fetch(request: dict[str, Any]) -> list[dict[str, Any]]:
+        calls.append(str(request["symbol"]))
+        return [{"symbol": request["symbol"], "timestamp": int(request["start_time_ms"]), "value": "1"}]
+
+    cache_root = tmp_path / "recent-cache"
+    first = recent_fixture(
+        tmp_path,
+        recent_cache_root=cache_root,
+        requested_symbols=("BTCUSDT",),
+        data_families=("open_interest_statistics_recent",),
+        download_recent=True,
+        endpoint_fetcher=fetch,
+    )
+    second = recent_fixture(
+        tmp_path,
+        recent_cache_root=cache_root,
+        requested_symbols=("BTCUSDT",),
+        data_families=("open_interest_statistics_recent",),
+        download_recent=True,
+        endpoint_fetcher=fetch,
+    )
+    assert first.payload["successful_download_count"] == 1
+    assert second.payload["skipped_existing_count"] == 1
+    assert calls == ["BTCUSDT"]
+
+
+def test_v12_raw_data_files_are_not_added_to_changed_files(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path)
+    assert "data/recent-window-cache.json" not in result.payload["changed_files"]
+    assert result.payload["raw_data_files_created"] == ["data/recent-window-cache.json"]
+    assert result.payload["raw_data_files_committed"] is False
+
+
+def test_v12_historical_proxy_readiness_requires_three_symbols(tmp_path: Path) -> None:
+    cache_dir = tmp_path / "vision-cache"
+    for symbol in ("BTCUSDT", "ETHUSDT"):
+        write_kline_proxy_zip(cache_dir, symbol=symbol)
+    two = recent_fixture(
+        tmp_path,
+        binance_vision_cache_dir=cache_dir,
+        requested_symbols=("BTCUSDT", "ETHUSDT"),
+        target_start="2024-01-01",
+        target_end="2024-01-31",
+        data_families=("kline_derived_microstructure_proxy",),
+    )
+    assert two.payload["historical_microstructure_proxy_readiness"] is False
+
+    write_kline_proxy_zip(cache_dir, symbol="SOLUSDT")
+    three = recent_fixture(
+        tmp_path,
+        binance_vision_cache_dir=cache_dir,
+        requested_symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT"),
+        target_start="2024-01-01",
+        target_end="2024-01-31",
+        data_families=("kline_derived_microstructure_proxy",),
+    )
+    assert three.payload["historical_microstructure_proxy_readiness"] is True
+
+
+def test_v12_recent_window_readiness_requires_three_symbols(tmp_path: Path) -> None:
+    cache_root = tmp_path / "recent-cache"
+    for symbol in ("BTCUSDT", "ETHUSDT"):
+        write_recent_endpoint_cache(
+                cache_root,
+                symbol=symbol,
+                start_ms=1_780_012_800_000,
+                end_ms=1_782_604_800_000,
+            )
+    two = recent_fixture(
+        tmp_path,
+        recent_cache_root=cache_root,
+        requested_symbols=("BTCUSDT", "ETHUSDT"),
+        data_families=("open_interest_statistics_recent",),
+        recent_start="2026-05-29",
+        recent_end="2026-06-28",
+    )
+    assert two.payload["recent_window_microstructure_readiness"] is False
+
+    write_recent_endpoint_cache(
+        cache_root,
+        symbol="SOLUSDT",
+        start_ms=1_780_012_800_000,
+        end_ms=1_782_604_800_000,
+    )
+    three = recent_fixture(
+        tmp_path,
+        recent_cache_root=cache_root,
+        requested_symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT"),
+        data_families=("open_interest_statistics_recent",),
+        recent_start="2026-05-29",
+        recent_end="2026-06-28",
+    )
+    assert three.payload["recent_window_microstructure_readiness"] is True
+
+
+def test_v12_stale_recent_endpoint_cache_does_not_open_recent_gate(tmp_path: Path) -> None:
+    cache_root = tmp_path / "recent-cache"
+    for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT"):
+        write_recent_endpoint_cache(cache_root, symbol=symbol)
+    result = recent_fixture(
+        tmp_path,
+        recent_cache_root=cache_root,
+        requested_symbols=("BTCUSDT", "ETHUSDT", "SOLUSDT"),
+        data_families=("open_interest_statistics_recent",),
+        recent_start="2026-05-29",
+        recent_end="2026-06-28",
+    )
+    assert result.payload["recent_window_microstructure_readiness"] is False
+    assert result.payload["coverage_sufficient_for_future_v13"] is False
+    assert all(row["available"] is False for row in result.recent_window_coverage)
+    assert all("does not cover requested recent window" in row["unavailable_reason"] for row in result.recent_window_coverage)
+
+
+def test_v12_no_private_account_api_key_order_or_fill_path_exists(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path)
+    assert result.payload["private_data_used"] is False
+    assert result.payload["account_data_used"] is False
+    assert result.payload["api_key_used"] is False
+    assert result.payload["live_or_testnet_path_created"] is False
+    assert result.payload["safety_gates"]["no_private_order_or_fill_data_used"] is True
+
+
+def test_v12_alpha_generation_remains_false(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path)
+    assert result.payload["alpha_generation_performed"] is False
+    assert result.payload["strategy_optimization_performed"] is False
+
+
+def test_v12_artifact_writing_and_artifact_type_detection(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path)
+    out = write_public_derivatives_microstructure_recent_window_artifacts(tmp_path / "v12", result)
+    for filename in PUBLIC_DERIVATIVES_MICROSTRUCTURE_RECENT_WINDOW_REQUIRED_FILES:
+        assert (out / filename).exists(), filename
+    assert (out / "loop.json").exists()
+    payload = json.loads((out / "public_derivatives_microstructure_recent_window.json").read_text())
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert existing_loop_artifact_type(out) == "public-derivatives-microstructure-recent-window-run"
+
+
+def test_v12_cli_no_credential_no_live_path(tmp_path: Path, capsys) -> None:
+    args = Namespace(
+        source_v11_artifact=str(v11_fixture(tmp_path)),
+        symbols="BTCUSDT",
+        data_family=None,
+        binance_vision_cache_dir=str(tmp_path / "vision-cache"),
+        recent_cache_root=str(tmp_path / "recent-cache"),
+        interval="1h",
+        target_start="2024-01-01",
+        target_end="2024-01-31",
+        recent_start="2026-05-29",
+        recent_end="2026-06-28",
+        minimum_required_symbols=3,
+        download_recent=False,
+        force=False,
+        reports_root=str(tmp_path / "reports"),
+        output_dir=str(tmp_path / "v12"),
+        overwrite=False,
+        command=None,
+        changed_file=None,
+    )
+    assert quantctl.cmd_public_derivatives_microstructure_recent_window_run(args) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["run_type"] == "public-derivatives-microstructure-recent-window-run"
+    assert output["live_orders_submitted"] is False
+    assert output["testnet_orders_submitted"] is False
+    assert output["api_keys_required_for_research"] is False
+
+
+def test_v12_readiness_baseline_verdict_remains_not_ready(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path)
+    assert result.payload["readiness_baseline_verdict"] == "NOT_READY"
+
+
+def test_v12_tsmom_state_unchanged(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path)
+    assert result.payload["tsmom_state_changed"] is False
+
+
+def test_v8_v9_v10_v11_v12_commands_remain_wired_importable() -> None:
+    parser = quantctl.build_parser()
+    commands = cast(Any, parser)._subparsers._group_actions[0].choices
+    for command in (
+        "panel-ready-multi-asset-alpha-prefilter-rerun",
+        "multi-asset-strict-oos-fdr-falsification-run",
+        "multi-asset-v9-falsification-lineage-governance-run",
+        "public-derivatives-microstructure-data-axis-run",
+        "public-derivatives-microstructure-recent-window-run",
+    ):
+        assert command in commands
+
+
+def test_v12_forbidden_positive_labels_cannot_be_emitted(tmp_path: Path) -> None:
+    result = recent_fixture(tmp_path)
+    out = write_public_derivatives_microstructure_recent_window_artifacts(tmp_path / "v12", result)
+    for path in out.iterdir():
+        if path.name == "readiness_by_family.csv":
+            continue
+        text = path.read_text()
+        for label in {"READY", "TRADE", "LIVE_READY", "PROFITABLE", "DEPLOY", "CAPITAL_ALLOCATE", "EDGE_CONFIRMED"}:
             assert not re.search(rf"(?<![A-Z_]){re.escape(label)}(?![A-Z_])", text), (
                 f"{label} leaked into {path}"
             )

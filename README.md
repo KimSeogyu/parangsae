@@ -591,6 +591,33 @@ be committed unless repo policy explicitly allows it. V12 should only run when
 `coverage_sufficient_for_future_v12=true`; that flag is not an edge,
 profitability, execution, or live-readiness claim.
 
+`public-derivatives-microstructure-recent-window-run` implements the
+public-data-only
+`PUBLIC_DERIVATIVES_MICROSTRUCTURE_RECENT_WINDOW_CONNECTOR_V12` loop:
+
+```bash
+uv run quantctl public-derivatives-microstructure-recent-window-run
+```
+
+V12 preserves the V11 outcome and V10 kill-state governance while building
+connector/provenance infrastructure for public Binance USD-M derivatives
+microstructure inputs. It does not generate alpha, does not rerun V8/V9/V10/V11,
+does not implement a strategy, does not optimize portfolios or signal weights,
+does not use private/account/API-key/order/fill data, and does not create
+live/testnet paths.
+
+V12 deliberately separates long-span `kline_derived_microstructure_proxy`
+coverage from recent-window REST endpoint coverage. Existing public Binance
+Vision raw kline cache may support historical proxy fields such as trade count,
+quote volume, and taker-buy volume columns. Public `/futures/data/*` style
+endpoints are treated as recent-window data with explicit retention boundaries;
+they must not be mixed with 2024-2025 labels unless a future V13 protocol is
+configured as recent-window-only. Raw public data cache should not be committed
+unless repo policy explicitly allows it. V13 should only run when
+`coverage_sufficient_for_future_v13=true`, and that flag is only a paper
+research input gate, not an edge, profitability, readiness, or live/testnet
+claim.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

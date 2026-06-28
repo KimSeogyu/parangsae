@@ -1143,6 +1143,58 @@ strategy readiness, alpha confirmation, execution readiness, or permission to
 trade. V11 does not run V12 automatically; V12 should only run after
 `coverage_sufficient_for_future_v12=true`.
 
+## Public derivatives microstructure recent-window connector
+
+`public-derivatives-microstructure-recent-window-run` implements
+`PUBLIC_DERIVATIVES_MICROSTRUCTURE_RECENT_WINDOW_CONNECTOR_V12`, a public
+derivatives microstructure connector and provenance loop. It is not alpha
+generation, not a V8/V9/V10/V11 rerun, not signal construction, not strategy
+implementation, not portfolio construction, not signal-weight optimization, and
+not a profitability, edge, readiness, or live/testnet claim.
+
+```bash
+uv run quantctl public-derivatives-microstructure-recent-window-run
+```
+
+The command reads the immutable V11 artifact and carries forward the V11
+not-ready data-axis outcome, V10 kill-state governance, and no-alpha/no-live
+safety boundary. It distinguishes:
+
+- long-span `kline_derived_microstructure_proxy` coverage from existing public
+  Binance Vision raw kline cache columns such as trade count, quote volume, and
+  taker-buy volumes; and
+- recent-window public Binance USD-M REST endpoint coverage for open-interest
+  statistics, long/short ratios, taker buy/sell volume, basis, and mark-price
+  premium/index snapshots where available.
+
+Recent-window endpoint data has an explicit retention boundary and must not be
+mixed with 2024-2025 historical labels unless a future V13 loop is explicitly
+configured as recent-window-only. Missing or unavailable endpoint data is
+recorded in `failed_downloads.csv`, `endpoint_feasibility.csv`, and coverage CSV
+rows; V12 must not fabricate data.
+
+V12 writes a new artifact directory:
+
+- `public_derivatives_microstructure_recent_window.json`
+- `endpoint_feasibility.csv`
+- `kline_microstructure_proxy_coverage.csv`
+- `recent_window_coverage.csv`
+- `symbol_data_coverage.csv`
+- `download_manifest.csv`
+- `failed_downloads.csv`
+- `provenance_manifest.csv`
+- `readiness_by_family.csv`
+- `v11_reference.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+Raw public data cache under `data/` should not be committed unless repo policy
+explicitly allows it. V13 should only run when
+`coverage_sufficient_for_future_v13=true`; that field is only a paper research
+input gate and does not claim alpha, edge, profitability, execution readiness,
+or live/testnet permission.
+
 Raw public data cache files should not be committed unless repo policy
 explicitly allows it. The V11 artifact records created/committed raw data status
 and filters raw cache paths out of `changed_files.txt`. Existing V10/V9/V8

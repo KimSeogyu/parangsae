@@ -135,10 +135,15 @@ from parangsae.research.public_multi_asset_panel_coverage import (
 )
 from parangsae.research.public_derivatives_microstructure import (
     DEFAULT_PUBLIC_DERIVATIVES_MICROSTRUCTURE_V10_ARTIFACT,
+    DEFAULT_PUBLIC_DERIVATIVES_MICROSTRUCTURE_V11_ARTIFACT,
     PUBLIC_DERIVATIVES_MICROSTRUCTURE_DEFAULT_UNIVERSE,
+    PUBLIC_DERIVATIVES_MICROSTRUCTURE_RECENT_WINDOW_TARGET_FAMILIES,
     default_public_derivatives_microstructure_axis_output_dir,
+    default_public_derivatives_microstructure_recent_window_output_dir,
     evaluate_public_derivatives_microstructure_axis,
+    evaluate_public_derivatives_microstructure_recent_window_connector,
     write_public_derivatives_microstructure_axis_artifacts,
+    write_public_derivatives_microstructure_recent_window_artifacts,
 )
 from parangsae.research.null_baselines import (
     DEFAULT_TSMOM_REGIME_ONLY_ARTIFACT,
@@ -572,6 +577,32 @@ def _default_public_derivatives_microstructure_axis_command(args: argparse.Names
         f"--funding-cache-dir {args.funding_cache_dir}",
         f"--output-dir {args.output_dir or default_public_derivatives_microstructure_axis_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_public_derivatives_microstructure_recent_window_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl public-derivatives-microstructure-recent-window-run",
+        f"--source-v11-artifact {args.source_v11_artifact}",
+        f"--symbols {args.symbols}",
+        f"--binance-vision-cache-dir {args.binance_vision_cache_dir}",
+        f"--recent-cache-root {args.recent_cache_root}",
+        f"--interval {args.interval}",
+        f"--target-start {args.target_start}",
+        f"--target-end {args.target_end}",
+        f"--recent-start {args.recent_start}",
+        f"--recent-end {args.recent_end}",
+        f"--minimum-required-symbols {args.minimum_required_symbols}",
+        f"--output-dir {args.output_dir or default_public_derivatives_microstructure_recent_window_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    for family in args.data_family or []:
+        command.append(f"--data-family {family}")
+    if args.download_recent:
+        command.append("--download-recent")
+    if args.force:
+        command.append("--force")
     if args.overwrite:
         command.append("--overwrite")
     return " ".join(command)
@@ -2326,6 +2357,105 @@ def cmd_public_derivatives_microstructure_data_axis_run(args: argparse.Namespace
         return 2
 
 
+def cmd_public_derivatives_microstructure_recent_window_run(args: argparse.Namespace) -> int:
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_public_derivatives_microstructure_recent_window_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        commands = args.command or [_default_public_derivatives_microstructure_recent_window_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_public_derivatives_microstructure_recent_window_connector(
+            source_v11_artifact_path=args.source_v11_artifact,
+            requested_symbols=args.symbols,
+            data_families=args.data_family,
+            binance_vision_cache_dir=args.binance_vision_cache_dir,
+            recent_cache_root=args.recent_cache_root,
+            interval=args.interval,
+            target_start=args.target_start,
+            target_end=args.target_end,
+            recent_start=args.recent_start,
+            recent_end=args.recent_end,
+            minimum_required_symbols=args.minimum_required_symbols,
+            download_recent=args.download_recent,
+            force=args.force,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_public_derivatives_microstructure_recent_window_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "public-derivatives-microstructure-recent-window-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v11_artifact_path": result.payload["source_v11_artifact_path"],
+                    "v11_state_preserved": result.payload["v11_state_preserved"],
+                    "requested_symbol_universe": result.payload["requested_symbol_universe"],
+                    "usable_symbol_universe": result.payload["usable_symbol_universe"],
+                    "data_families_available": result.payload["data_families_available"],
+                    "historical_microstructure_proxy_readiness": result.payload[
+                        "historical_microstructure_proxy_readiness"
+                    ],
+                    "recent_window_microstructure_readiness": result.payload[
+                        "recent_window_microstructure_readiness"
+                    ],
+                    "coverage_sufficient_for_future_v13": result.payload["coverage_sufficient_for_future_v13"],
+                    "recent_window_only": result.payload["recent_window_only"],
+                    "temporal_mismatch_warning": result.payload["temporal_mismatch_warning"],
+                    "successful_download_count": result.payload["successful_download_count"],
+                    "failed_download_count": result.payload["failed_download_count"],
+                    "skipped_existing_count": result.payload["skipped_existing_count"],
+                    "raw_data_files_committed": result.payload["raw_data_files_committed"],
+                    "alpha_generation_performed": result.payload["alpha_generation_performed"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "strategy_optimization_performed": result.payload["strategy_optimization_performed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (ValueError, FileExistsError, FileNotFoundError) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "public-derivatives-microstructure-recent-window-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v11_artifact_path": str(args.source_v11_artifact),
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                    "alpha_generation_performed": False,
+                    "live_or_testnet_path_created": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def cmd_public_multi_asset_panel_coverage_run(args: argparse.Namespace) -> int:
     symbols = PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE
     interval = CANONICAL_INTERVAL
@@ -3584,6 +3714,64 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     microstructure_v11.set_defaults(func=cmd_public_derivatives_microstructure_data_axis_run)
+
+    microstructure_v12 = sub.add_parser("public-derivatives-microstructure-recent-window-run")
+    microstructure_v12.add_argument(
+        "--source-v11-artifact",
+        default=str(DEFAULT_PUBLIC_DERIVATIVES_MICROSTRUCTURE_V11_ARTIFACT),
+        help="V11 microstructure data-axis artifact to preserve as V12 input",
+    )
+    microstructure_v12.add_argument(
+        "--symbols",
+        default=",".join(PUBLIC_DERIVATIVES_MICROSTRUCTURE_DEFAULT_UNIVERSE),
+        help="comma-separated public derivatives symbol universe; TONUSDT remains excluded by default",
+    )
+    microstructure_v12.add_argument(
+        "--data-family",
+        action="append",
+        choices=PUBLIC_DERIVATIVES_MICROSTRUCTURE_RECENT_WINDOW_TARGET_FAMILIES,
+        help="V12 data family to audit/fetch; may be repeated; defaults to all V12 families",
+    )
+    microstructure_v12.add_argument(
+        "--binance-vision-cache-dir",
+        default="data/binance-vision",
+        help="existing public Binance Vision kline cache root for kline-derived microstructure proxy audit",
+    )
+    microstructure_v12.add_argument(
+        "--recent-cache-root",
+        default="data/binance-derivatives-microstructure-recent-window",
+        help="public recent-window derivatives microstructure cache root",
+    )
+    microstructure_v12.add_argument("--interval", default="1h")
+    microstructure_v12.add_argument("--target-start", default="2024-01-01")
+    microstructure_v12.add_argument("--target-end", default="2025-12-31")
+    microstructure_v12.add_argument("--recent-start", default="2026-05-29")
+    microstructure_v12.add_argument("--recent-end", default="2026-06-28")
+    microstructure_v12.add_argument("--minimum-required-symbols", type=int, default=3)
+    microstructure_v12.add_argument(
+        "--download-recent",
+        action="store_true",
+        help="attempt public no-key recent-window REST endpoint downloads; disabled by default for cache/provenance audit",
+    )
+    microstructure_v12.add_argument(
+        "--force",
+        action="store_true",
+        help="redownload recent-window endpoint cache files when --download-recent is set",
+    )
+    microstructure_v12.add_argument("--reports-root", default="reports")
+    microstructure_v12.add_argument("--output-dir")
+    microstructure_v12.add_argument("--overwrite", action="store_true")
+    microstructure_v12.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    microstructure_v12.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    microstructure_v12.set_defaults(func=cmd_public_derivatives_microstructure_recent_window_run)
 
     public_panel = sub.add_parser("public-multi-asset-panel-coverage-run")
     public_panel.add_argument(

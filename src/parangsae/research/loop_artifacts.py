@@ -180,6 +180,16 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             payload.get("loop_namespace")
         ):
             return "public-derivatives-microstructure-data-axis-run"
+    public_derivatives_microstructure_recent_json = path / "public_derivatives_microstructure_recent_window.json"
+    if public_derivatives_microstructure_recent_json.exists():
+        try:
+            payload = json.loads(public_derivatives_microstructure_recent_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "public_derivatives_microstructure_recent_window_v12" in str(
+            payload.get("loop_namespace")
+        ):
+            return "public-derivatives-microstructure-recent-window-run"
     return None
 
 
