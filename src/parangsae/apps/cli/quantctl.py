@@ -106,6 +106,16 @@ from parangsae.research.multi_asset_alpha_factory import (
     write_panel_ready_multi_asset_alpha_prefilter_artifacts,
     write_multi_asset_alpha_prefilter_artifacts,
 )
+from parangsae.research.multi_asset_strict_falsification import (
+    DEFAULT_MULTI_ASSET_STRICT_FALSIFICATION_SEED,
+    DEFAULT_MULTI_ASSET_STRICT_FALSIFICATION_V8_ARTIFACT,
+    DEFAULT_MULTI_ASSET_STRICT_FOLD_COUNT,
+    DEFAULT_MULTI_ASSET_STRICT_PERMUTATION_COUNT,
+    default_multi_asset_strict_oos_fdr_falsification_output_dir,
+    evaluate_multi_asset_strict_oos_fdr_falsification,
+    read_v8_strict_falsification_source_state,
+    write_multi_asset_strict_oos_fdr_falsification_artifacts,
+)
 from parangsae.research.public_multi_asset_panel_coverage import (
     DEFAULT_PUBLIC_MULTI_ASSET_DATA_BACKFILL_V6_ARTIFACT,
     DEFAULT_PUBLIC_MULTI_ASSET_PANEL_MINIMUM_REQUIRED_SYMBOLS,
@@ -501,6 +511,26 @@ def _default_panel_ready_multi_asset_alpha_prefilter_command(args: argparse.Name
         f"--max-depth {args.max_depth}",
         f"--min-bars-per-symbol {args.min_bars_per_symbol}",
         f"--output-dir {args.output_dir or default_panel_ready_multi_asset_alpha_prefilter_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.interval is not None:
+        command.append(f"--interval {args.interval}")
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_multi_asset_strict_oos_fdr_falsification_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl multi-asset-strict-oos-fdr-falsification-run",
+        f"--source-v8-artifact {args.source_v8_artifact}",
+        f"--cache-dir {args.cache_dir}",
+        f"--funding-source {args.funding_source}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--min-bars-per-symbol {args.min_bars_per_symbol}",
+        f"--fold-count {args.fold_count}",
+        f"--permutation-count {args.permutation_count}",
+        f"--seed {args.seed}",
+        f"--output-dir {args.output_dir or default_multi_asset_strict_oos_fdr_falsification_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
     if args.interval is not None:
         command.append(f"--interval {args.interval}")
@@ -1966,6 +1996,139 @@ def cmd_panel_ready_multi_asset_alpha_prefilter_rerun(args: argparse.Namespace) 
         return 2
 
 
+def cmd_multi_asset_strict_oos_fdr_falsification_run(args: argparse.Namespace) -> int:
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_multi_asset_strict_oos_fdr_falsification_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    symbols: tuple[str, ...] = ()
+    months: tuple[str, ...] = ()
+    interval = CANONICAL_INTERVAL
+    try:
+        v8_state = read_v8_strict_falsification_source_state(args.source_v8_artifact)
+        queue_rows = list(v8_state.get("queue_rows", []))
+        payload = dict(v8_state["payload"])
+        source_interval = validate_interval(str(payload.get("interval") or CANONICAL_INTERVAL))
+        if args.interval is not None and validate_interval(args.interval) != source_interval:
+            raise ValueError("V9 interval override must match the frozen V8 artifact interval")
+        interval = source_interval
+        symbols = parse_symbol_universe(payload.get("symbol_universe_used", ()))
+        months = tuple(str(month) for month in payload.get("target_months", ()))
+        if not months:
+            common_start = pd.Timestamp(payload["common_start"]).strftime("%Y-%m")
+            common_end = pd.Timestamp(payload["common_end"]).strftime("%Y-%m")
+            months = tuple(str(period) for period in pd.period_range(start=common_start, end=common_end, freq="M"))
+        commands = args.command or [_default_multi_asset_strict_oos_fdr_falsification_command(args)]
+        changed_files = args.changed_file or []
+        market_bundles: dict[str, MarketDataBundle] = {}
+        funding_bundles: dict[str, FundingRateBundle | None] = {}
+        funding_status: dict[str, str] = {}
+        if queue_rows:
+            loader_args = argparse.Namespace(
+                cache_dir=args.cache_dir,
+                funding_source=args.funding_source,
+                funding_cache_dir=args.funding_cache_dir,
+                cache_mode="cache-only",
+                min_bars_per_symbol=args.min_bars_per_symbol,
+            )
+            market_bundles, funding_bundles, excluded, funding_status = _load_multi_asset_public_bundles(
+                loader_args,
+                symbols=symbols,
+                interval=interval,
+                months=months,
+            )
+            missing_symbols = [symbol for symbol in symbols if symbol not in market_bundles]
+            if missing_symbols:
+                raise ValueError(
+                    "V9 cache-only strict falsification could not load all V8 symbols; "
+                    f"refusing download/backfill: {missing_symbols}; loader_exclusions={excluded}"
+                )
+        result = evaluate_multi_asset_strict_oos_fdr_falsification(
+            market_bundles=market_bundles,
+            funding_bundles=funding_bundles,
+            funding_status_by_symbol=funding_status,
+            source_v8_artifact_path=args.source_v8_artifact,
+            fold_count=args.fold_count,
+            permutation_count=args.permutation_count,
+            seed=args.seed,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_multi_asset_strict_oos_fdr_falsification_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "multi-asset-strict-oos-fdr-falsification-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v8_artifact_path": result.payload["source_v8_artifact_path"],
+                    "source_v8_queue_count": result.payload["source_v8_queue_count"],
+                    "frozen_queue_count": result.payload["frozen_queue_count"],
+                    "evaluated_signal_count": result.payload["evaluated_signal_count"],
+                    "chronological_fold_count": result.payload["chronological_fold_count"],
+                    "permutation_count": result.payload["permutation_count"],
+                    "block_size": result.payload["block_size"],
+                    "duplicate_adjusted_test_count": result.payload["duplicate_adjusted_test_count"],
+                    "effective_signal_breadth": result.payload["effective_signal_breadth"],
+                    "families_killed_count": result.payload["families_killed_count"],
+                    "families_watch_count": result.payload["families_watch_count"],
+                    "data_download_performed": result.payload["data_download_performed"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "strategy_optimization_performed": result.payload["strategy_optimization_performed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                    "multiple_testing_boundary": result.payload["multiple_testing_boundary"],
+                    "fdr_boundary": result.payload["fdr_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (
+        BinanceVisionError,
+        DataValidationError,
+        requests.RequestException,
+        ValueError,
+        FileExistsError,
+        FileNotFoundError,
+    ) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "multi-asset-strict-oos-fdr-falsification-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v8_artifact_path": str(args.source_v8_artifact),
+                    "symbols": symbols,
+                    "interval": interval,
+                    "months": months,
+                    "data_download_performed": False,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def cmd_public_multi_asset_panel_coverage_run(args: argparse.Namespace) -> int:
     symbols = PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE
     interval = CANONICAL_INTERVAL
@@ -3128,6 +3291,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     panel_ready_alpha.set_defaults(func=cmd_panel_ready_multi_asset_alpha_prefilter_rerun)
+
+    strict_v9 = sub.add_parser("multi-asset-strict-oos-fdr-falsification-run")
+    strict_v9.add_argument(
+        "--source-v8-artifact",
+        default=str(DEFAULT_MULTI_ASSET_STRICT_FALSIFICATION_V8_ARTIFACT),
+        help="frozen V8 panel-ready multi-asset alpha prefilter artifact to falsify",
+    )
+    strict_v9.add_argument(
+        "--interval",
+        default=None,
+        help="optional interval assertion; omitted means use the V8 artifact interval",
+    )
+    strict_v9.add_argument("--cache-dir", default="data/binance-vision")
+    strict_v9.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    strict_v9.add_argument("--funding-cache-dir", default="data/binance-funding")
+    strict_v9.add_argument("--min-bars-per-symbol", type=int, default=DEFAULT_MIN_BARS_PER_SYMBOL)
+    strict_v9.add_argument("--fold-count", type=int, default=DEFAULT_MULTI_ASSET_STRICT_FOLD_COUNT)
+    strict_v9.add_argument(
+        "--permutation-count",
+        type=int,
+        default=DEFAULT_MULTI_ASSET_STRICT_PERMUTATION_COUNT,
+        help="deterministic block permutation count; block size is pinned to each horizon",
+    )
+    strict_v9.add_argument("--seed", type=int, default=DEFAULT_MULTI_ASSET_STRICT_FALSIFICATION_SEED)
+    strict_v9.add_argument("--reports-root", default="reports")
+    strict_v9.add_argument("--output-dir")
+    strict_v9.add_argument("--overwrite", action="store_true")
+    strict_v9.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    strict_v9.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    strict_v9.set_defaults(func=cmd_multi_asset_strict_oos_fdr_falsification_run)
 
     public_panel = sub.add_parser("public-multi-asset-panel-coverage-run")
     public_panel.add_argument(

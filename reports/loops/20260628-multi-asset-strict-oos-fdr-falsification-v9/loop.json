@@ -1,0 +1,19 @@
+{
+  "cannot_claim_edge_due_to_multiple_testing": true,
+  "claim_boundary": "MULTI_ASSET_STRICT_OOS_FDR_FALSIFICATION_V9 freezes the V8 paper-only queue and performs stricter falsification. It is not alpha generation, not a trading strategy, not portfolio construction, not signal weight optimization, not profitability evidence, not readiness or live readiness, and not permission for live/testnet/account/API-key/order/fill use.",
+  "data_download_performed": false,
+  "edge_source": "information_processing",
+  "hypothesis": "Frozen V8 multi-asset paper-only signal families may fail stricter chronological OOS, FDR, null, regime, and symbol robustness checks.",
+  "loop_id": "20260628-multi-asset-strict-oos-fdr-falsification-v9",
+  "loop_type": "validation",
+  "no_account_data_used": true,
+  "no_api_key_used": true,
+  "no_live_orders_submitted": true,
+  "no_private_order_or_fill_data_used": true,
+  "no_testnet_orders_submitted": true,
+  "readiness_baseline_verdict": "NOT_READY",
+  "source_v8_artifact_path": "reports/loops/20260628-panel-ready-multi-asset-alpha-prefilter-rerun-v8",
+  "status": "KILLED",
+  "suite_decision": "NO_FAMILY_SURVIVES_STRICT_FALSIFICATION",
+  "tsmom_state_changed": false
+}

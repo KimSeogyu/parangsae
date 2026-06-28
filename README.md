@@ -512,6 +512,37 @@ feed a separate future strict OOS falsification loop. `readiness_baseline_verdic
 remains `NOT_READY`, no private/account/API-key/order/fill data is used, and
 `tsmom_state_changed` remains `false`.
 
+`multi-asset-strict-oos-fdr-falsification-run` implements the paper-only
+`MULTI_ASSET_STRICT_OOS_FDR_FALSIFICATION_V9` loop:
+
+```bash
+uv run quantctl multi-asset-strict-oos-fdr-falsification-run
+```
+
+V9 reads the immutable V8 artifact and freezes `next_strict_falsification_queue.csv`.
+It evaluates only queued V8 families by replaying V8 catalog signal IDs; it does
+not generate new signals, does not rerun V8, and does not download or backfill
+data. The default command uses the V8 public cached symbol/month span in
+cache-only mode. If the V8 queue is empty, V9 writes a schema-only artifact with
+`suite_decision=NO_V8_QUEUE_TO_FALSIFY`.
+
+V9 writes
+`reports/loops/<YYYYMMDD>-multi-asset-strict-oos-fdr-falsification-v9/` with the
+frozen queue, chronological fold metadata, strict OOS diagnostics, block
+permutation null results, BH-FDR summary, regime robustness, symbol robustness,
+null-baseline stress, failed gates, and next mechanism-research queue. The fixed
+family rule is all-horizon survival across `8h`, `24h`, and `72h`; no best
+horizon, best p-value, best IC, or result-based representative selection is
+allowed. Permutation block size is pinned to each horizon.
+
+A surviving V9 family, if any, is still not proven edge. `WATCH_FAMILY_ONLY` and
+`NEEDS_MECHANISM_RESEARCH` mean paper-only follow-up. V9 is not a trading
+strategy, not portfolio construction, not signal-weight optimization, not
+profitability evidence, not readiness, and not live/testnet permission.
+Multiple-testing risk remains central, `readiness_baseline_verdict` remains
+`NOT_READY`, no private/account/API-key/order/fill data is used, and no TSMOM
+state is changed.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

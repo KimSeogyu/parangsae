@@ -1,0 +1,7 @@
+README.md
+docs/backtesting-paper-trading.md
+src/parangsae/apps/cli/quantctl.py
+src/parangsae/research/loop_artifacts.py
+src/parangsae/research/multi_asset_strict_falsification.py
+tests/test_multi_asset_strict_falsification.py
+reports/loops/20260628-multi-asset-strict-oos-fdr-falsification-v9/

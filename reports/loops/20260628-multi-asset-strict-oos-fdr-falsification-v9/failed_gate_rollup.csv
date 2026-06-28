@@ -1,0 +1,8 @@
+gate,status,reason
+v8_queue_frozen,passed,V9 evaluated only representatives derived from V8 next_strict_falsification_queue.csv and V8 catalog
+data_download,passed,V9 does not download or backfill data
+readiness_boundary,passed,readiness_baseline_verdict remains NOT_READY
+tsmom_state_unchanged,passed,TSMOM code/artifacts are not changed by V9
+multiple_testing_boundary,unclaimed,cannot_claim_edge_due_to_multiple_testing remains true
+family_survival,failed,6 family x horizon rows failed strict falsification
+public_panel_symbols,passed,9 cached public symbols loaded

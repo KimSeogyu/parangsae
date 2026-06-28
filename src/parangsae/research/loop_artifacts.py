@@ -150,6 +150,16 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             payload.get("loop_namespace")
         ):
             return "panel-ready-multi-asset-alpha-prefilter-rerun"
+    multi_asset_strict_v9_json = path / "multi_asset_strict_oos_fdr_falsification.json"
+    if multi_asset_strict_v9_json.exists():
+        try:
+            payload = json.loads(multi_asset_strict_v9_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "multi_asset_strict_oos_fdr_falsification_v9" in str(
+            payload.get("loop_namespace")
+        ):
+            return "multi-asset-strict-oos-fdr-falsification-run"
     return None
 
 

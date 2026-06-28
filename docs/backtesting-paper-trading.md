@@ -1000,6 +1000,67 @@ diagnosed; `cannot_claim_edge_due_to_multiple_testing` remains true.
 alpha, edge, profitability, readiness, execution readiness, live/testnet
 permission, or capital allocation permission.
 
+## Multi-asset strict OOS FDR falsification
+
+`multi-asset-strict-oos-fdr-falsification-run` implements
+`MULTI_ASSET_STRICT_OOS_FDR_FALSIFICATION_V9`, a paper-only strict
+falsification loop over the frozen V8 queue. It is not signal generation, not a
+trading strategy, not portfolio construction, not signal-weight optimization,
+not strategy PnL optimization, not holdout retuning, not live/testnet readiness,
+and not a profitability or alpha-confirmation claim.
+
+```bash
+uv run quantctl multi-asset-strict-oos-fdr-falsification-run
+```
+
+The command reads the immutable V8 artifact first and requires
+`source_v7_panel_ready: true`. It freezes `next_strict_falsification_queue.csv`
+and evaluates only queued V8 families/signals by replaying V8 `signal_catalog.jsonl`
+signal IDs. It does not create new alpha candidates, does not rerun V8, and does
+not add families, horizons, operators, thresholds, or representatives based on
+V9 outcomes.
+
+V9 is cache-only and does not download or backfill public data. It derives the
+symbol universe, interval, and month span from the V8 artifact and refuses to
+fabricate missing rows. If the V8 queue is empty, V9 writes schema-only artifacts
+with `suite_decision=NO_V8_QUEUE_TO_FALSIFY` and terminates without signal
+generation.
+
+Strict diagnostics include chronological train/validation/test folds, purge and
+embargo at least the max fixed horizon, same-bar leakage checks, deterministic
+block permutation nulls, BH-FDR q-values, null-baseline stress, regime
+robustness, and symbol robustness. The family decision rule is pre-registered:
+all fixed horizons `8h`, `24h`, and `72h` must clear. V9 cannot promote a family
+by picking the best horizon, best IC, best hit rate, best p-value, or best
+q-value. Permutation block size is pinned to `horizon_bars`, so block-size
+tuning cannot be used to alter p-values after seeing results.
+
+The command writes a new artifact directory:
+
+- `multi_asset_strict_oos_fdr_falsification.json`
+- `loop.json`
+- `frozen_v8_queue.csv`
+- `chronological_folds.csv`
+- `signal_strict_oos_diagnostics.csv`
+- `family_strict_summary.csv`
+- `permutation_null_results.csv`
+- `bh_fdr_summary.csv`
+- `regime_robustness.csv`
+- `symbol_robustness.csv`
+- `null_baseline_stress.csv`
+- `failed_gate_rollup.csv`
+- `next_mechanism_research_queue.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+A family that reaches `WATCH_FAMILY_ONLY` or `NEEDS_MECHANISM_RESEARCH`, if one
+ever does, is still only a paper-only follow-up hypothesis. Surviving V9 does not
+prove edge, alpha, profitability, readiness, execution readiness, live/testnet
+permission, capital allocation permission, or permission to trade. Multiple
+testing risk remains central; `cannot_claim_edge_due_to_multiple_testing` stays
+true and `readiness_baseline_verdict` remains `NOT_READY`.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:
