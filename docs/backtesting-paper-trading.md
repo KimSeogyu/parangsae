@@ -948,6 +948,58 @@ live readiness claim. Generated V5 signals, if V5 is run later, remain
 hypotheses rather than edges, and multiple-testing risk still increases with
 the signal count.
 
+## Panel-ready multi-asset alpha prefilter rerun
+
+`panel-ready-multi-asset-alpha-prefilter-rerun` implements
+`PANEL_READY_MULTI_ASSET_ALPHA_PREFILTER_RERUN_V8`, a paper-only rerun of the
+existing V5 public multi-asset strict prefilter after V7 panel readiness. It is
+not a new alpha generator, not a trading strategy, not portfolio construction,
+not signal-weight optimization, not strategy PnL optimization, not holdout
+retuning, not live/testnet readiness, and not a profitability claim.
+
+```bash
+uv run quantctl panel-ready-multi-asset-alpha-prefilter-rerun
+```
+
+The command reads the immutable V7 artifact first and refuses to run unless
+`panel_ready_for_v5_rerun: true` and the V7 safety fields remain public/no-key/
+no-account/no-live. It uses exactly the V7 `usable_symbol_universe_after` as the
+V5 rerun universe. For the current V7 artifact that is `BTCUSDT, ETHUSDT,
+SOLUSDT, BNBUSDT, XRPUSDT, ADAUSDT, DOGEUSDT, AVAXUSDT, LINKUSDT`; `TONUSDT`
+stays excluded because V7 still records missing cached public OHLCV months.
+
+V8 is cache-only. It does not download or backfill missing public files and does
+not call the V7 backfill loop. If a V7-usable symbol can no longer be loaded from
+the local public cache, V8 fails safely rather than fabricating data or changing
+the universe. Raw public cache files under `data/**` remain non-report inputs and
+should not be committed unless repo policy explicitly allows it.
+
+The command writes a new artifact directory:
+
+- `panel_ready_multi_asset_alpha_prefilter.json`
+- `multi_asset_panel_summary.csv`
+- `signal_catalog.jsonl`
+- `signal_diagnostics.csv`
+- `signal_family_summary.csv`
+- `signal_correlation_clusters.csv`
+- `oos_prefilter_summary.csv`
+- `null_baseline_comparison.csv`
+- `multiple_testing_summary.csv`
+- `shortlist.csv`
+- `failed_gate_rollup.csv`
+- `next_strict_falsification_queue.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+Generated V8 signals are hypotheses rather than edges. The shortlist is
+paper-only and may only feed a future separate strict OOS falsification loop.
+Multiple-testing risk remains high because thousands of signals and horizons are
+diagnosed; `cannot_claim_edge_due_to_multiple_testing` remains true.
+`readiness_baseline_verdict` remains `NOT_READY`, and V8 makes no claim of
+alpha, edge, profitability, readiness, execution readiness, live/testnet
+permission, or capital allocation permission.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:

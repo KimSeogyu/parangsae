@@ -11,7 +11,9 @@ import pytest
 
 from parangsae.apps.cli import quantctl
 from parangsae.marketdata.binance_funding import FundingRateBundle
+from parangsae.marketdata.binance_funding import funding_cache_path
 from parangsae.marketdata.binance_vision import MarketDataBundle
+from parangsae.marketdata.binance_vision import canonical_cache_path
 from parangsae.research.loop_artifacts import existing_loop_artifact_type
 from parangsae.research.multi_asset_alpha_factory import (
     DEFAULT_SYMBOL_UNIVERSE,
@@ -28,11 +30,16 @@ from parangsae.research.multi_asset_alpha_factory import (
     deterministic_random_sign_signal,
     duplicate_correlation_clusters_for_multi_asset,
     evaluate_multi_asset_alpha_prefilter,
+    evaluate_panel_ready_multi_asset_alpha_prefilter_rerun,
     generate_multi_asset_signal_specs,
     lag_multi_asset_signal_for_labels,
+    PANEL_READY_MULTI_ASSET_ALPHA_REQUIRED_FILES,
+    default_panel_ready_multi_asset_alpha_prefilter_output_dir,
     prepare_multi_asset_alpha_prefilter_output_dir,
+    prepare_panel_ready_multi_asset_alpha_prefilter_output_dir,
     shuffled_timestamp_signal,
     symbol_permuted_signal,
+    write_panel_ready_multi_asset_alpha_prefilter_artifacts,
     write_multi_asset_alpha_prefilter_artifacts,
 )
 
@@ -114,6 +121,79 @@ def v4_artifact(tmp_path: Path, *, non_empty_queue: bool = False) -> Path:
         )
     else:
         (out / "next_protocol_queue.csv").write_text("signal_family,horizon_bars,queue_decision\n")
+    return out
+
+
+def v7_artifact(
+    tmp_path: Path,
+    *,
+    panel_ready: bool = True,
+    usable_symbols: tuple[str, ...] = ("BTCUSDT", "ETHUSDT", "SOLUSDT"),
+) -> Path:
+    out = tmp_path / "v7"
+    out.mkdir()
+    payload = {
+        "schema_version": 7,
+        "loop_id": "20260628-public-multi-asset-data-backfill-v7",
+        "loop_namespace": "public_multi_asset_data_backfill_v7_only_not_alpha",
+        "suite_decision": (
+            "BACKFILL_COMPLETED_PANEL_READY_FOR_V5_RERUN"
+            if panel_ready
+            else "BACKFILL_COMPLETED_PANEL_STILL_NOT_READY"
+        ),
+        "readiness_baseline_verdict": "NOT_READY",
+        "source_v6_artifact_path": "reports/loops/20260628-public-multi-asset-data-panel-coverage-v6",
+        "requested_symbol_universe": [
+            "BTCUSDT",
+            "ETHUSDT",
+            "SOLUSDT",
+            "BNBUSDT",
+            "XRPUSDT",
+            "ADAUSDT",
+            "DOGEUSDT",
+            "AVAXUSDT",
+            "LINKUSDT",
+            "TONUSDT",
+        ],
+        "target_start_month": "2024-01",
+        "target_end_month": "2024-01",
+        "interval": "1h",
+        "usable_symbol_universe_before": ["BTCUSDT"],
+        "usable_symbol_universe_after": list(usable_symbols),
+        "usable_symbol_count_before": 1,
+        "usable_symbol_count_after": len(usable_symbols),
+        "excluded_symbols_after": [
+            {
+                "symbol": "TONUSDT",
+                "stage": "ohlcv_cache_availability",
+                "reason": "missing cached OHLCV month(s): 2024-01,2024-02",
+            }
+        ],
+        "panel_ready_for_v5_rerun": panel_ready,
+        "minimum_required_symbols": 3,
+        "common_start_after": "2024-01-01T00:00:00Z",
+        "common_end_after": "2024-01-08T11:00:00Z",
+        "common_bar_count_after": 180 if panel_ready else 72,
+        "data_sources_used": ["public_binance_vision_ohlcv", "public_binance_usdm_funding"],
+        "raw_data_files_created": [],
+        "raw_data_files_committed": False,
+        "private_data_used": False,
+        "account_data_used": False,
+        "api_key_used": False,
+        "live_or_testnet_path_created": False,
+        "claim_boundary": "public-data backfill only; not alpha and not readiness",
+        "no_live_orders_submitted": True,
+        "no_testnet_orders_submitted": True,
+        "no_account_data_used": True,
+        "no_api_key_used": True,
+        "no_private_order_or_fill_data_used": True,
+        "holdout_retune_used": False,
+        "strategy_optimization_performed": False,
+        "tsmom_state_changed": False,
+        "validation_commands": ["uv run quantctl public-multi-asset-data-backfill-run"],
+        "changed_files": [],
+    }
+    (out / "public_multi_asset_data_backfill.json").write_text(json.dumps(payload, sort_keys=True) + "\n")
     return out
 
 
@@ -490,3 +570,132 @@ def test_v1_v2_v3_v4_and_v5_commands_are_wired() -> None:
     assert default_multi_asset_alpha_prefilter_output_dir(today="20260627").name.endswith(
         "multi-asset-alpha-generator-strict-prefilter-v5"
     )
+
+
+def test_v8_reads_v7_gate_uses_ready_universe_excludes_ton_and_writes_artifact(tmp_path: Path) -> None:
+    frames = {symbol: synthetic_asset_frame(symbol, rows=180) for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT")}
+    markets = {symbol: market_bundle(symbol, frame) for symbol, frame in frames.items()}
+    result = evaluate_panel_ready_multi_asset_alpha_prefilter_rerun(
+        source_v7_artifact_path=v7_artifact(tmp_path),
+        market_bundles=markets,
+        funding_bundles={symbol: None for symbol in markets},
+        funding_status_by_symbol={symbol: "disabled" for symbol in markets},
+        source_v4_artifact_path=v4_artifact(tmp_path),
+        seed=123,
+        candidate_budget=60,
+        max_depth=4,
+        min_bars_per_symbol=50,
+        horizons=(2, 4),
+        fold_count=2,
+        commands=["uv run quantctl panel-ready-multi-asset-alpha-prefilter-rerun"],
+        changed_files=["src/parangsae/research/multi_asset_alpha_factory.py"],
+    )
+    payload = result.payload
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+    assert payload["source_v7_panel_ready"] is True
+    assert payload["symbol_universe_requested"] == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    assert payload["symbol_universe_used"] == ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+    assert {row["symbol"] for row in payload["excluded_symbols"]} == {"TONUSDT"}
+    assert payload["common_bar_count"] == 180
+    assert payload["data_download_performed"] is False
+    assert payload["backfill_performed"] is False
+    assert payload["source_v7_raw_data_files_committed"] is False
+    assert payload["candidate_budget"] == 60
+    assert payload["max_depth"] == 4
+    assert payload["tsmom_state_changed"] is False
+    assert payload["live_or_testnet_path_created"] is False
+
+    out = write_panel_ready_multi_asset_alpha_prefilter_artifacts(tmp_path / "v8", result)
+    assert {path.name for path in out.iterdir()} == set(PANEL_READY_MULTI_ASSET_ALPHA_REQUIRED_FILES)
+    saved = json.loads((out / "panel_ready_multi_asset_alpha_prefilter.json").read_text())
+    assert saved["source_v7_panel_ready"] is True
+    assert existing_loop_artifact_type(out) == "panel-ready-multi-asset-alpha-prefilter-rerun"
+
+
+def test_v8_refuses_when_v7_panel_is_not_ready(tmp_path: Path) -> None:
+    frames = {symbol: synthetic_asset_frame(symbol, rows=180) for symbol in ("BTCUSDT", "ETHUSDT", "SOLUSDT")}
+    markets = {symbol: market_bundle(symbol, frame) for symbol, frame in frames.items()}
+    with pytest.raises(ValueError, match="source_v7_panel_ready=false"):
+        evaluate_panel_ready_multi_asset_alpha_prefilter_rerun(
+            source_v7_artifact_path=v7_artifact(tmp_path, panel_ready=False),
+            market_bundles=markets,
+            source_v4_artifact_path=v4_artifact(tmp_path),
+            seed=123,
+            candidate_budget=20,
+            max_depth=4,
+            min_bars_per_symbol=50,
+            horizons=(2, 4),
+            fold_count=2,
+        )
+
+
+def test_cli_v8_is_cache_only_uses_v7_universe_and_does_not_download(monkeypatch, tmp_path: Path) -> None:
+    symbols = ("BTCUSDT", "ETHUSDT", "SOLUSDT")
+    frames = {symbol: synthetic_asset_frame(symbol, rows=180) for symbol in symbols}
+    cache_dir = tmp_path / "cache"
+    funding_dir = tmp_path / "funding"
+    for symbol in symbols:
+        canonical_cache_path(cache_dir, symbol, "1h", "2024-01").parent.mkdir(parents=True, exist_ok=True)
+        canonical_cache_path(cache_dir, symbol, "1h", "2024-01").write_text("cached\n")
+        start_ts = timestamp_at(frames[symbol].index, 0)
+        end_ts = timestamp_at(frames[symbol].index, -1)
+        funding_path = funding_cache_path(funding_dir, symbol, int(start_ts.timestamp() * 1000), int(end_ts.timestamp() * 1000))
+        funding_path.parent.mkdir(parents=True, exist_ok=True)
+        funding_path.write_text("cached\n")
+
+    def fake_market_loader(**kwargs):
+        symbol = str(kwargs["symbol"])
+        return market_bundle(symbol, frames[symbol])
+
+    def fake_funding_loader(**kwargs):
+        symbol = str(kwargs["symbol"])
+        return funding_bundle(symbol, frames[symbol])
+
+    def forbidden_download(**kwargs):
+        raise AssertionError("V8 must not download or backfill public data")
+
+    monkeypatch.setattr(quantctl, "load_market_data_bundle", fake_market_loader)
+    monkeypatch.setattr(quantctl, "fetch_funding_rate_history", fake_funding_loader)
+    monkeypatch.setattr(quantctl, "download_monthly_klines", forbidden_download)
+    monkeypatch.setattr(quantctl, "evaluate_public_multi_asset_data_backfill", forbidden_download)
+    args = Namespace(
+        source_v7_artifact=str(v7_artifact(tmp_path, usable_symbols=symbols)),
+        source_v4_artifact=str(v4_artifact(tmp_path)),
+        interval=None,
+        cache_dir=str(cache_dir),
+        funding_source="public-binance",
+        funding_cache_dir=str(funding_dir),
+        seed=123,
+        candidate_budget=60,
+        max_depth=4,
+        min_bars_per_symbol=50,
+        reports_root=str(tmp_path / "reports"),
+        output_dir=None,
+        overwrite=False,
+        command=None,
+        changed_file=None,
+    )
+    assert quantctl.cmd_panel_ready_multi_asset_alpha_prefilter_rerun(args) == 0
+    report_dirs = list((tmp_path / "reports" / "loops").iterdir())
+    assert len(report_dirs) == 1
+    payload = json.loads((report_dirs[0] / "panel_ready_multi_asset_alpha_prefilter.json").read_text())
+    assert payload["source_v7_panel_ready"] is True
+    assert payload["symbol_universe_used"] == list(symbols)
+    assert {row["symbol"] for row in payload["excluded_symbols"]} == {"TONUSDT"}
+    assert payload["data_download_performed"] is False
+    assert payload["readiness_baseline_verdict"] == "NOT_READY"
+
+
+def test_v8_command_is_wired_and_v5_v6_v7_commands_remain_wired(tmp_path: Path) -> None:
+    parser = quantctl.build_parser()
+    assert parser.parse_args(["multi-asset-alpha-generator-strict-prefilter-run"]).func is quantctl.cmd_multi_asset_alpha_generator_strict_prefilter_run
+    assert parser.parse_args(["public-multi-asset-panel-coverage-run"]).func is quantctl.cmd_public_multi_asset_panel_coverage_run
+    assert parser.parse_args(["public-multi-asset-data-backfill-run"]).func is quantctl.cmd_public_multi_asset_data_backfill_run
+    parsed = parser.parse_args(["panel-ready-multi-asset-alpha-prefilter-rerun"])
+    assert parsed.func is quantctl.cmd_panel_ready_multi_asset_alpha_prefilter_rerun
+    assert parsed.source_v7_artifact.endswith("public-multi-asset-data-backfill-v7")
+    assert default_panel_ready_multi_asset_alpha_prefilter_output_dir(today="20260628").name.endswith(
+        "panel-ready-multi-asset-alpha-prefilter-rerun-v8"
+    )
+    with pytest.raises(FileExistsError, match="refusing to overwrite"):
+        prepare_panel_ready_multi_asset_alpha_prefilter_output_dir(v4_artifact(tmp_path), overwrite=True)

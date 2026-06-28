@@ -480,6 +480,38 @@ edge, readiness, live-readiness, or execution-readiness claim. A future V5 rerun
 should only be considered after `panel_ready_for_v5_rerun: true`, and any such
 rerun remains paper-only with the same multiple-testing warning.
 
+`panel-ready-multi-asset-alpha-prefilter-rerun` implements the paper-only
+`PANEL_READY_MULTI_ASSET_ALPHA_PREFILTER_RERUN_V8` loop:
+
+```bash
+uv run quantctl panel-ready-multi-asset-alpha-prefilter-rerun
+```
+
+V8 reads the immutable V7 backfill artifact first and refuses to run unless
+`panel_ready_for_v5_rerun: true`. It then reruns the existing V5 strict
+prefilter on the V7 usable public cached universe only. For the current V7
+artifact that means `BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT, ADAUSDT,
+DOGEUSDT, AVAXUSDT, LINKUSDT`; `TONUSDT` remains excluded because V7 still
+records missing cached OHLCV months for it.
+
+V8 writes
+`reports/loops/<YYYYMMDD>-panel-ready-multi-asset-alpha-prefilter-rerun-v8/`
+with `panel_ready_multi_asset_alpha_prefilter.json` plus the V5-style panel
+summary, signal catalog, diagnostics, correlation clusters, OOS prefilter,
+null-baseline comparison, multiple-testing summary, shortlist, failed gates,
+next strict-falsification queue, report, commands, and changed-files artifacts.
+It does not download or backfill data and does not run V5 automatically outside
+this explicit command.
+
+Generated V8 signals are hypotheses, not edges. V8 is not a trading strategy,
+not portfolio construction, not signal-weight optimization, not strategy PnL
+optimization, not holdout retuning, not profitability evidence, not readiness,
+and not live/testnet permission. Multiple-testing risk remains high because the
+rerun evaluates thousands of signals; any shortlist is paper-only and can only
+feed a separate future strict OOS falsification loop. `readiness_baseline_verdict`
+remains `NOT_READY`, no private/account/API-key/order/fill data is used, and
+`tsmom_state_changed` remains `false`.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

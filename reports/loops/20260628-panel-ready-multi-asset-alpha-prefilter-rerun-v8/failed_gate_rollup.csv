@@ -1,0 +1,8 @@
+gate,status,reason
+symbol_availability,watch,1 requested symbols excluded for OHLCV/schema/min-bars reasons
+duplicate_correlation_control,watch,50 redundant V5 signal variants marked
+v4_queue_audit_only,passed,queue file present but blank
+v4_state_preserved,passed,V4 source artifact is audit-only and not mutated
+readiness_boundary,passed,readiness_baseline_verdict remains NOT_READY
+tsmom_state_unchanged,passed,TSMOM artifacts are not modified or restored
+multiple_testing_boundary,unclaimed,cannot_claim_edge_due_to_multiple_testing is true

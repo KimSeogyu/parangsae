@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 from parangsae.marketdata.binance_funding import FundingRateBundle
-from parangsae.marketdata.binance_vision import MarketDataBundle
+from parangsae.marketdata.binance_vision import MarketDataBundle, sha256_file
 from parangsae.research.alpha_signal_factory import (
     DEFAULT_ALPHA_SIGNAL_DAG_V2_ARTIFACT,
     DEFAULT_ALPHA_SIGNAL_OOS_FDR_V3_ARTIFACT,
@@ -34,6 +34,14 @@ MULTI_ASSET_ALPHA_LOOP_SLUG = "multi-asset-alpha-generator-strict-prefilter-v5"
 MULTI_ASSET_ALPHA_NAMESPACE = "multi_asset_alpha_generator_strict_prefilter_v5_only_not_readiness"
 DEFAULT_MULTI_ASSET_ALPHA_V4_ARTIFACT = Path(
     "reports/loops/20260627-alpha-signal-strict-falsification-protocol-v4"
+)
+PANEL_READY_MULTI_ASSET_ALPHA_SCHEMA_VERSION = 8
+PANEL_READY_MULTI_ASSET_ALPHA_LOOP_SLUG = "panel-ready-multi-asset-alpha-prefilter-rerun-v8"
+PANEL_READY_MULTI_ASSET_ALPHA_NAMESPACE = (
+    "panel_ready_multi_asset_alpha_prefilter_rerun_v8_only_not_readiness"
+)
+DEFAULT_PANEL_READY_MULTI_ASSET_ALPHA_V7_ARTIFACT = Path(
+    "reports/loops/20260628-public-multi-asset-data-backfill-v7"
 )
 DEFAULT_MULTI_ASSET_GENERATION_SEED = 20260629
 DEFAULT_MULTI_ASSET_CANDIDATE_BUDGET = 5000
@@ -93,6 +101,14 @@ MULTI_ASSET_ALLOWED_SUITE_DECISIONS = (
     "NEEDS_STRICT_OOS_FALSIFICATION",
     "WATCH_FAMILY_ONLY_PAPER_RESEARCH",
 )
+PANEL_READY_MULTI_ASSET_ALPHA_ALLOWED_SUITE_DECISIONS = (
+    "PANEL_READY_MULTI_ASSET_PREFILTER_INFRA_ONLY",
+    "NO_SURVIVING_SIGNAL_FAMILY",
+    "DUPLICATES_DOMINATE",
+    "FAILS_NULL_ROBUSTNESS",
+    "NEEDS_STRICT_OOS_FALSIFICATION",
+    "WATCH_FAMILY_ONLY_PAPER_RESEARCH",
+)
 MULTI_ASSET_FORBIDDEN_OUTPUT_LABELS = {
     "READY",
     "TRADE",
@@ -122,6 +138,21 @@ MULTI_ASSET_CLAIM_BOUNDARY = (
     "weight optimization, not profitability evidence, not readiness or live readiness, and "
     "not permission for live/testnet/account/API-key/order/fill use."
 )
+PANEL_READY_MULTI_ASSET_ALPHA_MULTIPLE_TESTING_BOUNDARY = (
+    "V8 reruns the existing V5 public multi-asset signal hypothesis prefilter only after "
+    "V7 panel readiness. Thousands of diagnostics remain exposed to multiple-testing, "
+    "data-snooping, duplicate-family, and survivorship risk. V8 can only create paper-only "
+    "strict falsification candidates and cannot claim alpha, edge, profitability, readiness, "
+    "execution readiness, or permission to trade."
+)
+PANEL_READY_MULTI_ASSET_ALPHA_CLAIM_BOUNDARY = (
+    "PANEL_READY_MULTI_ASSET_ALPHA_PREFILTER_RERUN_V8 is a paper-only rerun of the existing "
+    "V5 multi-asset alpha signal prefilter on the V7-ready public cached panel. It does not "
+    "download or backfill data, does not generate a new strategy, does not perform portfolio "
+    "construction, does not optimize signal weights or thresholds, does not use live/testnet/"
+    "account/API-key/order/fill data, does not claim alpha/edge/profitability/readiness, and "
+    "does not permit trading."
+)
 MULTI_ASSET_V4_LINEAGE_BOUNDARY = (
     "V4 artifacts are lineage/audit inputs only. V5 records the source V4 path and queue "
     "emptiness but never seeds candidates from V4 survivors, V4 family queues, V3/V4 "
@@ -145,6 +176,24 @@ MULTI_ASSET_REQUIRED_FILES = (
     "changed_files.txt",
 )
 MULTI_ASSET_KNOWN_FILES = set(MULTI_ASSET_REQUIRED_FILES)
+PANEL_READY_MULTI_ASSET_ALPHA_REQUIRED_FILES = (
+    "panel_ready_multi_asset_alpha_prefilter.json",
+    "multi_asset_panel_summary.csv",
+    "signal_catalog.jsonl",
+    "signal_diagnostics.csv",
+    "signal_family_summary.csv",
+    "signal_correlation_clusters.csv",
+    "oos_prefilter_summary.csv",
+    "null_baseline_comparison.csv",
+    "multiple_testing_summary.csv",
+    "shortlist.csv",
+    "failed_gate_rollup.csv",
+    "next_strict_falsification_queue.csv",
+    "report.md",
+    "commands.txt",
+    "changed_files.txt",
+)
+PANEL_READY_MULTI_ASSET_ALPHA_KNOWN_FILES = set(PANEL_READY_MULTI_ASSET_ALPHA_REQUIRED_FILES)
 MULTI_ASSET_NEXT_QUEUE_COLUMNS = (
     "signal_family",
     "queue_decision",
@@ -247,6 +296,15 @@ def default_multi_asset_alpha_prefilter_output_dir(
     return Path(root) / f"{stamp}-{MULTI_ASSET_ALPHA_LOOP_SLUG}"
 
 
+def default_panel_ready_multi_asset_alpha_prefilter_output_dir(
+    *,
+    root: str | Path = "reports/loops",
+    today: str | None = None,
+) -> Path:
+    stamp = today or datetime.now(UTC).strftime("%Y%m%d")
+    return Path(root) / f"{stamp}-{PANEL_READY_MULTI_ASSET_ALPHA_LOOP_SLUG}"
+
+
 def normalize_symbol_universe(symbols: Iterable[str]) -> tuple[str, ...]:
     seen: set[str] = set()
     normalized: list[str] = []
@@ -265,6 +323,68 @@ def parse_symbol_universe(raw: str | Iterable[str] | None) -> tuple[str, ...]:
     if isinstance(raw, str):
         return normalize_symbol_universe(raw.split(","))
     return normalize_symbol_universe(raw)
+
+
+def read_panel_ready_multi_asset_v7_source_state(path: str | Path) -> dict[str, Any]:
+    source_path = Path(path)
+    artifact_dir = source_path if source_path.is_dir() else source_path.parent
+    payload_path = artifact_dir / "public_multi_asset_data_backfill.json" if source_path.is_dir() else source_path
+    if not payload_path.exists():
+        raise FileNotFoundError(f"missing V7 public_multi_asset_data_backfill.json: {payload_path}")
+    try:
+        payload = json.loads(payload_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid V7 public_multi_asset_data_backfill.json: {exc}") from exc
+    if "public_multi_asset_data_backfill_v7" not in str(payload.get("loop_namespace", "")):
+        raise ValueError("source_v7_artifact_path must point to a V7 public multi-asset data backfill artifact")
+    if payload.get("readiness_baseline_verdict") != READINESS_BASELINE_VERDICT:
+        raise ValueError("source_v7_artifact_path must preserve readiness_baseline_verdict=NOT_READY")
+    if payload.get("panel_ready_for_v5_rerun") is not True:
+        raise ValueError("source_v7_panel_ready=false; V8 refuses to rerun V5 without V7 panel readiness")
+    for field in ("private_data_used", "account_data_used", "api_key_used", "live_or_testnet_path_created"):
+        if bool(payload.get(field)):
+            raise ValueError(f"source_v7_artifact_path violates public/no-live boundary: {field}=true")
+    if bool(payload.get("raw_data_files_committed")):
+        raise ValueError("source_v7_artifact_path reports raw_data_files_committed=true")
+    usable_symbols = parse_symbol_universe(payload.get("usable_symbol_universe_after", ()))
+    if len(usable_symbols) < int(payload.get("minimum_required_symbols", 3)):
+        raise ValueError("source_v7_artifact_path has fewer usable symbols than its readiness threshold")
+    common_bar_count = int(payload.get("common_bar_count_after", 0))
+    if common_bar_count <= max(FORWARD_HORIZONS):
+        raise ValueError("source_v7_artifact_path has insufficient common bars for V5 forward labels")
+    target_start = str(payload.get("target_start_month") or _month_from_timestamp(payload.get("common_start_after")))
+    target_end = str(payload.get("target_end_month") or _month_from_timestamp(payload.get("common_end_after")))
+    months = _month_span(target_start, target_end)
+    return {
+        "artifact_dir": artifact_dir,
+        "payload_path": payload_path,
+        "payload_hash": sha256_file(payload_path),
+        "payload": payload,
+        "usable_symbols": usable_symbols,
+        "excluded_symbols": list(payload.get("excluded_symbols_after", [])),
+        "interval": str(payload.get("interval") or "1h"),
+        "months": months,
+        "common_start": payload.get("common_start_after"),
+        "common_end": payload.get("common_end_after"),
+        "common_bar_count": common_bar_count,
+    }
+
+
+def _month_from_timestamp(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    try:
+        return pd.Timestamp(value).strftime("%Y-%m")
+    except (TypeError, ValueError):
+        return None
+
+
+def _month_span(start_month: str, end_month: str) -> tuple[str, ...]:
+    start = cast(pd.Period, pd.Period(start_month, freq="M"))
+    end = cast(pd.Period, pd.Period(end_month, freq="M"))
+    if end.ordinal < start.ordinal:
+        raise ValueError("end_month must be greater than or equal to start_month")
+    return tuple(str(period) for period in pd.period_range(start=start, end=end, freq="M"))
 
 
 def build_multi_asset_panel(
@@ -726,6 +846,145 @@ def evaluate_multi_asset_alpha_prefilter(
     )
 
 
+def evaluate_panel_ready_multi_asset_alpha_prefilter_rerun(
+    *,
+    source_v7_artifact_path: str | Path = DEFAULT_PANEL_READY_MULTI_ASSET_ALPHA_V7_ARTIFACT,
+    market_bundles: dict[str, MarketDataBundle],
+    funding_bundles: dict[str, FundingRateBundle | None] | None = None,
+    funding_status_by_symbol: dict[str, str] | None = None,
+    source_v4_artifact_path: str | Path = DEFAULT_MULTI_ASSET_ALPHA_V4_ARTIFACT,
+    seed: int = DEFAULT_MULTI_ASSET_GENERATION_SEED,
+    candidate_budget: int = DEFAULT_MULTI_ASSET_CANDIDATE_BUDGET,
+    max_depth: int = DEFAULT_MULTI_ASSET_MAX_DEPTH,
+    min_bars_per_symbol: int = DEFAULT_MIN_BARS_PER_SYMBOL,
+    horizons: tuple[int, ...] = FORWARD_HORIZONS,
+    fold_count: int = 3,
+    commands: Iterable[str] = (),
+    changed_files: Iterable[str] = (),
+) -> MultiAssetAlphaPrefilterResult:
+    v7_state = read_panel_ready_multi_asset_v7_source_state(source_v7_artifact_path)
+    requested = cast(tuple[str, ...], v7_state["usable_symbols"])
+    missing = [symbol for symbol in requested if symbol not in market_bundles]
+    if missing:
+        raise ValueError(
+            "V8 cache-only rerun missing V7 usable symbol bundle(s); "
+            f"refusing download/backfill: {','.join(missing)}"
+        )
+    v5_result = evaluate_multi_asset_alpha_prefilter(
+        market_bundles={symbol: market_bundles[symbol] for symbol in requested},
+        funding_bundles=funding_bundles,
+        requested_symbols=requested,
+        excluded_symbols=cast(Iterable[dict[str, Any]], v7_state["excluded_symbols"]),
+        funding_status_by_symbol=funding_status_by_symbol,
+        source_v4_artifact_path=source_v4_artifact_path,
+        seed=seed,
+        candidate_budget=candidate_budget,
+        max_depth=max_depth,
+        min_bars_per_symbol=min_bars_per_symbol,
+        horizons=horizons,
+        fold_count=fold_count,
+        commands=commands,
+        changed_files=changed_files,
+    )
+    payload = _panel_ready_multi_asset_alpha_payload(v5_result.payload, v7_state)
+    return MultiAssetAlphaPrefilterResult(
+        payload=payload,
+        panel_summary=v5_result.panel_summary,
+        catalog=v5_result.catalog,
+        diagnostics=v5_result.diagnostics,
+        family_summary=v5_result.family_summary,
+        clusters=v5_result.clusters,
+        oos_prefilter_summary=v5_result.oos_prefilter_summary,
+        null_baseline_comparison=v5_result.null_baseline_comparison,
+        multiple_testing_summary=v5_result.multiple_testing_summary,
+        shortlist=v5_result.shortlist,
+        failed_gates=v5_result.failed_gates,
+        next_strict_falsification_queue=v5_result.next_strict_falsification_queue,
+    )
+
+
+def _panel_ready_multi_asset_alpha_payload(
+    v5_payload: dict[str, Any],
+    v7_state: dict[str, Any],
+) -> dict[str, Any]:
+    source_v7_payload = cast(dict[str, Any], v7_state["payload"])
+    requested = list(cast(tuple[str, ...], v7_state["usable_symbols"]))
+    suite_decision = _panel_ready_suite_decision(str(v5_payload["suite_decision"]))
+    payload = dict(v5_payload)
+    payload.update(
+        {
+            "schema_version": PANEL_READY_MULTI_ASSET_ALPHA_SCHEMA_VERSION,
+            "loop_id": f"{datetime.now(UTC).strftime('%Y%m%d')}-{PANEL_READY_MULTI_ASSET_ALPHA_LOOP_SLUG}",
+            "loop_namespace": PANEL_READY_MULTI_ASSET_ALPHA_NAMESPACE,
+            "loop_type": "validation_infrastructure",
+            "suite_decision": suite_decision,
+            "readiness_baseline_verdict": READINESS_BASELINE_VERDICT,
+            "source_v7_artifact_path": str(v7_state["artifact_dir"]),
+            "source_v7_payload_hash": str(v7_state["payload_hash"]),
+            "source_v7_panel_ready": True,
+            "source_v7_suite_decision": source_v7_payload.get("suite_decision"),
+            "source_v7_minimum_required_symbols": source_v7_payload.get("minimum_required_symbols"),
+            "source_v7_raw_data_files_committed": bool(source_v7_payload.get("raw_data_files_committed")),
+            "source_v7_claim_boundary": source_v7_payload.get("claim_boundary"),
+            "symbol_universe_requested": requested,
+            "symbol_universe_used": list(v5_payload.get("symbol_universe_used", requested)),
+            "excluded_symbols": list(v7_state["excluded_symbols"]),
+            "common_start": v7_state["common_start"],
+            "common_end": v7_state["common_end"],
+            "common_bar_count": int(v7_state["common_bar_count"]),
+            "target_months": list(v7_state["months"]),
+            "interval": v7_state["interval"],
+            "data_download_performed": False,
+            "backfill_performed": False,
+            "v5_rerun_only": True,
+            "v7_panel_ready_gate_required": True,
+            "multiple_testing_boundary": PANEL_READY_MULTI_ASSET_ALPHA_MULTIPLE_TESTING_BOUNDARY,
+            "leakage_boundary": MULTI_ASSET_LEAKAGE_BOUNDARY,
+            "claim_boundary": PANEL_READY_MULTI_ASSET_ALPHA_CLAIM_BOUNDARY,
+            "safety_gates": _safety_gates(),
+            "no_live_orders_submitted": True,
+            "no_testnet_orders_submitted": True,
+            "no_account_data_used": True,
+            "no_api_key_used": True,
+            "no_private_order_or_fill_data_used": True,
+            "holdout_retune_used": False,
+            "strategy_optimization_performed": False,
+            "live_or_testnet_path_created": False,
+            "tsmom_state_changed": False,
+            "evidence_artifacts": list(PANEL_READY_MULTI_ASSET_ALPHA_REQUIRED_FILES),
+            "next_loop": (
+                "Use next_strict_falsification_queue.csv only as a paper-only input to a separate "
+                "future strict OOS falsification protocol. Do not infer alpha, readiness, or trade permission."
+            ),
+        }
+    )
+    payload["source_artifacts"] = {
+        **dict(v5_payload.get("source_artifacts", {})),
+        "v7": str(v7_state["artifact_dir"]),
+    }
+    payload["summary"] = {
+        **dict(v5_payload.get("summary", {})),
+        "allowed_suite_decisions": list(PANEL_READY_MULTI_ASSET_ALPHA_ALLOWED_SUITE_DECISIONS),
+        "cannot_claim_edge_due_to_multiple_testing": True,
+        "paper_only_next_queue": True,
+    }
+    payload["selection_boundary"] = {
+        **dict(v5_payload.get("selection_boundary", {})),
+        "v8_reused_existing_v5_prefilter": True,
+        "no_download_backfill": True,
+        "no_holdout_retune": True,
+    }
+    if payload["suite_decision"] not in PANEL_READY_MULTI_ASSET_ALPHA_ALLOWED_SUITE_DECISIONS:
+        raise ValueError(f"forbidden V8 suite decision emitted: {payload['suite_decision']}")
+    return payload
+
+
+def _panel_ready_suite_decision(v5_suite_decision: str) -> str:
+    if v5_suite_decision == "MULTI_ASSET_SIGNAL_FACTORY_INFRA_ONLY":
+        return "PANEL_READY_MULTI_ASSET_PREFILTER_INFRA_ONLY"
+    return v5_suite_decision
+
+
 def build_multi_asset_signal_series(spec: MultiAssetSignalSpec, panel: pd.DataFrame) -> pd.Series:
     if spec.uses_future_data:
         raise ValueError(f"V5 signal {spec.signal_id} uses future data")
@@ -952,6 +1211,223 @@ def write_multi_asset_alpha_prefilter_artifacts(
     _atomic_write_text(out / "commands.txt", "\n".join(payload.get("validation_commands", [])) + "\n")
     _atomic_write_text(out / "changed_files.txt", "\n".join(payload.get("changed_files", [])) + "\n")
     return out
+
+
+def prepare_panel_ready_multi_asset_alpha_prefilter_output_dir(
+    output_dir: str | Path,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    return prepare_loop_output_dir(
+        output_dir,
+        run_type="panel-ready-multi-asset-alpha-prefilter-rerun",
+        known_files=PANEL_READY_MULTI_ASSET_ALPHA_KNOWN_FILES,
+        overwrite=overwrite,
+    )
+
+
+def write_panel_ready_multi_asset_alpha_prefilter_artifacts(
+    output_dir: str | Path,
+    result: MultiAssetAlphaPrefilterResult,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    out = prepare_panel_ready_multi_asset_alpha_prefilter_output_dir(output_dir, overwrite=overwrite)
+    payload = dict(result.payload)
+    if out.name.endswith(PANEL_READY_MULTI_ASSET_ALPHA_LOOP_SLUG):
+        payload["loop_id"] = out.name
+    _assert_panel_ready_multi_asset_alpha_payload_safe(payload, result)
+    _write_json(out / "panel_ready_multi_asset_alpha_prefilter.json", payload)
+    pd.DataFrame(result.panel_summary).to_csv(out / "multi_asset_panel_summary.csv", index=False)
+    _atomic_write_text(
+        out / "signal_catalog.jsonl",
+        "".join(json.dumps(row, sort_keys=True) + "\n" for row in result.catalog),
+    )
+    pd.DataFrame(result.diagnostics).to_csv(out / "signal_diagnostics.csv", index=False)
+    pd.DataFrame(result.family_summary).to_csv(out / "signal_family_summary.csv", index=False)
+    pd.DataFrame(result.clusters).to_csv(out / "signal_correlation_clusters.csv", index=False)
+    pd.DataFrame(result.oos_prefilter_summary).to_csv(out / "oos_prefilter_summary.csv", index=False)
+    pd.DataFrame(result.null_baseline_comparison).to_csv(out / "null_baseline_comparison.csv", index=False)
+    pd.DataFrame(result.multiple_testing_summary).to_csv(out / "multiple_testing_summary.csv", index=False)
+    pd.DataFrame(result.shortlist).to_csv(out / "shortlist.csv", index=False)
+    pd.DataFrame(result.failed_gates).to_csv(out / "failed_gate_rollup.csv", index=False)
+    _next_queue_frame(result.next_strict_falsification_queue).to_csv(out / "next_strict_falsification_queue.csv", index=False)
+    _atomic_write_text(out / "report.md", render_panel_ready_multi_asset_alpha_prefilter_report(payload, result))
+    _atomic_write_text(out / "commands.txt", "\n".join(payload.get("validation_commands", [])) + "\n")
+    _atomic_write_text(out / "changed_files.txt", "\n".join(payload.get("changed_files", [])) + "\n")
+    return out
+
+
+def _assert_panel_ready_multi_asset_alpha_payload_safe(
+    payload: dict[str, Any],
+    result: MultiAssetAlphaPrefilterResult,
+) -> None:
+    required = {
+        "loop_id",
+        "loop_namespace",
+        "suite_decision",
+        "readiness_baseline_verdict",
+        "source_v7_artifact_path",
+        "source_v7_panel_ready",
+        "symbol_universe_requested",
+        "symbol_universe_used",
+        "excluded_symbols",
+        "common_start",
+        "common_end",
+        "common_bar_count",
+        "generation_seed",
+        "candidate_budget",
+        "max_depth",
+        "generated_signal_count",
+        "evaluated_signal_count",
+        "killed_signal_count",
+        "duplicate_signal_count",
+        "watch_family_count",
+        "effective_signal_breadth",
+        "duplicate_ratio",
+        "families_evaluated",
+        "horizons_evaluated",
+        "null_baselines_used",
+        "multiple_testing_boundary",
+        "leakage_boundary",
+        "claim_boundary",
+        "safety_gates",
+        "tsmom_state_changed",
+        "holdout_retune_used",
+        "strategy_optimization_performed",
+        "live_or_testnet_path_created",
+        "validation_commands",
+        "changed_files",
+    }
+    missing = sorted(required - set(payload))
+    if missing:
+        raise ValueError(f"V8 payload missing required field(s): {missing}")
+    if payload["loop_namespace"] != PANEL_READY_MULTI_ASSET_ALPHA_NAMESPACE:
+        raise ValueError("V8 payload has wrong loop_namespace")
+    if payload["suite_decision"] not in PANEL_READY_MULTI_ASSET_ALPHA_ALLOWED_SUITE_DECISIONS:
+        raise ValueError(f"forbidden V8 suite decision emitted: {payload['suite_decision']}")
+    if payload["suite_decision"] in MULTI_ASSET_FORBIDDEN_OUTPUT_LABELS:
+        raise ValueError("forbidden output emitted as V8 suite decision")
+    if payload["readiness_baseline_verdict"] != READINESS_BASELINE_VERDICT:
+        raise ValueError("V8 payload must preserve readiness_baseline_verdict=NOT_READY")
+    if payload["source_v7_panel_ready"] is not True:
+        raise ValueError("V8 payload requires source_v7_panel_ready=true")
+    for field, expected in (
+        ("no_live_orders_submitted", True),
+        ("no_testnet_orders_submitted", True),
+        ("no_account_data_used", True),
+        ("no_api_key_used", True),
+        ("no_private_order_or_fill_data_used", True),
+        ("holdout_retune_used", False),
+        ("strategy_optimization_performed", False),
+        ("live_or_testnet_path_created", False),
+        ("tsmom_state_changed", False),
+        ("data_download_performed", False),
+        ("backfill_performed", False),
+    ):
+        if payload.get(field) is not expected:
+            raise ValueError(f"V8 payload safety field {field} must be {expected}")
+    for row in result.shortlist:
+        label = str(row.get("signal_label", ""))
+        if label in MULTI_ASSET_FORBIDDEN_OUTPUT_LABELS:
+            raise ValueError(f"forbidden V8 signal label emitted: {label}")
+        if label not in MULTI_ASSET_ALLOWED_SIGNAL_LABELS:
+            raise ValueError(f"unknown V8 signal label emitted: {label}")
+
+
+def render_panel_ready_multi_asset_alpha_prefilter_report(
+    payload: dict[str, Any],
+    result: MultiAssetAlphaPrefilterResult,
+) -> str:
+    shortlist = [
+        row
+        for row in result.shortlist
+        if row["signal_label"] in {"WATCH_FAMILY_ONLY", "WATCH_DIAGNOSTIC_ONLY", "NEEDS_STRICT_OOS_FALSIFICATION"}
+    ]
+    failed = result.failed_gates[:30]
+    lines = [
+        f"# Quant Loop Report: {payload['loop_id']}",
+        "",
+        "## Purpose",
+        "Rerun the existing V5 public multi-asset strict prefilter on the V7-ready cached panel only.",
+        "",
+        "## Claim boundary",
+        f"- suite_decision: {payload['suite_decision']}",
+        f"- readiness_baseline_verdict: {payload['readiness_baseline_verdict']}",
+        f"- source_v7_panel_ready: {payload['source_v7_panel_ready']}",
+        f"- claim_boundary: {payload['claim_boundary']}",
+        f"- multiple_testing_boundary: {payload['multiple_testing_boundary']}",
+        "- Generated signals are hypotheses, not edges, strategies, profitability evidence, readiness, or trade permission.",
+        "",
+        "## Safety boundary",
+        f"- no_live_orders_submitted: {payload['no_live_orders_submitted']}",
+        f"- no_testnet_orders_submitted: {payload['no_testnet_orders_submitted']}",
+        f"- no_account_data_used: {payload['no_account_data_used']}",
+        f"- no_api_key_used: {payload['no_api_key_used']}",
+        f"- no_private_order_or_fill_data_used: {payload['no_private_order_or_fill_data_used']}",
+        f"- data_download_performed: {payload['data_download_performed']}",
+        f"- backfill_performed: {payload['backfill_performed']}",
+        f"- holdout_retune_used: {payload['holdout_retune_used']}",
+        f"- strategy_optimization_performed: {payload['strategy_optimization_performed']}",
+        f"- live_or_testnet_path_created: {payload['live_or_testnet_path_created']}",
+        f"- tsmom_state_changed: {payload['tsmom_state_changed']}",
+        "",
+        "## V7 state",
+        f"- source_v7_artifact_path: {payload['source_v7_artifact_path']}",
+        f"- source_v7_suite_decision: {payload['source_v7_suite_decision']}",
+        f"- common_start: {payload['common_start']}",
+        f"- common_end: {payload['common_end']}",
+        f"- common_bar_count: {payload['common_bar_count']}",
+        "",
+        "## Universe",
+        f"- requested: {', '.join(payload['symbol_universe_requested']) or 'none'}",
+        f"- used: {', '.join(payload['symbol_universe_used']) or 'none'}",
+        f"- excluded_count: {len(payload['excluded_symbols'])}",
+        "",
+        "## Generated signals",
+        f"- generation_seed: {payload['generation_seed']}",
+        f"- candidate_budget: {payload['candidate_budget']}",
+        f"- max_depth: {payload['max_depth']}",
+        f"- generated_signal_count: {payload['generated_signal_count']}",
+        f"- evaluated_signal_count: {payload['evaluated_signal_count']}",
+        f"- families_evaluated: {', '.join(payload['families_evaluated'])}",
+        f"- horizons_evaluated: {', '.join(str(item) for item in payload['horizons_evaluated'])}",
+        "",
+        "## Duplicate and multiple-testing controls",
+        f"- duplicate_signal_count: {payload['duplicate_signal_count']}",
+        f"- duplicate_ratio: {payload['duplicate_ratio']}",
+        f"- effective_signal_breadth: {payload['effective_signal_breadth']}",
+        f"- cannot_claim_edge_due_to_multiple_testing: {payload['multiple_testing_summary']['cannot_claim_edge_due_to_multiple_testing']}",
+        "",
+        "## Shortlisted families",
+    ]
+    if shortlist:
+        for row in shortlist[:15]:
+            lines.append(f"- {row['signal_family']}: {row['signal_label']} ({row['rationale']})")
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Failed gates / warnings"])
+    if failed:
+        for row in failed:
+            lines.append(f"- {row['gate']}: {row['status']} ({row['reason']})")
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## What cannot be claimed",
+            "- alpha or edge confirmed",
+            "- profitability",
+            "- live readiness or execution readiness",
+            "- permission to trade, allocate capital, or use live/testnet/account data",
+            "- V5 automatic rerun beyond this paper-only prefilter artifact",
+            "",
+            "## Next loop",
+            payload["next_loop"],
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _next_queue_frame(rows: list[dict[str, Any]]) -> pd.DataFrame:

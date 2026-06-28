@@ -95,10 +95,15 @@ from parangsae.research.multi_asset_alpha_factory import (
     DEFAULT_MULTI_ASSET_CANDIDATE_BUDGET,
     DEFAULT_MULTI_ASSET_GENERATION_SEED,
     DEFAULT_MULTI_ASSET_MAX_DEPTH,
+    DEFAULT_PANEL_READY_MULTI_ASSET_ALPHA_V7_ARTIFACT,
     DEFAULT_SYMBOL_UNIVERSE,
+    default_panel_ready_multi_asset_alpha_prefilter_output_dir,
     default_multi_asset_alpha_prefilter_output_dir,
     evaluate_multi_asset_alpha_prefilter,
+    evaluate_panel_ready_multi_asset_alpha_prefilter_rerun,
     parse_symbol_universe,
+    read_panel_ready_multi_asset_v7_source_state,
+    write_panel_ready_multi_asset_alpha_prefilter_artifacts,
     write_multi_asset_alpha_prefilter_artifacts,
 )
 from parangsae.research.public_multi_asset_panel_coverage import (
@@ -478,6 +483,27 @@ def _default_multi_asset_alpha_prefilter_command(args: argparse.Namespace) -> st
         f"--min-bars-per-symbol {args.min_bars_per_symbol}",
         f"--output-dir {args.output_dir or default_multi_asset_alpha_prefilter_output_dir(root=Path(args.reports_root) / 'loops')}",
     ]
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_panel_ready_multi_asset_alpha_prefilter_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl panel-ready-multi-asset-alpha-prefilter-rerun",
+        f"--source-v7-artifact {args.source_v7_artifact}",
+        f"--source-v4-artifact {args.source_v4_artifact}",
+        f"--cache-dir {args.cache_dir}",
+        f"--funding-source {args.funding_source}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--seed {args.seed}",
+        f"--candidate-budget {args.candidate_budget}",
+        f"--max-depth {args.max_depth}",
+        f"--min-bars-per-symbol {args.min_bars_per_symbol}",
+        f"--output-dir {args.output_dir or default_panel_ready_multi_asset_alpha_prefilter_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
+    if args.interval is not None:
+        command.append(f"--interval {args.interval}")
     if args.overwrite:
         command.append("--overwrite")
     return " ".join(command)
@@ -1811,6 +1837,135 @@ def cmd_multi_asset_alpha_generator_strict_prefilter_run(args: argparse.Namespac
         return 2
 
 
+def cmd_panel_ready_multi_asset_alpha_prefilter_rerun(args: argparse.Namespace) -> int:
+    interval = CANONICAL_INTERVAL
+    months = default_data_depth_months()
+    symbols: tuple[str, ...] = ()
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_panel_ready_multi_asset_alpha_prefilter_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        v7_state = read_panel_ready_multi_asset_v7_source_state(args.source_v7_artifact)
+        source_interval = validate_interval(str(v7_state["interval"]))
+        interval = validate_interval(args.interval or source_interval)
+        if interval != source_interval:
+            raise ValueError("V8 interval override must match the V7-ready panel interval")
+        months = tuple(str(month) for month in v7_state["months"])
+        symbols = tuple(str(symbol) for symbol in v7_state["usable_symbols"])
+        loader_args = argparse.Namespace(
+            cache_dir=args.cache_dir,
+            funding_source=args.funding_source,
+            funding_cache_dir=args.funding_cache_dir,
+            cache_mode="cache-only",
+            min_bars_per_symbol=args.min_bars_per_symbol,
+        )
+        market_bundles, funding_bundles, excluded, funding_status = _load_multi_asset_public_bundles(
+            loader_args,
+            symbols=symbols,
+            interval=interval,
+            months=months,
+        )
+        missing_ready_symbols = [symbol for symbol in symbols if symbol not in market_bundles]
+        if missing_ready_symbols:
+            raise ValueError(
+                "V8 cache-only rerun could not load all V7 usable symbols; "
+                f"refusing download/backfill: {missing_ready_symbols}; loader_exclusions={excluded}"
+            )
+        commands = args.command or [_default_panel_ready_multi_asset_alpha_prefilter_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_panel_ready_multi_asset_alpha_prefilter_rerun(
+            source_v7_artifact_path=args.source_v7_artifact,
+            market_bundles=market_bundles,
+            funding_bundles=funding_bundles,
+            funding_status_by_symbol=funding_status,
+            source_v4_artifact_path=args.source_v4_artifact,
+            seed=args.seed,
+            candidate_budget=args.candidate_budget,
+            max_depth=args.max_depth,
+            min_bars_per_symbol=args.min_bars_per_symbol,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_panel_ready_multi_asset_alpha_prefilter_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "panel-ready-multi-asset-alpha-prefilter-rerun",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v7_artifact_path": result.payload["source_v7_artifact_path"],
+                    "source_v7_panel_ready": result.payload["source_v7_panel_ready"],
+                    "symbol_universe_requested": result.payload["symbol_universe_requested"],
+                    "symbol_universe_used": result.payload["symbol_universe_used"],
+                    "excluded_symbols": result.payload["excluded_symbols"],
+                    "common_start": result.payload["common_start"],
+                    "common_end": result.payload["common_end"],
+                    "common_bar_count": result.payload["common_bar_count"],
+                    "generated_signal_count": result.payload["generated_signal_count"],
+                    "evaluated_signal_count": result.payload["evaluated_signal_count"],
+                    "effective_signal_breadth": result.payload["effective_signal_breadth"],
+                    "duplicate_ratio": result.payload["duplicate_ratio"],
+                    "watch_family_count": result.payload["watch_family_count"],
+                    "data_download_performed": result.payload["data_download_performed"],
+                    "backfill_performed": result.payload["backfill_performed"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "strategy_optimization_performed": result.payload["strategy_optimization_performed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                    "multiple_testing_boundary": result.payload["multiple_testing_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (
+        BinanceVisionError,
+        DataValidationError,
+        requests.RequestException,
+        ValueError,
+        FileExistsError,
+        FileNotFoundError,
+    ) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "panel-ready-multi-asset-alpha-prefilter-rerun",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v7_artifact_path": str(args.source_v7_artifact),
+                    "source_v4_artifact_path": str(args.source_v4_artifact),
+                    "symbols": symbols,
+                    "interval": interval,
+                    "months": months,
+                    "data_download_performed": False,
+                    "backfill_performed": False,
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def cmd_public_multi_asset_panel_coverage_run(args: argparse.Namespace) -> int:
     symbols = PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE
     interval = CANONICAL_INTERVAL
@@ -2935,6 +3090,44 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     multi_asset_alpha.set_defaults(func=cmd_multi_asset_alpha_generator_strict_prefilter_run)
+
+    panel_ready_alpha = sub.add_parser("panel-ready-multi-asset-alpha-prefilter-rerun")
+    panel_ready_alpha.add_argument(
+        "--source-v7-artifact",
+        default=str(DEFAULT_PANEL_READY_MULTI_ASSET_ALPHA_V7_ARTIFACT),
+        help="V7 public data backfill artifact proving panel_ready_for_v5_rerun=true before the paper-only V5 rerun",
+    )
+    panel_ready_alpha.add_argument(
+        "--source-v4-artifact",
+        default=str(DEFAULT_MULTI_ASSET_ALPHA_V4_ARTIFACT),
+        help="audit-only V4 strict falsification artifact path; V8 keeps V5 lineage semantics and does not revive V4 candidates",
+    )
+    panel_ready_alpha.add_argument(
+        "--interval",
+        default=None,
+        help="optional interval assertion; omitted means use the V7-ready panel interval and any override must match it",
+    )
+    panel_ready_alpha.add_argument("--cache-dir", default="data/binance-vision")
+    panel_ready_alpha.add_argument("--funding-source", default="public-binance", choices=["public-binance", "none"])
+    panel_ready_alpha.add_argument("--funding-cache-dir", default="data/binance-funding")
+    panel_ready_alpha.add_argument("--seed", type=int, default=DEFAULT_MULTI_ASSET_GENERATION_SEED)
+    panel_ready_alpha.add_argument("--candidate-budget", type=int, default=DEFAULT_MULTI_ASSET_CANDIDATE_BUDGET)
+    panel_ready_alpha.add_argument("--max-depth", type=int, default=DEFAULT_MULTI_ASSET_MAX_DEPTH)
+    panel_ready_alpha.add_argument("--min-bars-per-symbol", type=int, default=DEFAULT_MIN_BARS_PER_SYMBOL)
+    panel_ready_alpha.add_argument("--reports-root", default="reports")
+    panel_ready_alpha.add_argument("--output-dir")
+    panel_ready_alpha.add_argument("--overwrite", action="store_true")
+    panel_ready_alpha.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    panel_ready_alpha.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    panel_ready_alpha.set_defaults(func=cmd_panel_ready_multi_asset_alpha_prefilter_rerun)
 
     public_panel = sub.add_parser("public-multi-asset-panel-coverage-run")
     public_panel.add_argument(
