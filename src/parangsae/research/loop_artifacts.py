@@ -170,6 +170,16 @@ def existing_loop_artifact_type(path: Path) -> str | None:
             payload.get("loop_namespace")
         ):
             return "multi-asset-v9-falsification-lineage-governance-run"
+    public_derivatives_microstructure_json = path / "public_derivatives_microstructure_axis.json"
+    if public_derivatives_microstructure_json.exists():
+        try:
+            payload = json.loads(public_derivatives_microstructure_json.read_text())
+        except json.JSONDecodeError:
+            return None
+        if "loop_namespace" in payload and "public_derivatives_microstructure_data_axis_v11" in str(
+            payload.get("loop_namespace")
+        ):
+            return "public-derivatives-microstructure-data-axis-run"
     return None
 
 

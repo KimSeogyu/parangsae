@@ -1,0 +1,153 @@
+{
+  "account_data_used": false,
+  "alpha_generation_performed": false,
+  "api_key_used": false,
+  "changed_files": [
+    "src/parangsae/research/public_derivatives_microstructure.py",
+    "src/parangsae/apps/cli/quantctl.py",
+    "src/parangsae/research/loop_artifacts.py",
+    "tests/test_public_derivatives_microstructure.py",
+    "README.md",
+    "docs/backtesting-paper-trading.md",
+    "docs/superpowers/plans/2026-06-28-public-derivatives-microstructure-v11.md"
+  ],
+  "claim_boundary": "PUBLIC_DERIVATIVES_MICROSTRUCTURE_DATA_AXIS_V11 is public derivatives microstructure data coverage and provenance infrastructure only. It preserves the V10 kill-state governance evidence and prepares a future V12 data-axis input gate. It is not alpha generation, not a trading strategy, not portfolio construction, not signal weight optimization, not profitability or edge evidence, not readiness or live readiness, and not permission for live/testnet/account/API-key/order/fill use.",
+  "coverage_sufficient_for_future_v12": false,
+  "data_families_available": [
+    "funding_rate_extensions"
+  ],
+  "data_families_requested": [
+    "open_interest",
+    "long_short_ratio",
+    "taker_buy_sell_volume_ratio",
+    "liquidation",
+    "mark_price_index_basis",
+    "funding_rate_extensions",
+    "order_book_depth_proxy"
+  ],
+  "disallowed_revival_entries": [
+    "correlation_breakdown",
+    "volatility_dispersion"
+  ],
+  "excluded_symbols": [
+    {
+      "reason": "no non-funding public microstructure cache available",
+      "symbol": "BTCUSDT"
+    },
+    {
+      "reason": "no non-funding public microstructure cache available",
+      "symbol": "ETHUSDT"
+    },
+    {
+      "reason": "no non-funding public microstructure cache available",
+      "symbol": "SOLUSDT"
+    },
+    {
+      "reason": "no non-funding public microstructure cache available",
+      "symbol": "BNBUSDT"
+    },
+    {
+      "reason": "no non-funding public microstructure cache available",
+      "symbol": "XRPUSDT"
+    },
+    {
+      "reason": "no non-funding public microstructure cache available",
+      "symbol": "ADAUSDT"
+    },
+    {
+      "reason": "no non-funding public microstructure cache available",
+      "symbol": "DOGEUSDT"
+    },
+    {
+      "reason": "no non-funding public microstructure cache available",
+      "symbol": "AVAXUSDT"
+    },
+    {
+      "reason": "no non-funding public microstructure cache available",
+      "symbol": "LINKUSDT"
+    },
+    {
+      "reason": "excluded by default because previous coverage left TONUSDT missing in V7/V8 public panel artifacts",
+      "symbol": "TONUSDT"
+    }
+  ],
+  "failed_download_count": 0,
+  "holdout_retune_used": false,
+  "live_or_testnet_path_created": false,
+  "loop_id": "20260628-public-derivatives-microstructure-data-axis-v11",
+  "loop_namespace": "public_derivatives_microstructure_data_axis_v11_only_not_alpha",
+  "microstructure_symbol_count": 0,
+  "minimum_required_symbols": 3,
+  "missing_data_plan_required": true,
+  "negative_control_families": [
+    "correlation_breakdown",
+    "volatility_dispersion"
+  ],
+  "no_account_data_used": true,
+  "no_api_key_used": true,
+  "no_live_orders_submitted": true,
+  "no_private_order_or_fill_data_used": true,
+  "no_testnet_orders_submitted": true,
+  "private_data_used": false,
+  "raw_data_files_committed": false,
+  "raw_data_files_created": [],
+  "raw_public_data_committed": false,
+  "readiness_baseline_verdict": "NOT_READY",
+  "requested_symbol_count": 9,
+  "requested_symbol_universe": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "BNBUSDT",
+    "XRPUSDT",
+    "ADAUSDT",
+    "DOGEUSDT",
+    "AVAXUSDT",
+    "LINKUSDT"
+  ],
+  "safety_gates": {
+    "alpha_generation_performed": false,
+    "holdout_retune_used": false,
+    "live_or_testnet_path_created": false,
+    "no_account_data_used": true,
+    "no_api_key_used": true,
+    "no_live_orders_submitted": true,
+    "no_private_order_or_fill_data_used": true,
+    "no_testnet_orders_submitted": true,
+    "readiness_baseline_verdict": "NOT_READY",
+    "strategy_optimization_performed": false,
+    "tsmom_state_changed": false
+  },
+  "schema_version": 11,
+  "skipped_existing_count": 9,
+  "source_v10_artifact_path": "reports/loops/20260628-v9-falsification-lineage-negative-control-governance-v10",
+  "source_v10_payload_hash": "bbca7c8449fb9aa33d4b2ac31df18c37081bd8ea4716c24228830160a9bb0716",
+  "source_v8_hash_manifest_digest": "27995865f3a099ac1aec9dfe4f77bf6486b9510b0eba99885a0d13133b0d1b96",
+  "source_v9_hash_manifest_digest": "8b3d98af84bd4c131bcfadb6e6b8d1502a23ef97cede54abcf9b6e8b3e7b2713",
+  "source_v9_next_queue_empty": true,
+  "source_v9_suite_decision": "NO_FAMILY_SURVIVES_STRICT_FALSIFICATION",
+  "strategy_optimization_performed": false,
+  "successful_download_count": 0,
+  "suite_decision": "MICROSTRUCTURE_AXIS_NOT_READY_INSUFFICIENT_SYMBOLS",
+  "target_end": "2025-12-31T00:00:00Z",
+  "target_granularity": "source_stable_public_granularity_or_existing_cache_timestamp",
+  "target_start": "2024-01-01T00:00:00Z",
+  "tsmom_state_changed": false,
+  "usable_symbol_count": 0,
+  "usable_symbol_universe": [],
+  "v10_kill_state_preserved": true,
+  "v9_next_queue_empty": true,
+  "validation_commands": [
+    "uv run quantctl public-derivatives-microstructure-data-axis-run --source-v10-artifact reports/loops/20260628-v9-falsification-lineage-negative-control-governance-v10 --overwrite",
+    "uv run pytest tests/test_public_derivatives_microstructure.py -q",
+    "uv run pytest tests/test_public_multi_asset_panel_coverage.py -q",
+    "uv run pytest tests/test_alpha_signal_factory.py -q",
+    "uv run pytest tests/test_tsmom_loop.py -q",
+    "uv run pytest -q",
+    "uv run ruff check .",
+    "uv run --with pyright pyright src/parangsae/research/public_derivatives_microstructure.py src/parangsae/apps/cli/quantctl.py src/parangsae/research/loop_artifacts.py tests/test_public_derivatives_microstructure.py",
+    "git diff --check",
+    "git status --short data && git ls-files data",
+    "uv run --with pyright pyright src tests"
+  ]
+}

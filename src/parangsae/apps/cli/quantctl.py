@@ -133,6 +133,13 @@ from parangsae.research.public_multi_asset_panel_coverage import (
     write_public_multi_asset_data_backfill_artifacts,
     write_public_multi_asset_panel_coverage_artifacts,
 )
+from parangsae.research.public_derivatives_microstructure import (
+    DEFAULT_PUBLIC_DERIVATIVES_MICROSTRUCTURE_V10_ARTIFACT,
+    PUBLIC_DERIVATIVES_MICROSTRUCTURE_DEFAULT_UNIVERSE,
+    default_public_derivatives_microstructure_axis_output_dir,
+    evaluate_public_derivatives_microstructure_axis,
+    write_public_derivatives_microstructure_axis_artifacts,
+)
 from parangsae.research.null_baselines import (
     DEFAULT_TSMOM_REGIME_ONLY_ARTIFACT,
     build_research_null_baseline_harness_payload,
@@ -551,6 +558,20 @@ def _default_multi_asset_v9_falsification_lineage_governance_command(args: argpa
     ]
     if args.source_v8_artifact:
         command.append(f"--source-v8-artifact {args.source_v8_artifact}")
+    if args.overwrite:
+        command.append("--overwrite")
+    return " ".join(command)
+
+
+def _default_public_derivatives_microstructure_axis_command(args: argparse.Namespace) -> str:
+    command = [
+        "uv run quantctl public-derivatives-microstructure-data-axis-run",
+        f"--source-v10-artifact {args.source_v10_artifact}",
+        f"--symbols {args.symbols}",
+        f"--cache-root {args.cache_root}",
+        f"--funding-cache-dir {args.funding_cache_dir}",
+        f"--output-dir {args.output_dir or default_public_derivatives_microstructure_axis_output_dir(root=Path(args.reports_root) / 'loops')}",
+    ]
     if args.overwrite:
         command.append("--overwrite")
     return " ".join(command)
@@ -2222,6 +2243,89 @@ def cmd_multi_asset_v9_falsification_lineage_governance_run(args: argparse.Names
         return 2
 
 
+def cmd_public_derivatives_microstructure_data_axis_run(args: argparse.Namespace) -> int:
+    output_dir = (
+        Path(args.output_dir)
+        if args.output_dir
+        else default_public_derivatives_microstructure_axis_output_dir(root=Path(args.reports_root) / "loops")
+    )
+    try:
+        commands = args.command or [_default_public_derivatives_microstructure_axis_command(args)]
+        changed_files = args.changed_file or []
+        result = evaluate_public_derivatives_microstructure_axis(
+            source_v10_artifact_path=args.source_v10_artifact,
+            requested_symbols=args.symbols,
+            cache_root=args.cache_root,
+            funding_cache_dir=args.funding_cache_dir,
+            commands=commands,
+            changed_files=changed_files,
+        )
+        written = write_public_derivatives_microstructure_axis_artifacts(
+            output_dir,
+            result,
+            overwrite=args.overwrite,
+        )
+        print(
+            json.dumps(
+                {
+                    "status": "success",
+                    "run_type": "public-derivatives-microstructure-data-axis-run",
+                    "output_dir": str(written),
+                    "suite_decision": result.payload["suite_decision"],
+                    "readiness_baseline_verdict": result.payload["readiness_baseline_verdict"],
+                    "source_v10_artifact_path": result.payload["source_v10_artifact_path"],
+                    "v10_kill_state_preserved": result.payload["v10_kill_state_preserved"],
+                    "v9_next_queue_empty": result.payload["v9_next_queue_empty"],
+                    "requested_symbol_universe": result.payload["requested_symbol_universe"],
+                    "usable_symbol_universe": result.payload["usable_symbol_universe"],
+                    "data_families_available": result.payload["data_families_available"],
+                    "coverage_sufficient_for_future_v12": result.payload["coverage_sufficient_for_future_v12"],
+                    "successful_download_count": result.payload["successful_download_count"],
+                    "failed_download_count": result.payload["failed_download_count"],
+                    "skipped_existing_count": result.payload["skipped_existing_count"],
+                    "raw_data_files_committed": result.payload["raw_data_files_committed"],
+                    "alpha_generation_performed": result.payload["alpha_generation_performed"],
+                    "tsmom_state_changed": result.payload["tsmom_state_changed"],
+                    "holdout_retune_used": result.payload["holdout_retune_used"],
+                    "strategy_optimization_performed": result.payload["strategy_optimization_performed"],
+                    "live_or_testnet_path_created": result.payload["live_or_testnet_path_created"],
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                    "claim_boundary": result.payload["claim_boundary"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+    except (ValueError, FileExistsError, FileNotFoundError) as exc:
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "run_type": "public-derivatives-microstructure-data-axis-run",
+                    "failed_gate": type(exc).__name__,
+                    "reason": str(exc),
+                    "output_dir": str(output_dir),
+                    "source_v10_artifact_path": str(args.source_v10_artifact),
+                    "live_orders_submitted": False,
+                    "testnet_orders_submitted": False,
+                    "api_keys_required_for_research": False,
+                    "private_data_used": False,
+                    "account_data_used": False,
+                    "alpha_generation_performed": False,
+                    "live_or_testnet_path_created": False,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 2
+
+
 def cmd_public_multi_asset_panel_coverage_run(args: argparse.Namespace) -> int:
     symbols = PUBLIC_MULTI_ASSET_PANEL_DEFAULT_UNIVERSE
     interval = CANONICAL_INTERVAL
@@ -3448,6 +3552,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="changed file to record in changed_files.txt; may be repeated",
     )
     governance_v10.set_defaults(func=cmd_multi_asset_v9_falsification_lineage_governance_run)
+
+    microstructure_v11 = sub.add_parser("public-derivatives-microstructure-data-axis-run")
+    microstructure_v11.add_argument(
+        "--source-v10-artifact",
+        default=str(DEFAULT_PUBLIC_DERIVATIVES_MICROSTRUCTURE_V10_ARTIFACT),
+        help="frozen V10 kill-state governance artifact to preserve as V11 lineage input",
+    )
+    microstructure_v11.add_argument(
+        "--symbols",
+        default=",".join(PUBLIC_DERIVATIVES_MICROSTRUCTURE_DEFAULT_UNIVERSE),
+        help="comma-separated public derivatives symbol universe; TONUSDT remains excluded by default",
+    )
+    microstructure_v11.add_argument(
+        "--cache-root",
+        default="data/binance-derivatives-microstructure",
+        help="public derivatives microstructure cache root audited in cache-only mode",
+    )
+    microstructure_v11.add_argument("--funding-cache-dir", default="data/binance-funding")
+    microstructure_v11.add_argument("--reports-root", default="reports")
+    microstructure_v11.add_argument("--output-dir")
+    microstructure_v11.add_argument("--overwrite", action="store_true")
+    microstructure_v11.add_argument(
+        "--command",
+        action="append",
+        help="validation command to record in commands.txt; may be repeated",
+    )
+    microstructure_v11.add_argument(
+        "--changed-file",
+        action="append",
+        help="changed file to record in changed_files.txt; may be repeated",
+    )
+    microstructure_v11.set_defaults(func=cmd_public_derivatives_microstructure_data_axis_run)
 
     public_panel = sub.add_parser("public-multi-asset-panel-coverage-run")
     public_panel.add_argument(

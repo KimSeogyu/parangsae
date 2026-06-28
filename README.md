@@ -565,6 +565,32 @@ mechanism with its own edge-source hypothesis, counterparty, data requirement,
 and failure mode. V10 makes no profitability, edge, readiness, live/testnet, or
 capital-allocation claim.
 
+`public-derivatives-microstructure-data-axis-run` implements the public-data-only
+`PUBLIC_DERIVATIVES_MICROSTRUCTURE_DATA_AXIS_V11` loop:
+
+```bash
+uv run quantctl public-derivatives-microstructure-data-axis-run
+```
+
+V11 preserves the V10 kill-state governance evidence and adds a new public
+derivatives microstructure data axis for future V12 input readiness checks. It
+audits existing public cache/provenance for open interest, long/short ratio,
+taker buy/sell volume ratio, liquidation/force-order events, mark/index/basis
+proxies, funding-rate extensions, and public depth proxies where available. It
+does not generate alpha, does not rerun V8/V9/V10, does not implement a
+strategy, does not optimize weights, does not download by default, and does not
+use private/account/API-key/order/fill data or create live/testnet paths.
+
+V11 writes
+`reports/loops/<YYYYMMDD>-public-derivatives-microstructure-data-axis-v11/`
+with per-symbol/per-family coverage, missing public data plans, download/cache
+manifest rows, provenance hashes for existing cache files, V10 lineage lock
+references, and a `readiness_by_family.csv` file whose required filename is used
+only as a future V12 data coverage gate. Raw public data cache files should not
+be committed unless repo policy explicitly allows it. V12 should only run when
+`coverage_sufficient_for_future_v12=true`; that flag is not an edge,
+profitability, execution, or live-readiness claim.
+
 Success reports now include a regime protocol layer:
 
 - `regime.csv`: causal OHLCV-derived features, regime labels, protocol action, and risk multiplier by bar.

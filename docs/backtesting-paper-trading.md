@@ -1101,6 +1101,53 @@ changes. Future research must start from a new pre-registered mechanism with a
 declared edge source, counterparty, data requirement, validation rule, and
 failure mode before metrics are inspected.
 
+## Public derivatives microstructure data axis
+
+`public-derivatives-microstructure-data-axis-run` implements
+`PUBLIC_DERIVATIVES_MICROSTRUCTURE_DATA_AXIS_V11`, a public derivatives
+microstructure data coverage and provenance loop. It is not alpha generation,
+not a V8/V9/V10 rerun, not data-derived signal construction, not strategy
+implementation, not portfolio construction, not signal-weight optimization, and
+not a profitability, edge, readiness, or live/testnet claim.
+
+```bash
+uv run quantctl public-derivatives-microstructure-data-axis-run
+```
+
+The command reads the immutable V10 governance artifact and carries forward the
+V9 kill state, empty next queue, negative-control families, disallowed revival
+entries, and lineage hashes. It audits existing public no-key cache/provenance
+for new derivatives microstructure families: open interest, long/short ratio,
+taker buy/sell volume ratio, liquidation or force-order events, mark/index/basis
+proxies, funding-rate extensions, and public depth proxies where a safe existing
+cache exists. Missing or unstable sources are recorded as missing plan rows
+rather than fabricated data.
+
+V11 writes a new artifact directory:
+
+- `public_derivatives_microstructure_axis.json`
+- `data_family_coverage.csv`
+- `symbol_data_coverage.csv`
+- `missing_data_plan.csv`
+- `download_manifest.csv`
+- `provenance_manifest.csv`
+- `readiness_by_family.csv`
+- `v10_lineage_lock_reference.csv`
+- `report.md`
+- `commands.txt`
+- `changed_files.txt`
+
+The `readiness_by_family.csv` filename is retained because the loop contract
+requires it, but the file is only a future-V12 data coverage gate. It is not
+strategy readiness, alpha confirmation, execution readiness, or permission to
+trade. V11 does not run V12 automatically; V12 should only run after
+`coverage_sufficient_for_future_v12=true`.
+
+Raw public data cache files should not be committed unless repo policy
+explicitly allows it. The V11 artifact records created/committed raw data status
+and filters raw cache paths out of `changed_files.txt`. Existing V10/V9/V8
+artifacts are read-only inputs and must not be modified.
+
 ## Risk-adjusted research run
 
 `risk-run` is separate from `real-run` so the fixed baseline stays comparable. It uses the same canonical public Binance Vision data and writes `reports/risk-run-*` with:
