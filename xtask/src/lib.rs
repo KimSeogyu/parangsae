@@ -1,6 +1,7 @@
 //! Checks the workspace can run from `cargo xtask`.
 
 pub mod depgraph;
+pub mod guards;
 pub mod lints;
 
 use std::path::PathBuf;

@@ -1,0 +1,11 @@
+# A gap step that appends. NoAppendWhileGap must reject the pair.
+max=4
+before.phase=gap
+before.last_u=1
+before.accepted=1
+before.gap=1
+after.phase=gap
+after.last_u=1
+after.accepted=1,2
+after.gap=1,2
+expect=NoAppendWhileGap

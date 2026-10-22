@@ -1,0 +1,86 @@
+# cargo-deny. Sources are crates.io. Git dependencies are rejected.
+# reqwest, hyper, and tokio-tungstenite are allowed only as dependencies of
+# parangsae-collector. Parquet and arrow are allowed only through
+# parangsae-collector or parangsae-store (the store crate is not a member yet).
+
+[advisories]
+yanked = "deny"
+unmaintained = "all"
+
+[licenses]
+unused-allowed-license = "allow"
+confidence-threshold = 0.93
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Zlib",
+]
+private = { ignore = true }
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+allow-wildcard-paths = true
+highlight = "all"
+
+[[bans.deny]]
+name = "reqwest"
+wrappers = ["parangsae-collector"]
+
+# cargo-deny matches the direct parent. The workspace crates are the allowed
+# roots. The other names are the crates that sit between those roots and the
+# banned crate in this tree. A new direct edge from another crate still fails.
+[[bans.deny]]
+name = "hyper"
+wrappers = [
+    "parangsae-collector",
+    "reqwest",
+    "hyper-rustls",
+    "hyper-util",
+]
+
+[[bans.deny]]
+name = "tokio-tungstenite"
+wrappers = ["parangsae-collector"]
+
+[[bans.deny]]
+name = "arrow-array"
+wrappers = [
+    "parangsae-collector",
+    "parangsae-store",
+    "parquet",
+    "arrow-select",
+    "arrow-ipc",
+    "arrow-cmp",
+]
+
+[[bans.deny]]
+name = "arrow-schema"
+wrappers = [
+    "parangsae-collector",
+    "parangsae-store",
+    "parquet",
+    "arrow-array",
+    "arrow-select",
+    "arrow-ipc",
+    "arrow-data",
+    "arrow-cmp",
+]
+
+[[bans.deny]]
+name = "parquet"
+wrappers = ["parangsae-collector", "parangsae-store"]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

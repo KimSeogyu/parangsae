@@ -6,8 +6,11 @@
 \* A jump (u > last_u + 1) ends the segment: phase becomes "gap" and no later
 \* update is appended until Resync. Resync starts a new empty segment.
 \*
-\* Not modeled: bytes on the wire, checksums, multiple symbols, or the Rust types.
-\* The Rust collector names the same phases and does not implement the transitions.
+\* Not modeled: bytes on the wire, checksums, or multiple symbols.
+\* The transitions are implemented in crates/collector/src/segment.rs. A proptest
+\* replays enabled actions and checks Contiguous, GapHoldsSnapshot, and
+\* NoAppendWhileGap after every step. StoredStable is the ManifestWrite property;
+\* merge_fact's trace check covers it.
 \* With a finite Max, an open segment at last_u = Max has only duplicate steps left.
 \* Those steps do not change state. That is the bound, not a gap.
 

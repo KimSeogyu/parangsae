@@ -14,6 +14,7 @@ exclude = [
     "fixtures/lint/violation",
     "fixtures/lint/unsafe-forbid",
     "fixtures/lint/missing-inheritance",
+    "fixtures/guards/unguarded-notional",
 ]
 
 [workspace.package]

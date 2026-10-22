@@ -1,0 +1,17 @@
+# Feature files under specs/features. Every file matches exactly one runner.
+# Globs do not overlap: kline is one file, not specs/features/*.feature.
+
+[[runner]]
+name = "kline"
+glob = "specs/features/kline_integrity.feature"
+source = "crates/core/tests/kline_integrity.rs"
+
+[[runner]]
+name = "instrument_rules"
+glob = "specs/features/instrument_rules.feature"
+source = "crates/core/tests/instrument_rules.rs"
+
+[[runner]]
+name = "vision"
+glob = "specs/features/collector/**/*.feature"
+source = "crates/collector/tests/vision_integrity.rs"
