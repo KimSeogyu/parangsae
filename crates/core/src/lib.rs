@@ -6,6 +6,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod bar;
 pub mod causal;
 pub mod fixed;
 pub mod instrument_spec;
@@ -13,6 +14,7 @@ pub mod symbol;
 pub mod time;
 pub mod timestamps;
 
+pub use bar::{BarError, BarInterval, ResampledBar};
 pub use causal::{Causal, DecisionTime, Observation};
 pub use fixed::{notional, Amount, FixedError, Notional, Price, Qty, Ratio, SCALE};
 pub use symbol::{Symbol, SymbolError};

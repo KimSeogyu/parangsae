@@ -4,7 +4,26 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 rust-version.workspace = true
-description = "Signal entry points. Causal views only."
+description = "Causal signals. Views come from Observation::causal_at."
 
 [dependencies]
 parangsae-core = { path = "../core" }
+libm = { version = "=0.2.16", default-features = false, features = ["force-soft-floats"] }
+
+[dev-dependencies]
+cucumber = "=0.22.1"
+proptest = "1.6"
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
+
+[lints.rust]
+unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
+
+[lints.clippy]
+float_cmp = "deny"
+cast_possible_truncation = "deny"
+unwrap_used = "deny"
+
+[[test]]
+name = "signals_v0"
+harness = false

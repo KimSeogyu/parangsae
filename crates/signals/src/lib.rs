@@ -1,12 +1,40 @@
-//! Signal entry point.
+//! Causal targets and one causal feature for BTCUSDT bars.
 //!
-//! The argument is [`Causal`], so a caller cannot pass a row whose
-//! `available_ts` is after the decision time. No signal generator is implemented.
+//! `tsmom` and `funding_z` emit a [`SignalOutput`]. `volregime` emits a
+//! [`FeatureOutput`] and does not implement [`CausalSignal`]. Every read goes
+//! through [`parangsae_core::Causal`], which exists only when
+//! `available_ts <= decision`.
+//!
+//! The proptests in this crate sample invariants. They are not a proof.
 
 #![forbid(unsafe_code)]
 
-use parangsae_core::Causal;
+mod bars;
+mod feature;
+mod funding;
+mod funding_z;
+mod output;
+mod rank;
+mod target;
+mod tsmom;
+mod volregime;
+mod window;
 
-pub fn sample_value<'a, T>(sample: &Causal<'a, T>) -> &'a T {
-    sample.value()
-}
+pub use feature::FeatureOutput;
+pub use funding::{funding_observation, FundingRow};
+pub use funding_z::{drive_funding_z, FundingZ, PROD_MAX_AGE_US};
+pub use output::{Decision, FlatReason, ParamError, SignalError, SignalOutput};
+pub use rank::{Rank, RankError, RANK_SCALE};
+pub use target::{Target, TargetError, TARGET_SCALE};
+pub use tsmom::Tsmom;
+pub use volregime::VolRegime;
+pub use window::{drive, drive_feature, CausalFeature, CausalSignal, CausalWindow, WindowError};
+
+/// Target signals the engine may trade.
+pub const TARGET_IDS: &[&str] = &["tsmom", "funding_z"];
+
+/// Features. The engine must not treat these as a position.
+pub const FEATURE_IDS: &[&str] = &["volregime"];
+
+/// Every id this crate ships. `TARGET_IDS` and `FEATURE_IDS` partition it.
+pub const SIGNAL_IDS: &[&str] = &["tsmom", "volregime", "funding_z"];

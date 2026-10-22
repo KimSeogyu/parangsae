@@ -1,0 +1,18 @@
+allow-unwrap-in-tests = true
+
+disallowed-methods = [
+    { path = "f64::ln", reason = "use libm::log" },
+    { path = "f64::log", reason = "use libm::log" },
+    { path = "f64::log2", reason = "use libm::log2" },
+    { path = "f64::log10", reason = "use libm::log10" },
+    { path = "f64::exp", reason = "use libm::exp" },
+    { path = "f64::sqrt", reason = "use libm::sqrt" },
+    { path = "f64::powf", reason = "use libm::pow" },
+    { path = "f64::powi", reason = "use libm::pow" },
+    { path = "f64::mul_add", reason = "use libm::fma" },
+    { path = "f64::tanh", reason = "use libm::tanh" },
+    { path = "f64::sin", reason = "use libm::sin" },
+    { path = "f64::cos", reason = "use libm::cos" },
+    { path = "f64::cbrt", reason = "use libm::cbrt" },
+    { path = "f64::hypot", reason = "use libm::hypot" },
+]
