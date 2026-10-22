@@ -151,6 +151,11 @@ jobs:
             echo ".cargo/config must be absent"
             exit 1
           fi
+          /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
+          tree_status=$?
+          if [ "$tree_status" -ne 0 ]; then
+            exit "$tree_status"
+          fi
           bin_line="$(env -i \
             HOME=/home/runner \
             PATH=/tmp/shim:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
@@ -187,6 +192,11 @@ jobs:
           if [ -e .cargo/config ] || [ -L .cargo/config ]; then
             echo ".cargo/config must be absent"
             exit 1
+          fi
+          /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
+          tree_status=$?
+          if [ "$tree_status" -ne 0 ]; then
+            exit "$tree_status"
           fi
           bin_line="$(env -i \
             HOME=/home/runner \

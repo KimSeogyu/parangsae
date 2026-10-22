@@ -112,6 +112,12 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
             let file = required_path(args, "--file")?;
             finish(Ok(gate_fixture_pin(&name, &read_bytes(&file)?)))
         }
+        "toolchain-files" => {
+            if args.len() != 1 {
+                return Err("unexpected argument after toolchain-files".to_owned());
+            }
+            finish(toolchain_file_gaps(root))
+        }
         other => Err(format!("unknown guards command {other}")),
     }
 }
@@ -530,7 +536,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "e42404d713c6bdf82d15767242df0b3c911e2fa3f586d394dc6cfad201f222c2",
+        "0b93b20ed10bcaa6608c49fdf80efeedc5d6dafaab2af2294adfdb7905989408",
     ),
     (
         "gate",
@@ -2257,6 +2263,7 @@ fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
     let ci = read(&root.join(".github/workflows/ci.yml"))?;
     violations.extend(required_job_pin_gaps(&ci));
     violations.extend(deny_release_pin_gaps(&ci));
+    violations.extend(required_jobs_needs_gaps(&ci)?);
     for (name, pinned, _) in REQUIRED_JOBS {
         violations.extend(filtered_cargo_test_gaps(name, pinned));
     }
@@ -2809,9 +2816,7 @@ fn toolchain_file_gaps(root: &Path) -> Result<Vec<String>, String> {
             .strip_prefix(root)
             .map_err(|err| format!("toolchain path: {err}"))?;
         let name = rel.file_name().and_then(|part| part.to_str()).unwrap_or("");
-        if (name == "rust-toolchain" || name == "rust-toolchain.toml")
-            && rel != Path::new("rust-toolchain.toml")
-        {
+        if name.starts_with("rust-toolchain") && rel != Path::new("rust-toolchain.toml") {
             gaps.push(format!(
                 "{} is a toolchain override; only the root rust-toolchain.toml is allowed",
                 rel.display()
@@ -2822,10 +2827,7 @@ fn toolchain_file_gaps(root: &Path) -> Result<Vec<String>, String> {
             .and_then(|parent| parent.file_name())
             .and_then(|part| part.to_str())
             == Some(".cargo");
-        if parent_is_cargo
-            && (name == "config" || name == "config.toml")
-            && rel != Path::new(".cargo/config.toml")
-        {
+        if parent_is_cargo && name.starts_with("config") && rel != Path::new(".cargo/config.toml") {
             gaps.push(format!(
                 "{} is a nested cargo config; only the root .cargo/config.toml is allowed",
                 rel.display()
@@ -2991,6 +2993,9 @@ fn deny_release_pin_gaps(text: &str) -> Vec<String> {
     if deny_exec_missing_config_absence(block) {
         gaps.push("deny job does not reject an extensionless .cargo/config".to_owned());
     }
+    if deny_exec_missing_tree_walk(block) {
+        gaps.push("deny job does not reject unexpected cargo config or toolchain files".to_owned());
+    }
     gaps.extend(deny_path_shim_gaps(block));
     gaps.extend(deny_cargo_env_gaps(block));
     gaps
@@ -3087,6 +3092,33 @@ fn deny_exec_missing_bin_recheck(block: &str) -> bool {
 
 fn deny_exec_missing_config_absence(block: &str) -> bool {
     deny_exec_missing_before(block, ".cargo/config must be absent")
+}
+
+fn deny_exec_missing_tree_walk(block: &str) -> bool {
+    deny_exec_missing_before(block, "cargo xtask guards toolchain-files")
+}
+
+fn required_jobs_needs_gaps(text: &str) -> Result<Vec<String>, String> {
+    let needs = gate_needs(gate_job_block(text)?)?;
+    let names = required_job_names();
+    let mut gaps = Vec::new();
+    for name in names.difference(&needs) {
+        gaps.push(format!("required job {name} is missing from gate.needs"));
+    }
+    for name in needs.difference(&names) {
+        gaps.push(format!(
+            "gate.needs lists {name} which is not a required job"
+        ));
+    }
+    Ok(gaps)
+}
+
+fn required_job_names() -> BTreeSet<String> {
+    REQUIRED_JOBS
+        .iter()
+        .filter(|(name, _, _)| *name != "gate")
+        .map(|(name, _, _)| (*name).to_owned())
+        .collect()
 }
 
 fn deny_exec_missing_before(block: &str, needle: &str) -> bool {
@@ -6373,6 +6405,7 @@ jobs:
                 if !window.contains(DENY_BIN_SHA256)
                     || !window.contains(CARGO_CONFIG_SHA256)
                     || !window.contains(".cargo/config must be absent")
+                    || !window.contains("cargo xtask guards toolchain-files")
                 {
                     return Err(format!(
                         "cargo-deny execution is not immediately preceded by the binary and config rechecks: {line}"
@@ -6727,24 +6760,21 @@ jobs:
 
     #[test]
     fn required_job_names_equal_pinned_gate_needs() -> Result<(), String> {
-        let mut names = BTreeSet::new();
-        for (name, _, _) in REQUIRED_JOBS {
-            if *name != "gate" {
-                names.insert((*name).to_owned());
-            }
-        }
-        let gate = pinned_job("gate").ok_or("gate job is not pinned")?;
-        let needs = gate_needs(gate)?;
-        let missing: Vec<_> = names.difference(&needs).cloned().collect();
-        let extra: Vec<_> = needs.difference(&names).cloned().collect();
-        if !missing.is_empty() || !extra.is_empty() {
-            return Err(format!(
-                "required jobs missing from gate.needs: {missing:?}; gate.needs not in required jobs: {extra:?}"
-            ));
-        }
-        if names != needs {
-            return Err(format!("names {names:?} needs {needs:?}"));
-        }
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("live needs", required_jobs_needs_gaps(&ci)?, &[])?;
+        let missing = read(&root.join("fixtures/guards/ci/needs-missing-required.yml"))?;
+        expect_gaps(
+            "missing required",
+            required_jobs_needs_gaps(&missing)?,
+            &["required job deny is missing from gate.needs"],
+        )?;
+        let extra = read(&root.join("fixtures/guards/ci/needs-extra-required.yml"))?;
+        expect_gaps(
+            "extra required",
+            required_jobs_needs_gaps(&extra)?,
+            &["gate.needs lists phantom which is not a required job"],
+        )?;
         Ok(())
     }
 
@@ -6831,6 +6861,155 @@ jobs:
                 "absence checks: {}",
                 deny.matches(".cargo/config must be absent").count()
             ));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn deny_step_walks_for_unexpected_toolchain_files() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("live deny walk", deny_release_pin_gaps(&ci), &[])?;
+        let bare = read(&root.join("fixtures/guards/ci/deny-no-tree-walk.yml"))?;
+        expect_gaps(
+            "no tree walk",
+            deny_release_pin_gaps(&bare),
+            &["deny job does not reject unexpected cargo config or toolchain files"],
+        )?;
+        let planted = TempGit::new("toolchain-prefix")?;
+        git_fixture(&planted.path, &["init"])?;
+        std::fs::create_dir_all(planted.path.join("vendor/nested/.cargo"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::create_dir_all(planted.path.join("vendor/.cargo"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::write(
+            planted.path.join("vendor/.cargo/config.extra"),
+            "paths = []\n",
+        )
+        .map_err(|err| format!("write: {err}"))?;
+        std::fs::write(
+            planted.path.join("vendor/rust-toolchain.extra"),
+            "nightly\n",
+        )
+        .map_err(|err| format!("write: {err}"))?;
+        std::fs::write(
+            planted.path.join("vendor/nested/.cargo/config.toml"),
+            "[alias]\n",
+        )
+        .map_err(|err| format!("write: {err}"))?;
+        expect_gaps(
+            "prefix files",
+            toolchain_file_gaps(&planted.path)?,
+            &[
+                "vendor/.cargo/config.extra is a nested cargo config; only the root .cargo/config.toml is allowed",
+                "vendor/nested/.cargo/config.toml is a nested cargo config; only the root .cargo/config.toml is allowed",
+                "vendor/rust-toolchain.extra is a toolchain override; only the root rust-toolchain.toml is allowed",
+            ],
+        )?;
+        let deny = pinned_job("deny").ok_or("deny job is not pinned")?;
+        if deny.matches("cargo xtask guards toolchain-files").count() != 2 {
+            return Err(format!(
+                "tree walks: {}",
+                deny.matches("cargo xtask guards toolchain-files").count()
+            ));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn swapped_deny_binary_fails_the_recheck() -> Result<(), String> {
+        let dir = TempGit::new("deny-bin")?;
+        let tarball = cached_deny_tarball()?;
+        let extract = Command::new("/usr/bin/tar")
+            .arg("-xzf")
+            .arg(&tarball)
+            .arg("-C")
+            .arg(&dir.path)
+            .output()
+            .map_err(|err| format!("tar: {err}"))?;
+        if !extract.status.success() {
+            return Err(format!(
+                "tar failed: {}",
+                String::from_utf8_lossy(&extract.stderr)
+            ));
+        }
+        let bin = dir.path.join(format!(
+            "cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny"
+        ));
+        let script = deny_binary_recheck_script(&bin)?;
+        let (code, output) = run_shell(&script)?;
+        if code != 0 {
+            return Err(format!("provisioned binary failed the recheck: {output}"));
+        }
+        let mut bytes = std::fs::read(&bin).map_err(|err| format!("read binary: {err}"))?;
+        let Some(last) = bytes.last_mut() else {
+            return Err("cargo-deny binary is empty".to_owned());
+        };
+        *last ^= 0xff;
+        std::fs::write(&bin, &bytes).map_err(|err| format!("write binary: {err}"))?;
+        let (code, output) = run_shell(&script)?;
+        if code == 0 || !output.contains("cargo-deny binary sha256 does not match") {
+            return Err(format!("swapped binary recheck: code {code}: {output}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn changed_deny_input_fails_the_rehash() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let dir = TempGit::new("deny-inputs")?;
+        provision_deny_inputs(&root, &dir.path)?;
+        let script = deny_input_rehash_script()?;
+        let (code, output) = run_shell_at(&script, &dir.path)?;
+        if code != 0 {
+            return Err(format!("provisioned inputs failed the rehash: {output}"));
+        }
+        let cases = [
+            (
+                "deny.toml",
+                "deny.toml sha256 does not match",
+                "Cargo.lock sha256 does not match",
+            ),
+            (
+                "Cargo.lock",
+                "Cargo.lock sha256 does not match",
+                "rust-toolchain.toml sha256 does not match",
+            ),
+            (
+                "rust-toolchain.toml",
+                "rust-toolchain.toml sha256 does not match",
+                "cargo manifests sha256 does not match",
+            ),
+            (
+                "xtask/Cargo.toml",
+                "cargo manifests sha256 does not match",
+                ".cargo/config.toml sha256 does not match",
+            ),
+            (
+                ".cargo/config.toml",
+                ".cargo/config.toml sha256 does not match",
+                "cargo-deny binary sha256 does not match",
+            ),
+        ];
+        for (rel, message, later) in cases {
+            let path = dir.path.join(rel);
+            let mut bytes = std::fs::read(&path).map_err(|err| format!("read {rel}: {err}"))?;
+            let Some(last) = bytes.last_mut() else {
+                return Err(format!("{rel} is empty"));
+            };
+            let saved = *last;
+            *last ^= 0xff;
+            std::fs::write(&path, &bytes).map_err(|err| format!("write {rel}: {err}"))?;
+            let (code, output) = run_shell_at(&script, &dir.path)?;
+            bytes = std::fs::read(&path).map_err(|err| format!("reread {rel}: {err}"))?;
+            let Some(last) = bytes.last_mut() else {
+                return Err(format!("{rel} is empty"));
+            };
+            *last = saved;
+            std::fs::write(&path, &bytes).map_err(|err| format!("restore {rel}: {err}"))?;
+            if code == 0 || !output.contains(message) || output.contains(later) {
+                return Err(format!("{rel}: code {code}: {output}"));
+            }
         }
         Ok(())
     }
@@ -7927,6 +8106,152 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             return Err(format!("original bytes: {pinned:?}"));
         }
         Ok(())
+    }
+
+    fn cached_deny_tarball() -> Result<PathBuf, String> {
+        let path = std::env::temp_dir().join(format!(
+            "cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+        ));
+        if path.is_file() && sha256sum_file(&path).ok().as_deref() == Some(DENY_TARBALL_SHA256) {
+            return Ok(path);
+        }
+        let url = format!(
+            "https://github.com/EmbarkStudios/cargo-deny/releases/download/{DENY_VERSION}/cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+        );
+        let status = Command::new("/usr/bin/curl")
+            .args([
+                "--fail",
+                "--location",
+                "--silent",
+                "--show-error",
+                "--output",
+            ])
+            .arg(&path)
+            .arg(&url)
+            .status()
+            .map_err(|err| format!("curl: {err}"))?;
+        if !status.success() {
+            let code = match status.code() {
+                Some(code) => code.to_string(),
+                None => "signal".to_owned(),
+            };
+            return Err(format!("curl exit {code}"));
+        }
+        let got = sha256sum_file(&path)?;
+        if got != DENY_TARBALL_SHA256 {
+            return Err(format!("cargo-deny tarball sha256 does not match: {got}"));
+        }
+        Ok(path)
+    }
+
+    fn sha256sum_file(path: &Path) -> Result<String, String> {
+        let output = Command::new("/usr/bin/sha256sum")
+            .arg(path)
+            .output()
+            .map_err(|err| format!("sha256sum: {err}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "sha256sum failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        let text = String::from_utf8_lossy(&output.stdout);
+        text.split_whitespace()
+            .next()
+            .map(str::to_owned)
+            .ok_or_else(|| "sha256sum returned no hash".to_owned())
+    }
+
+    fn deny_binary_recheck_script(bin: &Path) -> Result<String, String> {
+        let deny = pinned_job("deny").ok_or("deny job is not pinned")?;
+        let marker = "bin_line=\"$(env -i \\";
+        let start = deny.find(marker).ok_or("deny job has no binary recheck")?;
+        let rest = &deny[start..];
+        let message_at = rest
+            .find("echo \"cargo-deny binary sha256 does not match\"\n")
+            .ok_or("deny job binary recheck has no message")?;
+        let after = &rest[message_at..];
+        let close = after
+            .find("\n          fi\n")
+            .ok_or("deny job binary recheck has no end")?;
+        let mut script = rest[..message_at + close + "\n          fi".len()].to_owned();
+        let pinned = format!("/tmp/cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny");
+        if !script.contains(&pinned) {
+            return Err("deny job binary recheck does not name the pinned path".to_owned());
+        }
+        let shown = bin.to_string_lossy().replace('\\', "/");
+        script = script.replacen(&pinned, &shown, 1);
+        Ok(format!("set -euo pipefail\n{script}"))
+    }
+
+    fn provision_deny_inputs(root: &Path, dir: &Path) -> Result<(), String> {
+        let mut files = vec![
+            "deny.toml",
+            "Cargo.lock",
+            "rust-toolchain.toml",
+            ".cargo/config.toml",
+        ];
+        files.extend(CARGO_MANIFESTS.iter().copied());
+        for rel in files {
+            let from = root.join(rel);
+            let to = dir.join(rel);
+            if let Some(parent) = to.parent() {
+                std::fs::create_dir_all(parent).map_err(|err| format!("mkdir {rel}: {err}"))?;
+            }
+            std::fs::copy(&from, &to).map_err(|err| format!("copy {rel}: {err}"))?;
+        }
+        Ok(())
+    }
+
+    fn deny_input_rehash_script() -> Result<String, String> {
+        let deny = pinned_job("deny").ok_or("deny job is not pinned")?;
+        let marker = "deny_line=\"$(env -i \\";
+        let start = deny.find(marker).ok_or("deny job has no input rehash")?;
+        let rest = &deny[start..];
+        let message = "echo \".cargo/config.toml sha256 does not match\"\n";
+        let message_at = rest
+            .find(message)
+            .ok_or("deny job input rehash has no config message")?;
+        let after = &rest[message_at..];
+        let close = after
+            .find("\n          fi\n")
+            .ok_or("deny job input rehash has no end")?;
+        let script = rest[..message_at + close + "\n          fi".len()].to_owned();
+        for needle in [
+            "echo \"deny.toml sha256 does not match\"",
+            "echo \"Cargo.lock sha256 does not match\"",
+            "echo \"rust-toolchain.toml sha256 does not match\"",
+            "echo \"cargo manifests sha256 does not match\"",
+            "echo \".cargo/config.toml sha256 does not match\"",
+            "sha256sum \\\n            Cargo.toml",
+        ] {
+            if !script.contains(needle) {
+                return Err(format!("deny job input rehash is missing {needle}"));
+            }
+        }
+        Ok(format!("set -euo pipefail\n{script}"))
+    }
+
+    fn run_shell(script: &str) -> Result<(i32, String), String> {
+        run_shell_at(
+            script,
+            &std::env::current_dir().map_err(|err| format!("cwd: {err}"))?,
+        )
+    }
+
+    fn run_shell_at(script: &str, dir: &Path) -> Result<(i32, String), String> {
+        let output = Command::new("bash")
+            .arg("-c")
+            .arg(script)
+            .current_dir(dir)
+            .output()
+            .map_err(|err| format!("bash: {err}"))?;
+        let mut text = String::from_utf8_lossy(&output.stdout).into_owned();
+        text.push_str(&String::from_utf8_lossy(&output.stderr));
+        match output.status.code() {
+            Some(code) => Ok((code, text)),
+            None => Err(format!("bash signal: {text}")),
+        }
     }
 
     struct TempGit {
