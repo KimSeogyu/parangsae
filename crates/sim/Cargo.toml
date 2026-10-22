@@ -1,0 +1,13 @@
+[package]
+name = "parangsae-sim"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Fixed-point fill, fee, funding, and cash ledger. No I/O."
+
+[dependencies]
+parangsae-core = { path = "../core" }
+
+[dev-dependencies]
+proptest = "1.6"

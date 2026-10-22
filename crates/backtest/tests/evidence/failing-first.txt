@@ -1,0 +1,115 @@
+# Failing-first evidence for G1, G6, G10, and P7
+# Captured before the passing accounting and event loop were committed.
+# Stub: taker_fee returned 0; validate and require_coverage returned Ok;
+# BarView was the full window at the last bar's available_ts.
+# rustc: rustc 1.99.1 (58cf8f9c3 2026-10-13)
+# date: 2026-10-22T22:51:22Z
+
+$ cargo test -p parangsae-backtest --test golden -- g1_round_trip_five_bps g6_fee_rounds_against_the_trader g10_gap_missing_mark_and_missing_funding
+
+   Compiling parangsae-sim v0.0.0 (/workspace/crates/sim)
+   Compiling parangsae-backtest v0.0.0 (/workspace/crates/backtest)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.88s
+     Running tests/golden.rs (target/debug/deps/golden-fafbb2f36d4a15e0)
+
+running 3 tests
+test g6_fee_rounds_against_the_trader ... FAILED
+test g10_gap_missing_mark_and_missing_funding ... FAILED
+test g1_round_trip_five_bps ... FAILED
+
+failures:
+
+---- g6_fee_rounds_against_the_trader stdout ----
+
+thread 'g6_fee_rounds_against_the_trader' (13977) panicked at crates/backtest/tests/golden.rs:101:5:
+assertion `left == right` failed
+  left: Cash(0)
+ right: Cash(1)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- g10_gap_missing_mark_and_missing_funding stdout ----
+
+thread 'g10_gap_missing_mark_and_missing_funding' (13975) panicked at crates/backtest/tests/golden.rs:177:25:
+called `Result::unwrap_err()` on an `Ok` value: Report { equity_curve: [(UtcMicros(1704110459999000), Cash(100000000000)), (UtcMicros(1704110519999000), Cash(100000000000)), (UtcMicros(1704110639999000), Cash(100000000000))], daily_equity: [(UtcDate { year: 2024, month: 1, day: 1 }, Cash(100000000000))], fills: [], funding: [], trades: [], metrics: Metrics { days: 1, total_return: Ratio(0), max_drawdown: Ratio(0), sharpe_daily: None, sharpe_annual: None, fees_paid: Cash(0), funding_net: Cash(0), fills: 0, trades: 0 }, costs: Costs { taker_fee: FeeBps(5), slippage: SlippageBps(0) }, bars: 3, ruined: None, dropped_orders: 0 }
+
+---- g1_round_trip_five_bps stdout ----
+
+thread 'g1_round_trip_five_bps' (13976) panicked at crates/backtest/tests/golden.rs:21:5:
+assertion `left == right` failed
+  left: Cash(0)
+ right: Cash(5000000)
+
+
+failures:
+    g10_gap_missing_mark_and_missing_funding
+    g1_round_trip_five_bps
+    g6_fee_rounds_against_the_trader
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p parangsae-backtest --test golden`
+golden_exit=101
+
+$ cargo test -p parangsae-backtest --test causal -- p7_causal_prefix
+
+   Compiling parangsae-backtest v0.0.0 (/workspace/crates/backtest)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.55s
+     Running tests/causal.rs (target/debug/deps/causal-462dc3f190a27bd8)
+
+running 1 test
+test p7_causal_prefix ... FAILED
+
+failures:
+
+---- p7_causal_prefix stdout ----
+proptest: FileFailurePersistence::SourceParallel set, but failed to find lib.rs or main.rs
+proptest: FileFailurePersistence::SourceParallel set, but failed to find lib.rs or main.rs
+proptest: Saving this and future failures in /workspace/crates/backtest/tests/causal.proptest-regressions
+proptest: If this test was run on a CI system, you may wish to add the following line to your copy of the file. (You may need to create it.)
+cc 710526889d7f7ad0f29910820d5791f2dc8750b247d5f13ac6f23a65ab0a582c
+
+thread 'p7_causal_prefix' (14104) panicked at crates/backtest/tests/causal.rs:13:1:
+Test failed: assertion failed: `(left == right)` 
+  left: `1704111120000000`,
+ right: `1704110460000000` at crates/backtest/tests/causal.rs:35.
+minimal failing input: raw = [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+], t = 0, junk = [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+]
+	successes: 0
+	local rejects: 0
+	global rejects: 0
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    p7_causal_prefix
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p parangsae-backtest --test causal`
+causal_exit=101

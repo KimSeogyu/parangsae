@@ -1403,6 +1403,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
+name = "parangsae-backtest"
+version = "0.0.0"
+dependencies = [
+ "arrow-array",
+ "arrow-schema",
+ "cucumber",
+ "parangsae-core",
+ "parangsae-sim",
+ "parquet",
+ "proptest",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "parangsae-collector"
 version = "0.0.0"
 dependencies = [
@@ -1448,6 +1463,14 @@ name = "parangsae-signals"
 version = "0.0.0"
 dependencies = [
  "parangsae-core",
+]
+
+[[package]]
+name = "parangsae-sim"
+version = "0.0.0"
+dependencies = [
+ "parangsae-core",
+ "proptest",
 ]
 
 [[package]]
