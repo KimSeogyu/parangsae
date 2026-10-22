@@ -1,0 +1,15 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - run: CARGO=x cargo-deny check
+      - run: CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo cargo-deny check
+  note:
+    runs-on: ubuntu-latest
+    steps:
+      - run: CARGO_HOME=/tmp echo kept

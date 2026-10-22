@@ -1,0 +1,12 @@
+name: ci
+on:
+  push:
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo clippy-job

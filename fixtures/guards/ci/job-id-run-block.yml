@@ -5,7 +5,9 @@ jobs:
   fmt:
     runs-on: ubuntu-latest
     steps:
-      - run: |
-  echo before
+      - run: |2
+          echo kept
   clippy:
-  echo still-the-script
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo clippy-job

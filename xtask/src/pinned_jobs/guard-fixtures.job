@@ -316,6 +316,20 @@
           set -euo pipefail
           copy=$(mktemp -d)
           git clone --local --quiet "$GITHUB_WORKSPACE" "$copy"
+          base=$(git -C "$copy" rev-parse HEAD)
+          set +e
+          clean=$(cd "$copy" && PARANGSAE_FLOOR_BASE="$base" cargo xtask guards 2>&1)
+          clean_status=$?
+          set -e
+          printf '%s\n' "$clean"
+          if [ "$clean_status" -ne 0 ]; then
+            echo "unmutated copy was rejected"
+            exit 1
+          fi
+          if printf '%s\n' "$clean" | grep -q 'ci job fmt bytes do not match'; then
+            echo "unmutated copy reported a byte mismatch"
+            exit 1
+          fi
           python3 - "$copy" <<'PY'
           import pathlib, sys
           root = pathlib.Path(sys.argv[1])
@@ -333,7 +347,7 @@
           path.write_text("".join(chars))
           PY
           set +e
-          output=$(cd "$copy" && cargo xtask guards 2>&1)
+          output=$(cd "$copy" && PARANGSAE_FLOOR_BASE="$base" cargo xtask guards 2>&1)
           status=$?
           set -e
           printf '%s\n' "$output"
