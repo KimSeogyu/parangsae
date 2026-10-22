@@ -8,6 +8,7 @@
 
 pub mod causal;
 pub mod fixed;
+pub mod instrument_spec;
 pub mod symbol;
 pub mod time;
 pub mod timestamps;

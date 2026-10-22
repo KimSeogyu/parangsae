@@ -1,0 +1,12 @@
+{
+  "serverTime": 1647604838598,
+  "symbol": "BTCUSDT",
+  "pricePrecision": 2,
+  "quantityPrecision": 3,
+  "filters": [
+    {"filterType": "PRICE_FILTER", "tickSize": "0.10"},
+    {"filterType": "LOT_SIZE", "stepSize": "0.001", "minQty": "0.001", "maxQty": "1000"},
+    {"filterType": "MARKET_LOT_SIZE", "maxQty": "120"},
+    {"filterType": "MIN_NOTIONAL", "notional": "5"}
+  ]
+}

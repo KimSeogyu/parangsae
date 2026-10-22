@@ -19,3 +19,7 @@ tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
 [[test]]
 name = "kline_integrity"
 harness = false
+
+[[test]]
+name = "instrument_rules"
+harness = false

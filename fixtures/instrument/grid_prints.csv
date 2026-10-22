@@ -1,0 +1,9 @@
+label,at,price,qty,class
+on_old_tick,2022-02-15T03:29:00Z,40000.01,0.001,active
+on_new_tick_at_switch,2022-02-15T03:30:00Z,40000.10,0.001,active
+old_tick_at_switch,2022-02-15T03:30:00Z,40000.01,0.001,violation
+grace_same_day,2022-02-15T04:00:00Z,40000.01,0.001,grace
+grace_next_day,2022-02-16T12:00:00Z,40000.03,0.002,grace
+after_grace,2022-02-17T03:30:00Z,40000.01,0.001,violation
+off_both,2022-02-15T04:00:00Z,40000.003,0.001,violation
+off_step,2021-06-01T00:00:00Z,37244.36,0.0015,violation
