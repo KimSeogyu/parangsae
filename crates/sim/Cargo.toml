@@ -7,7 +7,7 @@ rust-version.workspace = true
 description = "Paper driver clock. No orders."
 
 [dependencies]
-parangsae-core = { path = "../core", features = ["driver-clock"] }
+parangsae-core = { path = "../core", version = "0.0.0", features = ["driver-clock"] }
 
 [lints]
 workspace = true

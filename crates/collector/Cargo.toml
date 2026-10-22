@@ -14,7 +14,7 @@ arrow-array = { version = "60", default-features = false }
 arrow-schema = { version = "60", default-features = false }
 clap = { version = "4.6.7", features = ["derive"] }
 hex = "0.4.3"
-parangsae-core = { path = "../core" }
+parangsae-core = { path = "../core", version = "0.0.0" }
 parquet = { version = "60.0.0", default-features = false, features = ["arrow", "snap"] }
 quick-xml = "0.42.0"
 regex = "1.13.1"

@@ -1,0 +1,12 @@
+name: ci
+on:
+  workflow_run:
+    workflows: ["ci"]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt

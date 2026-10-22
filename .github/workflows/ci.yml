@@ -23,6 +23,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
         with:
           components: rustfmt
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - name: cargo fmt --check
         run: cargo fmt --all -- --check
 
@@ -34,6 +42,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
         with:
           components: clippy
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: clippy -D warnings
         run: cargo clippy --workspace --all-targets -- -D warnings
@@ -46,6 +62,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
         with:
           components: clippy, rustfmt
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - name: format the fixtures
         run: |
           cargo fmt --manifest-path fixtures/lint/violation/Cargo.toml -- --check
@@ -103,6 +127,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: cargo xtask depgraph
         run: cargo xtask depgraph
@@ -115,6 +147,14 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: cargo test (unit, proptest, cucumber, execution lock)
         run: cargo test --workspace
@@ -131,6 +171,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: kline integrity features
         run: cargo test -p parangsae-core --test kline_integrity
@@ -149,12 +197,23 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: cargo xtask guards
         env:
           PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
-        run: cargo xtask guards
+        run: |
+          set -o pipefail
+          cargo xtask guards | tee "${{ runner.temp }}/guards.txt"
+          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards.txt"
       - name: unowned feature fails
         run: |
           set +e
@@ -209,9 +268,10 @@ jobs:
           fi
           printf '%s\n' "$output" | grep -q 'unreadable'
       - name: all-zero before compares with merge-base and does not skip
-        env:
-          PARANGSAE_FLOOR_BASE: "0000000000000000000000000000000000000000"
-        run: cargo xtask guards
+        run: |
+          set -o pipefail
+          PARANGSAE_FLOOR_BASE=0000000000000000000000000000000000000000 cargo xtask guards | tee "${{ runner.temp }}/guards-zero.txt"
+          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards-zero.txt"
       - name: direct push without a floors file fails closed
         run: |
           set +e
@@ -394,6 +454,42 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'gate step sets if:'
+      - name: required job step if fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/needed-step-if.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "required job step if was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job fmt sets step if:'
+      - name: required job if fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/job-if.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "required job if was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job fmt sets if:'
+      - name: renamed ci job fails the ratchet
+        run: |
+          set +e
+          output=$(cargo xtask guards ratchet --current fixtures/guards/floors-renamed-job.toml --base regressions/floors.toml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "renamed ci job was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job fmt deleted'
       - name: jobs comment still sees a missing need
         run: |
           set +e
@@ -425,6 +521,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
@@ -466,6 +570,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       # The marketplace action at v1.1 has a broken version check (`if [$?`).
       # Install the pinned verifier directly so a failed proof fails this job.
       - name: Install Kani 0.68.0
@@ -532,6 +644,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - name: Install cargo-deny 0.20.2
         run: cargo install --locked cargo-deny --version 0.20.2
       - name: cargo deny check

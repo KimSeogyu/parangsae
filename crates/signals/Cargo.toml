@@ -10,8 +10,8 @@ description = "Signal entry points. Causal views only."
 workspace = true
 
 [dependencies]
-parangsae-core = { path = "../core" }
+parangsae-core = { path = "../core", version = "0.0.0" }
 
 [dev-dependencies]
-parangsae-core = { path = "../core" }
-parangsae-sim = { path = "../sim" }
+parangsae-core = { path = "../core", version = "0.0.0" }
+parangsae-sim = { path = "../sim", version = "0.0.0" }

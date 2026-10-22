@@ -19,12 +19,24 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: download and ingest one day
-        run: >
-          cargo run -p parangsae-collector --release --
-          vision
-          --dataset um-kline
-          --from ${{ inputs.day }}
-          --to ${{ inputs.day }}
-          --data-dir /tmp/vision-smoke
+        env:
+          VISION_DAY: ${{ inputs.day }}
+        run: |
+          case "$VISION_DAY" in
+            [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) ;;
+            *)
+              echo "day must be YYYY-MM-DD"
+              exit 1
+              ;;
+          esac
+          cargo run -p parangsae-collector --release -- vision --dataset um-kline --from "$VISION_DAY" --to "$VISION_DAY" --data-dir /tmp/vision-smoke
