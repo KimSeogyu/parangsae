@@ -1,0 +1,90 @@
+  deny:
+    name: deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+      - name: cargo and rustc are the 1.98.0 toolchain
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          rustc_bin="$(rustup which rustc)"
+          case "$cargo_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/cargo) ;;
+            *) echo "cargo is ${cargo_bin}"; exit 1 ;;
+          esac
+          case "$rustc_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/rustc) ;;
+            *) echo "rustc is ${rustc_bin}"; exit 1 ;;
+          esac
+      - name: Install cargo-deny 0.20.2
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          case "$cargo_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/cargo) ;;
+            *) echo "cargo is ${cargo_bin}"; exit 1 ;;
+          esac
+          env -i \
+            HOME="$HOME" \
+            PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${CARGO_HOME:-$HOME/.cargo}/bin" \
+            RUSTUP_HOME="$RUSTUP_HOME" \
+            CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" \
+            "$cargo_bin" install --locked cargo-deny --version 0.20.2
+      - name: cargo deny check
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          rustc_bin="$(rustup which rustc)"
+          case "$cargo_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/cargo) ;;
+            *) echo "cargo is ${cargo_bin}"; exit 1 ;;
+          esac
+          case "$rustc_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/rustc) ;;
+            *) echo "rustc is ${rustc_bin}"; exit 1 ;;
+          esac
+          deny_got="$(sha256sum deny.toml | awk '{print $1}')"
+          lock_got="$(sha256sum Cargo.lock | awk '{print $1}')"
+          if [ "$deny_got" != "9a54da72f5bf1f6a00695a4348f76941bdfae24e84b86d445ccfced828e06c86" ]; then
+            echo "deny.toml sha256 does not match"
+            exit 1
+          fi
+          if [ "$lock_got" != "6b617ee34a33bac5754ced2bb940ea529d0ca34f409f71fb352351db72b31d04" ]; then
+            echo "Cargo.lock sha256 does not match"
+            exit 1
+          fi
+          env -i \
+            HOME="$HOME" \
+            PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${CARGO_HOME:-$HOME/.cargo}/bin" \
+            RUSTUP_HOME="$RUSTUP_HOME" \
+            CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" \
+            "$cargo_bin" deny check
+      - name: reqwest outside the collector wrapper fails
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          case "$cargo_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/cargo) ;;
+            *) echo "cargo is ${cargo_bin}"; exit 1 ;;
+          esac
+          set +e
+          output=$(env -i \
+            HOME="$HOME" \
+            PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${CARGO_HOME:-$HOME/.cargo}/bin" \
+            RUSTUP_HOME="$RUSTUP_HOME" \
+            CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" \
+            "$cargo_bin" deny --manifest-path fixtures/deny/banned-reqwest/Cargo.toml --config deny.toml check bans 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "banned reqwest was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'reqwest'
+
