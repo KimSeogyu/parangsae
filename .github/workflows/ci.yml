@@ -619,10 +619,12 @@ jobs:
             echo "unmutated copy was rejected"
             exit 1
           fi
-          if printf '%s\n' "$clean" | grep -q 'ci job fmt bytes do not match'; then
-            echo "unmutated copy reported a byte mismatch"
-            exit 1
-          fi
+          case "$clean" in
+            *'ci job fmt bytes do not match'*)
+              echo "unmutated copy reported a byte mismatch"
+              exit 1
+              ;;
+          esac
           python3 - "$copy" <<'PY'
           import pathlib, sys
           root = pathlib.Path(sys.argv[1])
@@ -648,7 +650,13 @@ jobs:
             echo "mutated ci job was accepted"
             exit 1
           fi
-          printf '%s\n' "$output" | grep -q 'ci job fmt bytes do not match'
+          case "$output" in
+            *'ci job fmt bytes do not match'*) ;;
+            *)
+              echo "mutated copy missed the byte mismatch"
+              exit 1
+              ;;
+          esac
 
   tla:
     name: tla
@@ -950,7 +958,14 @@ jobs:
             echo ".cargo/config must be absent"
             exit 1
           fi
-          /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
+          env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
+            /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
           tree_status=$?
           if [ "$tree_status" -ne 0 ]; then
             exit "$tree_status"
@@ -1003,7 +1018,14 @@ jobs:
             echo ".cargo/config must be absent"
             exit 1
           fi
-          /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
+          env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
+            /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
           tree_status=$?
           if [ "$tree_status" -ne 0 ]; then
             exit "$tree_status"

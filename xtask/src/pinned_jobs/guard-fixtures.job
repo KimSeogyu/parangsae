@@ -326,10 +326,12 @@
             echo "unmutated copy was rejected"
             exit 1
           fi
-          if printf '%s\n' "$clean" | grep -q 'ci job fmt bytes do not match'; then
-            echo "unmutated copy reported a byte mismatch"
-            exit 1
-          fi
+          case "$clean" in
+            *'ci job fmt bytes do not match'*)
+              echo "unmutated copy reported a byte mismatch"
+              exit 1
+              ;;
+          esac
           python3 - "$copy" <<'PY'
           import pathlib, sys
           root = pathlib.Path(sys.argv[1])
@@ -355,5 +357,11 @@
             echo "mutated ci job was accepted"
             exit 1
           fi
-          printf '%s\n' "$output" | grep -q 'ci job fmt bytes do not match'
+          case "$output" in
+            *'ci job fmt bytes do not match'*) ;;
+            *)
+              echo "mutated copy missed the byte mismatch"
+              exit 1
+              ;;
+          esac
 
