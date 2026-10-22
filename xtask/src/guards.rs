@@ -118,12 +118,24 @@ fn check_workspace(root: &Path) -> Result<(), String> {
     emit_guard_line(&guard_summary(&reports))?;
     let mut errors = Vec::new();
     for report in &reports {
-        if report.ran && !report.passed {
+        if report.passed {
+            continue;
+        }
+        if !report.ran {
             if report.detail.is_empty() {
-                errors.push(format!("guard {} failed", report.name));
+                errors.push(format!("guard {} did not run", report.name));
             } else {
-                errors.push(report.detail.clone());
+                errors.push(format!(
+                    "guard {} did not run: {}",
+                    report.name, report.detail
+                ));
             }
+            continue;
+        }
+        if report.detail.is_empty() {
+            errors.push(format!("guard {} failed", report.name));
+        } else {
+            errors.push(report.detail.clone());
         }
     }
     errors.extend(guard_run_gaps(&reports));
@@ -168,6 +180,9 @@ struct GuardReport {
 
 impl GuardReport {
     fn line(&self) -> String {
+        if !self.ran {
+            return format!("guard {} did not run", self.name);
+        }
         let status = if self.passed { "passed" } else { "failed" };
         format!("guard {} ran {status}", self.name)
     }
@@ -256,8 +271,8 @@ fn guard_reports(root: &Path, floor_base: Option<&str>, on_main: bool) -> Vec<Gu
             ));
         }
         Err(err) => {
-            reports.push(guard_failed("b2-counts", err.clone()));
-            reports.push(guard_failed("cucumber-counts", err.clone()));
+            reports.push(guard_not_run("b2-counts", err.clone()));
+            reports.push(guard_not_run("cucumber-counts", err.clone()));
         }
     }
     reports.push(guard_from_result("ci-gate", ci_gate_result(root)));
@@ -312,6 +327,15 @@ fn guard_failed(name: &'static str, detail: String) -> GuardReport {
     }
 }
 
+fn guard_not_run(name: &'static str, detail: String) -> GuardReport {
+    GuardReport {
+        name,
+        ran: false,
+        passed: false,
+        detail,
+    }
+}
+
 fn ci_gate_result(root: &Path) -> Result<Vec<String>, String> {
     let text = read(&root.join(".github/workflows/ci.yml"))?;
     let mut gaps = ci_gate_gaps(&text)?;
@@ -357,11 +381,27 @@ const GATE_CHECK_STEP: &str = concat!(
     "        run: python3 .github/workflows/gate_results.py\n",
 );
 
-const GUARDS_STEP_ENV: &str = concat!(
+const GUARDS_STEP: &str = concat!(
+    "      - name: cargo xtask guards\n",
     "        env:\n",
     "          PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}\n",
     "          PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}\n",
+    "        run: |\n",
+    "          set -o pipefail\n",
+    "          cargo xtask guards | tee \"${{ runner.temp }}/guards.txt\"\n",
+    "          grep -qx 'guards ran 12 passed 12' \"${{ runner.temp }}/guards.txt\"\n",
 );
+
+const ALL_ZERO_STEP: &str = concat!(
+    "      - name: all-zero before compares with merge-base and does not skip\n",
+    "        run: |\n",
+    "          set -o pipefail\n",
+    "          PARANGSAE_FLOOR_BASE=0000000000000000000000000000000000000000 cargo xtask guards | tee \"${{ runner.temp }}/guards-zero.txt\"\n",
+    "          grep -qx 'guards ran 12 passed 12' \"${{ runner.temp }}/guards-zero.txt\"\n",
+);
+
+const KANI_RUSTUP_STABLE: &str = "          RUSTUP_TOOLCHAIN: 1.98.0";
+const KANI_RUSTUP_NIGHTLY: &str = "          RUSTUP_TOOLCHAIN: nightly-2026-08-21";
 
 const RUSTC_198_STEP: &str = concat!(
     "      - name: rustc is 1.98.0\n",
@@ -381,6 +421,7 @@ const FORBIDDEN_ENV: &[&str] = &[
     "GITHUB_ACTIONS",
     "CI",
     "PARANGSAE_FLOOR_BASE",
+    "RUSTUP_TOOLCHAIN",
 ];
 
 const GATE_FIXTURE_STEP: &str = include_str!("gate_fixture_step.txt");
@@ -1465,10 +1506,52 @@ fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
     if !guards_fetch_depth_is_zero(&ci) {
         violations.push("guards checkout fetch-depth is not 0".to_owned());
     }
-    if !ci.contains(GUARDS_STEP_ENV) {
-        violations.push("guards step env does not match".to_owned());
-    }
+    violations.extend(pinned_guards_steps(&ci));
     Ok(violations)
+}
+
+fn pinned_guards_steps(text: &str) -> Vec<String> {
+    let Some(block) = job_block(text, "guards") else {
+        return vec!["ci.yml has no guards job".to_owned()];
+    };
+    let mut gaps = Vec::new();
+    if !block.contains(GUARDS_STEP) {
+        gaps.push("guards step does not match".to_owned());
+    }
+    if !block.contains(ALL_ZERO_STEP) {
+        gaps.push("all-zero before step does not match".to_owned());
+    }
+    gaps
+}
+
+fn strip_env_allowlist(text: &str) -> String {
+    let text = map_job_block(text, "guards", |block| block.replace(GUARDS_STEP, ""));
+    map_job_block(&text, "kani", |block| {
+        let mut out = String::new();
+        for line in block.split_inclusive('\n') {
+            let bare = line.trim_end_matches(['\n', '\r']);
+            if bare == KANI_RUSTUP_STABLE || bare == KANI_RUSTUP_NIGHTLY {
+                continue;
+            }
+            out.push_str(line);
+        }
+        out
+    })
+}
+
+fn map_job_block(text: &str, id: &str, edit: impl FnOnce(&str) -> String) -> String {
+    let Some(block) = job_block(text, id) else {
+        return text.to_owned();
+    };
+    let Some(idx) = text.find(block) else {
+        return text.to_owned();
+    };
+    let cleaned = edit(block);
+    let mut out = String::with_capacity(text.len() - block.len() + cleaned.len());
+    out.push_str(&text[..idx]);
+    out.push_str(&cleaned);
+    out.push_str(&text[idx + block.len()..]);
+    out
 }
 
 fn workflow_dir_files(root: &Path) -> Result<Vec<PathBuf>, String> {
@@ -1500,7 +1583,7 @@ fn workflow_yaml(path: &Path) -> bool {
 }
 
 fn workflow_file_gaps(name: &str, text: &str) -> Vec<String> {
-    let mut gaps = Vec::new();
+    let mut gaps = strict_yaml_gaps(name, text);
     if !permissions_are_contents_read(text) {
         gaps.push(format!("{name} permissions are not contents: read"));
     }
@@ -1696,15 +1779,7 @@ fn workflow_triggers(text: &str) -> Vec<String> {
 }
 
 fn forbidden_env_gaps(name: &str, text: &str) -> Vec<String> {
-    let stripped = match text.find(GUARDS_STEP_ENV) {
-        Some(idx) => {
-            let mut out = String::with_capacity(text.len());
-            out.push_str(&text[..idx]);
-            out.push_str(&text[idx + GUARDS_STEP_ENV.len()..]);
-            out
-        }
-        None => text.to_owned(),
-    };
+    let stripped = strip_env_allowlist(text);
     let lines: Vec<&str> = stripped.lines().collect();
     let mut gaps = Vec::new();
     let mut idx = 0usize;
@@ -1768,11 +1843,295 @@ fn rustc_pin_gaps(name: &str, text: &str) -> Vec<String> {
         let Some(block) = job_block(text, &job) else {
             continue;
         };
-        if block.contains("dtolnay/rust-toolchain@") && !block.contains(RUSTC_198_STEP) {
+        if job_invokes_cargo_or_rustc(block) && !block.contains(RUSTC_198_STEP) {
             gaps.push(format!("{name} job {job} does not assert rustc 1.98.0"));
         }
     }
     gaps
+}
+
+fn job_invokes_cargo_or_rustc(block: &str) -> bool {
+    block.lines().any(|line| {
+        let code = strip_yaml_comment(line);
+        yaml_token(code, "cargo") || yaml_token(code, "rustc")
+    })
+}
+
+fn yaml_token(line: &str, token: &str) -> bool {
+    let bytes = line.as_bytes();
+    let needle = token.as_bytes();
+    let mut start = 0usize;
+    while let Some(rel) = line[start..].find(token) {
+        let idx = start + rel;
+        let before_ok = idx == 0 || !bytes[idx - 1].is_ascii_alphanumeric();
+        let after = idx + needle.len();
+        let after_ok = after >= bytes.len() || !bytes[after].is_ascii_alphanumeric();
+        if before_ok && after_ok {
+            return true;
+        }
+        start = idx + needle.len();
+    }
+    false
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum YamlFrameKind {
+    On,
+    Permissions,
+    Env,
+    Steps,
+}
+
+#[derive(Clone, Copy)]
+struct YamlFrame {
+    kind: YamlFrameKind,
+    indent: usize,
+}
+
+fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    let mut block_parent: Option<usize> = None;
+    let mut stack: Vec<YamlFrame> = Vec::new();
+    for line in text.lines() {
+        let (indent, tab) = leading_indent(line);
+        if tab {
+            push_gap(&mut gaps, format!("{name} uses a tab in indentation"));
+        }
+        if let Some(parent) = block_parent {
+            if line.trim().is_empty() || indent > parent {
+                continue;
+            }
+            block_parent = None;
+        }
+        let code = strip_yaml_comment(line);
+        let trimmed = code.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed == "---" || trimmed == "..." || trimmed.starts_with("--- ") {
+            push_gap(&mut gaps, format!("{name} has multiple documents"));
+            continue;
+        }
+        let marks = structural_marks(trimmed);
+        if marks.merge {
+            push_gap(&mut gaps, format!("{name} uses a merge key"));
+        }
+        if marks.tag {
+            push_gap(&mut gaps, format!("{name} uses a tag"));
+        }
+        if marks.anchor {
+            push_gap(&mut gaps, format!("{name} uses an anchor"));
+        }
+        if marks.alias {
+            push_gap(&mut gaps, format!("{name} uses an alias"));
+        }
+        while stack.last().is_some_and(|frame| indent <= frame.indent) {
+            stack.pop();
+        }
+        let parent = stack.last().copied();
+        let seq = trimmed.starts_with("- ");
+        let body = trimmed.strip_prefix("- ").unwrap_or(trimmed).trim_start();
+        if body.starts_with('{') || body.starts_with('[') {
+            if let Some(role) = flow_node_role(seq, parent, indent) {
+                push_gap(
+                    &mut gaps,
+                    format!(
+                        "{name} uses a flow {} as {role}",
+                        flow_kind(body.starts_with('{'))
+                    ),
+                );
+            }
+            continue;
+        }
+        let Some((key, value)) = split_yaml_key(body) else {
+            if seq && parent.is_some_and(|frame| direct_child(frame, indent, YamlFrameKind::On)) {
+                push_gap(&mut gaps, format!("{name} uses a sequence under on"));
+            }
+            continue;
+        };
+        if key_is_quoted(key) {
+            push_gap(&mut gaps, format!("{name} has a quoted key"));
+        }
+        if key != key.trim_end() {
+            push_gap(&mut gaps, format!("{name} has whitespace before a colon"));
+        }
+        let value = value.trim();
+        if value.starts_with('{') || value.starts_with('[') {
+            if let Some(role) = flow_value_role(key, parent, indent) {
+                push_gap(
+                    &mut gaps,
+                    format!(
+                        "{name} uses a flow {} as {role}",
+                        flow_kind(value.starts_with('{'))
+                    ),
+                );
+            }
+        }
+        if is_block_scalar(value) {
+            block_parent = Some(indent);
+            continue;
+        }
+        if value.is_empty() {
+            if let Some(kind) = frame_kind(key) {
+                stack.push(YamlFrame { kind, indent });
+            }
+        }
+    }
+    gaps
+}
+
+fn push_gap(gaps: &mut Vec<String>, gap: String) {
+    if !gaps.contains(&gap) {
+        gaps.push(gap);
+    }
+}
+
+fn leading_indent(line: &str) -> (usize, bool) {
+    let mut indent = 0usize;
+    let mut tab = false;
+    for ch in line.chars() {
+        if ch == ' ' {
+            indent += 1;
+        } else if ch == '\t' {
+            tab = true;
+            indent += 1;
+        } else {
+            break;
+        }
+    }
+    (indent, tab)
+}
+
+struct StructuralMarks {
+    anchor: bool,
+    alias: bool,
+    merge: bool,
+    tag: bool,
+}
+
+fn structural_marks(line: &str) -> StructuralMarks {
+    let bytes = line.as_bytes();
+    let mut quote = None;
+    let mut marks = StructuralMarks {
+        anchor: false,
+        alias: false,
+        merge: false,
+        tag: false,
+    };
+    let mut idx = 0usize;
+    while idx < bytes.len() {
+        let ch = bytes[idx];
+        if let Some(open) = quote {
+            if ch == open {
+                quote = None;
+            }
+            idx += 1;
+            continue;
+        }
+        match ch {
+            b'"' | b'\'' => {
+                quote = Some(ch);
+                idx += 1;
+            }
+            b'&' => {
+                let prev_amp = idx > 0 && bytes[idx - 1] == b'&';
+                let next = bytes.get(idx + 1).copied();
+                if !prev_amp
+                    && next != Some(b'&')
+                    && next.is_some_and(|next| next.is_ascii_alphanumeric() || next == b'_')
+                {
+                    marks.anchor = true;
+                }
+                idx += 1;
+            }
+            b'*' => {
+                let next = bytes.get(idx + 1).copied();
+                if next.is_some_and(|next| next.is_ascii_alphanumeric() || next == b'_') {
+                    marks.alias = true;
+                }
+                idx += 1;
+            }
+            b'<' if bytes.get(idx + 1) == Some(&b'<') => {
+                marks.merge = true;
+                idx += 2;
+            }
+            b'!' if bytes.get(idx + 1) == Some(&b'!') => {
+                marks.tag = true;
+                idx += 2;
+            }
+            _ => idx += 1,
+        }
+    }
+    marks
+}
+
+fn split_yaml_key(body: &str) -> Option<(&str, &str)> {
+    let mut quote = None;
+    for (idx, ch) in body.char_indices() {
+        if let Some(open) = quote {
+            if ch == open {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '"' | '\'' => quote = Some(ch),
+            ':' => return Some((&body[..idx], &body[idx + 1..])),
+            _ => {}
+        }
+    }
+    None
+}
+
+fn key_is_quoted(key: &str) -> bool {
+    key.contains(['"', '\''])
+}
+
+fn is_block_scalar(value: &str) -> bool {
+    matches!(value, "|" | "|-" | "|+" | ">" | ">-" | ">+")
+}
+
+fn frame_kind(key: &str) -> Option<YamlFrameKind> {
+    match key {
+        "on" => Some(YamlFrameKind::On),
+        "permissions" => Some(YamlFrameKind::Permissions),
+        "env" => Some(YamlFrameKind::Env),
+        "steps" => Some(YamlFrameKind::Steps),
+        _ => None,
+    }
+}
+
+fn direct_child(frame: YamlFrame, indent: usize, kind: YamlFrameKind) -> bool {
+    frame.kind == kind && indent == frame.indent + 2
+}
+
+fn flow_kind(mapping: bool) -> &'static str {
+    if mapping {
+        "mapping"
+    } else {
+        "sequence"
+    }
+}
+
+fn flow_node_role(seq: bool, parent: Option<YamlFrame>, indent: usize) -> Option<&'static str> {
+    let frame = parent?;
+    match frame.kind {
+        YamlFrameKind::Steps => seq.then_some("a step"),
+        YamlFrameKind::On => direct_child(frame, indent, YamlFrameKind::On).then_some("on"),
+        YamlFrameKind::Permissions => (indent > frame.indent).then_some("permissions"),
+        YamlFrameKind::Env => (indent > frame.indent).then_some("env"),
+    }
+}
+
+fn flow_value_role(key: &str, parent: Option<YamlFrame>, indent: usize) -> Option<&'static str> {
+    match key {
+        "on" => Some("on"),
+        "permissions" => Some("permissions"),
+        "env" => Some("env"),
+        _ => parent.and_then(|frame| {
+            direct_child(frame, indent, YamlFrameKind::On).then_some("a trigger")
+        }),
+    }
 }
 
 fn run_injection_gaps(name: &str, text: &str) -> Vec<String> {
@@ -2610,6 +2969,31 @@ kani.min_harnesses=1
         Ok(())
     }
 
+    fn assert_guards_ran_except_unloaded_counts(reports: &[GuardReport]) -> Result<(), String> {
+        for name in NON_RATCHET_GUARDS {
+            let report = report_named(reports, name)?;
+            if matches!(*name, "b2-counts" | "cucumber-counts") {
+                if report.ran {
+                    return Err(format!("{name} ran without a loaded floors file"));
+                }
+                if !report.detail.contains("floors.toml") {
+                    return Err(format!("{name} detail: {}", report.detail));
+                }
+                continue;
+            }
+            if !report.ran {
+                return Err(format!("guard {name} did not run"));
+            }
+        }
+        if !reports
+            .iter()
+            .any(|report| report.name == "ratchet" && report.ran)
+        {
+            return Err("guard ratchet did not run".to_owned());
+        }
+        Ok(())
+    }
+
     fn assert_non_ratchet_ran(reports: &[GuardReport]) -> Result<(), String> {
         for name in NON_RATCHET_GUARDS {
             match reports.iter().find(|report| report.name == *name) {
@@ -2673,7 +3057,7 @@ kani.min_harnesses=1
         let clone = root.path.join("clone");
         let zeros = "0000000000000000000000000000000000000000";
         let reports = guard_reports(&clone, Some(zeros), false);
-        assert_non_ratchet_ran(&reports)?;
+        assert_guards_ran_except_unloaded_counts(&reports)?;
         let ratchet = report_named(&reports, "ratchet")?;
         if ratchet.passed {
             return Err("non-bootstrap missing floors passed".to_owned());
@@ -2852,7 +3236,7 @@ kani.min_harnesses=1
         git_fixture(&root.path, &["add", "file"])?;
         git_fixture(&root.path, &["commit", "-m", "feature"])?;
         let reports = guard_reports(&root.path, Some(BOOTSTRAP_BASE), false);
-        assert_non_ratchet_ran(&reports)?;
+        assert_guards_ran_except_unloaded_counts(&reports)?;
         let ratchet = report_named(&reports, "ratchet")?;
         if ratchet.passed
             || !ratchet.detail.contains("is not in this checkout")
@@ -2949,8 +3333,14 @@ kani.min_harnesses=1
             return Err(format!("day: {day_gaps:?}"));
         }
         let ci = read(&root.join(".github/workflows/ci.yml"))?;
-        if !ci.contains(GUARDS_STEP_ENV) {
-            return Err("guards step env pin".to_owned());
+        if !pinned_guards_steps(&ci).is_empty() {
+            return Err(format!("guards step pin: {:?}", pinned_guards_steps(&ci)));
+        }
+        if !strict_yaml_gaps("ci.yml", &ci).is_empty() {
+            return Err(format!(
+                "ci.yml subset: {:?}",
+                strict_yaml_gaps("ci.yml", &ci)
+            ));
         }
         if !ci.contains(RUSTC_198_STEP) {
             return Err("rustc step pin".to_owned());
@@ -2960,6 +3350,283 @@ kani.min_harnesses=1
         if !smoke_gaps.is_empty() {
             return Err(format!("vision-smoke: {smoke_gaps:?}"));
         }
+        Ok(())
+    }
+
+    #[test]
+    fn b2_and_cucumber_do_not_run_when_floors_fail_to_load() -> Result<(), String> {
+        let root = TempGit::new("no-floors")?;
+        let reports = guard_reports(&root.path, None, false);
+        assert_guards_ran_except_unloaded_counts(&reports)?;
+        for name in ["b2-counts", "cucumber-counts"] {
+            let report = report_named(&reports, name)?;
+            if report.line() != format!("guard {name} did not run") {
+                return Err(report.line());
+            }
+            if report.passed {
+                return Err(format!("{name} passed without floors.toml"));
+            }
+        }
+        let floor = report_named(&reports, "floor-keys")?;
+        if !floor.ran || floor.passed {
+            return Err(format!(
+                "floor-keys ran={} passed={}",
+                floor.ran, floor.passed
+            ));
+        }
+        let gaps = guard_run_gaps(&reports);
+        if !gaps.iter().any(|gap| gap.contains("below")) {
+            return Err(format!("run count: {gaps:?}"));
+        }
+        Ok(())
+    }
+
+    fn expect_gaps(label: &str, gaps: Vec<String>, expected: &[&str]) -> Result<(), String> {
+        let expected: Vec<String> = expected.iter().map(|gap| (*gap).to_owned()).collect();
+        if gaps == expected {
+            Ok(())
+        } else {
+            Err(format!("{label}: {gaps:?}"))
+        }
+    }
+
+    #[test]
+    fn guards_steps_are_pinned_inside_the_guards_job() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("ci.yml", pinned_guards_steps(&ci), &[])?;
+        let probes = [
+            (
+                "fixtures/guards/ci/guards-step-echo.yml",
+                &["guards step does not match"][..],
+            ),
+            (
+                "fixtures/guards/ci/guards-step-or-true.yml",
+                &["guards step does not match"][..],
+            ),
+            (
+                "fixtures/guards/ci/all-zero-step-echo.yml",
+                &["all-zero before step does not match"][..],
+            ),
+            (
+                "fixtures/guards/ci/all-zero-step-or-true.yml",
+                &["all-zero before step does not match"][..],
+            ),
+        ];
+        for (path, expected) in probes {
+            let text = read(&root.join(path))?;
+            expect_gaps(path, pinned_guards_steps(&text), expected)?;
+        }
+        let decoy = format!(
+            "name: ci\non:\n  push:\njobs:\n  fmt:\n    steps:\n{GUARDS_STEP}  guards:\n    runs-on: ubuntu-latest\n    steps:\n      - name: cargo xtask guards\n        env:\n          PARANGSAE_FLOOR_BASE: kept\n          PARANGSAE_ON_MAIN: kept\n        run: echo 'guards ran 12 passed 12'\n{ALL_ZERO_STEP}"
+        );
+        expect_gaps(
+            "decoy",
+            pinned_guards_steps(&decoy),
+            &["guards step does not match"],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn workflow_yaml_outside_the_subset_fails_closed() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        let smoke = read(&root.join(".github/workflows/vision-smoke.yml"))?;
+        expect_gaps("ci.yml", strict_yaml_gaps("ci.yml", &ci), &[])?;
+        expect_gaps(
+            "vision-smoke.yml",
+            strict_yaml_gaps("vision-smoke.yml", &smoke),
+            &[],
+        )?;
+        expect_gaps("ci env", forbidden_env_gaps("ci.yml", &ci), &[])?;
+        expect_gaps("ci rustc", rustc_pin_gaps("ci.yml", &ci), &[])?;
+        expect_gaps(
+            "smoke rustc",
+            rustc_pin_gaps("vision-smoke.yml", &smoke),
+            &[],
+        )?;
+        let probes = [
+            (
+                "fixtures/guards/ci/b1-quoted-if-step.yml",
+                "b1-quoted-if-step.yml has a quoted key",
+            ),
+            (
+                "fixtures/guards/ci/b2-space-before-colon.yml",
+                "b2-space-before-colon.yml has whitespace before a colon",
+            ),
+            (
+                "fixtures/guards/ci/b3-quoted-if-job.yml",
+                "b3-quoted-if-job.yml has a quoted key",
+            ),
+            (
+                "fixtures/guards/ci/b4-flow-step-if.yml",
+                "b4-flow-step-if.yml uses a flow mapping as a step",
+            ),
+            (
+                "fixtures/guards/ci/b5-flow-on.yml",
+                "b5-flow-on.yml uses a flow mapping as on",
+            ),
+            (
+                "fixtures/guards/ci/b7-flow-permissions.yml",
+                "b7-flow-permissions.yml uses a flow mapping as permissions",
+            ),
+            (
+                "fixtures/guards/ci/b8-quoted-uses.yml",
+                "b8-quoted-uses.yml has a quoted key",
+            ),
+            (
+                "fixtures/guards/ci/b9-quoted-env-key.yml",
+                "b9-quoted-env-key.yml has a quoted key",
+            ),
+            (
+                "fixtures/guards/ci/b17-quoted-continue-on-error.yml",
+                "b17-quoted-continue-on-error.yml has a quoted key",
+            ),
+            ("fixtures/guards/ci/yaml-tag.yml", "yaml-tag.yml uses a tag"),
+            (
+                "fixtures/guards/ci/multi-doc.yml",
+                "multi-doc.yml has multiple documents",
+            ),
+            (
+                "fixtures/guards/ci/tab-indent.yml",
+                "tab-indent.yml uses a tab in indentation",
+            ),
+            (
+                "fixtures/guards/ci/merge-key.yml",
+                "merge-key.yml uses a merge key",
+            ),
+        ];
+        for (path, expected) in probes {
+            let Some(name) = path.rsplit('/').next() else {
+                return Err(format!("{path} has no file name"));
+            };
+            let text = read(&root.join(path))?;
+            expect_gaps(path, strict_yaml_gaps(name, &text), &[expected])?;
+        }
+        let anchor = read(&root.join("fixtures/guards/ci/anchor-alias.yml"))?;
+        expect_gaps(
+            "anchor-alias.yml",
+            strict_yaml_gaps("anchor-alias.yml", &anchor),
+            &[
+                "anchor-alias.yml uses an anchor",
+                "anchor-alias.yml uses an alias",
+            ],
+        )?;
+        let block = read(&root.join("fixtures/guards/ci/b6-block-pull-request-target.yml"))?;
+        expect_gaps(
+            "b6 strict",
+            strict_yaml_gaps("b6-block-pull-request-target.yml", &block),
+            &[],
+        )?;
+        expect_gaps(
+            "b6 trigger",
+            workflow_file_gaps("b6-block-pull-request-target.yml", &block),
+            &["b6-block-pull-request-target.yml trigger pull_request_target is not allowed"],
+        )?;
+        let cargo = read(&root.join("fixtures/guards/ci/cargo-without-rustc.yml"))?;
+        expect_gaps(
+            "cargo without rustc",
+            rustc_pin_gaps("cargo-without-rustc.yml", &cargo),
+            &["cargo-without-rustc.yml job fmt does not assert rustc 1.98.0"],
+        )?;
+        let toolchain = "\
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0
+      - run: echo docs
+";
+        expect_gaps(
+            "toolchain without cargo",
+            rustc_pin_gaps("toolchain.yml", toolchain),
+            &[],
+        )?;
+        let rustup = read(&root.join("fixtures/guards/ci/rustup-toolchain.yml"))?;
+        expect_gaps(
+            "rustup outside kani",
+            forbidden_env_gaps("rustup-toolchain.yml", &rustup),
+            &["rustup-toolchain.yml env sets RUSTUP_TOOLCHAIN"],
+        )?;
+        let unpinned = read(&root.join("fixtures/guards/ci/kani-rustup-unpinned.yml"))?;
+        expect_gaps(
+            "kani rustup",
+            forbidden_env_gaps("kani-rustup-unpinned.yml", &unpinned),
+            &["kani-rustup-unpinned.yml env sets RUSTUP_TOOLCHAIN"],
+        )?;
+        let allowed = "\
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  kani:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RUSTUP_TOOLCHAIN: 1.98.0
+        run: cargo install kani-verifier
+      - env:
+          RUSTUP_TOOLCHAIN: nightly-2026-08-21
+        run: cargo kani
+";
+        expect_gaps("kani pins", forbidden_env_gaps("kani.yml", allowed), &[])?;
+        let sequence = "\
+name: ci
+on:
+  - pull_request_target
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt
+";
+        expect_gaps(
+            "on sequence",
+            strict_yaml_gaps("on-sequence.yml", sequence),
+            &["on-sequence.yml uses a sequence under on"],
+        )?;
+        expect_gaps(
+            "on flow sequence",
+            strict_yaml_gaps(
+                "on-flow.yml",
+                "name: ci\non: [push, pull_request_target]\npermissions:\n  contents: read\n",
+            ),
+            &["on-flow.yml uses a flow sequence as on"],
+        )?;
+        expect_gaps(
+            "trigger flow",
+            strict_yaml_gaps(
+                "trigger-flow.yml",
+                "name: ci\non:\n  push:\n  pull_request_target: {types: [opened]}\npermissions:\n  contents: read\n",
+            ),
+            &["trigger-flow.yml uses a flow mapping as a trigger"],
+        )?;
+        expect_gaps(
+            "env flow",
+            strict_yaml_gaps(
+                "env-flow.yml",
+                "name: ci\non:\n  push:\npermissions:\n  contents: read\nenv:\n  {CI: \"false\"}\n",
+            ),
+            &["env-flow.yml uses a flow mapping as env"],
+        )?;
+        expect_gaps(
+            "step flow sequence",
+            strict_yaml_gaps(
+                "step-flow.yml",
+                "name: ci\non:\n  push:\npermissions:\n  contents: read\njobs:\n  fmt:\n    steps:\n      - [echo]\n",
+            ),
+            &["step-flow.yml uses a flow sequence as a step"],
+        )?;
         Ok(())
     }
 

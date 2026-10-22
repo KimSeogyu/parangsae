@@ -1,0 +1,20 @@
+name: ci
+on:
+  push:
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - name: cargo xtask guards
+        env:
+          PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+        run: |
+          set -o pipefail
+          cargo xtask guards | tee "${{ runner.temp }}/guards.txt"
+          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards.txt"
+      - name: all-zero before compares with merge-base and does not skip
+        run: |
+          set -o pipefail
+          (PARANGSAE_FLOOR_BASE=0000000000000000000000000000000000000000 cargo xtask guards || true) | tee "${{ runner.temp }}/guards-zero.txt"
+          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards-zero.txt"

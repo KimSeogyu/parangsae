@@ -1,0 +1,13 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: test
+        env:
+          RUSTUP_TOOLCHAIN: nightly-2026-08-21
+        run: cargo test
