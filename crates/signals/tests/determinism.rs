@@ -26,7 +26,7 @@ mod determinism {
         let fresh = Tsmom::<3>::new(BarInterval::H1, 0.05).unwrap();
         assert_eq!(drive(&fresh, &bars, decision).unwrap(), first);
         match first {
-            Some(out) => assert_eq!(out.decision.position_ticks(), 49_385_225),
+            Some(out) => assert_eq!(out.decision.target_ticks(), 49_385_225),
             None => panic!("04:00 emits"),
         }
 
@@ -75,7 +75,7 @@ mod determinism {
             first
         );
         assert_eq!(
-            first.expect("01:00 funding").decision.position_ticks(),
+            first.expect("01:00 funding").decision.target_ticks(),
             -81_649_658
         );
     }

@@ -68,11 +68,17 @@ impl<const M: u16> FundingZ<M> {
         self.max_age_us
     }
 
+    /// Both windows must share a decision time. A later funding window is
+    /// [`SignalError::DecisionMismatch`] and is not read. [`drive_funding_z`]
+    /// builds both windows at one decision.
     pub fn evaluate(
         &self,
         bars: &CausalWindow<'_, ResampledBar>,
         funding: &CausalWindow<'_, FundingRow>,
     ) -> Result<Option<SignalOutput>, SignalError> {
+        if bars.decision() != funding.decision() {
+            return Err(SignalError::DecisionMismatch);
+        }
         let timing = trigger(bars, self.interval)?;
         self.decide(&timing, funding)
     }

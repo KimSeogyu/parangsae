@@ -105,7 +105,7 @@ mod golden {
         let got = drive_funding_z(&signal, &bars, &funding, at(hour(25))).unwrap();
         let out = got.expect("constant window emits");
         assert_eq!(out.decision, Decision::Target(Target::FLAT));
-        assert_eq!(out.decision.position_ticks(), 0);
+        assert_eq!(out.decision.target_ticks(), 0);
     }
 
     #[test]
@@ -132,7 +132,7 @@ mod golden {
         expect_flat(at_bar(41), FlatReason::FundingSlotMissing);
         expect_target(at_bar(49), -26_726_124);
         let bridged = at_bar(33).unwrap().expect("emitted");
-        assert_ne!(bridged.decision.position_ticks(), 63_012_603);
+        assert_ne!(bridged.decision.target_ticks(), 63_012_603);
     }
 
     #[test]

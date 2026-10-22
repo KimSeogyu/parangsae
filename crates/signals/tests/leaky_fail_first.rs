@@ -5,7 +5,7 @@
 mod support;
 
 use parangsae_core::BarInterval;
-use parangsae_signals::{FundingZ, Tsmom, VolRegime, PROD_MAX_AGE_US};
+use parangsae_signals::{FundingZ, SignalError, Tsmom, VolRegime, PROD_MAX_AGE_US};
 use support::{
     check_bar_truncation, check_funding_truncation, drive_event_gate, funding_prod_witness,
     leaky_funding_horizon, leaky_next_bar_feature, leaky_next_bar_signal, tsmom_prod_witness,
@@ -62,17 +62,10 @@ mod leaky_fail_first {
     fn funding_horizon() {
         let signal = FundingZ::<90>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
         let (bars, funding, decision) = funding_prod_witness();
-        let direct = leaky_funding_horizon(&signal, &bars, &funding, decision);
-        assert!(direct.is_ok(), "{direct:?}");
-        let err = check_funding_truncation(
-            FUNDING_REGRESSION,
-            &bars,
-            &funding,
-            decision,
-            |bars, funding, d| leaky_funding_horizon(&signal, bars, funding, d),
-        )
-        .expect_err("funding horizon leak");
-        assert_real_mismatch(&err);
+        assert_eq!(
+            leaky_funding_horizon(&signal, &bars, &funding, decision),
+            Err(SignalError::DecisionMismatch)
+        );
     }
 
     #[test]

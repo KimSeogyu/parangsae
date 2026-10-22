@@ -8,12 +8,12 @@ use std::cmp::Ordering;
 use parangsae_core::{BarInterval, Ratio, ReceivedTs};
 use parangsae_signals::{
     drive, drive_feature, drive_funding_z, funding_observation, CausalFeature, CausalSignal,
-    Decision, FlatReason, FundingZ, ParamError, SignalError, SignalOutput, Tsmom, VolRegime,
-    PROD_MAX_AGE_US,
+    CausalWindow, Decision, FlatReason, FundingZ, ParamError, SignalError, SignalOutput, Tsmom,
+    VolRegime, PROD_MAX_AGE_US,
 };
 use support::{
-    at, bar_ending_at, bar_obs, contiguous_bars, fund_obs, hour, restamp, us, usdt_ticks, H4_US,
-    SLOT_US, T0,
+    at, bar_ending_at, bar_obs, contiguous_bars, fund_obs, hour, restamp, toy_funding, us,
+    usdt_ticks, H4_US, SLOT_US, T0,
 };
 
 fn classify_funding(got: Result<Option<SignalOutput>, SignalError>) -> &'static str {
@@ -179,6 +179,37 @@ mod warmup_emit {
     }
 
     #[test]
+    fn mismatched_funding_decision_is_rejected() {
+        let signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
+        let bars = vec![bar_ending_at(hour(25), BarInterval::H1, usdt_ticks(40_000))];
+        let funding = toy_funding();
+        let bar_decision = at(hour(25));
+        let funding_decision = at(hour(33));
+        let bar_views: Vec<_> = bars
+            .iter()
+            .filter_map(|row| row.causal_at(bar_decision))
+            .collect();
+        let fund_views: Vec<_> = funding
+            .iter()
+            .filter_map(|row| row.causal_at(funding_decision))
+            .collect();
+        let bars_window = CausalWindow::from_views(bar_decision, FundingZ::<4>::BAR_CAP, bar_views)
+            .expect("bar window");
+        let funding_window =
+            CausalWindow::from_views(funding_decision, FundingZ::<4>::FUNDING_CAP, fund_views)
+                .expect("funding window");
+        let got = signal.evaluate(&bars_window, &funding_window);
+        assert_eq!(got, Err(SignalError::DecisionMismatch));
+        let same = drive_funding_z(&signal, &bars, &funding, bar_decision);
+        assert_eq!(
+            same.ok()
+                .and_then(|out| out)
+                .map(|out| out.decision.target_ticks()),
+            Some(-81_649_658)
+        );
+    }
+
+    #[test]
     fn decision_off_the_bar_is_not_a_trigger() {
         let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).unwrap();
         let bars = contiguous_bars(BarInterval::H1, 6, |_| usdt_ticks(40_000));
@@ -261,7 +292,7 @@ mod warmup_emit {
         ];
         let got = drive(&signal, &bars, at(hour(2))).unwrap();
         assert_eq!(
-            got.expect("exact mantissa emits").decision.position_ticks(),
+            got.expect("exact mantissa emits").decision.target_ticks(),
             0
         );
     }

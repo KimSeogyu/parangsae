@@ -43,8 +43,8 @@ pub enum Decision {
 }
 
 impl Decision {
-    /// Position ticks. `Flat` is 0.
-    pub const fn position_ticks(self) -> i64 {
+    /// Target ticks. `Flat` is 0.
+    pub const fn target_ticks(self) -> i64 {
         match self {
             Self::Target(target) => target.ticks(),
             Self::Flat(_) => 0,
@@ -116,6 +116,8 @@ pub enum SignalError {
         expected_open: UtcMicros,
     },
     ClockMismatch,
+    /// The bar window and the funding window were built at different decisions.
+    DecisionMismatch,
     IntervalMismatch,
     NoTriggeringBar,
     InvalidFeature,
@@ -139,6 +141,9 @@ impl fmt::Display for SignalError {
             Self::Window(err) => write!(f, "{err}"),
             Self::Gap { expected_open } => write!(f, "bar gap, expected open {expected_open}"),
             Self::ClockMismatch => write!(f, "bar availability is not close time plus 1 ms"),
+            Self::DecisionMismatch => {
+                write!(f, "bar and funding windows do not share a decision time")
+            }
             Self::IntervalMismatch => write!(f, "bar interval does not match the signal"),
             Self::NoTriggeringBar => write!(f, "decision is not the last bar's availability"),
             Self::InvalidFeature => write!(f, "feature input is not usable"),
@@ -164,5 +169,24 @@ impl fmt::Display for SignalError {
 impl From<WindowError> for SignalError {
     fn from(err: WindowError) -> Self {
         Self::Window(err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Decision, FlatReason};
+    use crate::target::Target;
+
+    #[test]
+    fn decision_flat_maps_to_zero() {
+        assert_eq!(Decision::Flat(FlatReason::FundingStale).target_ticks(), 0);
+        assert_eq!(
+            Decision::Flat(FlatReason::FundingSlotMissing).target_ticks(),
+            0
+        );
+        assert_ne!(
+            Decision::Target(Target::from_f64(1.0).expect("unit target")).target_ticks(),
+            0
+        );
     }
 }

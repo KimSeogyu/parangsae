@@ -54,7 +54,7 @@ fn assert_emitted_target(out: &SignalOutput) {
         out.decision_ts.micros().micros(),
         out.bar_close_time_us.micros() + 1_000
     );
-    let ticks = out.decision.position_ticks();
+    let ticks = out.decision.target_ticks();
     assert!((-TARGET_SCALE..=TARGET_SCALE).contains(&ticks));
     if let Decision::Flat(reason) = out.decision {
         assert_eq!(ticks, 0);

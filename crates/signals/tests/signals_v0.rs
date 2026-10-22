@@ -188,7 +188,7 @@ fn flat_reason(world: &mut SignalWorld, name: String) {
     match world.signal.as_ref() {
         Some(Ok(Some(out))) => {
             assert_eq!(out.decision, Decision::Flat(reason), "{out:?}");
-            assert_eq!(out.decision.position_ticks(), 0);
+            assert_eq!(out.decision.target_ticks(), 0);
         }
         other => panic!("expected flat {reason:?}, got {other:?}"),
     }
