@@ -236,11 +236,10 @@ fn expected_funding(window: &[Bar], step: i64) -> Result<Vec<i64>, EngineError> 
         return Ok(Vec::new());
     }
     let mut grid = next_grid(bar_prev(window, 0)?, step)?;
-    let last = window
-        .last()
-        .expect("window is non-empty")
-        .open_time
-        .micros();
+    let Some(last_bar) = window.last() else {
+        return Ok(Vec::new());
+    };
+    let last = last_bar.open_time.micros();
     let mut out = Vec::new();
     while grid <= last {
         out.push(grid);
@@ -455,7 +454,7 @@ fn finish(
         dropped_orders,
     } = accum;
     let trades = book.into_trades()?;
-    let daily = daily_equity(&equity_curve);
+    let daily = daily_equity(&equity_curve).map_err(|_| EngineError::Date)?;
     let end = equity_curve
         .last()
         .map(|(_, cash)| *cash)
@@ -525,10 +524,9 @@ impl Book {
             return Ok(());
         }
         let same_side = {
-            let open = self
-                .open
-                .as_mut()
-                .expect("a non-zero position has an open trip");
+            let Some(open) = self.open.as_mut() else {
+                return Err(EngineError::Broken("a non-zero position has an open trip"));
+            };
             open.pnl = open
                 .pnl
                 .checked_add(delta)
@@ -543,10 +541,14 @@ impl Book {
             .checked_add(signed)
             .ok_or(EngineError::Sim(SimError::Overflow))?;
         if pos_after == 0 {
-            let done = self.open.take().expect("open trip");
+            let Some(done) = self.open.take() else {
+                return Err(EngineError::Broken("open trip"));
+            };
             self.closed.push(done.into_trip(Some(fill.ts))?);
         } else if same_side {
-            let open = self.open.as_mut().expect("open trip");
+            let Some(open) = self.open.as_mut() else {
+                return Err(EngineError::Broken("open trip"));
+            };
             open.qty = open
                 .qty
                 .checked_add(fill.qty.ticks())

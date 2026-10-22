@@ -209,33 +209,38 @@ mod tests {
     use crate::types::{FeeBps, SimError};
 
     #[test]
-    fn one_lot_at_one_hundred_usdt_charges_one_tick() {
-        let price = Price::from_ticks(100 * 100_000_000).unwrap();
-        let qty = Qty::from_ticks(1).unwrap();
-        let fee = taker_fee(price, qty, FeeBps(5)).unwrap();
+    fn one_lot_at_one_hundred_usdt_charges_one_tick() -> Result<(), String> {
+        let price = Price::from_ticks(100 * 100_000_000).map_err(|err| err.to_string())?;
+        let qty = Qty::from_ticks(1).map_err(|err| err.to_string())?;
+        let fee = taker_fee(price, qty, FeeBps(5)).map_err(|err| err.to_string())?;
         assert_eq!(fee.0, 1);
+        Ok(())
     }
 
     #[test]
-    fn zero_qty_is_rejected_without_moving_cash() {
+    fn zero_qty_is_rejected_without_moving_cash() -> Result<(), String> {
         use crate::{Cash, Costs, Ledger, MarketOrder, Side, SlippageBps};
         let mut ledger = Ledger::new(Cash(1_000));
-        let err = ledger
-            .apply_fill(
-                MarketOrder {
-                    side: Side::Buy,
-                    qty: Qty::from_ticks(0).unwrap(),
-                },
-                Price::from_ticks(1).unwrap(),
-                &Costs {
-                    taker_fee: FeeBps(5),
-                    slippage: SlippageBps(0),
-                },
-                UtcMicros::from_micros(0),
-            )
-            .unwrap_err();
+        let qty = Qty::from_ticks(0).map_err(|err| err.to_string())?;
+        let price = Price::from_ticks(1).map_err(|err| err.to_string())?;
+        let err = match ledger.apply_fill(
+            MarketOrder {
+                side: Side::Buy,
+                qty,
+            },
+            price,
+            &Costs {
+                taker_fee: FeeBps(5),
+                slippage: SlippageBps(0),
+            },
+            UtcMicros::from_micros(0),
+        ) {
+            Err(err) => err,
+            Ok(_) => return Err("zero qty was accepted".to_owned()),
+        };
         assert_eq!(err, SimError::ZeroQty);
         assert_eq!(ledger.cash().0, 1_000);
         assert_eq!(ledger.position().0, 0);
+        Ok(())
     }
 }

@@ -6,6 +6,7 @@
 //! ```
 
 use std::env;
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -20,7 +21,7 @@ fn main() -> ExitCode {
     match run_smoke() {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
-            eprintln!("smoke: {message}");
+            let _ = writeln!(io::stderr(), "smoke: {message}");
             ExitCode::from(1)
         }
     }
@@ -28,7 +29,7 @@ fn main() -> ExitCode {
 
 fn run_smoke() -> Result<(), String> {
     let args = Args::parse()?;
-    let symbol = Symbol::new("BTCUSDT").expect("BTCUSDT is a valid symbol");
+    let symbol = Symbol::new("BTCUSDT").map_err(|err| err.to_string())?;
     let from = UtcDate::parse(&args.from).ok_or_else(|| format!("bad --from {}", args.from))?;
     let to = UtcDate::parse(&args.to).ok_or_else(|| format!("bad --to {}", args.to))?;
     let tape = Tape::load(&args.root, &symbol, from, to).map_err(|err| err.to_string())?;
@@ -38,33 +39,50 @@ fn run_smoke() -> Result<(), String> {
     };
     let cfg = RunConfig {
         initial_cash: Cash(1_000_000 * SCALE),
-        start: from.start_us(),
-        end: to.next().start_us(),
+        start: from.start_us().map_err(|err| err.to_string())?,
+        end: to.next().start_us().map_err(|err| err.to_string())?,
     };
-    println!("slippage_bps={}", costs.slippage.0);
-    println!("taker_fee_bps={}", costs.taker_fee.0);
-    println!("scale={SCALE}");
-    let mut strategy = BuyAndHold::new(Qty::from_ticks(SCALE).expect("1 BTC fits"));
+    line(format!("slippage_bps={}", costs.slippage.0))?;
+    line(format!("taker_fee_bps={}", costs.taker_fee.0))?;
+    line(format!("scale={SCALE}"))?;
+    let qty = Qty::from_ticks(SCALE).map_err(|err| err.to_string())?;
+    let mut strategy = BuyAndHold::new(qty);
     let report = run(&tape, &mut strategy, &costs, &cfg).map_err(|err| err.to_string())?;
     report
         .write_dir(&args.out)
         .map_err(|err| format!("write {}: {err}", args.out.display()))?;
     let end = report.equity_end().map(|cash| cash.0).unwrap_or(0);
-    println!("bars={}", report.bars);
-    println!("fills={}", report.fills.len());
-    println!("fees_paid_ticks={}", report.metrics.fees_paid.0);
-    println!("funding_net_ticks={}", report.metrics.funding_net.0);
-    println!("funding_events={}", report.funding.len());
-    println!("equity_end_ticks={end}");
-    println!("sharpe_daily={}", fmt_opt(report.metrics.sharpe_daily));
-    println!("sharpe_annual={}", fmt_opt(report.metrics.sharpe_annual));
-    println!("max_drawdown_ticks={}", report.metrics.max_drawdown.ticks());
-    println!("dropped_orders={}", report.dropped_orders);
+    line(format!("bars={}", report.bars))?;
+    line(format!("fills={}", report.fills.len()))?;
+    line(format!("fees_paid_ticks={}", report.metrics.fees_paid.0))?;
+    line(format!(
+        "funding_net_ticks={}",
+        report.metrics.funding_net.0
+    ))?;
+    line(format!("funding_events={}", report.funding.len()))?;
+    line(format!("equity_end_ticks={end}"))?;
+    line(format!(
+        "sharpe_daily={}",
+        fmt_opt(report.metrics.sharpe_daily)
+    ))?;
+    line(format!(
+        "sharpe_annual={}",
+        fmt_opt(report.metrics.sharpe_annual)
+    ))?;
+    line(format!(
+        "max_drawdown_ticks={}",
+        report.metrics.max_drawdown.ticks()
+    ))?;
+    line(format!("dropped_orders={}", report.dropped_orders))?;
     if let Some(ts) = report.ruined {
-        println!("ruined_us={}", ts.micros());
+        line(format!("ruined_us={}", ts.micros()))?;
     }
-    println!("report_dir={}", args.out.display());
+    line(format!("report_dir={}", args.out.display()))?;
     Ok(())
+}
+
+fn line(text: impl std::fmt::Display) -> Result<(), String> {
+    writeln!(io::stdout(), "{text}").map_err(|err| err.to_string())
 }
 
 fn fmt_opt(value: Option<f64>) -> String {

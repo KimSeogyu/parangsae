@@ -125,12 +125,13 @@ mod tests {
     use super::div_half_even;
 
     #[test]
-    fn half_even_resolves_ties_to_the_even_quotient() {
-        assert_eq!(div_half_even(1, 2).unwrap(), 0);
-        assert_eq!(div_half_even(3, 2).unwrap(), 2);
-        assert_eq!(div_half_even(5, 2).unwrap(), 2);
-        assert_eq!(div_half_even(-1, 2).unwrap(), 0);
-        assert_eq!(div_half_even(-3, 2).unwrap(), -2);
-        assert_eq!(div_half_even(-5, 2).unwrap(), -2);
+    fn half_even_resolves_ties_to_the_even_quotient() -> Result<(), String> {
+        assert_eq!(div_half_even(1, 2).map_err(|err| err.to_string())?, 0);
+        assert_eq!(div_half_even(3, 2).map_err(|err| err.to_string())?, 2);
+        assert_eq!(div_half_even(5, 2).map_err(|err| err.to_string())?, 2);
+        assert_eq!(div_half_even(-1, 2).map_err(|err| err.to_string())?, 0);
+        assert_eq!(div_half_even(-3, 2).map_err(|err| err.to_string())?, -2);
+        assert_eq!(div_half_even(-5, 2).map_err(|err| err.to_string())?, -2);
+        Ok(())
     }
 }

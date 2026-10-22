@@ -1,11 +1,11 @@
 //! Cucumber runner for the twelve engine goldens.
 
-#[path = "support.rs"]
-mod support;
 #[path = "../../core/tests/support/feature_floors.rs"]
 mod feature_floors;
 #[path = "../../core/tests/support/feature_run.rs"]
 mod feature_run;
+#[path = "support.rs"]
+mod support;
 
 use cucumber::{then, when};
 use parangsae_backtest::{max_drawdown, sharpe_f64, EngineError, Report, FEE_GRID_BPS};
@@ -26,185 +26,224 @@ struct EngineWorld {
 }
 
 impl EngineWorld {
-    fn report(&self) -> &Report {
-        self.report.as_ref().expect("a report was produced")
+    fn report(&self) -> Result<&Report, String> {
+        self.report
+            .as_ref()
+            .ok_or_else(|| "a report was produced".to_owned())
     }
 }
 
-fn keep(world: &mut EngineWorld, report: Report) {
+fn keep(world: &mut EngineWorld, report: Result<Report, String>) -> Result<(), String> {
     world.error = None;
-    world.report = Some(report);
+    world.report = Some(report?);
+    Ok(())
+}
+
+fn must_err(result: Result<Report, EngineError>) -> Result<EngineError, String> {
+    match result {
+        Err(err) => Ok(err),
+        Ok(_) => Err("the engine accepted a tape that should abort".to_owned()),
+    }
 }
 
 #[when("the G1 round trip is run")]
-fn g1_step(world: &mut EngineWorld) {
-    keep(world, g1());
+fn g1_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g1())
 }
 
 #[when("the G2 next-open buy is run")]
-fn g2_step(world: &mut EngineWorld) {
-    keep(world, g2());
+fn g2_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g2())
 }
 
 #[when("the G3 funding hold is run")]
-fn g3_step(world: &mut EngineWorld) {
-    keep(world, g3());
+fn g3_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g3())
 }
 
 #[when("the G4 short pays case is run")]
-fn g4_pays_step(world: &mut EngineWorld) {
-    keep(world, g4_short_pays());
+fn g4_pays_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g4_short_pays())
 }
 
 #[when("the G4 short receives case is run")]
-fn g4_receives_step(world: &mut EngineWorld) {
-    keep(world, g4_short_receives());
+fn g4_receives_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g4_short_receives())
 }
 
 #[when("the G4 flat case is run")]
-fn g4_flat_step(world: &mut EngineWorld) {
-    keep(world, g4_flat());
+fn g4_flat_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g4_flat())
 }
 
 #[when("the G5 funding and flatten is run")]
-fn g5_step(world: &mut EngineWorld) {
-    keep(world, g5());
+fn g5_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g5())
 }
 
 #[when("the G6 one-lot buy is run")]
-fn g6_step(world: &mut EngineWorld) {
-    keep(world, g6());
+fn g6_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g6())
 }
 
 #[when("the G7 flip is run")]
-fn g7_step(world: &mut EngineWorld) {
-    keep(world, g7());
+fn g7_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g7())
 }
 
 #[when("the G8 fee grid is run")]
-fn g8_step(world: &mut EngineWorld) {
-    let grid = g8();
+fn g8_step(world: &mut EngineWorld) -> Result<(), String> {
+    let grid = g8()?;
     assert_eq!(
         grid.iter().map(|(bps, _)| bps.0).collect::<Vec<_>>(),
         FEE_GRID_BPS
     );
-    world.grid = grid
-        .iter()
-        .map(|(_, report)| report.equity_end().unwrap().0)
-        .collect();
+    let mut equities = Vec::with_capacity(grid.len());
+    for (_, report) in &grid {
+        let end = report.equity_end().ok_or("fee-grid report has no equity")?;
+        equities.push(end.0);
+    }
+    world.grid = equities;
+    Ok(())
 }
 
 #[when("the G9 levels are scored")]
-fn g9_step(world: &mut EngineWorld) {
+fn g9_step(world: &mut EngineWorld) -> Result<(), String> {
     let levels = [100 * TICK, 110 * TICK, 121 * TICK, 121 * TICK];
-    let (daily, _) = sharpe_f64(&levels).unwrap();
+    let (daily, _) = sharpe_f64(&levels).map_err(|err| err.to_string())?;
     world.sharpe = daily;
-    let curve = [usd(100), usd(110), usd(99), usd(121)];
-    world.drawdown = Some(max_drawdown(&curve).unwrap().ticks());
+    let curve = [usd(100)?, usd(110)?, usd(99)?, usd(121)?];
+    world.drawdown = Some(max_drawdown(&curve).map_err(|err| err.to_string())?.ticks());
+    Ok(())
 }
 
 #[when("the G10 gapped tape is run")]
-fn g10_gap_step(world: &mut EngineWorld) {
-    let start = at(12, 0);
+fn g10_gap_step(world: &mut EngineWorld) -> Result<(), String> {
+    let start = at(12, 0)?;
     world.report = None;
-    world.error = Some(g10_gap().unwrap_err());
+    let err = must_err(g10_gap())?;
     assert_eq!(
-        world.error.clone().unwrap(),
+        err,
         EngineError::Gap {
             expected: UtcMicros::from_micros(start + 120_000_000),
             got: UtcMicros::from_micros(start + 180_000_000),
         }
     );
+    world.error = Some(err);
+    Ok(())
 }
 
 #[when("the G10 missing mark tape is run")]
-fn g10_mark_step(world: &mut EngineWorld) {
+fn g10_mark_step(world: &mut EngineWorld) -> Result<(), String> {
     world.report = None;
-    world.error = Some(g10_missing_mark().unwrap_err());
+    let err = must_err(g10_missing_mark())?;
     assert_eq!(
-        world.error.clone().unwrap(),
-        EngineError::MissingMark(UtcMicros::from_micros(at(16, 0)))
+        err,
+        EngineError::MissingMark(UtcMicros::from_micros(at(16, 0)?))
     );
+    world.error = Some(err);
+    Ok(())
 }
 
 #[when("the G10 missing funding tape is run")]
-fn g10_funding_step(world: &mut EngineWorld) {
+fn g10_funding_step(world: &mut EngineWorld) -> Result<(), String> {
     world.report = None;
-    world.error = Some(g10_missing_funding().unwrap_err());
+    let err = must_err(g10_missing_funding())?;
     assert_eq!(
-        world.error.clone().unwrap(),
-        EngineError::MissingFunding(UtcMicros::from_micros(at(16, 0)))
+        err,
+        EngineError::MissingFunding(UtcMicros::from_micros(at(16, 0)?))
     );
+    world.error = Some(err);
+    Ok(())
 }
 
 #[when("the G11 leveraged long is run")]
-fn g11_step(world: &mut EngineWorld) {
-    keep(world, g11());
+fn g11_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g11())
 }
 
 #[when("the G12 three buys are run")]
-fn g12_step(world: &mut EngineWorld) {
-    keep(world, g12());
+fn g12_step(world: &mut EngineWorld) -> Result<(), String> {
+    keep(world, g12())
 }
 
 #[then(regex = r"^there are (\d+) fills$")]
-fn fill_count(world: &mut EngineWorld, n: usize) {
-    assert_eq!(world.report().fills.len(), n);
+fn fill_count(world: &mut EngineWorld, n: usize) -> Result<(), String> {
+    assert_eq!(world.report()?.fills.len(), n);
+    Ok(())
 }
 
 #[then(regex = r"^fill (\d+) is (buy|sell) at (\d+) USDT with fee (-?\d+)$")]
-fn fill_is(world: &mut EngineWorld, index: usize, side: String, usdt: i64, fee: i64) {
-    let fill = &world.report().fills[index - 1];
+fn fill_is(
+    world: &mut EngineWorld,
+    index: usize,
+    side: String,
+    usdt: i64,
+    fee: i64,
+) -> Result<(), String> {
+    let fill = &world.report()?.fills[index - 1];
     let want = if side == "buy" { Side::Buy } else { Side::Sell };
     assert_eq!(fill.side, want);
-    assert_eq!(fill.price, px(usdt));
+    assert_eq!(fill.price, px(usdt)?);
     assert_eq!(fill.fee, Cash(fee));
+    Ok(())
 }
 
 #[then(regex = r"^the closed trade pnl is (-?\d+)$")]
-fn closed_pnl(world: &mut EngineWorld, pnl: i64) {
+fn closed_pnl(world: &mut EngineWorld, pnl: i64) -> Result<(), String> {
     let closed = world
-        .report()
+        .report()?
         .trades
         .iter()
         .find(|trade| trade.close_ts.is_some())
-        .expect("a closed trade");
+        .ok_or("a closed trade")?;
     assert_eq!(closed.pnl, Cash(pnl));
+    Ok(())
 }
 
 #[then(regex = r"^ending equity is (-?\d+)$")]
-fn ending_equity(world: &mut EngineWorld, ticks: i64) {
-    assert_eq!(world.report().equity_end().unwrap(), Cash(ticks));
+fn ending_equity(world: &mut EngineWorld, ticks: i64) -> Result<(), String> {
+    let end = world.report()?.equity_end().ok_or("ending equity")?;
+    assert_eq!(end, Cash(ticks));
+    Ok(())
 }
 
 #[then(regex = r"^funding amount is (-?\d+) on position (-?\d+) at mark (\d+)$")]
-fn funding_is(world: &mut EngineWorld, amount: i64, position: i64, mark: i64) {
-    let event = world.report().funding.first().expect("a funding event");
+fn funding_is(
+    world: &mut EngineWorld,
+    amount: i64,
+    position: i64,
+    mark: i64,
+) -> Result<(), String> {
+    let event = world.report()?.funding.first().ok_or("a funding event")?;
     assert_eq!(event.amount, Cash(amount));
     assert_eq!(event.position.0, position);
-    assert_eq!(event.mark, px(mark));
+    assert_eq!(event.mark, px(mark)?);
+    Ok(())
 }
 
 #[then(regex = r"^the closed trade count is (\d+)$")]
-fn closed_count(world: &mut EngineWorld, n: usize) {
+fn closed_count(world: &mut EngineWorld, n: usize) -> Result<(), String> {
     let count = world
-        .report()
+        .report()?
         .trades
         .iter()
         .filter(|trade| trade.close_ts.is_some())
         .count();
     assert_eq!(count, n);
+    Ok(())
 }
 
 #[then(regex = r"^the open trade count is (\d+)$")]
-fn open_count(world: &mut EngineWorld, n: usize) {
+fn open_count(world: &mut EngineWorld, n: usize) -> Result<(), String> {
     let count = world
-        .report()
+        .report()?
         .trades
         .iter()
         .filter(|trade| trade.close_ts.is_none())
         .count();
     assert_eq!(count, n);
+    Ok(())
 }
 
 #[then(regex = r"^fee-grid ending equities are (\d+),(\d+),(\d+),(\d+)$")]
@@ -213,10 +252,17 @@ fn grid_equities(world: &mut EngineWorld, a: i64, b: i64, c: i64, d: i64) {
 }
 
 #[then(regex = r"^the daily sharpe is ([0-9.]+)$")]
-fn daily_sharpe(world: &mut EngineWorld, text: String) {
-    let expected: f64 = text.parse().unwrap();
-    let got = world.sharpe.expect("sharpe");
+#[allow(
+    clippy::float_arithmetic,
+    reason = "the golden compares the one documented Sharpe float to its printed digits"
+)]
+fn daily_sharpe(world: &mut EngineWorld, text: String) -> Result<(), String> {
+    let expected: f64 = text
+        .parse()
+        .map_err(|err: std::num::ParseFloatError| err.to_string())?;
+    let got = world.sharpe.ok_or("sharpe")?;
     assert!((got - expected).abs() < 1e-9, "{got} vs {expected}");
+    Ok(())
 }
 
 #[then(regex = r"^the max drawdown ticks are (\d+)$")]
@@ -240,29 +286,34 @@ fn err_funding(world: &mut EngineWorld) {
 }
 
 #[then("the run is ruined")]
-fn ruined(world: &mut EngineWorld) {
-    assert!(world.report().ruined.is_some());
+fn ruined(world: &mut EngineWorld) -> Result<(), String> {
+    assert!(world.report()?.ruined.is_some());
+    Ok(())
 }
 
 #[then("the run is not ruined")]
-fn not_ruined(world: &mut EngineWorld) {
-    assert!(world.report().ruined.is_none());
+fn not_ruined(world: &mut EngineWorld) -> Result<(), String> {
+    assert!(world.report()?.ruined.is_none());
+    Ok(())
 }
 
 #[then(regex = r"^equity at bar (\d+) is (-?\d+)$")]
-fn equity_at(world: &mut EngineWorld, bar: usize, ticks: i64) {
-    assert_eq!(world.report().equity_curve[bar - 1].1, Cash(ticks));
+fn equity_at(world: &mut EngineWorld, bar: usize, ticks: i64) -> Result<(), String> {
+    assert_eq!(world.report()?.equity_curve[bar - 1].1, Cash(ticks));
+    Ok(())
 }
 
 #[then("equity at bar 4 equals equity at bar 3")]
-fn equity_frozen(world: &mut EngineWorld) {
-    let curve = &world.report().equity_curve;
+fn equity_frozen(world: &mut EngineWorld) -> Result<(), String> {
+    let curve = &world.report()?.equity_curve;
     assert_eq!(curve[2].1, curve[3].1);
+    Ok(())
 }
 
 #[then(regex = r"^dropped orders are (\d+)$")]
-fn dropped(world: &mut EngineWorld, n: u64) {
-    assert_eq!(world.report().dropped_orders, n);
+fn dropped(world: &mut EngineWorld, n: u64) -> Result<(), String> {
+    assert_eq!(world.report()?.dropped_orders, n);
+    Ok(())
 }
 
 const FEATURE_GLOB: &str = "specs/features/backtest_engine.feature";

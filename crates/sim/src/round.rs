@@ -43,14 +43,39 @@ mod tests {
     use super::round_against_trader;
 
     #[test]
-    fn pays_away_from_zero_and_receipts_toward_zero() {
-        assert_eq!(round_against_trader(1, 2, true).unwrap(), 1);
-        assert_eq!(round_against_trader(1, 2, false).unwrap(), 0);
-        assert_eq!(round_against_trader(-1, 2, true).unwrap(), -1);
-        assert_eq!(round_against_trader(-1, 2, false).unwrap(), 0);
-        assert_eq!(round_against_trader(-3, 2, true).unwrap(), -2);
-        assert_eq!(round_against_trader(-3, 2, false).unwrap(), -1);
-        assert_eq!(round_against_trader(4, 2, true).unwrap(), 2);
-        assert_eq!(round_against_trader(5, 2, false).unwrap(), 2);
+    fn pays_away_from_zero_and_receipts_toward_zero() -> Result<(), String> {
+        assert_eq!(
+            round_against_trader(1, 2, true).map_err(|err| err.to_string())?,
+            1
+        );
+        assert_eq!(
+            round_against_trader(1, 2, false).map_err(|err| err.to_string())?,
+            0
+        );
+        assert_eq!(
+            round_against_trader(-1, 2, true).map_err(|err| err.to_string())?,
+            -1
+        );
+        assert_eq!(
+            round_against_trader(-1, 2, false).map_err(|err| err.to_string())?,
+            0
+        );
+        assert_eq!(
+            round_against_trader(-3, 2, true).map_err(|err| err.to_string())?,
+            -2
+        );
+        assert_eq!(
+            round_against_trader(-3, 2, false).map_err(|err| err.to_string())?,
+            -1
+        );
+        assert_eq!(
+            round_against_trader(4, 2, true).map_err(|err| err.to_string())?,
+            2
+        );
+        assert_eq!(
+            round_against_trader(5, 2, false).map_err(|err| err.to_string())?,
+            2
+        );
+        Ok(())
     }
 }

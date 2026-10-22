@@ -11,12 +11,12 @@ use parangsae_core::Symbol;
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
 use parquet_fix::{write_day, Day, DAY, SYMBOL};
 
-fn symbol() -> Symbol {
-    Symbol::new(SYMBOL).unwrap()
+fn symbol() -> Result<Symbol, String> {
+    Symbol::new(SYMBOL).map_err(|err| err.to_string())
 }
 
-fn day() -> UtcDate {
-    UtcDate::parse(DAY).unwrap()
+fn day() -> Result<UtcDate, String> {
+    UtcDate::parse(DAY).ok_or_else(|| "fixture date".to_owned())
 }
 
 fn costs() -> Costs {
@@ -26,8 +26,8 @@ fn costs() -> Costs {
     }
 }
 
-fn assert_three_bars(tape: &Tape) {
-    let start = day().start_us().micros();
+fn assert_three_bars(tape: &Tape) -> Result<(), String> {
+    let start = day()?.start_us().map_err(|err| err.to_string())?.micros();
     assert_eq!(tape.bars.len(), 3);
     assert_eq!(tape.marks.len(), 3);
     assert_eq!(tape.funding.len(), 1);
@@ -53,46 +53,55 @@ fn assert_three_bars(tape: &Tape) {
         &RunConfig {
             initial_cash: Cash(1_000 * 100_000_000),
             start: tape.bars[0].open_time,
-            end: UtcDate::parse(DAY).unwrap().next().start_us(),
+            end: day()?.next().start_us().map_err(|err| err.to_string())?,
         },
     )
-    .unwrap();
+    .map_err(|err| err.to_string())?;
     assert_eq!(report.bars, 3);
     assert_eq!(report.funding.len(), 1);
     assert_eq!(report.funding[0].amount.0, 0);
+    Ok(())
 }
 
 #[test]
-fn committed_fixture_loads_three_bars() {
+fn committed_fixture_loads_three_bars() -> Result<(), String> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/backtest");
-    let tape = Tape::load(&root, &symbol(), day(), day()).unwrap();
-    assert_three_bars(&tape);
+    let tape = Tape::load(&root, &symbol()?, day()?, day()?).map_err(|err| err.to_string())?;
+    assert_three_bars(&tape)
 }
 
 #[test]
-fn tempdir_fixture_round_trips() {
-    let dir = tempfile::tempdir().unwrap();
-    write_day(dir.path(), &Day::good()).unwrap();
-    let tape = Tape::load(dir.path(), &symbol(), day(), day()).unwrap();
-    assert_three_bars(&tape);
+fn tempdir_fixture_round_trips() -> Result<(), String> {
+    let dir = tempfile::tempdir().map_err(|err| err.to_string())?;
+    write_day(dir.path(), &Day::good()).map_err(|err| err.to_string())?;
+    let tape = Tape::load(dir.path(), &symbol()?, day()?, day()?).map_err(|err| err.to_string())?;
+    assert_three_bars(&tape)
 }
 
 #[test]
-fn reversed_range_is_rejected() {
-    let dir = tempfile::tempdir().unwrap();
-    let err = Tape::load(dir.path(), &symbol(), day().next(), day()).unwrap_err();
+fn reversed_range_is_rejected() -> Result<(), String> {
+    let dir = tempfile::tempdir().map_err(|err| err.to_string())?;
+    let err = match Tape::load(dir.path(), &symbol()?, day()?.next(), day()?) {
+        Err(err) => err,
+        Ok(_) => return Err("reversed range was accepted".to_owned()),
+    };
     assert_eq!(err, TapeError::Range);
+    Ok(())
 }
 
 #[test]
-fn missing_day_is_rejected() {
-    let dir = tempfile::tempdir().unwrap();
-    let err = Tape::load(dir.path(), &symbol(), day(), day()).unwrap_err();
+fn missing_day_is_rejected() -> Result<(), String> {
+    let dir = tempfile::tempdir().map_err(|err| err.to_string())?;
+    let err = match Tape::load(dir.path(), &symbol()?, day()?, day()?) {
+        Err(err) => err,
+        Ok(_) => return Err("missing day was accepted".to_owned()),
+    };
     assert!(matches!(err, TapeError::MissingFile { .. }));
+    Ok(())
 }
 
 #[test]
-fn bad_interval_schema_scale_symbol_and_price_are_rejected() {
+fn bad_interval_schema_scale_symbol_and_price_are_rejected() -> Result<(), String> {
     let cases = [
         (
             Day {
@@ -152,9 +161,12 @@ fn bad_interval_schema_scale_symbol_and_price_are_rejected() {
         ),
     ];
     for (day_spec, label) in cases {
-        let dir = tempfile::tempdir().unwrap();
-        write_day(dir.path(), &day_spec).unwrap();
-        let err = Tape::load(dir.path(), &symbol(), day(), day()).unwrap_err();
+        let dir = tempfile::tempdir().map_err(|err| err.to_string())?;
+        write_day(dir.path(), &day_spec).map_err(|err| err.to_string())?;
+        let err = match Tape::load(dir.path(), &symbol()?, day()?, day()?) {
+            Err(err) => err,
+            Ok(_) => return Err(format!("{label} was accepted")),
+        };
         match label {
             "interval" => assert!(matches!(err, TapeError::Interval { .. }), "{err:?}"),
             "schema" => assert!(matches!(err, TapeError::SchemaVersion { .. }), "{err:?}"),
@@ -169,14 +181,15 @@ fn bad_interval_schema_scale_symbol_and_price_are_rejected() {
                     "{err:?}"
                 )
             }
-            _ => panic!("label {label}"),
+            _ => return Err(format!("label {label}")),
         }
     }
+    Ok(())
 }
 
 #[test]
 #[ignore]
-fn write_workspace_fixture() {
+fn write_workspace_fixture() -> Result<(), String> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/backtest");
-    write_day(&root, &Day::good()).unwrap();
+    write_day(&root, &Day::good()).map_err(|err| err.to_string())
 }
