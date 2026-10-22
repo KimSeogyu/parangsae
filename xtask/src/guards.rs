@@ -13,7 +13,9 @@
 //! `BOOTSTRAP_BASE`, `BOOTSTRAP_FLOORS_SHA256`, `EXPECTED_GUARD_RUNS`,
 //! `CARGO_CONFIG_TOML`, `CARGO_CONFIG_SHA256`, `ALLOWED_ACTIONS`,
 //! `REQUIRED_JOBS`, `JOB_ENV_ALLOW`, `STEP_ENV_ALLOW`, `RUST_TOOLCHAIN_TOML`,
-//! `RUST_TOOLCHAIN_SHA256`, `DENY_TOML_SHA256`, `CARGO_LOCK_SHA256`, and
+//! `RUST_TOOLCHAIN_SHA256`, `DENY_TOML_SHA256`, `CARGO_LOCK_SHA256`,
+//! `DENY_VERSION`, `DENY_TARBALL_SHA256`, `DENY_BIN_SHA256`, `CARGO_MANIFESTS`,
+//! `CARGO_MANIFESTS_SHA256`, `CI_HEADER`, `CI_HEADER_SHA256`, and
 //! `GATE_RESULTS_SHA256`
 //! are Reviewer-protected. Baseline resolution never skips the other guards.
 
@@ -389,6 +391,7 @@ fn cargo_workspace_dir_violations(root: &Path) -> Vec<String> {
     }
     gaps.extend(sha_file_gaps(root, "deny.toml", DENY_TOML_SHA256));
     gaps.extend(sha_file_gaps(root, "Cargo.lock", CARGO_LOCK_SHA256));
+    gaps.extend(cargo_manifests_gaps(root));
     gaps
 }
 
@@ -438,6 +441,34 @@ const RUST_TOOLCHAIN_SHA256: &str =
 const DENY_TOML_SHA256: &str = "9a54da72f5bf1f6a00695a4348f76941bdfae24e84b86d445ccfced828e06c86";
 /// Reviewer-protected. sha256 of `Cargo.lock`, re-checked in the deny job.
 const CARGO_LOCK_SHA256: &str = "6b617ee34a33bac5754ced2bb940ea529d0ca34f409f71fb352351db72b31d04";
+
+/// Reviewer-protected. cargo-deny release the deny job downloads.
+const DENY_VERSION: &str = "0.20.2";
+/// Reviewer-protected. sha256 of `cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz`.
+const DENY_TARBALL_SHA256: &str =
+    "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f";
+/// Reviewer-protected. sha256 of the `cargo-deny` binary inside that tarball.
+const DENY_BIN_SHA256: &str = "b329e25933d01c36dd7c47d84ea5716694f9b7caf53a5003d45674703a8ed54a";
+
+/// Reviewer-protected. Workspace `Cargo.toml` plus every member manifest, sorted by path.
+const CARGO_MANIFESTS: &[&str] = &[
+    "Cargo.toml",
+    "crates/collector/Cargo.toml",
+    "crates/core/Cargo.toml",
+    "crates/execution/Cargo.toml",
+    "crates/regime/Cargo.toml",
+    "crates/signals/Cargo.toml",
+    "crates/sim/Cargo.toml",
+    "xtask/Cargo.toml",
+];
+/// Reviewer-protected. sha256 of the `sha256sum` text for `CARGO_MANIFESTS`.
+const CARGO_MANIFESTS_SHA256: &str =
+    "759609fc11f7355b0476c9310adafb6a53c0ef91a33e578314be3b316c89b901";
+
+/// Reviewer-protected. Exact non-job preamble of `.github/workflows/ci.yml`.
+const CI_HEADER: &str = include_str!("pinned_jobs/ci.header");
+/// Reviewer-protected.
+const CI_HEADER_SHA256: &str = "e70f3eb0e8ab1ec9cb815c23ee523d4cf29bd82824f34cdaf07e83468bff5671";
 
 /// Reviewer-protected. Canonical bytes and sha256 of each required job.
 const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
@@ -494,7 +525,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "c69be0d054e2c38760b5b53a61d4ba72f62cd35d74b31c3293717cc396b1467f",
+        "57da446d06627c7e6c94fa77f3f641302ba4db33c7abce5fc5c0292847a59189",
     ),
     (
         "gate",
@@ -1733,6 +1764,11 @@ fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
         let text = read(&path)?;
         if workflow_yaml(&path) {
             violations.extend(workflow_file_gaps(&name, &text));
+            if name.ends_with("/ci.yml") {
+                violations.extend(ci_header_pin_gaps(&text));
+            } else {
+                violations.extend(foreign_push_gaps(&name, &text));
+            }
         } else {
             violations.extend(hidden_workflow_gaps(&name, &text));
         }
@@ -1740,6 +1776,7 @@ fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
     violations.extend(cargo_config_gaps(root)?);
     let ci = read(&root.join(".github/workflows/ci.yml"))?;
     violations.extend(required_job_pin_gaps(&ci));
+    violations.extend(deny_release_pin_gaps(&ci));
     if !guards_fetch_depth_is_zero(&ci) {
         violations.push("guards checkout fetch-depth is not 0".to_owned());
     }
@@ -1978,6 +2015,20 @@ fn permission_line_grants_write(key: &str) -> bool {
     value == "write" || value == "write-all"
 }
 
+fn foreign_push_gaps(name: &str, text: &str) -> Vec<String> {
+    if name.ends_with("/ci.yml") {
+        return Vec::new();
+    }
+    if workflow_triggers(text)
+        .iter()
+        .any(|trigger| trigger == "push")
+    {
+        vec![format!("{name} runs on push")]
+    } else {
+        Vec::new()
+    }
+}
+
 fn trigger_gaps(name: &str, text: &str) -> Vec<String> {
     let triggers = workflow_triggers(text);
     if triggers.is_empty() {
@@ -2070,6 +2121,86 @@ fn sha_file_gaps(root: &Path, name: &str, expected: &str) -> Vec<String> {
         Ok(_) => vec![format!("{name} sha256 does not match")],
         Err(err) => vec![format!("{name} is missing: {err}")],
     }
+}
+
+fn workflow_preamble(text: &str) -> Option<&str> {
+    let lines: Vec<&str> = text.lines().collect();
+    let jobs_at = lines
+        .iter()
+        .position(|line| is_top_level(line) && strip_yaml_comment(line).trim() == "jobs:")?;
+    let start = lines
+        .iter()
+        .enumerate()
+        .skip(jobs_at + 1)
+        .find(|(_, line)| job_id(line).is_some())
+        .map(|(idx, _)| idx)
+        .unwrap_or(lines.len());
+    Some(&text[..line_offset(text, start)])
+}
+
+fn ci_header_pin_gaps(text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    if sha256_hex(CI_HEADER.as_bytes()) != CI_HEADER_SHA256 {
+        gaps.push("ci header pin hash does not match its bytes".to_owned());
+    }
+    let Some(header) = workflow_preamble(text) else {
+        gaps.push("ci.yml has no jobs header".to_owned());
+        return gaps;
+    };
+    if header != CI_HEADER {
+        let mut message = format!(
+            "ci header bytes do not match\npinned sha256 {CI_HEADER_SHA256}\nworkflow sha256 {}\n",
+            sha256_hex(header.as_bytes())
+        );
+        message.push_str(&unified_diff("header", CI_HEADER, header));
+        gaps.push(message);
+    }
+    let mut built = String::from(CI_HEADER);
+    for (_, pinned, _) in REQUIRED_JOBS {
+        built.push_str(pinned);
+    }
+    if built != text {
+        gaps.push("ci.yml is not the pinned header plus required jobs".to_owned());
+    }
+    gaps
+}
+
+fn cargo_manifests_preimage(root: &Path) -> Result<String, String> {
+    let mut lines = String::new();
+    for path in CARGO_MANIFESTS {
+        let bytes = read_bytes(&root.join(path))?;
+        lines.push_str(&sha256_hex(&bytes));
+        lines.push_str("  ");
+        lines.push_str(path);
+        lines.push('\n');
+    }
+    Ok(lines)
+}
+
+fn cargo_manifests_gaps(root: &Path) -> Vec<String> {
+    match cargo_manifests_preimage(root) {
+        Ok(preimage) if sha256_hex(preimage.as_bytes()) == CARGO_MANIFESTS_SHA256 => Vec::new(),
+        Ok(_) => vec!["cargo manifests sha256 does not match".to_owned()],
+        Err(err) => vec![err],
+    }
+}
+
+fn deny_release_pin_gaps(text: &str) -> Vec<String> {
+    let Some(block) = job_block(text, "deny") else {
+        return vec!["ci.yml has no deny job".to_owned()];
+    };
+    let mut gaps = Vec::new();
+    let tarball = format!("cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz");
+    if !block.contains(&tarball) {
+        gaps.push("deny job tarball name does not use DENY_VERSION".to_owned());
+    }
+    if !block.contains(DENY_TARBALL_SHA256) {
+        gaps.push("deny job does not pin the cargo-deny tarball sha256".to_owned());
+    }
+    if !block.contains(DENY_BIN_SHA256) {
+        gaps.push("deny job does not pin the cargo-deny binary sha256".to_owned());
+    }
+    gaps
 }
 
 fn required_job_pin_gaps(text: &str) -> Vec<String> {
@@ -4532,6 +4663,11 @@ kani.min_harnesses=1
         if !smoke_gaps.is_empty() {
             return Err(format!("vision-smoke: {smoke_gaps:?}"));
         }
+        expect_gaps(
+            "smoke push",
+            foreign_push_gaps(".github/workflows/vision-smoke.yml", &smoke),
+            &[],
+        )?;
         Ok(())
     }
 
@@ -5200,6 +5336,8 @@ jobs:
         let root = crate::workspace_root()?;
         let ci = read(&root.join(".github/workflows/ci.yml"))?;
         expect_gaps("required jobs", required_job_pin_gaps(&ci), &[])?;
+        expect_gaps("ci header", ci_header_pin_gaps(&ci), &[])?;
+        expect_gaps("deny release", deny_release_pin_gaps(&ci), &[])?;
         expect_gaps("ci shape", required_job_shape_gaps("ci.yml", &ci), &[])?;
         if !ci.contains(RUSTUP_WHICH_STEP) {
             return Err("rustup which step is not in ci.yml".to_owned());
@@ -5227,10 +5365,59 @@ jobs:
             return Err("toolchain check reads RUSTUP_HOME or CARGO_HOME".to_owned());
         }
         let deny_invocations = deny.matches(cargo_bin).count();
-        if deny_invocations < 4 {
+        if deny_invocations != 1 {
             return Err(format!(
                 "deny job invokes the absolute cargo {deny_invocations} times"
             ));
+        }
+        if deny.contains("cargo install") || deny.contains("cargo deny") {
+            return Err("deny job still invokes cargo install or cargo deny".to_owned());
+        }
+        if !deny.contains(DENY_TARBALL_SHA256) || !deny.contains(DENY_BIN_SHA256) {
+            return Err("deny job does not pin the release tarball and binary".to_owned());
+        }
+        if !deny.contains(&format!(
+            "cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+        )) {
+            return Err("deny job tarball name does not use DENY_VERSION".to_owned());
+        }
+        if !deny.contains("/usr/bin/curl")
+            || !deny.contains("/usr/bin/sha256sum")
+            || !deny.contains("/usr/bin/tar")
+        {
+            return Err("deny job does not use absolute curl, sha256sum, and tar".to_owned());
+        }
+        let deny_bin = "/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny";
+        if deny.matches(deny_bin).count() < 2 {
+            return Err("deny job does not run the extracted binary by absolute path".to_owned());
+        }
+        if deny.contains("/home/runner/.cargo/bin") {
+            return Err("deny job PATH still includes cargo's bin".to_owned());
+        }
+        let toolchain_bin = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin";
+        if !deny.contains(&format!(
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:{toolchain_bin}"
+        )) {
+            return Err("deny env -i PATH does not include the pinned toolchain bin".to_owned());
+        }
+        if !deny.contains(RUST_TOOLCHAIN_SHA256) || !deny.contains(CARGO_MANIFESTS_SHA256) {
+            return Err(
+                "deny job does not re-hash rust-toolchain.toml and the crate manifests".to_owned(),
+            );
+        }
+        for path in CARGO_MANIFESTS {
+            if !deny.contains(path) {
+                return Err(format!("deny job does not re-hash {path}"));
+            }
+        }
+        let preimage = cargo_manifests_preimage(&root)?;
+        if sha256_hex(preimage.as_bytes()) != CARGO_MANIFESTS_SHA256 {
+            return Err("cargo manifests sha256 does not match".to_owned());
+        }
+        let mut flipped = preimage.into_bytes();
+        flipped[0] ^= 0x01;
+        if sha256_hex(&flipped) == CARGO_MANIFESTS_SHA256 {
+            return Err("flipped cargo manifests still matched the pin".to_owned());
         }
         expect_gaps(
             "toolchain",
@@ -5332,6 +5519,72 @@ jobs:
         {
             return Err(format!("matrix diff: {matrix_gaps:?}"));
         }
+        let header_cases = [
+            (
+                "fixtures/guards/ci/workflow-env-cargo.yml",
+                "  CARGO: /tmp/fake",
+            ),
+            (
+                "fixtures/guards/ci/workflow-env-rustflags.yml",
+                "  RUSTFLAGS: -Awarnings",
+            ),
+        ];
+        for (path, needle) in header_cases {
+            let text = read(&root.join(path))?;
+            let gaps = ci_header_pin_gaps(&text);
+            let Some(diff) = gaps
+                .iter()
+                .find(|gap| gap.contains("ci header bytes do not match"))
+            else {
+                return Err(format!("{path} did not diff the header: {gaps:?}"));
+            };
+            if !diff.contains("--- pinned header") || !diff.contains(needle) {
+                return Err(format!("{path} diff missed {needle}: {diff}"));
+            }
+        }
+        let cargo_env = read(&root.join("fixtures/guards/ci/workflow-env-cargo.yml"))?;
+        let cargo_grammar = forbidden_env_gaps("workflow-env-cargo.yml", &cargo_env);
+        if cargo_grammar.iter().any(|gap| gap.contains("CARGO")) {
+            return Err(format!(
+                "workflow CARGO was caught by a text denylist: {cargo_grammar:?}"
+            ));
+        }
+        let missing_bin = read(&root.join("fixtures/guards/ci/deny-no-bin-sha.yml"))?;
+        let missing_gaps = required_job_pin_gaps(&missing_bin);
+        let Some(missing_diff) = missing_gaps
+            .iter()
+            .find(|gap| gap.contains("ci job deny bytes do not match"))
+        else {
+            return Err(format!("deny pin: {missing_gaps:?}"));
+        };
+        if !missing_diff.contains(DENY_BIN_SHA256) {
+            return Err(format!("deny diff missed the binary sha: {missing_diff}"));
+        }
+        expect_gaps(
+            "missing bin sha",
+            deny_release_pin_gaps(&missing_bin),
+            &[
+                "deny job tarball name does not use DENY_VERSION",
+                "deny job does not pin the cargo-deny tarball sha256",
+                "deny job does not pin the cargo-deny binary sha256",
+            ],
+        )?;
+        let smoke = read(&root.join(".github/workflows/vision-smoke.yml"))?;
+        let smoke_triggers = workflow_triggers(&smoke);
+        if smoke_triggers != ["workflow_dispatch".to_owned()] {
+            return Err(format!("vision-smoke triggers: {smoke_triggers:?}"));
+        }
+        expect_gaps(
+            "smoke push",
+            foreign_push_gaps(".github/workflows/vision-smoke.yml", &smoke),
+            &[],
+        )?;
+        let side = "name: side\non:\n  push:\npermissions:\n  contents: read\njobs:\n  fmt:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n";
+        expect_gaps(
+            "side push",
+            foreign_push_gaps(".github/workflows/side.yml", side),
+            &[".github/workflows/side.yml runs on push"],
+        )?;
         Ok(())
     }
 

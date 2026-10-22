@@ -1,0 +1,11 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install cargo-deny 0.20.2
+        run: echo no binary sha
