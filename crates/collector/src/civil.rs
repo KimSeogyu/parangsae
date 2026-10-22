@@ -71,6 +71,13 @@ impl CivilDay {
     pub fn end_us(self) -> UtcMicros {
         self.next().start_us()
     }
+
+    /// First spot-kline archive day whose timestamps are microseconds.
+    pub const SPOT_MICROS_FROM: Self = Self {
+        year: 2025,
+        month: 1,
+        day: 1,
+    };
 }
 
 impl std::fmt::Display for CivilDay {
@@ -124,9 +131,9 @@ pub fn day_of(ts: UtcMicros) -> Result<CivilDay, super::Error> {
 fn civil_from_days(mut z: i64) -> Option<CivilDay> {
     z += 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
-    let doe = (z - era * 146097) as u64;
+    let doe = u64::try_from(z - era * 146097).ok()?;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = yoe as i64 + era * 400;
+    let y = i64::try_from(yoe).ok()? + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     let mp = (5 * doy + 2) / 153;
     let d = doy - (153 * mp + 2) / 5 + 1;
@@ -182,8 +189,8 @@ impl DayRange {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct YearMonth {
-    pub year: i32,
-    pub month: u8,
+    year: i32,
+    month: u8,
 }
 
 impl YearMonth {
@@ -195,13 +202,30 @@ impl YearMonth {
         }
     }
 
-    pub fn first(self) -> CivilDay {
-        CivilDay::new(self.year, self.month, 1).expect("month 1..=12 has a first day")
+    pub const fn year(self) -> i32 {
+        self.year
     }
 
+    pub const fn month(self) -> u8 {
+        self.month
+    }
+
+    /// Day 1 of a month that `new` already restricted to 1..=12.
+    pub fn first(self) -> CivilDay {
+        CivilDay {
+            year: self.year,
+            month: self.month,
+            day: 1,
+        }
+    }
+
+    /// Last civil day. `days_in_month` is 28..=31 for every month `new` accepts.
     pub fn last(self) -> CivilDay {
-        let day = days_in_month(self.year, self.month);
-        CivilDay::new(self.year, self.month, day).expect("days_in_month matches CivilDay::new")
+        CivilDay {
+            year: self.year,
+            month: self.month,
+            day: days_in_month(self.year, self.month),
+        }
     }
 
     pub fn overlaps(self, range: DayRange) -> bool {

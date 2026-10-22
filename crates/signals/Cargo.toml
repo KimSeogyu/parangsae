@@ -6,5 +6,8 @@ publish.workspace = true
 rust-version.workspace = true
 description = "Signal entry points. Causal views only."
 
+[lints]
+workspace = true
+
 [dependencies]
 parangsae-core = { path = "../core" }

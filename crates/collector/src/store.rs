@@ -18,7 +18,7 @@ use serde::Serialize;
 use crate::civil::{day_of, CivilDay};
 use crate::manifest::{merge_rows, MergeOutcome};
 use crate::vision::{BookFact, FundingFact, Gap, GapKind, KlineFact, MetricsFact, TickDomain};
-use crate::Error;
+use crate::{u64_from_usize, Error};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct WriteCounts {
@@ -107,7 +107,10 @@ pub fn upsert_book(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one day-merge keeps the conflict rule from drifting per dataset"
+)]
 fn upsert_by_day<T, K, DayOf, KeyOf, Read, Write, KeyText, Payload>(
     data_dir: &Path,
     dataset: &str,
@@ -158,7 +161,10 @@ where
     Ok(total)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "commit writes the merged partition and the conflict log together"
+)]
 fn commit_merge<T, Write, KeyText, Payload>(
     data_dir: &Path,
     dataset: &str,
@@ -188,7 +194,7 @@ where
         return Ok(WriteCounts {
             inserted: 0,
             unchanged: merged.unchanged,
-            conflicts: merged.conflicts.len() as u64,
+            conflicts: u64_from_usize(merged.conflicts.len())?,
         });
     }
     if merged.inserted > 0 {

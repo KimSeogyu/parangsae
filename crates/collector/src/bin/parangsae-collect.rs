@@ -1,5 +1,11 @@
 //! Binance Vision backfill. Public archives only. No API key and no order route.
 
+#![allow(
+    clippy::print_stdout,
+    clippy::print_stderr,
+    reason = "the collector binary reports run status to the operator"
+)]
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;

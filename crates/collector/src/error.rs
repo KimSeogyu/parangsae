@@ -48,9 +48,17 @@ impl Error {
             Self::Unit(_) => Some("timestamp_unit"),
             Self::Fixed(FixedError::Negative) => Some("negative"),
             Self::Fixed(FixedError::Overflow) => Some("overflow"),
-            Self::Scale(ScaleError::Scale) => Some("scale"),
-            Self::Scale(_) => Some("scale"),
-            _ => None,
+            Self::Scale(
+                ScaleError::Empty | ScaleError::Charset | ScaleError::Scale | ScaleError::Overflow,
+            ) => Some("scale"),
+            Self::Time(TimeError::Overflow)
+            | Self::Symbol(_)
+            | Self::Io { .. }
+            | Self::Http { .. }
+            | Self::Xml(_)
+            | Self::Zip(_)
+            | Self::Csv { .. }
+            | Self::Usage(_) => None,
         }
     }
 }
