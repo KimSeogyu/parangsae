@@ -1,0 +1,17 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+env:
+  CARGO_ALIAS_XTASK: test --no-run
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_ALIAS_XTASK: test --no-run
+    steps:
+      - name: test
+        env:
+          CARGO_ALIAS_XTASK: test --no-run
+        run: cargo test

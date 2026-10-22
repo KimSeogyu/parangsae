@@ -152,7 +152,7 @@ const BOOTSTRAP_BASE: &str = "4db8a75a7bd0886f4cdeefa050a2d89e3a36118d";
 
 /// Reviewer-protected. Raw sha256 of `regressions/floors.toml` on the bootstrap path.
 const BOOTSTRAP_FLOORS_SHA256: &str =
-    "e9588b557ea0b3ce615fa0e469573279235647bcca7a93e2d3b5c91a75778528";
+    "7c677efda602168f65e7bd98c4594a149ebe72ecc0de18c884224818bff76a07";
 
 /// Reviewer-protected. Non-ratchet guards plus the ratchet.
 const EXPECTED_GUARD_RUNS: usize = 12;
@@ -403,6 +403,10 @@ const ALL_ZERO_STEP: &str = concat!(
 const KANI_RUSTUP_STABLE: &str = "          RUSTUP_TOOLCHAIN: 1.98.0";
 const KANI_RUSTUP_NIGHTLY: &str = "          RUSTUP_TOOLCHAIN: nightly-2026-08-21";
 
+const CARGO_CONFIG_TOML: &str = "[alias]\nxtask = \"run --package xtask --\"\n";
+const CARGO_CONFIG_SHA256: &str =
+    "783fdc447abb5b8f8b5652157aa9ede64da640813fa89679c29c5251c8e0cbe6";
+
 const RUSTC_198_STEP: &str = concat!(
     "      - name: rustc is 1.98.0\n",
     "        run: |\n",
@@ -540,7 +544,56 @@ fn ci_gate_gaps(text: &str) -> Result<Vec<String>, String> {
         }
     }
     gaps.extend(required_job_if_gaps(text, &needs));
+    gaps.extend(required_step_directive_gaps(&needs, text));
     Ok(gaps)
+}
+
+fn required_step_directive_gaps(needs: &BTreeSet<String>, text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    for name in needs {
+        let Some(block) = job_block(text, name) else {
+            continue;
+        };
+        gaps.extend(step_directive_gaps(name, block));
+    }
+    gaps
+}
+
+fn step_directive_gaps(job: &str, block: &str) -> Vec<String> {
+    let lines: Vec<&str> = block.lines().collect();
+    let mut gaps = Vec::new();
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let indent = lines[idx].len() - lines[idx].trim_start().len();
+        let trimmed = strip_yaml_comment(lines[idx]).trim();
+        if let Some(rest) = trimmed.strip_prefix("run:") {
+            let rest = rest.trim();
+            if rest.is_empty() || matches!(rest, "|" | ">" | "|-" | ">-" | "|+" | ">+") {
+                idx += 1;
+                while idx < lines.len() {
+                    if !lines[idx].trim().is_empty() {
+                        let findent = lines[idx].len() - lines[idx].trim_start().len();
+                        if findent <= indent {
+                            break;
+                        }
+                    }
+                    idx += 1;
+                }
+                continue;
+            }
+        }
+        let key = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        if indent > 4 {
+            if key.starts_with("shell:") {
+                gaps.push(format!("ci job {job} sets shell:"));
+            }
+            if key.starts_with("working-directory:") {
+                gaps.push(format!("ci job {job} sets working-directory:"));
+            }
+        }
+        idx += 1;
+    }
+    gaps
 }
 
 fn required_job_if_gaps(text: &str, needs: &BTreeSet<String>) -> Vec<String> {
@@ -1497,11 +1550,12 @@ fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
         let name = workflow_display(root, &path);
         let text = read(&path)?;
         if workflow_yaml(&path) {
-            violations.extend(workflow_file_gaps(&name, &text));
+            violations.extend(workflow_file_gaps(&name, &text, root));
         } else {
             violations.extend(hidden_workflow_gaps(&name, &text));
         }
     }
+    violations.extend(cargo_config_gaps(root)?);
     let ci = read(&root.join(".github/workflows/ci.yml"))?;
     if !guards_fetch_depth_is_zero(&ci) {
         violations.push("guards checkout fetch-depth is not 0".to_owned());
@@ -1521,7 +1575,27 @@ fn pinned_guards_steps(text: &str) -> Vec<String> {
     if !block.contains(ALL_ZERO_STEP) {
         gaps.push("all-zero before step does not match".to_owned());
     }
+    if gaps.is_empty() && !guards_steps_exact(block) {
+        gaps.push("guards job steps are not checkout, toolchain, guards, all-zero".to_owned());
+    }
     gaps
+}
+
+fn guards_job_steps() -> String {
+    format!(
+        "    steps:\n      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4\n        with:\n          fetch-depth: 0\n      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0\n{GUARDS_STEP}{ALL_ZERO_STEP}"
+    )
+}
+
+fn guards_steps_exact(block: &str) -> bool {
+    let expected = guards_job_steps();
+    let Some(idx) = block.find(&expected) else {
+        return false;
+    };
+    let before = &block[..idx];
+    let after = &block[idx + expected.len()..];
+    !before.lines().any(|line| line.starts_with("      - "))
+        && !after.lines().any(|line| line.starts_with("      - "))
 }
 
 fn strip_env_allowlist(text: &str) -> String {
@@ -1582,7 +1656,7 @@ fn workflow_yaml(path: &Path) -> bool {
     )
 }
 
-fn workflow_file_gaps(name: &str, text: &str) -> Vec<String> {
+fn workflow_file_gaps(name: &str, text: &str, root: &Path) -> Vec<String> {
     let mut gaps = strict_yaml_gaps(name, text);
     if !permissions_are_contents_read(text) {
         gaps.push(format!("{name} permissions are not contents: read"));
@@ -1592,6 +1666,7 @@ fn workflow_file_gaps(name: &str, text: &str) -> Vec<String> {
     gaps.extend(forbidden_env_gaps(name, text));
     gaps.extend(rustc_pin_gaps(name, text));
     gaps.extend(run_injection_gaps(name, text));
+    gaps.extend(github_env_path_gaps(name, text, root));
     if name.ends_with("vision-smoke.yml") && !text.contains("day must be YYYY-MM-DD") {
         gaps.push(format!("{name} does not validate the day"));
     }
@@ -1806,7 +1881,7 @@ fn forbidden_env_gaps(name: &str, text: &str) -> Vec<String> {
                 }
                 if let Some((env_key, _)) = child.split_once(':') {
                     let env_key = env_key.trim();
-                    if FORBIDDEN_ENV.contains(&env_key) {
+                    if env_key_forbidden(env_key) {
                         gaps.push(format!("{name} env sets {env_key}"));
                     }
                 }
@@ -1819,6 +1894,29 @@ fn forbidden_env_gaps(name: &str, text: &str) -> Vec<String> {
     gaps
 }
 
+fn env_key_forbidden(key: &str) -> bool {
+    let key = key.trim().trim_matches(['"', '\'']);
+    if key.is_empty() {
+        return false;
+    }
+    if FORBIDDEN_ENV.contains(&key) {
+        return true;
+    }
+    if key.starts_with("CARGO_ALIAS_") || key.starts_with("CARGO_BUILD_RUSTC") {
+        return true;
+    }
+    if key.starts_with("CARGO_TARGET_")
+        && key.ends_with("_RUNNER")
+        && key.len() > "CARGO_TARGET_".len() + "_RUNNER".len()
+    {
+        return true;
+    }
+    matches!(
+        key,
+        "RUSTC_WRAPPER" | "RUSTC_WORKSPACE_WRAPPER" | "CARGO_HOME" | "RUSTFLAGS"
+    )
+}
+
 fn flow_env_gaps(name: &str, rest: &str) -> Vec<String> {
     let mut gaps = Vec::new();
     let inner = rest.trim().trim_matches(|ch| ch == '{' || ch == '}');
@@ -1827,7 +1925,7 @@ fn flow_env_gaps(name: &str, rest: &str) -> Vec<String> {
             .split_once(':')
             .map(|(key, _)| key.trim())
             .unwrap_or("");
-        if FORBIDDEN_ENV.contains(&key) {
+        if env_key_forbidden(key) {
             gaps.push(format!("{name} env sets {key}"));
         }
     }
@@ -1843,7 +1941,10 @@ fn rustc_pin_gaps(name: &str, text: &str) -> Vec<String> {
         let Some(block) = job_block(text, &job) else {
             continue;
         };
-        if job_invokes_cargo_or_rustc(block) && !block.contains(RUSTC_198_STEP) {
+        if job_invokes_cargo_or_rustc(block)
+            && !block.contains(RUSTC_198_STEP)
+            && !guards_steps_exact(block)
+        {
             gaps.push(format!("{name} job {job} does not assert rustc 1.98.0"));
         }
     }
@@ -1890,6 +1991,12 @@ struct YamlFrame {
 
 fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
     let mut gaps = Vec::new();
+    if text.contains('\u{feff}') {
+        push_gap(&mut gaps, format!("{name} has a byte order mark"));
+    }
+    if text.contains('\0') {
+        push_gap(&mut gaps, format!("{name} contains NUL"));
+    }
     let mut block_parent: Option<usize> = None;
     let mut stack: Vec<YamlFrame> = Vec::new();
     for line in text.lines() {
@@ -1931,6 +2038,10 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
         let parent = stack.last().copied();
         let seq = trimmed.starts_with("- ");
         let body = trimmed.strip_prefix("- ").unwrap_or(trimmed).trim_start();
+        if body.starts_with('?') || body.starts_with(':') {
+            push_gap(&mut gaps, format!("{name} uses an explicit yaml key"));
+            continue;
+        }
         if body.starts_with('{') || body.starts_with('[') {
             if let Some(role) = flow_node_role(seq, parent, indent) {
                 push_gap(
@@ -1951,6 +2062,12 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
         };
         if key_is_quoted(key) {
             push_gap(&mut gaps, format!("{name} has a quoted key"));
+        }
+        if !key.is_ascii() {
+            push_gap(&mut gaps, format!("{name} has a non-ascii key"));
+        }
+        if key == "defaults" {
+            push_gap(&mut gaps, format!("{name} sets defaults"));
         }
         if key != key.trim_end() {
             push_gap(&mut gaps, format!("{name} has whitespace before a colon"));
@@ -2132,6 +2249,274 @@ fn flow_value_role(key: &str, parent: Option<YamlFrame>, indent: usize) -> Optio
             direct_child(frame, indent, YamlFrameKind::On).then_some("a trigger")
         }),
     }
+}
+
+fn github_env_path_gaps(name: &str, text: &str, root: &Path) -> Vec<String> {
+    let mut gaps = Vec::new();
+    for script in run_scripts(text) {
+        gaps.extend(script_github_gaps(name, &script, root));
+    }
+    gaps
+}
+
+fn run_scripts(text: &str) -> Vec<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut scripts = Vec::new();
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let indent = lines[idx].len() - lines[idx].trim_start().len();
+        let trimmed = strip_yaml_comment(lines[idx]).trim();
+        let Some(rest) = trimmed.strip_prefix("run:") else {
+            idx += 1;
+            continue;
+        };
+        let rest = rest.trim();
+        if rest.is_empty() || matches!(rest, "|" | ">" | "|-" | ">-" | "|+" | ">+") {
+            let mut script = String::new();
+            idx += 1;
+            while idx < lines.len() {
+                let child = lines[idx];
+                if !child.trim().is_empty() {
+                    let findent = child.len() - child.trim_start().len();
+                    if findent <= indent {
+                        break;
+                    }
+                }
+                script.push_str(child);
+                script.push('\n');
+                idx += 1;
+            }
+            scripts.push(script);
+            continue;
+        }
+        scripts.push(rest.to_owned());
+        idx += 1;
+    }
+    scripts
+}
+
+fn script_github_gaps(name: &str, script: &str, root: &Path) -> Vec<String> {
+    let lines: Vec<&str> = script.lines().collect();
+    let mut gaps = Vec::new();
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let line = lines[idx];
+        if writes_token(line, "GITHUB_PATH") {
+            push_gap(&mut gaps, format!("{name} writes GITHUB_PATH"));
+        }
+        if writes_token(line, "GITHUB_ENV") {
+            if let Some(delim) = heredoc_delim(line) {
+                idx += 1;
+                while idx < lines.len() && lines[idx].trim() != delim {
+                    gaps.extend(github_env_assignment_gaps(name, lines[idx]));
+                    idx += 1;
+                }
+                idx += 1;
+                continue;
+            }
+            if let Some(path) = cat_source(line) {
+                gaps.extend(cat_env_gaps(name, root, &path));
+            } else {
+                gaps.extend(github_env_assignment_gaps(name, line));
+            }
+        }
+        idx += 1;
+    }
+    gaps
+}
+
+fn writes_token(line: &str, token: &str) -> bool {
+    let Some(idx) = line.find(token) else {
+        return false;
+    };
+    line[..idx].contains('>') || line.contains("tee")
+}
+
+fn heredoc_delim(line: &str) -> Option<String> {
+    let after = line.split("<<").nth(1)?.trim();
+    let after = after.strip_prefix('-').unwrap_or(after).trim();
+    let delim = after.trim_matches(['\'', '"']).trim();
+    if delim.is_empty() || delim.contains(' ') {
+        None
+    } else {
+        Some(delim.to_owned())
+    }
+}
+
+fn cat_source(line: &str) -> Option<String> {
+    let rest = line.trim().strip_prefix("cat ")?;
+    let path = rest.split(">>").next()?.trim().trim_matches(['"', '\'']);
+    if path.is_empty() || path.starts_with('-') || path.contains('*') {
+        None
+    } else {
+        Some(path.to_owned())
+    }
+}
+
+fn github_env_assignment_gaps(name: &str, text: &str) -> Vec<String> {
+    forbidden_assigned_keys(text)
+        .into_iter()
+        .map(|key| format!("{name} github env sets {key}"))
+        .collect()
+}
+
+fn forbidden_assigned_keys(text: &str) -> Vec<String> {
+    let bytes = text.as_bytes();
+    let mut keys = Vec::new();
+    for (idx, byte) in bytes.iter().enumerate() {
+        if *byte != b'=' || idx == 0 {
+            continue;
+        }
+        let mut start = idx;
+        while start > 0 && is_env_char(bytes[start - 1]) {
+            start -= 1;
+        }
+        if start == idx {
+            continue;
+        }
+        let key = &text[start..idx];
+        if env_key_forbidden(key) && !keys.iter().any(|found| found == key) {
+            keys.push(key.to_owned());
+        }
+    }
+    keys
+}
+
+fn is_env_char(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
+}
+
+fn cat_env_gaps(name: &str, root: &Path, path: &str) -> Vec<String> {
+    if path.starts_with('/') || path.split(['/', '\\']).any(|part| part == "..") {
+        return vec![format!("{name} github env reads {path}")];
+    }
+    let full = root.join(path);
+    match read(&full) {
+        Ok(text) => github_env_assignment_gaps(name, &text),
+        Err(_) => vec![format!("{name} github env reads {path}")],
+    }
+}
+
+fn cargo_config_gaps(root: &Path) -> Result<Vec<String>, String> {
+    let mut files = Vec::new();
+    collect_cargo_configs(root, &mut files)?;
+    files.sort();
+    let allowed = root.join(".cargo").join("config.toml");
+    let mut gaps = Vec::new();
+    let mut saw_allowed = false;
+    for file in &files {
+        if file == &allowed {
+            saw_allowed = true;
+            continue;
+        }
+        gaps.push(format!(
+            "unexpected cargo config {}",
+            workflow_display(root, file)
+        ));
+    }
+    if !saw_allowed {
+        gaps.push("missing .cargo/config.toml".to_owned());
+        return Ok(gaps);
+    }
+    let bytes = read_bytes(&allowed)?;
+    if bytes.as_slice() != CARGO_CONFIG_TOML.as_bytes() || sha256_hex(&bytes) != CARGO_CONFIG_SHA256
+    {
+        gaps.push(".cargo/config.toml does not match the pinned xtask alias".to_owned());
+        if let Ok(text) = std::str::from_utf8(&bytes) {
+            gaps.extend(cargo_alias_gaps(text));
+        }
+    }
+    Ok(gaps)
+}
+
+fn collect_cargo_configs(dir: &Path, found: &mut Vec<PathBuf>) -> Result<(), String> {
+    let entries = std::fs::read_dir(dir).map_err(|err| format!("read {}: {err}", dir.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name == "target" || name == ".git" {
+            continue;
+        }
+        let file_type = entry
+            .file_type()
+            .map_err(|err| format!("read {}: {err}", entry.path().display()))?;
+        let path = entry.path();
+        if file_type.is_symlink() {
+            if name == ".cargo" || name.starts_with("config") {
+                found.push(path);
+            }
+            continue;
+        }
+        if !file_type.is_dir() {
+            continue;
+        }
+        if name == ".cargo" {
+            let children = std::fs::read_dir(&path)
+                .map_err(|err| format!("read {}: {err}", path.display()))?;
+            for child in children {
+                let child = child.map_err(|err| format!("read {}: {err}", path.display()))?;
+                let child_name = child.file_name();
+                let child_name = child_name.to_string_lossy();
+                if child_name.starts_with("config") {
+                    found.push(child.path());
+                }
+            }
+        }
+        collect_cargo_configs(&path, found)?;
+    }
+    Ok(())
+}
+
+fn cargo_alias_gaps(text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    let mut section = String::new();
+    let mut saw_xtask = false;
+    for (index, raw) in text.lines().enumerate() {
+        let line = raw.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        if let Some(name) = line
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+        {
+            let name = name.trim();
+            if name != "alias" {
+                gaps.push(format!("cargo config section {name} is not allowed"));
+            }
+            section = name.to_owned();
+            continue;
+        }
+        if section != "alias" {
+            gaps.push(format!(
+                "cargo config line {} is outside [alias]",
+                index + 1
+            ));
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            gaps.push(format!("cargo config line {} is not an alias", index + 1));
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim();
+        if key != "xtask" {
+            gaps.push(format!("cargo alias {key} is not allowed"));
+            continue;
+        }
+        if saw_xtask {
+            gaps.push("cargo alias xtask is duplicated".to_owned());
+        }
+        saw_xtask = true;
+        if value != "\"run --package xtask --\"" {
+            gaps.push(format!("cargo alias xtask is {value}"));
+        }
+    }
+    if !saw_xtask {
+        gaps.push("cargo alias xtask is missing".to_owned());
+    }
+    gaps
 }
 
 fn run_injection_gaps(name: &str, text: &str) -> Vec<String> {
@@ -3346,7 +3731,7 @@ kani.min_harnesses=1
             return Err("rustc step pin".to_owned());
         }
         let smoke = read(&root.join(".github/workflows/vision-smoke.yml"))?;
-        let smoke_gaps = workflow_file_gaps(".github/workflows/vision-smoke.yml", &smoke);
+        let smoke_gaps = workflow_file_gaps(".github/workflows/vision-smoke.yml", &smoke, &root);
         if !smoke_gaps.is_empty() {
             return Err(format!("vision-smoke: {smoke_gaps:?}"));
         }
@@ -3521,7 +3906,7 @@ kani.min_harnesses=1
         )?;
         expect_gaps(
             "b6 trigger",
-            workflow_file_gaps("b6-block-pull-request-target.yml", &block),
+            workflow_file_gaps("b6-block-pull-request-target.yml", &block, &root),
             &["b6-block-pull-request-target.yml trigger pull_request_target is not allowed"],
         )?;
         let cargo = read(&root.join("fixtures/guards/ci/cargo-without-rustc.yml"))?;
@@ -3626,6 +4011,191 @@ jobs:
                 "name: ci\non:\n  push:\npermissions:\n  contents: read\njobs:\n  fmt:\n    steps:\n      - [echo]\n",
             ),
             &["step-flow.yml uses a flow sequence as a step"],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn cargo_aliases_defaults_and_explicit_keys_fail() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        expect_gaps("repo cargo config", cargo_config_gaps(&root)?, &[])?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("guards steps", pinned_guards_steps(&ci), &[])?;
+        expect_gaps("ci github", github_env_path_gaps("ci.yml", &ci, &root), &[])?;
+        let needs = gate_needs(gate_job_block(&ci)?)?;
+        expect_gaps(
+            "ci directives",
+            required_step_directive_gaps(&needs, &ci),
+            &[],
+        )?;
+        let alias = read(&root.join("fixtures/guards/cargo/alias-xtask.toml"))?;
+        expect_gaps(
+            "alias text",
+            cargo_alias_gaps(&alias),
+            &["cargo alias xtask is \"test --no-run\""],
+        )?;
+        let planted = TempGit::new("alias-xtask")?;
+        std::fs::create_dir_all(planted.path.join(".cargo"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::write(planted.path.join(".cargo/config.toml"), &alias)
+            .map_err(|err| format!("write: {err}"))?;
+        expect_gaps(
+            "planted alias",
+            cargo_config_gaps(&planted.path)?,
+            &[
+                ".cargo/config.toml does not match the pinned xtask alias",
+                "cargo alias xtask is \"test --no-run\"",
+            ],
+        )?;
+        let extra = TempGit::new("extra-cargo")?;
+        std::fs::create_dir_all(extra.path.join("nested/.cargo"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::create_dir_all(extra.path.join(".cargo"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::write(extra.path.join(".cargo/config.toml"), CARGO_CONFIG_TOML)
+            .map_err(|err| format!("write: {err}"))?;
+        std::fs::copy(
+            root.join("fixtures/guards/cargo/extra.toml"),
+            extra.path.join("nested/.cargo/config.toml"),
+        )
+        .map_err(|err| format!("copy: {err}"))?;
+        expect_gaps(
+            "nested cargo config",
+            cargo_config_gaps(&extra.path)?,
+            &["unexpected cargo config nested/.cargo/config.toml"],
+        )?;
+        std::fs::copy(
+            root.join("fixtures/guards/cargo/extra.toml"),
+            extra.path.join(".cargo/config"),
+        )
+        .map_err(|err| format!("copy: {err}"))?;
+        expect_gaps(
+            "bare cargo config",
+            cargo_config_gaps(&extra.path)?,
+            &[
+                "unexpected cargo config .cargo/config",
+                "unexpected cargo config nested/.cargo/config.toml",
+            ],
+        )?;
+        let env_cases = [
+            (
+                "fixtures/guards/ci/cargo-alias-xtask.yml",
+                &[
+                    "cargo-alias-xtask.yml env sets CARGO_ALIAS_XTASK",
+                    "cargo-alias-xtask.yml env sets CARGO_ALIAS_XTASK",
+                    "cargo-alias-xtask.yml env sets CARGO_ALIAS_XTASK",
+                ][..],
+            ),
+            (
+                "fixtures/guards/ci/rustc-wrapper.yml",
+                &["rustc-wrapper.yml env sets RUSTC_WRAPPER"][..],
+            ),
+            (
+                "fixtures/guards/ci/rustc-workspace-wrapper.yml",
+                &["rustc-workspace-wrapper.yml env sets RUSTC_WORKSPACE_WRAPPER"][..],
+            ),
+            (
+                "fixtures/guards/ci/cargo-build-rustc.yml",
+                &["cargo-build-rustc.yml env sets CARGO_BUILD_RUSTC_WRAPPER"][..],
+            ),
+            (
+                "fixtures/guards/ci/cargo-target-runner.yml",
+                &["cargo-target-runner.yml env sets CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER"]
+                    [..],
+            ),
+            (
+                "fixtures/guards/ci/cargo-home.yml",
+                &["cargo-home.yml env sets CARGO_HOME"][..],
+            ),
+            (
+                "fixtures/guards/ci/rustflags.yml",
+                &["rustflags.yml env sets RUSTFLAGS"][..],
+            ),
+        ];
+        for (path, expected) in env_cases {
+            let name = path.rsplit('/').next().unwrap_or(path);
+            let text = read(&root.join(path))?;
+            expect_gaps(path, forbidden_env_gaps(name, &text), expected)?;
+        }
+        let github_cases = [
+            (
+                "fixtures/guards/ci/github-env-alias.yml",
+                &["github-env-alias.yml github env sets CARGO_ALIAS_XTASK"][..],
+            ),
+            (
+                "fixtures/guards/ci/github-env-heredoc.yml",
+                &["github-env-heredoc.yml github env sets CARGO_HOME"][..],
+            ),
+            (
+                "fixtures/guards/ci/github-env-file.yml",
+                &["github-env-file.yml github env sets RUSTFLAGS"][..],
+            ),
+            (
+                "fixtures/guards/ci/github-path.yml",
+                &["github-path.yml writes GITHUB_PATH"][..],
+            ),
+        ];
+        for (path, expected) in github_cases {
+            let name = path.rsplit('/').next().unwrap_or(path);
+            let text = read(&root.join(path))?;
+            expect_gaps(path, github_env_path_gaps(name, &text, &root), expected)?;
+        }
+        let shell = read(&root.join("fixtures/guards/ci/step-shell.yml"))?;
+        let shell_needs = gate_needs(gate_job_block(&shell)?)?;
+        expect_gaps(
+            "shell",
+            required_step_directive_gaps(&shell_needs, &shell),
+            &["ci job fmt sets shell:"],
+        )?;
+        let directory = read(&root.join("fixtures/guards/ci/step-working-directory.yml"))?;
+        let directory_needs = gate_needs(gate_job_block(&directory)?)?;
+        expect_gaps(
+            "working-directory",
+            required_step_directive_gaps(&directory_needs, &directory),
+            &["ci job fmt sets working-directory:"],
+        )?;
+        let syntax_cases = [
+            (
+                "fixtures/guards/ci/defaults-workflow.yml",
+                &["defaults-workflow.yml sets defaults"][..],
+            ),
+            (
+                "fixtures/guards/ci/defaults-job.yml",
+                &["defaults-job.yml sets defaults"][..],
+            ),
+            (
+                "fixtures/guards/ci/explicit-if.yml",
+                &["explicit-if.yml uses an explicit yaml key"][..],
+            ),
+            (
+                "fixtures/guards/ci/non-ascii-key.yml",
+                &["non-ascii-key.yml has a non-ascii key"][..],
+            ),
+        ];
+        for (path, expected) in syntax_cases {
+            let name = path.rsplit('/').next().unwrap_or(path);
+            let text = read(&root.join(path))?;
+            expect_gaps(path, strict_yaml_gaps(name, &text), expected)?;
+        }
+        let bom = read(&root.join("fixtures/guards/ci/bom-workflow.yml"))?;
+        let bom_gaps = strict_yaml_gaps("bom-workflow.yml", &bom);
+        if !bom_gaps
+            .iter()
+            .any(|gap| gap == "bom-workflow.yml has a byte order mark")
+        {
+            return Err(format!("bom: {bom_gaps:?}"));
+        }
+        let nul = read(&root.join("fixtures/guards/ci/nul-workflow.yml"))?;
+        expect_gaps(
+            "nul",
+            strict_yaml_gaps("nul-workflow.yml", &nul),
+            &["nul-workflow.yml contains NUL"],
+        )?;
+        let extra_step = read(&root.join("fixtures/guards/ci/guards-extra-step.yml"))?;
+        expect_gaps(
+            "extra step",
+            pinned_guards_steps(&extra_step),
+            &["guards job steps are not checkout, toolchain, guards, all-zero"],
         )?;
         Ok(())
     }

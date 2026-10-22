@@ -58,6 +58,7 @@ ci.job=depgraph
 ci.job=test
 ci.job=cucumber
 ci.job=guards
+ci.job=guard-fixtures
 ci.job=tla
 ci.job=kani
 ci.job=deny

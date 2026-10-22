@@ -1,0 +1,11 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: plant
+        run: cat fixtures/guards/ci/github-env-alias.env >> "$GITHUB_ENV"

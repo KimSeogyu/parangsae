@@ -1,0 +1,11 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: plant
+        run: echo "CARGO_ALIAS_XTASK=test --no-run" >> $GITHUB_ENV
