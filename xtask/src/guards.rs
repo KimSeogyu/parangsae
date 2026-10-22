@@ -452,9 +452,9 @@ const RUST_TOOLCHAIN_SHA256: &str =
     "07487db9d6b45de2f308f9fb578c9c46041381c3ee44ef782eca64150a394772";
 
 /// Reviewer-protected. sha256 of `deny.toml`, re-checked in the deny job.
-const DENY_TOML_SHA256: &str = "9a54da72f5bf1f6a00695a4348f76941bdfae24e84b86d445ccfced828e06c86";
+const DENY_TOML_SHA256: &str = "d8cec209fc719185e615794935ce8fecae69bf27e0f123ad85211d17857194c3";
 /// Reviewer-protected. sha256 of `Cargo.lock`, re-checked in the deny job.
-const CARGO_LOCK_SHA256: &str = "6b617ee34a33bac5754ced2bb940ea529d0ca34f409f71fb352351db72b31d04";
+const CARGO_LOCK_SHA256: &str = "591639e88c7dfd0a420fbcea67aa82502b7f70e35e2bf2557052c494ff1c8827";
 
 /// Reviewer-protected. cargo-deny release the deny job downloads.
 const DENY_VERSION: &str = "0.20.2";
@@ -477,7 +477,7 @@ const CARGO_MANIFESTS: &[&str] = &[
 ];
 /// Reviewer-protected. sha256 of the `sha256sum` text for `CARGO_MANIFESTS`.
 const CARGO_MANIFESTS_SHA256: &str =
-    "759609fc11f7355b0476c9310adafb6a53c0ef91a33e578314be3b316c89b901";
+    "61423b75d59d2e685ca205a80c947abe0fa1f3c4d10c04711f75bf7efe0238bb";
 
 /// Reviewer-protected. Exact non-job preamble of `.github/workflows/ci.yml`.
 const CI_HEADER: &str = include_str!("pinned_jobs/ci.header");
@@ -539,7 +539,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "f6e877870ac5e1f75a5ce126742bbf725c4d22fcb64093283c204c7c252e1a78",
+        "74c91042500997fda090e8c7e0b48817bd5e3eb872d84c7bb24cc5343941ac10",
     ),
     (
         "gate",

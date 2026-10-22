@@ -74,7 +74,7 @@ jobs:
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum deny.toml)"
           deny_got="${deny_line%% *}"
-          if [ "$deny_got" != "9a54da72f5bf1f6a00695a4348f76941bdfae24e84b86d445ccfced828e06c86" ]; then
+          if [ "$deny_got" != "d8cec209fc719185e615794935ce8fecae69bf27e0f123ad85211d17857194c3" ]; then
             echo "deny.toml sha256 does not match"
             exit 1
           fi
@@ -85,7 +85,7 @@ jobs:
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum Cargo.lock)"
           lock_got="${lock_line%% *}"
-          if [ "$lock_got" != "6b617ee34a33bac5754ced2bb940ea529d0ca34f409f71fb352351db72b31d04" ]; then
+          if [ "$lock_got" != "591639e88c7dfd0a420fbcea67aa82502b7f70e35e2bf2557052c494ff1c8827" ]; then
             echo "Cargo.lock sha256 does not match"
             exit 1
           fi
@@ -121,7 +121,7 @@ jobs:
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum)"
           manifest_got="${manifest_line%% *}"
-          if [ "$manifest_got" != "759609fc11f7355b0476c9310adafb6a53c0ef91a33e578314be3b316c89b901" ]; then
+          if [ "$manifest_got" != "61423b75d59d2e685ca205a80c947abe0fa1f3c4d10c04711f75bf7efe0238bb" ]; then
             echo "cargo manifests sha256 does not match"
             exit 1
           fi
@@ -170,7 +170,7 @@ jobs:
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum deny.toml)"
           deny_got="${deny_line%% *}"
-          if [ "$deny_got" != "9a54da72f5bf1f6a00695a4348f76941bdfae24e84b86d445ccfced828e06c86" ]; then
+          if [ "$deny_got" != "d8cec209fc719185e615794935ce8fecae69bf27e0f123ad85211d17857194c3" ]; then
             echo "deny.toml sha256 does not match"
             exit 1
           fi
