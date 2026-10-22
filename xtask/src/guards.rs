@@ -95,6 +95,11 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
             let file = required_path(args, "--file")?;
             finish(Ok(gate_results_pin(&read(&file)?)))
         }
+        "gate-fixture" => {
+            let name = required_value(args, "--name")?;
+            let file = required_path(args, "--file")?;
+            finish(Ok(gate_fixture_pin(&name, &read(&file)?)))
+        }
         other => Err(format!("unknown guards command {other}")),
     }
 }
@@ -114,6 +119,9 @@ fn check_workspace(root: &Path) -> Result<(), String> {
     violations.extend(gate_results_pin(&read(
         &root.join(".github/workflows/gate_results.py"),
     )?));
+    for (name, _) in GATE_FIXTURE_SHA256 {
+        violations.extend(gate_fixture_pin(name, &read(&root.join(name))?));
+    }
     finish(Ok(violations))
 }
 
@@ -124,19 +132,75 @@ const GATE_CHECK_STEP: &str = concat!(
     "        run: python3 .github/workflows/gate_results.py\n",
 );
 
-const GATE_RESULTS_SHA256: &str =
-    "fc29c5183b78333789e1290fa2f1e859e1cbc53a4f8ab9bf50d99069ca131f55";
+const GATE_FIXTURE_STEP: &str = include_str!("gate_fixture_step.txt");
 
-fn gate_results_pin(text: &str) -> Vec<String> {
+const GATE_RESULTS_SHA256: &str =
+    "7e0f2561876477d8516e7642d8f3be7aa938cbd571273babe7bc0fd80a891666";
+
+const GATE_FIXTURE_SHA256: &[(&str, &str)] = &[
+    (
+        "fixtures/guards/ci/needs-cancelled.json",
+        "c8a35ed42b8f06c4f1f7505e6d99cf61107d563d8ddb9fc29c5a77d8749e7e1c",
+    ),
+    (
+        "fixtures/guards/ci/needs-empty.json",
+        "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    ),
+    (
+        "fixtures/guards/ci/needs-entry-non-object.json",
+        "0b4d8bc7dfef11cb91fd85d2ec04e692b5c4645ba6b8e0518a39997fbd78d51d",
+    ),
+    (
+        "fixtures/guards/ci/needs-failure.json",
+        "bf1e5a5938aa5b91beb5bd900b03e2df8251a41e743b062c774c56567572178b",
+    ),
+    (
+        "fixtures/guards/ci/needs-malformed.json",
+        "afd37634d06e2ec494d371a0d8a0290c8086f90d312545e7700bdd87345cd6ce",
+    ),
+    (
+        "fixtures/guards/ci/needs-non-object.json",
+        "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    ),
+    (
+        "fixtures/guards/ci/needs-null.json",
+        "b304e324ab16bd0921ed2eaf0d7a2e6fbe9c3bf3e2bd20b6e2e721a0f8b6eef2",
+    ),
+    (
+        "fixtures/guards/ci/needs-skipped.json",
+        "e6592562a39006232d0965a99b9905dade1b73798e66361e3b2dbddd0d26a3c1",
+    ),
+    (
+        "fixtures/guards/ci/needs-success.json",
+        "22d1b135c8fc2cd56844481bd12ccb07f030b6c3a2e555018cc77eba4f53a52a",
+    ),
+];
+
+fn sha256_hex(text: &str) -> String {
     let digest = Sha256::digest(text.as_bytes());
     let mut hex = String::with_capacity(64);
     for byte in digest {
         hex.push_str(&format!("{byte:02x}"));
     }
-    if hex == GATE_RESULTS_SHA256 {
+    hex
+}
+
+fn gate_results_pin(text: &str) -> Vec<String> {
+    if sha256_hex(text) == GATE_RESULTS_SHA256 {
         Vec::new()
     } else {
         vec!["gate_results.py sha256 does not match".to_owned()]
+    }
+}
+
+fn gate_fixture_pin(name: &str, text: &str) -> Vec<String> {
+    let Some((_, expected)) = GATE_FIXTURE_SHA256.iter().find(|(path, _)| *path == name) else {
+        return vec![format!("gate fixture {name} is not pinned")];
+    };
+    if sha256_hex(text) == *expected {
+        Vec::new()
+    } else {
+        vec![format!("gate fixture {name} sha256 does not match")]
     }
 }
 
@@ -156,6 +220,10 @@ fn ci_gate_gaps(text: &str) -> Result<Vec<String>, String> {
     if gate_check_step(block) != GATE_CHECK_STEP {
         gaps.push("gate check step does not match".to_owned());
     }
+    if gate_fixture_step(block) != GATE_FIXTURE_STEP {
+        gaps.push("gate fixture step does not match".to_owned());
+    }
+    gaps.extend(gate_control_gaps(block));
     let needs = match gate_needs(block) {
         Ok(needs) => needs,
         Err(err) => {
@@ -171,7 +239,58 @@ fn ci_gate_gaps(text: &str) -> Result<Vec<String>, String> {
     for name in needs.difference(&inventory) {
         gaps.push(format!("gate.needs lists {name} which is not a ci job"));
     }
+    for name in &needs {
+        let Some(job) = job_block(text, name) else {
+            continue;
+        };
+        if block_sets_continue_on_error(job) {
+            gaps.push(format!("ci job {name} sets continue-on-error"));
+        }
+    }
     Ok(gaps)
+}
+
+fn gate_control_gaps(block: &str) -> Vec<String> {
+    let mut job_continue = false;
+    let mut step_continue = false;
+    let mut step_if = false;
+    for line in block.lines() {
+        let trimmed = strip_yaml_comment(line).trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let key = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        let indent = line.len() - line.trim_start().len();
+        if key.starts_with("continue-on-error:") {
+            if indent > 4 {
+                step_continue = true;
+            } else {
+                job_continue = true;
+            }
+        }
+        if indent > 4 && key.starts_with("if:") {
+            step_if = true;
+        }
+    }
+    let mut gaps = Vec::new();
+    if job_continue {
+        gaps.push("gate job sets continue-on-error".to_owned());
+    }
+    if step_continue {
+        gaps.push("gate step sets continue-on-error".to_owned());
+    }
+    if step_if {
+        gaps.push("gate step sets if:".to_owned());
+    }
+    gaps
+}
+
+fn block_sets_continue_on_error(block: &str) -> bool {
+    block.lines().any(|line| {
+        let trimmed = strip_yaml_comment(line).trim();
+        let key = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        key.starts_with("continue-on-error:")
+    })
 }
 
 fn ci_job_ids(text: &str) -> Result<BTreeSet<String>, String> {
@@ -199,11 +318,14 @@ fn ci_job_ids(text: &str) -> Result<BTreeSet<String>, String> {
 }
 
 fn gate_job_block(text: &str) -> Result<&str, String> {
+    job_block(text, "gate").ok_or_else(|| "ci.yml has no gate job".to_owned())
+}
+
+fn job_block<'a>(text: &'a str, id: &str) -> Option<&'a str> {
     let lines: Vec<&str> = text.lines().collect();
     let start = lines
         .iter()
-        .position(|line| job_id(line).as_deref() == Some("gate"))
-        .ok_or_else(|| "ci.yml has no gate job".to_owned())?;
+        .position(|line| job_id(line).as_deref() == Some(id))?;
     let mut end = lines.len();
     for (idx, line) in lines.iter().enumerate().skip(start + 1) {
         if job_id(line).is_some() || is_top_level(line) {
@@ -211,17 +333,30 @@ fn gate_job_block(text: &str) -> Result<&str, String> {
             break;
         }
     }
-    Ok(&text[line_offset(text, start)..line_offset(text, end)])
+    Some(&text[line_offset(text, start)..line_offset(text, end)])
 }
 
-fn gate_check_step(block: &str) -> &str {
-    let header = "      - name: fail unless every needed job succeeded\n";
+fn gate_named_step<'a>(block: &'a str, header: &str) -> &'a str {
     let Some(start) = block.find(header) else {
         return "";
     };
     let rest = &block[start..];
     let end = rest.find("\n      - ").map_or(rest.len(), |idx| idx + 1);
     &rest[..end]
+}
+
+fn gate_check_step(block: &str) -> &str {
+    gate_named_step(
+        block,
+        "      - name: fail unless every needed job succeeded\n",
+    )
+}
+
+fn gate_fixture_step(block: &str) -> &str {
+    gate_named_step(
+        block,
+        "      - name: non-success gate needs fail and success passes\n",
+    )
 }
 
 fn gate_needs(block: &str) -> Result<BTreeSet<String>, String> {
@@ -1383,6 +1518,8 @@ fn glob_matches(glob: &str, rel: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use super::*;
 
     #[test]
@@ -1785,6 +1922,12 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         if !pin.is_empty() {
             return Err(pin.join("\n"));
         }
+        for (name, _) in GATE_FIXTURE_SHA256 {
+            let pin = gate_fixture_pin(name, &read(&root.join(name))?);
+            if !pin.is_empty() {
+                return Err(pin.join("\n"));
+            }
+        }
         Ok(())
     }
 
@@ -1792,10 +1935,7 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
     fn a_job_omitted_from_gate_needs_fails() -> Result<(), String> {
         let root = crate::workspace_root()?;
         let omitted = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/omitted-job.yml"))?)?;
-        if !omitted
-            .iter()
-            .any(|line| line == "ci job clippy is missing from gate.needs")
-        {
+        if omitted != ["ci job clippy is missing from gate.needs".to_owned()] {
             return Err(format!("{omitted:?}"));
         }
         Ok(())
@@ -1850,26 +1990,55 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
 
     #[test]
     fn an_extra_gate_need_is_not_the_inventory() -> Result<(), String> {
-        let text = "\
-name: ci
-on: push
-jobs:
-  fmt:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo fmt
-  gate:
-    if: always()
-    needs: [fmt, phantom]
-    runs-on: ubuntu-latest
-    steps:
-      - name: fail unless every needed job succeeded
-        env:
-          NEEDS: ${{ toJSON(needs) }}
-        run: python3 .github/workflows/gate_results.py
-";
-        let gaps = ci_gate_gaps(text)?;
+        let root = crate::workspace_root()?;
+        let gaps = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/extra-need.yml"))?)?;
         if gaps != ["gate.needs lists phantom which is not a ci job".to_owned()] {
+            return Err(format!("{gaps:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_weakened_gate_fixture_step_fails() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let gaps = ci_gate_gaps(&read(
+            &root.join("fixtures/guards/ci/fixture-step-weakened.yml"),
+        )?)?;
+        if gaps != ["gate fixture step does not match".to_owned()] {
+            return Err(format!("{gaps:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn gate_continue_on_error_fails() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let job = ci_gate_gaps(&read(
+            &root.join("fixtures/guards/ci/gate-continue-on-error.yml"),
+        )?)?;
+        if job != ["gate job sets continue-on-error".to_owned()] {
+            return Err(format!("job: {job:?}"));
+        }
+        let step = ci_gate_gaps(&read(
+            &root.join("fixtures/guards/ci/gate-step-continue-on-error.yml"),
+        )?)?;
+        if step != ["gate step sets continue-on-error".to_owned()] {
+            return Err(format!("step: {step:?}"));
+        }
+        let needed = ci_gate_gaps(&read(
+            &root.join("fixtures/guards/ci/needed-continue-on-error.yml"),
+        )?)?;
+        if needed != ["ci job fmt sets continue-on-error".to_owned()] {
+            return Err(format!("needed: {needed:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_step_level_if_inside_the_gate_fails() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let gaps = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/gate-step-if.yml"))?)?;
+        if gaps != ["gate step sets if:".to_owned()] {
             return Err(format!("{gaps:?}"));
         }
         Ok(())
@@ -1887,6 +2056,62 @@ jobs:
         )?);
         if replaced != ["gate_results.py sha256 does not match".to_owned()] {
             return Err(format!("{replaced:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn non_object_needs_are_rejected() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let cases = [
+            (
+                "fixtures/guards/ci/needs-non-object.json",
+                "gate needs must be an object",
+            ),
+            (
+                "fixtures/guards/ci/needs-entry-non-object.json",
+                "not-object",
+            ),
+        ];
+        for (name, needle) in cases {
+            let needs = read(&root.join(name))?;
+            let output = Command::new("python3")
+                .arg(root.join(".github/workflows/gate_results.py"))
+                .env("NEEDS", &needs)
+                .output()
+                .map_err(|err| format!("python3: {err}"))?;
+            let detail = command_failure_detail(
+                &String::from_utf8_lossy(&output.stderr),
+                &String::from_utf8_lossy(&output.stdout),
+                output.status.code(),
+            );
+            if output.status.success() || !detail.contains(needle) {
+                return Err(format!("{name}: {detail}"));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_weakened_gate_fixture_file_fails_the_sha256_pin() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        for (name, _) in GATE_FIXTURE_SHA256 {
+            let pin = gate_fixture_pin(name, &read(&root.join(name))?);
+            if !pin.is_empty() {
+                return Err(format!("{name}: {pin:?}"));
+            }
+        }
+        let weakened = gate_fixture_pin(
+            "fixtures/guards/ci/needs-success.json",
+            &read(&root.join("fixtures/guards/ci/needs-success-weakened.json"))?,
+        );
+        if weakened
+            != [
+                "gate fixture fixtures/guards/ci/needs-success.json sha256 does not match"
+                    .to_owned(),
+            ]
+        {
+            return Err(format!("{weakened:?}"));
         }
         Ok(())
     }

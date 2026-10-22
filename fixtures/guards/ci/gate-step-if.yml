@@ -1,0 +1,93 @@
+name: ci
+on: push
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt
+  gate:
+    if: always()
+    needs: [fmt]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        if: success()
+      - name: non-success gate needs fail and success passes
+        run: |
+          set +e
+          failure=$(NEEDS="$(cat fixtures/guards/ci/needs-failure.json)" python3 .github/workflows/gate_results.py 2>&1)
+          failure_status=$?
+          skipped=$(NEEDS="$(cat fixtures/guards/ci/needs-skipped.json)" python3 .github/workflows/gate_results.py 2>&1)
+          skipped_status=$?
+          cancelled=$(NEEDS="$(cat fixtures/guards/ci/needs-cancelled.json)" python3 .github/workflows/gate_results.py 2>&1)
+          cancelled_status=$?
+          null_result=$(NEEDS="$(cat fixtures/guards/ci/needs-null.json)" python3 .github/workflows/gate_results.py 2>&1)
+          null_status=$?
+          empty=$(NEEDS="$(cat fixtures/guards/ci/needs-empty.json)" python3 .github/workflows/gate_results.py 2>&1)
+          empty_status=$?
+          malformed=$(NEEDS="$(cat fixtures/guards/ci/needs-malformed.json)" python3 .github/workflows/gate_results.py 2>&1)
+          malformed_status=$?
+          non_object=$(NEEDS="$(cat fixtures/guards/ci/needs-non-object.json)" python3 .github/workflows/gate_results.py 2>&1)
+          non_object_status=$?
+          entry_non_object=$(NEEDS="$(cat fixtures/guards/ci/needs-entry-non-object.json)" python3 .github/workflows/gate_results.py 2>&1)
+          entry_non_object_status=$?
+          success=$(NEEDS="$(cat fixtures/guards/ci/needs-success.json)" python3 .github/workflows/gate_results.py 2>&1)
+          success_status=$?
+          set -e
+          printf '%s\n' "$failure"
+          printf '%s\n' "$skipped"
+          printf '%s\n' "$cancelled"
+          printf '%s\n' "$null_result"
+          printf '%s\n' "$empty"
+          printf '%s\n' "$malformed"
+          printf '%s\n' "$non_object"
+          printf '%s\n' "$entry_non_object"
+          printf '%s\n' "$success"
+          if [ "$failure_status" -eq 0 ]; then
+            echo "failure result was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$failure" | grep -q 'failure'
+          if [ "$skipped_status" -eq 0 ]; then
+            echo "skipped result was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$skipped" | grep -q 'skipped'
+          if [ "$cancelled_status" -eq 0 ]; then
+            echo "cancelled result was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$cancelled" | grep -q 'cancelled'
+          if [ "$null_status" -eq 0 ]; then
+            echo "null result was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$null_result" | grep -q 'null'
+          if [ "$empty_status" -eq 0 ]; then
+            echo "empty needs was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$empty" | grep -q 'gate has no needed jobs'
+          if [ "$malformed_status" -eq 0 ]; then
+            echo "malformed needs was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$malformed" | grep -q 'not json'
+          if [ "$non_object_status" -eq 0 ]; then
+            echo "non-object needs was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$non_object" | grep -q 'gate needs must be an object'
+          if [ "$entry_non_object_status" -eq 0 ]; then
+            echo "non-object need entry was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$entry_non_object" | grep -q 'not-object'
+          if [ "$success_status" -ne 0 ]; then
+            echo "all-success needs was rejected"
+            exit 1
+          fi
+      - name: fail unless every needed job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 .github/workflows/gate_results.py

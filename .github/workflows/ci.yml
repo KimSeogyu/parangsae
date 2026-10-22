@@ -315,6 +315,70 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'gate_results.py sha256 does not match'
+      - name: weakened gate fixture step fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/fixture-step-weakened.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "weakened gate fixture step was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate fixture step does not match'
+      - name: weakened gate fixture file fails the sha256 pin
+        run: |
+          set +e
+          output=$(cargo xtask guards gate-fixture --name fixtures/guards/ci/needs-success.json --file fixtures/guards/ci/needs-success-weakened.json 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "weakened gate fixture file was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'needs-success.json sha256 does not match'
+      - name: gate continue-on-error fails
+        run: |
+          set +e
+          job=$(cargo xtask guards ci-gate --file fixtures/guards/ci/gate-continue-on-error.yml 2>&1)
+          job_status=$?
+          step=$(cargo xtask guards ci-gate --file fixtures/guards/ci/gate-step-continue-on-error.yml 2>&1)
+          step_status=$?
+          needed=$(cargo xtask guards ci-gate --file fixtures/guards/ci/needed-continue-on-error.yml 2>&1)
+          needed_status=$?
+          set -e
+          printf '%s\n' "$job"
+          printf '%s\n' "$step"
+          printf '%s\n' "$needed"
+          if [ "$job_status" -eq 0 ]; then
+            echo "gate continue-on-error was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$job" | grep -q 'gate job sets continue-on-error'
+          if [ "$step_status" -eq 0 ]; then
+            echo "gate step continue-on-error was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$step" | grep -q 'gate step sets continue-on-error'
+          if [ "$needed_status" -eq 0 ]; then
+            echo "needed job continue-on-error was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$needed" | grep -q 'ci job fmt sets continue-on-error'
+      - name: gate step if fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/gate-step-if.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "gate step if was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate step sets if:'
       - name: jobs comment still sees a missing need
         run: |
           set +e
@@ -469,6 +533,8 @@ jobs:
           malformed_status=$?
           non_object=$(NEEDS="$(cat fixtures/guards/ci/needs-non-object.json)" python3 .github/workflows/gate_results.py 2>&1)
           non_object_status=$?
+          entry_non_object=$(NEEDS="$(cat fixtures/guards/ci/needs-entry-non-object.json)" python3 .github/workflows/gate_results.py 2>&1)
+          entry_non_object_status=$?
           success=$(NEEDS="$(cat fixtures/guards/ci/needs-success.json)" python3 .github/workflows/gate_results.py 2>&1)
           success_status=$?
           set -e
@@ -479,6 +545,7 @@ jobs:
           printf '%s\n' "$empty"
           printf '%s\n' "$malformed"
           printf '%s\n' "$non_object"
+          printf '%s\n' "$entry_non_object"
           printf '%s\n' "$success"
           if [ "$failure_status" -eq 0 ]; then
             echo "failure result was accepted"
@@ -515,6 +582,11 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$non_object" | grep -q 'gate needs must be an object'
+          if [ "$entry_non_object_status" -eq 0 ]; then
+            echo "non-object need entry was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$entry_non_object" | grep -q 'not-object'
           if [ "$success_status" -ne 0 ]; then
             echo "all-success needs was rejected"
             exit 1
