@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use sha2::{Digest, Sha256};
+
 use super::resolve::{self, ResolutionError};
 use super::source::Source;
 use super::versions::{logged_conflicts, record_kline_archive};
@@ -183,6 +185,116 @@ fn reviewed_registry_matches_the_version_store_and_unreviewed_entries_are_refuse
         }) => Ok(()),
         other => Err(format!("missing reviewed_by: {other:?}")),
     }
+}
+
+#[test]
+fn known_source_absence_entries_match_the_spec_and_unreviewed_entries_are_refused(
+) -> Result<(), String> {
+    let root = registry_root();
+    let resolutions =
+        std::fs::read_to_string(root.join("vision/um-kline.BTCUSDT.jsonl")).map_err(show)?;
+    let resolution_lines: Vec<&str> = resolutions
+        .lines()
+        .filter(|line| !line.is_empty())
+        .collect();
+    expect_sha(
+        resolution_lines.as_slice(),
+        &[
+            "ada5bab03f65416a8b9b7d2b207c7a4c3738702b19dafe0194784d11ad8f1557",
+            "001a0fa0a3fddf0645b930287658d3472b86ee8a618b044330ad6b51a08a65f8",
+        ],
+    )?;
+    let absences =
+        std::fs::read_to_string(root.join("vision/known_source_absence.jsonl")).map_err(show)?;
+    let absence_lines: Vec<&str> = absences.lines().filter(|line| !line.is_empty()).collect();
+    expect_sha(
+        absence_lines.as_slice(),
+        &[
+            "071dc0145f22f2c1bf930656b0d73a09bc082f6b96cd487c5f6f3697a660018b",
+            "2d8a02ac0914bff4dc1d4ee793618202dd115c01efb7586c6c4adf3fb0864d72",
+            "7e575353cc129457dc777b81c5389e14f420b16fcb5f33bb9aab2f2b57f3e403",
+        ],
+    )?;
+    let loaded = resolve::load_known_absences(&root).map_err(show)?;
+    if loaded.len() != 3 {
+        return Err(format!("absences {}", loaded.len()));
+    }
+    if loaded[0].id != "mark-price-kline/BTCUSDT/2024-08-12T10:02Z"
+        || loaded[1].id != "index-price-kline/BTCUSDT/2024-08-12T10:02Z"
+        || loaded[2].id != "premium-index-kline/BTCUSDT/2024-08-12T10:02Z"
+    {
+        return Err(format!(
+            "ids {} {} {}",
+            loaded[0].id, loaded[1].id, loaded[2].id
+        ));
+    }
+    if loaded[0].end_us - loaded[0].start_us != 120_000_000 {
+        return Err("mark window is not two minutes".into());
+    }
+
+    let dir = tempfile::tempdir().map_err(show)?;
+    let vision = dir.path().join("vision");
+    std::fs::create_dir_all(&vision).map_err(show)?;
+    let path = vision.join("known_source_absence.jsonl");
+    std::fs::write(&path, format!("{}\n", absence_fixture(r#""<someone>""#))).map_err(show)?;
+    match resolve::load_known_absences(dir.path()) {
+        Err(ResolutionError {
+            check: "resolution_unreviewed",
+            ..
+        }) => {}
+        other => return Err(format!("placeholder: {other:?}")),
+    }
+    let missing = absence_fixture(r#""<someone>""#).replace(r#""reviewed_by":"<someone>","#, "");
+    std::fs::write(&path, format!("{missing}\n")).map_err(show)?;
+    match resolve::load_known_absences(dir.path()) {
+        Err(ResolutionError {
+            check: "resolution_unreviewed",
+            ..
+        }) => {}
+        other => return Err(format!("missing reviewed_by: {other:?}")),
+    }
+    std::fs::write(
+        &path,
+        format!(
+            "{}\n",
+            absence_fixture(r#""reviewer""#)
+                .replace(r#""end_us":"120000001""#, r#""end_us":"300000002""#)
+        ),
+    )
+    .map_err(show)?;
+    match resolve::load_known_absences(dir.path()) {
+        Err(ResolutionError {
+            check: "absence_too_long",
+            ..
+        }) => Ok(()),
+        other => Err(format!("long absence: {other:?}")),
+    }
+}
+
+fn expect_sha(lines: &[&str], expected: &[&str]) -> Result<(), String> {
+    if lines.len() != expected.len() {
+        return Err(format!("lines {} expected {}", lines.len(), expected.len()));
+    }
+    for (line, digest) in lines.iter().zip(expected) {
+        let got = hex::encode(Sha256::digest(line.as_bytes()));
+        if got != *digest {
+            return Err(format!("sha256 {got} != {digest}"));
+        }
+    }
+    Ok(())
+}
+
+fn absence_fixture(reviewed_by: &str) -> String {
+    let sha = "ab".repeat(32);
+    format!(
+        concat!(
+            r#"{{"id":"mark-price-kline/BTCUSDT/synthetic","dataset":"mark-price-kline","symbol":"BTCUSDT","#,
+            r#""start_us":"1","end_us":"120000001","daily":{{"sha256":"{sha}"}},"monthly":{{"sha256":"{sha}"}},"#,
+            r#""reviewed_by":{reviewed_by},"reviewed_at":"2026-10-22T13:25:00Z"}}"#
+        ),
+        sha = sha,
+        reviewed_by = reviewed_by,
+    )
 }
 
 #[test]

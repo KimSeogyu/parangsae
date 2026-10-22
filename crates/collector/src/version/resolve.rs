@@ -53,6 +53,17 @@ pub struct Resolution {
     pub keys_digest: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KnownAbsence {
+    pub id: String,
+    pub dataset: String,
+    pub symbol: String,
+    pub start_us: i64,
+    pub end_us: i64,
+    pub daily_sha256: String,
+    pub monthly_sha256: String,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Registry {
     entries: Vec<Resolution>,
@@ -113,29 +124,60 @@ impl Resolution {
 }
 
 pub fn load(dir: &Path) -> Result<Registry, ResolutionError> {
+    let mut entries = Vec::new();
+    for_jsonl(dir, false, |line| {
+        entries.push(parse_line(line)?);
+        Ok(())
+    })?;
+    Ok(Registry { entries })
+}
+
+/// Known-source absences. A placeholder or missing `reviewed_by` is
+/// `resolution_unreviewed`. An interval longer than five minutes is
+/// `absence_too_long`.
+pub fn load_known_absences(dir: &Path) -> Result<Vec<KnownAbsence>, ResolutionError> {
+    let mut entries = Vec::new();
+    for_jsonl(dir, true, |line| {
+        entries.push(parse_absence(line)?);
+        Ok(())
+    })?;
+    Ok(entries)
+}
+
+fn for_jsonl(
+    dir: &Path,
+    absence: bool,
+    mut each: impl FnMut(&str) -> Result<(), ResolutionError>,
+) -> Result<(), ResolutionError> {
     if !dir.exists() {
-        return Ok(Registry::default());
+        return Ok(());
     }
     let mut paths = Vec::new();
     collect_jsonl(dir, &mut paths)?;
     paths.sort();
-    let mut entries = Vec::new();
     for path in paths {
+        if is_absence_log(&path) != absence {
+            continue;
+        }
         let text = fs::read_to_string(&path)
             .map_err(|err| ResolutionError::new("resolution_malformed", err.to_string()))?;
         for (index, line) in text.lines().enumerate() {
             if line.is_empty() {
                 continue;
             }
-            entries.push(parse_line(line).map_err(|err| {
+            each(line).map_err(|err| {
                 ResolutionError::new(
                     err.check,
                     format!("{}:{} {}", path.display(), index + 1, err.detail),
                 )
-            })?);
+            })?;
         }
     }
-    Ok(Registry { entries })
+    Ok(())
+}
+
+fn is_absence_log(path: &Path) -> bool {
+    path.file_name().and_then(|name| name.to_str()) == Some("known_source_absence.jsonl")
 }
 
 fn collect_jsonl(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<(), ResolutionError> {
@@ -161,27 +203,7 @@ fn parse_line(line: &str) -> Result<Resolution, ResolutionError> {
         .as_object()
         .ok_or_else(|| ResolutionError::new("resolution_malformed", "line is not an object"))?;
     let id = req_str(obj, "id")?;
-    let reviewed_by = obj
-        .get("reviewed_by")
-        .and_then(|item| item.as_str())
-        .unwrap_or("");
-    let reviewed_at = obj
-        .get("reviewed_at")
-        .and_then(|item| item.as_str())
-        .unwrap_or("");
-    if reviewed_by.is_empty()
-        || reviewed_at.is_empty()
-        || reviewed_by.contains('<')
-        || reviewed_at.contains('<')
-    {
-        return Err(ResolutionError::new("resolution_unreviewed", id));
-    }
-    if !rfc3339_utc(reviewed_at) {
-        return Err(ResolutionError::new(
-            "resolution_malformed",
-            format!("{id} reviewed_at"),
-        ));
-    }
+    require_review(obj, &id)?;
     let key_count = obj
         .get("key_count")
         .and_then(|item| item.as_u64())
@@ -205,6 +227,79 @@ fn parse_line(line: &str) -> Result<Resolution, ResolutionError> {
         choose_sha256: choose,
         keys_digest: req_str(obj, "keys_digest")?,
     })
+}
+
+fn parse_absence(line: &str) -> Result<KnownAbsence, ResolutionError> {
+    let value: serde_json::Value = serde_json::from_str(line)
+        .map_err(|err| ResolutionError::new("resolution_malformed", err.to_string()))?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| ResolutionError::new("resolution_malformed", "line is not an object"))?;
+    let id = req_str(obj, "id")?;
+    require_review(obj, &id)?;
+    let start_us = req_i64(obj, "start_us")?;
+    let end_us = req_i64(obj, "end_us")?;
+    let span = end_us
+        .checked_sub(start_us)
+        .ok_or_else(|| ResolutionError::new("resolution_malformed", format!("{id} interval")))?;
+    if span <= 0 {
+        return Err(ResolutionError::new(
+            "resolution_malformed",
+            format!("{id} interval"),
+        ));
+    }
+    if span > 300_000_000 {
+        return Err(ResolutionError::new("absence_too_long", id));
+    }
+    Ok(KnownAbsence {
+        id,
+        dataset: req_str(obj, "dataset")?,
+        symbol: req_str(obj, "symbol")?,
+        start_us,
+        end_us,
+        daily_sha256: nested_sha(obj, "daily")?,
+        monthly_sha256: nested_sha(obj, "monthly")?,
+    })
+}
+
+fn require_review(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    id: &str,
+) -> Result<(), ResolutionError> {
+    let reviewed_by = obj
+        .get("reviewed_by")
+        .and_then(|item| item.as_str())
+        .unwrap_or("");
+    let reviewed_at = obj
+        .get("reviewed_at")
+        .and_then(|item| item.as_str())
+        .unwrap_or("");
+    if reviewed_by.is_empty()
+        || reviewed_at.is_empty()
+        || reviewed_by.contains('<')
+        || reviewed_at.contains('<')
+    {
+        return Err(ResolutionError::new("resolution_unreviewed", id));
+    }
+    if !rfc3339_utc(reviewed_at) {
+        return Err(ResolutionError::new(
+            "resolution_malformed",
+            format!("{id} reviewed_at"),
+        ));
+    }
+    Ok(())
+}
+
+fn nested_sha(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+) -> Result<String, ResolutionError> {
+    obj.get(key)
+        .and_then(|item| item.as_object())
+        .and_then(|item| item.get("sha256"))
+        .and_then(|item| item.as_str())
+        .map(str::to_owned)
+        .ok_or_else(|| ResolutionError::new("resolution_malformed", key))
 }
 
 fn parse_version_set(
