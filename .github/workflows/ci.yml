@@ -619,12 +619,27 @@ jobs:
             echo "unmutated copy was rejected"
             exit 1
           fi
-          case "$clean" in
-            *'ci job fmt bytes do not match'*)
-              echo "unmutated copy reported a byte mismatch"
-              exit 1
-              ;;
-          esac
+          f="$copy/unmutated-guards.txt"
+          set +e
+          printf '%s\n' "$clean" > "$f"
+          write_rc=$?
+          set -e
+          if [ "$write_rc" -ne 0 ]; then
+            echo "unmutated guards output was not written"
+            exit "$write_rc"
+          fi
+          set +e
+          grep -qF -- 'ci job fmt bytes do not match' "$f"
+          clean_rc=$?
+          set -e
+          if [ "$clean_rc" -gt 1 ]; then
+            echo "unmutated guards grep failed"
+            exit "$clean_rc"
+          fi
+          if [ "$clean_rc" -eq 0 ]; then
+            echo "unmutated copy reported a byte mismatch"
+            exit 1
+          fi
           python3 - "$copy" <<'PY'
           import pathlib, sys
           root = pathlib.Path(sys.argv[1])
@@ -650,13 +665,27 @@ jobs:
             echo "mutated ci job was accepted"
             exit 1
           fi
-          case "$output" in
-            *'ci job fmt bytes do not match'*) ;;
-            *)
-              echo "mutated copy missed the byte mismatch"
-              exit 1
-              ;;
-          esac
+          f="$copy/mutated-guards.txt"
+          set +e
+          printf '%s\n' "$output" > "$f"
+          write_rc=$?
+          set -e
+          if [ "$write_rc" -ne 0 ]; then
+            echo "mutated guards output was not written"
+            exit "$write_rc"
+          fi
+          set +e
+          grep -qF -- 'ci job fmt bytes do not match' "$f"
+          match_rc=$?
+          set -e
+          if [ "$match_rc" -gt 1 ]; then
+            echo "mutated guards grep failed"
+            exit "$match_rc"
+          fi
+          if [ "$match_rc" -ne 0 ]; then
+            echo "mutated copy missed the byte mismatch"
+            exit 1
+          fi
 
   tla:
     name: tla
