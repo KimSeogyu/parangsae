@@ -1,0 +1,14 @@
+name: ci
+on: push
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt
+  gate:
+    if: always()
+    needs: [fmt]
+    runs-on: ubuntu-latest
+    steps:
+      - name: fail unless every needed job succeeded
+        run: exit 0

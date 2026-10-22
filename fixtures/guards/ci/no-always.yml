@@ -1,0 +1,15 @@
+name: ci
+on: push
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt
+  gate:
+    needs: [fmt]
+    runs-on: ubuntu-latest
+    steps:
+      - name: fail unless every needed job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 .github/workflows/gate_results.py
