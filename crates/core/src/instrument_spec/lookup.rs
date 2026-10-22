@@ -4,6 +4,11 @@ use super::clock::UtcDateTime;
 use super::decimal::Decimal;
 use super::table::BTCUSDT_RULES;
 use super::types::{Boundary, BracketPolicy, Field, InstrumentRule, RuleValue};
+
+#[cfg(any(test, kani))]
+use super::clock::UtcDate;
+#[cfg(any(test, kani))]
+use super::types::Confidence;
 use std::fmt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -305,59 +310,170 @@ pub fn rule_at(
     lookup(BTCUSDT_RULES, symbol, field, at, policy)
 }
 
+#[cfg(any(test, kani))]
+fn bracket_row(
+    field: Field,
+    ticks: i64,
+    valid_from: Boundary,
+    valid_to: Option<Boundary>,
+) -> InstrumentRule {
+    InstrumentRule {
+        symbol: "BTCUSDT",
+        venue: "binance-usdm",
+        field,
+        value: RuleValue::decimal(ticks),
+        valid_from,
+        valid_to,
+        source: "https://web.archive.org/web/kani",
+        source_date: UtcDate::known(2024, 2, 20),
+        retrieved: UtcDate::known(2026, 10, 22),
+        confidence: Confidence::VerifiedArchive,
+        revision: 1,
+    }
+}
+
+/// The two taker rows that share [`super::table::TAKER_FEE_CHANGE`].
+#[cfg(any(test, kani))]
+fn taker_pair() -> [InstrumentRule; 2] {
+    use super::table::{FEE_TAKER_4, FEE_TAKER_5, TAKER_FEE_CHANGE, VIP0_FEE_START};
+    [
+        bracket_row(
+            Field::FeeTakerVip0,
+            FEE_TAKER_4,
+            VIP0_FEE_START,
+            Some(TAKER_FEE_CHANGE),
+        ),
+        bracket_row(Field::FeeTakerVip0, FEE_TAKER_5, TAKER_FEE_CHANGE, None),
+    ]
+}
+
+/// The two market-max rows that share [`super::table::MARKET_MAX_CHANGE`].
+#[cfg(any(test, kani))]
+fn market_pair() -> [InstrumentRule; 2] {
+    use super::table::{MARKET_MAX_CHANGE, QTY_1000, QTY_120, WB2021};
+    [
+        bracket_row(
+            Field::MarketMaxQty,
+            QTY_1000,
+            Boundary::Exact(WB2021),
+            Some(MARKET_MAX_CHANGE),
+        ),
+        bracket_row(Field::MarketMaxQty, QTY_120, MARKET_MAX_CHANGE, None),
+    ]
+}
+
 #[cfg(kani)]
 mod proofs {
-    use super::*;
-    use crate::instrument_spec::table::{FEE_TAKER_5, QTY_1000, QTY_120, WB2021_US, WB2022_US};
+    use super::{
+        lookup, market_pair, region, taker_pair, Boundary, BracketPolicy, Field, LookupError,
+        Region, RuleValue, UtcDateTime,
+    };
+    use crate::instrument_spec::table::{
+        FEE_FAQ_2023_US, FEE_FAQ_2024_US, FEE_TAKER_4, FEE_TAKER_5, QTY_1000, QTY_120, WB2021_US,
+        WB2022_US,
+    };
+    use crate::UtcMicros;
 
-    /// Every instant, field, and policy returns `Ok` or a [`LookupError`].
-    /// The table scan is bounded by the static row count.
-    #[kani::proof]
-    #[kani::unwind(24)]
-    fn lookup_does_not_panic() {
-        let micros: i64 = kani::any();
-        let field: Field = kani::any();
-        let policy: BracketPolicy = kani::any();
-        let at = UtcDateTime::from_micros(crate::UtcMicros::from_micros(micros));
-        let _ = rule_at("BTCUSDT", field, at, policy);
-        let _ = rule_at("ETHUSDT", field, at, policy);
+    fn instant(micros: i64) -> UtcDateTime {
+        UtcDateTime::from_micros(UtcMicros::from_micros(micros))
     }
 
-    /// Inside the market-max bracket, conservative is the smaller cap and
-    /// does not panic. Latest keeps the observed 1000.
+    /// A bound classifies every instant. An inverted bracket is [`LookupError::TableFault`].
     #[kani::proof]
-    #[kani::unwind(24)]
+    fn boundary_region_does_not_panic() {
+        let early: i64 = kani::any();
+        let late: i64 = kani::any();
+        let at_us: i64 = kani::any();
+        let exact: bool = kani::any();
+        let at = instant(at_us);
+        if exact {
+            let found = region(Boundary::Exact(instant(early)), at);
+            match found {
+                Ok(Region::Before) => assert!(at_us < early),
+                Ok(Region::AfterOrOn) => assert!(at_us >= early),
+                Ok(Region::Inside) => {
+                    let inside_exact = false;
+                    assert!(inside_exact);
+                }
+                Err(_) => {
+                    let exact_fault = false;
+                    assert!(exact_fault);
+                }
+            }
+        } else {
+            let found = region(
+                Boundary::Bracketed {
+                    earliest: instant(early),
+                    latest: instant(late),
+                },
+                at,
+            );
+            match found {
+                Ok(Region::Before) => assert!(early < late && at_us <= early),
+                Ok(Region::Inside) => assert!(early < late && at_us > early && at_us < late),
+                Ok(Region::AfterOrOn) => assert!(early < late && at_us >= late),
+                Err(LookupError::TableFault) => assert!(early >= late),
+                Err(_) => {
+                    let other_fault = false;
+                    assert!(other_fault);
+                }
+            }
+        }
+    }
+
+    /// Two-row brackets only. A scan of the full static table is not a bounded
+    /// harness: the string compare plus every row blows the solver budget.
+    /// Symbol literals are 7 bytes, so the compare loop needs this unwind.
+    #[kani::proof]
+    #[kani::unwind(9)]
+    fn lookup_on_two_row_bracket_does_not_panic() {
+        let micros: i64 = kani::any();
+        let policy: BracketPolicy = kani::any();
+        let at = instant(micros);
+        let taker = taker_pair();
+        let market = market_pair();
+        let _ = lookup(&taker, "BTCUSDT", Field::FeeTakerVip0, at, policy);
+        let _ = lookup(&taker, "ETHUSDT", Field::FeeTakerVip0, at, policy);
+        let _ = lookup(&market, "BTCUSDT", Field::MarketMaxQty, at, policy);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(9)]
     fn conservative_market_max_inside_bracket_is_the_smaller_cap() {
         let micros: i64 = kani::any();
         kani::assume(micros > WB2021_US);
         kani::assume(micros < WB2022_US);
-        let at = UtcDateTime::from_micros(crate::UtcMicros::from_micros(micros));
-        let conservative = rule_at(
+        let at = instant(micros);
+        let rules = market_pair();
+        let conservative = lookup(
+            &rules,
             "BTCUSDT",
             Field::MarketMaxQty,
             at,
             BracketPolicy::Conservative,
         );
-        let latest = rule_at("BTCUSDT", Field::MarketMaxQty, at, BracketPolicy::Latest);
-        let rejected = rule_at("BTCUSDT", Field::MarketMaxQty, at, BracketPolicy::Reject);
-        match conservative {
-            Ok(rule) => match rule.value {
-                RuleValue::Value(decimal) => assert_eq!(decimal.ticks(), QTY_120),
-                RuleValue::Absent | RuleValue::Token(_) | RuleValue::EpochMillis(_) => {
-                    assert!(false);
-                }
-            },
-            Err(_) => assert!(false),
-        }
-        match latest {
-            Ok(rule) => match rule.value {
-                RuleValue::Value(decimal) => assert_eq!(decimal.ticks(), QTY_1000),
-                RuleValue::Absent | RuleValue::Token(_) | RuleValue::EpochMillis(_) => {
-                    assert!(false);
-                }
-            },
-            Err(_) => assert!(false),
-        }
+        let latest = lookup(
+            &rules,
+            "BTCUSDT",
+            Field::MarketMaxQty,
+            at,
+            BracketPolicy::Latest,
+        );
+        let rejected = lookup(
+            &rules,
+            "BTCUSDT",
+            Field::MarketMaxQty,
+            at,
+            BracketPolicy::Reject,
+        );
+        assert!(matches!(
+            conservative,
+            Ok(rule) if matches!(rule.value, RuleValue::Value(decimal) if decimal.ticks() == QTY_120)
+        ));
+        assert!(matches!(
+            latest,
+            Ok(rule) if matches!(rule.value, RuleValue::Value(decimal) if decimal.ticks() == QTY_1000)
+        ));
         assert!(matches!(
             rejected,
             Err(LookupError::Unresolved {
@@ -366,29 +482,99 @@ mod proofs {
         ));
     }
 
-    /// The taker bracket resolves to the higher fee under the conservative policy.
     #[kani::proof]
-    #[kani::unwind(24)]
+    #[kani::unwind(9)]
     fn conservative_taker_fee_inside_bracket_is_the_higher_fee() {
-        use crate::instrument_spec::table::{FEE_FAQ_2023_US, FEE_FAQ_2024_US};
         let micros: i64 = kani::any();
         kani::assume(micros > FEE_FAQ_2023_US);
         kani::assume(micros < FEE_FAQ_2024_US);
-        let at = UtcDateTime::from_micros(crate::UtcMicros::from_micros(micros));
-        let rule = rule_at(
+        let at = instant(micros);
+        let rules = taker_pair();
+        let conservative = lookup(
+            &rules,
             "BTCUSDT",
             Field::FeeTakerVip0,
             at,
             BracketPolicy::Conservative,
         );
-        match rule {
-            Ok(rule) => match rule.value {
-                RuleValue::Value(decimal) => assert_eq!(decimal.ticks(), FEE_TAKER_5),
-                RuleValue::Absent | RuleValue::Token(_) | RuleValue::EpochMillis(_) => {
-                    assert!(false);
-                }
-            },
-            Err(_) => assert!(false),
+        let latest = lookup(
+            &rules,
+            "BTCUSDT",
+            Field::FeeTakerVip0,
+            at,
+            BracketPolicy::Latest,
+        );
+        assert!(matches!(
+            conservative,
+            Ok(rule) if matches!(rule.value, RuleValue::Value(decimal) if decimal.ticks() == FEE_TAKER_5)
+        ));
+        assert!(matches!(
+            latest,
+            Ok(rule) if matches!(rule.value, RuleValue::Value(decimal) if decimal.ticks() == FEE_TAKER_4)
+        ));
+    }
+}
+
+#[cfg(test)]
+mod proof_fixtures {
+    use super::{market_pair, taker_pair, BracketPolicy, Field, UtcDateTime};
+    use crate::instrument_spec::rule_at;
+    use crate::instrument_spec::table::{FEE_FAQ_2023_US, FEE_FAQ_2024_US, WB2021_US, WB2022_US};
+    use crate::UtcMicros;
+
+    #[test]
+    fn two_row_brackets_match_the_table() -> Result<(), String> {
+        let taker_at = FEE_FAQ_2023_US
+            .checked_add(
+                FEE_FAQ_2024_US
+                    .checked_sub(FEE_FAQ_2023_US)
+                    .ok_or("taker span")?
+                    / 2,
+            )
+            .ok_or("taker mid")?;
+        let market_at = WB2021_US
+            .checked_add(WB2022_US.checked_sub(WB2021_US).ok_or("market span")? / 2)
+            .ok_or("market mid")?;
+        let taker_at = UtcDateTime::from_micros(UtcMicros::from_micros(taker_at));
+        let market_at = UtcDateTime::from_micros(UtcMicros::from_micros(market_at));
+        let taker = taker_pair();
+        let from_pair = super::lookup(
+            &taker,
+            "BTCUSDT",
+            Field::FeeTakerVip0,
+            taker_at,
+            BracketPolicy::Conservative,
+        )
+        .map_err(|err| err.to_string())?;
+        let from_table = rule_at(
+            "BTCUSDT",
+            Field::FeeTakerVip0,
+            taker_at,
+            BracketPolicy::Conservative,
+        )
+        .map_err(|err| err.to_string())?;
+        if from_pair.value != from_table.value {
+            return Err("taker pair diverges from the table".to_owned());
         }
+        let market = market_pair();
+        let from_pair = super::lookup(
+            &market,
+            "BTCUSDT",
+            Field::MarketMaxQty,
+            market_at,
+            BracketPolicy::Conservative,
+        )
+        .map_err(|err| err.to_string())?;
+        let from_table = rule_at(
+            "BTCUSDT",
+            Field::MarketMaxQty,
+            market_at,
+            BracketPolicy::Conservative,
+        )
+        .map_err(|err| err.to_string())?;
+        if from_pair.value != from_table.value {
+            return Err("market pair diverges from the table".to_owned());
+        }
+        Ok(())
     }
 }
