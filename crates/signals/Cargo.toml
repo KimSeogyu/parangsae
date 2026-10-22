@@ -11,3 +11,7 @@ workspace = true
 
 [dependencies]
 parangsae-core = { path = "../core" }
+
+[dev-dependencies]
+parangsae-core = { path = "../core" }
+parangsae-sim = { path = "../sim" }

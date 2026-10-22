@@ -1,0 +1,5 @@
+error[E0599]: no associated function or constant named `for_test` found for struct `DecisionTime` in the current scope
+ --> tests/ui/decision_time_for_test.rs:4:35
+  |
+4 |     let _decision = DecisionTime::for_test(UtcMicros::from_micros(1));
+  |                                   ^^^^^^^^ associated function or constant not found in `DecisionTime`

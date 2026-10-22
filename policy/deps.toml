@@ -60,11 +60,33 @@ source = "crates.io"
 default_features = true
 
 [[crate]]
+name = "parangsae-sim"
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+features = ["driver-clock"]
+
+[[crate]]
 name = "parangsae-signals"
 
 [[crate.edge]]
 name = "parangsae-core"
 kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "dev"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-sim"
+kind = "dev"
 source = "path"
 default_features = true
 
@@ -88,21 +110,6 @@ name = "parangsae-strategy-api"
 
 [[planned.edge]]
 name = "parangsae-core"
-kind = "normal"
-source = "path"
-default_features = true
-
-[[planned]]
-name = "parangsae-sim"
-
-[[planned.edge]]
-name = "parangsae-core"
-kind = "normal"
-source = "path"
-default_features = true
-
-[[planned.edge]]
-name = "parangsae-strategy-api"
 kind = "normal"
 source = "path"
 default_features = true

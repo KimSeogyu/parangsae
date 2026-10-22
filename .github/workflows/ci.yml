@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.98.0
         with:
           components: rustfmt
       - name: cargo fmt --check
@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.98.0
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.98.0
         with:
           components: clippy, rustfmt
       - name: format the fixtures
@@ -99,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.98.0
       - uses: Swatinem/rust-cache@v2
       - name: cargo xtask depgraph
         run: cargo xtask depgraph
@@ -109,17 +109,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.98.0
       - uses: Swatinem/rust-cache@v2
       - name: cargo test (unit, proptest, cucumber, execution lock)
         run: cargo test --workspace
+      - name: test-support constructors
+        run: cargo test -p parangsae-core --features test-support --lib
+      - name: causal gate compile-fail
+        # Own workspace: the main workspace test unifies parangsae-sim's driver-clock.
+        run: cargo test --manifest-path fixtures/causal/closed-gate/Cargo.toml --locked --offline
 
   cucumber:
     name: cucumber
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.98.0
       - uses: Swatinem/rust-cache@v2
       - name: kline integrity features
         run: cargo test -p parangsae-core --test kline_integrity
@@ -166,12 +171,18 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.98.0
       # The marketplace action at v1.1 has a broken version check (`if [$?`).
       # Install the pinned verifier directly so a failed proof fails this job.
       - name: Install Kani 0.68.0
+        env:
+          # rust-toolchain.toml pins 1.98.0. The verifier builds with that pin.
+          RUSTUP_TOOLCHAIN: 1.98.0
         run: |
           cargo install --locked kani-verifier --version 0.68.0
           cargo kani setup
       - name: Prove notional arithmetic
+        env:
+          # cargo kani must use the nightly it installed, not the pinned stable.
+          RUSTUP_TOOLCHAIN: nightly-2026-08-21
         run: cargo kani -p parangsae-core

@@ -1450,6 +1450,14 @@ name = "parangsae-signals"
 version = "0.0.0"
 dependencies = [
  "parangsae-core",
+ "parangsae-sim",
+]
+
+[[package]]
+name = "parangsae-sim"
+version = "0.0.0"
+dependencies = [
+ "parangsae-core",
 ]
 
 [[package]]

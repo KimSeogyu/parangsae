@@ -1,0 +1,13 @@
+[package]
+name = "parangsae-sim"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Paper driver clock. No orders."
+
+[dependencies]
+parangsae-core = { path = "../core", features = ["driver-clock"] }
+
+[lints]
+workspace = true

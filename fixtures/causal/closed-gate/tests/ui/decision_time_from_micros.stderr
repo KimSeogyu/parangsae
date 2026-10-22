@@ -1,0 +1,11 @@
+error[E0599]: no associated function or constant named `from_micros` found for struct `DecisionTime` in the current scope
+ --> tests/ui/decision_time_from_micros.rs:4:35
+  |
+4 |     let _decision = DecisionTime::from_micros(UtcMicros::from_micros(1));
+  |                                   ^^^^^^^^^^^ associated function or constant not found in `DecisionTime`
+  |
+help: there is a method `micros` with a similar name, but with different arguments
+ --> $PARANGSAE_CORE/src/causal.rs
+  |
+  |     pub const fn micros(self) -> UtcMicros {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

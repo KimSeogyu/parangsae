@@ -8,6 +8,11 @@ description = "Domain types for parangsae. No I/O."
 
 [dependencies]
 
+[features]
+default = []
+test-support = []
+driver-clock = []
+
 [lints]
 workspace = true
 

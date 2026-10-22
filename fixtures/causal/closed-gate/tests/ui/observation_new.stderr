@@ -1,0 +1,10 @@
+error[E0624]: associated function `new` is private
+ --> tests/ui/observation_new.rs:4:29
+  |
+4 |     let _row = Observation::new(
+  |                             ^^^ private associated function
+  |
+ ::: $PARANGSAE_CORE/src/causal.rs
+  |
+  |     pub(crate) fn new(timestamps: Timestamps, value: T) -> Result<Self, ObservationError> {
+  |     ------------------------------------------------------------------------------------- private associated function defined here
