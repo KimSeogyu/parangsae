@@ -530,7 +530,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "f4bf62202b18e9daf7798a33414a84ed280c2775d138f3792e932487fb7c3ece",
+        "e42404d713c6bdf82d15767242df0b3c911e2fa3f586d394dc6cfad201f222c2",
     ),
     (
         "gate",
@@ -1940,8 +1940,140 @@ fn step_runs_filtered_cargo_test(step: &str) -> bool {
 }
 
 fn step_asserts_passed_count(step: &str) -> bool {
-    step.lines()
-        .any(|line| line.contains("test result: ok.") && line.contains("passed"))
+    step.lines().any(line_asserts_at_least_one_pass)
+}
+
+fn line_asserts_at_least_one_pass(line: &str) -> bool {
+    let Some((_, rest)) = line.split_once("test result: ok. ") else {
+        return false;
+    };
+    let Some((count, _)) = rest.split_once(" passed") else {
+        return false;
+    };
+    let Ok(value) = count.trim().parse::<u32>() else {
+        return false;
+    };
+    value >= 1
+}
+
+fn compiling_tool_env_gaps(name: &str, text: &str) -> Vec<String> {
+    let Ok(jobs) = ci_job_ids(text) else {
+        return Vec::new();
+    };
+    let mut gaps = Vec::new();
+    for job in jobs {
+        let Some(block) = job_block(text, &job) else {
+            continue;
+        };
+        if !job_invokes_cargo_or_rustc(block) {
+            continue;
+        }
+        for script in run_scripts(block) {
+            for line in script.lines() {
+                let words = shell_words(line);
+                let mut exported = Vec::new();
+                for (idx, word) in words.iter().enumerate() {
+                    if *word != "export" {
+                        continue;
+                    }
+                    let mut cursor = idx + 1;
+                    while words.get(cursor).is_some_and(|flag| {
+                        flag.starts_with('-') && assignment_name(flag).is_none()
+                    }) {
+                        cursor += 1;
+                    }
+                    let Some(operand) = words.get(cursor) else {
+                        continue;
+                    };
+                    let Some(key) = export_name(operand) else {
+                        continue;
+                    };
+                    if !tool_env_key(key) {
+                        continue;
+                    }
+                    push_gap(&mut gaps, format!("{name} job {job} exports {key}"));
+                    exported.push(cursor);
+                }
+                for (key, value) in line_tool_assignments(line) {
+                    if exported.iter().any(|idx| {
+                        words
+                            .get(*idx)
+                            .and_then(|word| export_name(word))
+                            .is_some_and(|exported| exported == key)
+                    }) {
+                        continue;
+                    }
+                    if pinned_tool_assignment(&key, &value) {
+                        continue;
+                    }
+                    push_gap(&mut gaps, format!("{name} job {job} assigns {key}={value}"));
+                }
+            }
+        }
+    }
+    gaps
+}
+
+fn tool_env_key(key: &str) -> bool {
+    matches!(key, "CARGO" | "RUSTC" | "RUSTFLAGS")
+}
+
+fn pinned_tool_assignment(key: &str, value: &str) -> bool {
+    const CARGO: &str = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo";
+    const RUSTC: &str = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc";
+    match key {
+        "CARGO" => value == CARGO,
+        "RUSTC" => value == RUSTC,
+        _ => false,
+    }
+}
+
+fn line_tool_assignments(line: &str) -> Vec<(String, String)> {
+    let bytes = line.as_bytes();
+    let mut found = Vec::new();
+    let mut idx = 0usize;
+    let mut quote = None;
+    while idx < bytes.len() {
+        let byte = bytes[idx];
+        if let Some(open) = quote {
+            if byte == open {
+                quote = None;
+            }
+            idx += 1;
+            continue;
+        }
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            idx += 1;
+            continue;
+        }
+        let boundary = idx == 0 || is_assign_boundary(bytes[idx - 1]);
+        if boundary && is_env_start(byte) {
+            let start = idx;
+            idx += 1;
+            while idx < bytes.len() && is_env_continue(bytes[idx]) {
+                idx += 1;
+            }
+            if bytes.get(idx) == Some(&b'=') {
+                let key = &line[start..idx];
+                idx += 1;
+                if tool_env_key(key) {
+                    let value_at = idx;
+                    while idx < bytes.len() && !bytes[idx].is_ascii_whitespace() {
+                        idx += 1;
+                    }
+                    let value = line[value_at..idx].trim_end_matches('\\');
+                    if !found.iter().any(|(found_key, _)| found_key == key) {
+                        found.push((key.to_owned(), value.to_owned()));
+                    }
+                }
+                continue;
+            }
+            continue;
+        }
+        idx += 1;
+    }
+    found
 }
 
 fn cargo_test_arg_lists(step: &str) -> Vec<Vec<String>> {
@@ -2244,6 +2376,7 @@ fn workflow_file_gaps(name: &str, text: &str) -> Vec<String> {
     gaps.extend(rustc_pin_gaps(name, text));
     gaps.extend(run_injection_gaps(name, text));
     gaps.extend(github_env_path_gaps(name, text));
+    gaps.extend(compiling_tool_env_gaps(name, text));
     gaps.extend(required_job_shape_gaps(name, text));
     if name.ends_with("vision-smoke.yml") && !text.contains("day must be YYYY-MM-DD") {
         gaps.push(format!("{name} does not validate the day"));
@@ -2704,30 +2837,51 @@ fn toolchain_file_gaps(root: &Path) -> Result<Vec<String>, String> {
 }
 
 fn tree_paths(root: &Path) -> Result<Vec<PathBuf>, String> {
-    let mut paths = Vec::new();
-    collect_tree_files(root, &mut paths)?;
-    paths.sort();
+    let (paths, nested_git) = walk_tree(root)?;
+    if !nested_git.is_empty() {
+        return Err(nested_git.join("\n"));
+    }
     Ok(paths)
 }
 
-fn collect_tree_files(dir: &Path, found: &mut Vec<PathBuf>) -> Result<(), String> {
+fn walk_tree(root: &Path) -> Result<(Vec<PathBuf>, Vec<String>), String> {
+    let mut paths = Vec::new();
+    let mut nested_git = Vec::new();
+    collect_tree_files(root, root, &mut paths, &mut nested_git)?;
+    paths.sort();
+    nested_git.sort();
+    Ok((paths, nested_git))
+}
+
+fn collect_tree_files(
+    root: &Path,
+    dir: &Path,
+    found: &mut Vec<PathBuf>,
+    nested_git: &mut Vec<String>,
+) -> Result<(), String> {
     let entries = std::fs::read_dir(dir).map_err(|err| format!("read {}: {err}", dir.display()))?;
     for entry in entries {
         let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if name == ".git" || name == "target" {
+        if dir == root && (name == ".git" || name == "target") {
+            continue;
+        }
+        let path = entry.path();
+        if name == ".git" {
+            let rel = path.strip_prefix(root).unwrap_or(&path);
+            let shown = rel.to_string_lossy().replace('\\', "/");
+            nested_git.push(format!("{shown} is a nested git repository"));
             continue;
         }
         let file_type = entry
             .file_type()
-            .map_err(|err| format!("read {}: {err}", entry.path().display()))?;
-        let path = entry.path();
+            .map_err(|err| format!("read {}: {err}", path.display()))?;
         if file_type.is_symlink() || !file_type.is_dir() {
             found.push(path);
             continue;
         }
-        collect_tree_files(&path, found)?;
+        collect_tree_files(root, &path, found, nested_git)?;
     }
     Ok(())
 }
@@ -2834,6 +2988,9 @@ fn deny_release_pin_gaps(text: &str) -> Vec<String> {
     if !block.contains(CARGO_CONFIG_SHA256) {
         gaps.push("deny job does not re-hash .cargo/config.toml".to_owned());
     }
+    if deny_exec_missing_config_absence(block) {
+        gaps.push("deny job does not reject an extensionless .cargo/config".to_owned());
+    }
     gaps.extend(deny_path_shim_gaps(block));
     gaps.extend(deny_cargo_env_gaps(block));
     gaps
@@ -2925,6 +3082,14 @@ fn record_cargo_env(gaps: &mut Vec<String>, value: &str) {
 }
 
 fn deny_exec_missing_bin_recheck(block: &str) -> bool {
+    deny_exec_missing_before(block, DENY_BIN_SHA256)
+}
+
+fn deny_exec_missing_config_absence(block: &str) -> bool {
+    deny_exec_missing_before(block, ".cargo/config must be absent")
+}
+
+fn deny_exec_missing_before(block: &str, needle: &str) -> bool {
     let bin = format!("/tmp/cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny");
     let lines: Vec<&str> = block.lines().collect();
     let mut step_starts = Vec::new();
@@ -2939,7 +3104,7 @@ fn deny_exec_missing_bin_recheck(block: &str) -> bool {
         for (offset, line) in step.iter().enumerate() {
             if line.contains(&bin)
                 && !line.contains("sha256sum")
-                && !step[..offset].join("\n").contains(DENY_BIN_SHA256)
+                && !step[..offset].join("\n").contains(needle)
             {
                 return true;
             }
@@ -6205,7 +6370,10 @@ jobs:
                 deny_execs += 1;
                 let from = idx.saturating_sub(40);
                 let window = deny_lines[from..idx].join("\n");
-                if !window.contains(DENY_BIN_SHA256) || !window.contains(CARGO_CONFIG_SHA256) {
+                if !window.contains(DENY_BIN_SHA256)
+                    || !window.contains(CARGO_CONFIG_SHA256)
+                    || !window.contains(".cargo/config must be absent")
+                {
                     return Err(format!(
                         "cargo-deny execution is not immediately preceded by the binary and config rechecks: {line}"
                     ));
@@ -6612,6 +6780,86 @@ jobs:
     }
 
     #[test]
+    fn nested_target_is_scanned_and_nested_git_is_rejected() -> Result<(), String> {
+        let scanned = TempGit::new("nested-target")?;
+        git_fixture(&scanned.path, &["init"])?;
+        std::fs::create_dir_all(scanned.path.join("target"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::write(scanned.path.join("target/rust-toolchain"), "nightly\n")
+            .map_err(|err| format!("write: {err}"))?;
+        std::fs::create_dir_all(scanned.path.join("crates/vendor/target"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::write(
+            scanned.path.join("crates/vendor/target/rust-toolchain"),
+            "nightly\n",
+        )
+        .map_err(|err| format!("write: {err}"))?;
+        expect_gaps(
+            "nested target",
+            toolchain_file_gaps(&scanned.path)?,
+            &["crates/vendor/target/rust-toolchain is a toolchain override; only the root rust-toolchain.toml is allowed"],
+        )?;
+        let embedded = TempGit::new("nested-git")?;
+        git_fixture(&embedded.path, &["init"])?;
+        std::fs::create_dir_all(embedded.path.join("crates/vendor/.git"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::write(
+            embedded.path.join("crates/vendor/.git/HEAD"),
+            "ref: refs/heads/main\n",
+        )
+        .map_err(|err| format!("write: {err}"))?;
+        match toolchain_file_gaps(&embedded.path) {
+            Err(err) if err == "crates/vendor/.git is a nested git repository" => Ok(()),
+            other => Err(format!("nested git: {other:?}")),
+        }
+    }
+
+    #[test]
+    fn deny_step_rejects_extensionless_cargo_config() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("live deny", deny_release_pin_gaps(&ci), &[])?;
+        let bare = read(&root.join("fixtures/guards/ci/deny-extensionless-config.yml"))?;
+        expect_gaps(
+            "extensionless config",
+            deny_release_pin_gaps(&bare),
+            &["deny job does not reject an extensionless .cargo/config"],
+        )?;
+        let deny = pinned_job("deny").ok_or("deny job is not pinned")?;
+        if deny.matches(".cargo/config must be absent").count() != 2 {
+            return Err(format!(
+                "absence checks: {}",
+                deny.matches(".cargo/config must be absent").count()
+            ));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn compiling_jobs_reject_inline_tool_assignments() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("ci tools", compiling_tool_env_gaps("ci.yml", &ci), &[])?;
+        let smoke = read(&root.join(".github/workflows/vision-smoke.yml"))?;
+        expect_gaps(
+            "smoke tools",
+            compiling_tool_env_gaps("vision-smoke.yml", &smoke),
+            &[],
+        )?;
+        let fixture = read(&root.join("fixtures/guards/ci/run-inline-tool-env.yml"))?;
+        expect_gaps(
+            "run-inline-tool-env.yml",
+            compiling_tool_env_gaps("run-inline-tool-env.yml", &fixture),
+            &[
+                "run-inline-tool-env.yml job fmt assigns CARGO=/tmp/fake",
+                "run-inline-tool-env.yml job fmt exports RUSTC",
+                "run-inline-tool-env.yml job fmt assigns RUSTFLAGS=-Awarnings",
+            ],
+        )?;
+        Ok(())
+    }
+
+    #[test]
     fn job_block_ignores_header_and_run_body() -> Result<(), String> {
         let text = "\
 name: ci
@@ -6955,6 +7203,26 @@ jobs:
             filtered_cargo_test_gaps("filtered-cargo-test.yml", &fixture),
             &["filtered-cargo-test.yml filtered cargo test does not assert the passed count"],
         )?;
+        let zero = read(&root.join("fixtures/guards/ci/filtered-zero-passed.yml"))?;
+        expect_gaps(
+            "filtered-zero-passed.yml",
+            filtered_cargo_test_gaps("filtered-zero-passed.yml", &zero),
+            &["filtered-zero-passed.yml filtered cargo test does not assert the passed count"],
+        )?;
+        let ten = "\
+  fmt:
+    steps:
+      - run: |
+          cargo test -p xtask --lib some::test -- --exact
+          grep -q 'test result: ok. 10 passed'
+";
+        expect_gaps("ten passed", filtered_cargo_test_gaps("fmt", ten), &[])?;
+        let run_exact = "\
+  fmt:
+    steps:
+      - run: cargo xtask run-exact guards::tests::missing_or_unreadable_baseline_fails_closed
+";
+        expect_gaps("run-exact", filtered_cargo_test_gaps("fmt", run_exact), &[])?;
         let asserted = "\
   fmt:
     steps:
