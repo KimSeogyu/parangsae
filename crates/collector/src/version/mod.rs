@@ -24,7 +24,8 @@ pub use id::{
     parse_version_id, DatasetId, DatasetIdError, ManifestDigest, VersionIdError, VersionRoot,
 };
 pub use load::{
-    ConflictEntry, ExcludedWindow, GapEntry, LoadError, Table, Verified, VerifyMode, VersionStore,
+    prove_manifest, ConflictEntry, ExcludedWindow, GapEntry, LoadError, ManifestProof,
+    ManifestProofError, Table, Verified, VerifyMode, VersionStore,
 };
 pub use publish::{publish, PublishError, PublishRequest, Published};
 

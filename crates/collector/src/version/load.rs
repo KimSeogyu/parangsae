@@ -3,6 +3,7 @@
 //! Rows keep the `available_ts` stored in the snapshot. This module does not
 //! recompute it.
 
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -177,9 +178,35 @@ pub enum LoadError {
     /// `(dataset, spec)` is not in the §3 table: a mismatch, an unknown version
     /// string, or a dataset that is not listed. `found` is the spec string in
     /// the manifest, empty when the dataset was refused before a file was read.
+    /// A metrics manifest whose `spec` is v2.1 is [`Self::SupersededVersion`],
+    /// not this error.
     SpecVersionMismatch {
         dataset: String,
         found: String,
+    },
+    /// Metrics root refused by §5.4 because the manifest itself is old.
+    /// Disjoint from the three partition defects below.
+    SupersededVersion {
+        dataset_id: String,
+        root: VersionRoot,
+        successor_root: Option<VersionRoot>,
+        rule: &'static str,
+    },
+    /// Metrics manifest claims `payload/v3`, but a partition records an older payload.
+    StalePayloadVersion {
+        date: CivilDay,
+        found: String,
+        required: String,
+    },
+    /// Canonical metrics row stores a non-NULL open interest of 0.
+    ZeroOiStored {
+        date: CivilDay,
+        pk: i64,
+        column: &'static str,
+    },
+    /// Manifest `metric_missing[]` or `quality[]` disagrees with the rows.
+    MetricMissingMismatch {
+        date: CivilDay,
     },
     Io(String),
 }
@@ -203,6 +230,10 @@ impl LoadError {
             Self::UnlistedConflict { .. } => "UnlistedConflict",
             Self::LegacyObjectLine { .. } => "LegacyObjectLine",
             Self::SpecVersionMismatch { .. } => "SpecVersionMismatch",
+            Self::SupersededVersion { .. } => "SupersededVersion",
+            Self::StalePayloadVersion { .. } => "StalePayloadVersion",
+            Self::ZeroOiStored { .. } => "ZeroOiStored",
+            Self::MetricMissingMismatch { .. } => "MetricMissingMismatch",
             Self::Io(_) => "Io",
         }
     }
@@ -275,6 +306,7 @@ impl VersionStore {
         if parsed.dataset_id != dataset.as_str() {
             return Err(LoadError::ManifestOrder);
         }
+        refuse_version_gate(&self.data_dir, &parsed, root)?;
         if dataset.dataset() != "um-kline" {
             return Err(LoadError::SchemaMismatch { date: range.from });
         }
@@ -433,10 +465,18 @@ struct ParsedManifest {
     first: CivilDay,
     last: CivilDay,
     parts: Vec<Part>,
+    gate: ManifestGate,
+}
+
+enum ManifestGate {
+    Current,
+    Superseded { rule: &'static str },
+    StalePayload { date: CivilDay, found: String },
 }
 
 struct Part {
     date: CivilDay,
+    payload_version: Option<String>,
     stats: PartitionStats,
     content: [u8; 32],
     gaps: Vec<Gap>,
@@ -666,22 +706,176 @@ fn write_cache(path: &Path, sha: &[u8; 32]) -> Result<(), LoadError> {
     fs::write(path, hex::encode(sha)).map_err(|err| LoadError::Io(err.to_string()))
 }
 
-fn require_manifest_spec(dataset_id: &str, spec: &str) -> Result<(), LoadError> {
+const RULE_METRICS_SPEC_V2_1: &str = "metrics_spec_v2.1";
+const RULE_PAYLOAD_BELOW_V3: &str = "payload_version_below_v3";
+const SUPERSESSION_REASONS: [&str; 6] = [
+    "archive_replaced",
+    "gap_filled",
+    "conflict_resolved",
+    "range_extended",
+    "schema_change",
+    "rule_change",
+];
+
+/// Digest and Merkle root of a manifest file. Ignores a §5.4 refusal.
+pub struct ManifestProof {
+    pub dataset_id: String,
+    pub root: VersionRoot,
+    pub partitions: usize,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ManifestProofError {
+    DigestMismatch,
+    RootMismatch,
+    Malformed,
+}
+
+pub fn prove_manifest(bytes: &[u8], digest: [u8; 32]) -> Result<ManifestProof, ManifestProofError> {
+    if encode::sha256(bytes) != digest {
+        return Err(ManifestProofError::DigestMismatch);
+    }
+    let parsed = parse_manifest(bytes).map_err(|_| ManifestProofError::Malformed)?;
+    let leaves = recompute_leaves(&parsed).map_err(|_| ManifestProofError::Malformed)?;
+    if encode::merkle_tree_head(&leaves) != parsed.version_root.as_bytes() {
+        return Err(ManifestProofError::RootMismatch);
+    }
+    Ok(ManifestProof {
+        dataset_id: parsed.dataset_id,
+        root: parsed.version_root,
+        partitions: parsed.parts.len(),
+    })
+}
+
+fn refuse_version_gate(
+    data_dir: &Path,
+    parsed: &ParsedManifest,
+    root: VersionRoot,
+) -> Result<(), LoadError> {
+    match &parsed.gate {
+        ManifestGate::Current => Ok(()),
+        ManifestGate::Superseded { rule } => {
+            let successor_root = successor_of(data_dir, root)?;
+            Err(LoadError::SupersededVersion {
+                dataset_id: parsed.dataset_id.clone(),
+                root,
+                successor_root,
+                rule,
+            })
+        }
+        ManifestGate::StalePayload { date, found } => Err(LoadError::StalePayloadVersion {
+            date: *date,
+            found: found.clone(),
+            required: encode::PAYLOAD_V3.to_owned(),
+        }),
+    }
+}
+
+fn successor_of(data_dir: &Path, root: VersionRoot) -> Result<Option<VersionRoot>, LoadError> {
+    let dir = data_dir.join("manifest").join("supersessions");
+    if !dir.exists() {
+        return Ok(None);
+    }
+    if !dir.is_dir() {
+        return Err(LoadError::ManifestOrder);
+    }
+    let mut next: HashMap<VersionRoot, Vec<VersionRoot>> = HashMap::new();
+    for entry in fs::read_dir(&dir).map_err(|err| LoadError::Io(err.to_string()))? {
+        let entry = entry.map_err(|err| LoadError::Io(err.to_string()))?;
+        let name = entry.file_name();
+        let name = name.to_str().ok_or(LoadError::ManifestOrder)?;
+        let Some(hex) = name.strip_suffix(".json") else {
+            return Err(LoadError::ManifestOrder);
+        };
+        let new_root = VersionRoot::parse_hex(hex).map_err(|_| LoadError::ManifestOrder)?;
+        let text =
+            fs::read_to_string(entry.path()).map_err(|err| LoadError::Io(err.to_string()))?;
+        let value: serde_json::Value =
+            serde_json::from_str(&text).map_err(|_| LoadError::ManifestOrder)?;
+        let object = value.as_object().ok_or(LoadError::ManifestOrder)?;
+        let old = VersionRoot::parse_hex(
+            object
+                .get("supersedes")
+                .and_then(|item| item.as_str())
+                .ok_or(LoadError::ManifestOrder)?,
+        )
+        .map_err(|_| LoadError::ManifestOrder)?;
+        let reason = object
+            .get("supersede_reason")
+            .and_then(|item| item.as_str())
+            .ok_or(LoadError::ManifestOrder)?;
+        if !SUPERSESSION_REASONS.contains(&reason) {
+            return Err(LoadError::ManifestOrder);
+        }
+        next.entry(old).or_default().push(new_root);
+    }
+    let mut current = root;
+    let mut advanced = false;
+    let mut seen = HashSet::new();
+    seen.insert(current);
+    loop {
+        let child = {
+            let Some(children) = next.get(&current) else {
+                break;
+            };
+            if children.len() != 1 {
+                return Err(LoadError::ManifestOrder);
+            }
+            children[0]
+        };
+        if !seen.insert(child) {
+            return Err(LoadError::ManifestOrder);
+        }
+        current = child;
+        advanced = true;
+    }
+    Ok(advanced.then_some(current))
+}
+
+fn classify_manifest(
+    dataset_id: &str,
+    spec: &str,
+    payload: Option<&str>,
+) -> Result<ManifestGate, LoadError> {
     let parsed = DatasetId::parse(dataset_id).ok();
     let dataset = parsed
         .as_ref()
         .map(|id| id.dataset().to_owned())
         .unwrap_or_else(|| dataset_id.to_owned());
+    if dataset == "metrics" && spec == encode::MANIFEST_SPEC_V2_1 {
+        return Ok(ManifestGate::Superseded {
+            rule: RULE_METRICS_SPEC_V2_1,
+        });
+    }
     let expected = parsed
         .as_ref()
         .and_then(|id| encode::manifest_spec(id.dataset()));
     match expected {
-        Some(expected) if spec == expected => Ok(()),
-        _ => Err(LoadError::SpecVersionMismatch {
-            dataset,
-            found: spec.to_owned(),
-        }),
+        Some(expected) if spec == expected => {}
+        _ => {
+            return Err(LoadError::SpecVersionMismatch {
+                dataset,
+                found: spec.to_owned(),
+            });
+        }
     }
+    if dataset == "metrics" && payload != Some(encode::PAYLOAD_V3) {
+        return Ok(ManifestGate::Superseded {
+            rule: RULE_PAYLOAD_BELOW_V3,
+        });
+    }
+    Ok(ManifestGate::Current)
+}
+
+fn stale_payload(parts: &[Part]) -> Option<(CivilDay, String)> {
+    for part in parts {
+        match part.payload_version.as_deref() {
+            Some(encode::PAYLOAD_V3) => {}
+            Some(found) => return Some((part.date, found.to_owned())),
+            None => return Some((part.date, "payload/v2".to_owned())),
+        }
+    }
+    None
 }
 
 fn parse_manifest(bytes: &[u8]) -> Result<ParsedManifest, LoadError> {
@@ -693,16 +887,19 @@ fn parse_manifest(bytes: &[u8]) -> Result<ParsedManifest, LoadError> {
         .get("spec")
         .and_then(|value| value.as_str())
         .unwrap_or("");
-    require_manifest_spec(&dataset_id, spec)?;
     let schema = root
         .get("schema")
         .and_then(|item| item.as_object())
         .ok_or(LoadError::ManifestOrder)?;
+    let payload = schema
+        .get("payload_version")
+        .and_then(|value| value.as_str());
+    let mut gate = classify_manifest(&dataset_id, spec, payload)?;
     let columns = schema
         .get("columns")
         .and_then(|item| item.as_array())
         .ok_or(LoadError::ManifestOrder)?;
-    if columns.len() != UM_KLINE_COLUMNS.len() {
+    if matches!(gate, ManifestGate::Current) && columns.len() != UM_KLINE_COLUMNS.len() {
         return Err(LoadError::SchemaMismatch {
             date: parse_day(&text(
                 root.get("range")
@@ -712,34 +909,37 @@ fn parse_manifest(bytes: &[u8]) -> Result<ParsedManifest, LoadError> {
             )?)?,
         });
     }
-    for (found, expected) in columns.iter().zip(UM_KLINE_COLUMNS) {
-        let pair = found.as_array().ok_or(LoadError::ManifestOrder)?;
-        let name = pair
-            .first()
-            .and_then(|item| item.as_str())
-            .ok_or(LoadError::ManifestOrder)?;
-        let ty = pair
-            .get(1)
-            .and_then(|item| item.as_str())
-            .ok_or(LoadError::ManifestOrder)?;
-        if name != expected.name || ty != expected.ty {
-            let range = root
-                .get("range")
-                .and_then(|item| item.as_object())
+    if matches!(gate, ManifestGate::Current) {
+        for (found, expected) in columns.iter().zip(UM_KLINE_COLUMNS) {
+            let pair = found.as_array().ok_or(LoadError::ManifestOrder)?;
+            let name = pair
+                .first()
+                .and_then(|item| item.as_str())
                 .ok_or(LoadError::ManifestOrder)?;
-            return Err(LoadError::SchemaMismatch {
-                date: parse_day(&text(range, "first_date")?)?,
-            });
+            let ty = pair
+                .get(1)
+                .and_then(|item| item.as_str())
+                .ok_or(LoadError::ManifestOrder)?;
+            if name != expected.name || ty != expected.ty {
+                let range = root
+                    .get("range")
+                    .and_then(|item| item.as_object())
+                    .ok_or(LoadError::ManifestOrder)?;
+                return Err(LoadError::SchemaMismatch {
+                    date: parse_day(&text(range, "first_date")?)?,
+                });
+            }
         }
     }
     let rules = schema
         .get("rule_versions")
         .and_then(|item| item.as_object())
         .ok_or(LoadError::ManifestOrder)?;
-    if text(rules, "row_encoding")? != encode::ROW_ENCODING_VERSION
-        || text(rules, "available_ts_rules")? != encode::AVAILABLE_TS_RULES_VERSION
-        || text(rules, "gap_rules")? != encode::GAP_RULES_VERSION
-        || text(rules, "conflict_rules")? != encode::CONFLICT_RULES_VERSION
+    if matches!(gate, ManifestGate::Current)
+        && (text(rules, "row_encoding")? != encode::ROW_ENCODING_VERSION
+            || text(rules, "available_ts_rules")? != encode::AVAILABLE_TS_RULES_VERSION
+            || text(rules, "gap_rules")? != encode::GAP_RULES_VERSION
+            || text(rules, "conflict_rules")? != encode::CONFLICT_RULES_VERSION)
     {
         let range = root
             .get("range")
@@ -763,6 +963,14 @@ fn parse_manifest(bytes: &[u8]) -> Result<ParsedManifest, LoadError> {
     for part in parts_json {
         parts.push(parse_part(part)?);
     }
+    let metrics = DatasetId::parse(&dataset_id)
+        .ok()
+        .is_some_and(|id| id.dataset() == "metrics");
+    if matches!(gate, ManifestGate::Current) && metrics {
+        if let Some((date, found)) = stale_payload(&parts) {
+            gate = ManifestGate::StalePayload { date, found };
+        }
+    }
     Ok(ParsedManifest {
         dataset_id,
         version_root: VersionRoot::from_bytes(parse_hash(&text(root, "version_root")?)?),
@@ -770,6 +978,7 @@ fn parse_manifest(bytes: &[u8]) -> Result<ParsedManifest, LoadError> {
         first,
         last,
         parts,
+        gate,
     })
 }
 
@@ -791,8 +1000,13 @@ fn parse_part(value: &serde_json::Value) -> Result<Part, LoadError> {
     require_hash(part, "conflicts_digest")?;
     require_hash(part, "sources_digest")?;
     require_hash(part, "leaf_hash")?;
+    let payload_version = part
+        .get("payload_version")
+        .and_then(|value| value.as_str())
+        .map(str::to_owned);
     Ok(Part {
         date,
+        payload_version,
         stats: PartitionStats {
             row_count: parse_u64(&text(part, "row_count")?)?,
             pk_min_us: parse_i64(&text(part, "pk_min_us")?)?,
@@ -1496,9 +1710,197 @@ mod tests {
 
     const SPEC_V2_1: &str = "parangsae/dataset-manifest/v2.1";
     const SPEC_V2_2: &str = "parangsae/dataset-manifest/v2.2";
+    const V2_1_DATASETS: [&str; 7] = [
+        "um-kline",
+        "mark-price-kline",
+        "index-price-kline",
+        "premium-index-kline",
+        "spot-kline",
+        "funding-rate",
+        "book-depth",
+    ];
+    const ROOT: VersionRoot = VersionRoot::from_bytes([0; 32]);
 
     fn dataset_id(market: &str, dataset: &str) -> String {
         format!("binance-vision.{market}.{dataset}.BTCUSDT")
+    }
+
+    fn id_for(dataset: &str) -> String {
+        let market = if dataset == "spot-kline" {
+            "spot"
+        } else {
+            "um"
+        };
+        dataset_id(market, dataset)
+    }
+
+    fn payload_of(bytes: &[u8]) -> Result<String, String> {
+        let value: serde_json::Value = serde_json::from_slice(bytes).map_err(show)?;
+        value
+            .get("schema")
+            .and_then(|item| item.get("payload_version"))
+            .and_then(|item| item.as_str())
+            .map(str::to_owned)
+            .ok_or_else(|| "payload_version".to_owned())
+    }
+
+    struct Supersession {
+        new_root: VersionRoot,
+        old_root: VersionRoot,
+        reason: &'static str,
+    }
+
+    impl Supersession {
+        fn new(new_root: VersionRoot, old_root: VersionRoot, reason: &'static str) -> Self {
+            Self {
+                new_root,
+                old_root,
+                reason,
+            }
+        }
+    }
+
+    fn metrics_bytes(
+        spec: &str,
+        payload: Option<&str>,
+        stale_days: &[CivilDay],
+    ) -> Result<Vec<u8>, String> {
+        let base = canonical_spec(&id_for("metrics"))?;
+        let stamped = with_spec(&base, &id_for("metrics"), spec)?;
+        let mut value: serde_json::Value = serde_json::from_slice(&stamped).map_err(show)?;
+        {
+            let schema = value
+                .get_mut("schema")
+                .and_then(|item| item.as_object_mut())
+                .ok_or("schema")?;
+            match payload {
+                Some(payload) => {
+                    schema.insert(
+                        "payload_version".to_owned(),
+                        serde_json::Value::String(payload.to_owned()),
+                    );
+                }
+                None => {
+                    schema.remove("payload_version");
+                }
+            }
+        }
+        if !stale_days.is_empty() {
+            let parts = stale_days.iter().map(stale_part).collect();
+            value
+                .as_object_mut()
+                .ok_or("manifest")?
+                .insert("partitions".to_owned(), serde_json::Value::Array(parts));
+        }
+        serde_json::to_vec(&value).map_err(show)
+    }
+
+    fn stale_part(day: &CivilDay) -> serde_json::Value {
+        let zero = "0000000000000000000000000000000000000000000000000000000000000000";
+        let date = day.to_string();
+        serde_json::json!({
+            "date": date,
+            "path": format!("parquet/metrics/symbol=BTCUSDT/date={date}/part.parquet"),
+            "row_count": "0",
+            "pk_min_us": "0",
+            "pk_max_us": "0",
+            "available_ts_min_us": "0",
+            "available_ts_max_us": "0",
+            "content_hash": zero,
+            "sources": [],
+            "open_gaps": [],
+            "conflicts": [],
+            "excluded_windows": [],
+            "gaps_digest": zero,
+            "conflicts_digest": zero,
+            "sources_digest": zero,
+            "leaf_hash": zero,
+            "payload_version": "payload/v2"
+        })
+    }
+
+    fn load_manifest(bytes: &[u8]) -> Result<LoadError, String> {
+        load_manifest_with(bytes, &[])
+    }
+
+    fn load_manifest_with(bytes: &[u8], links: &[Supersession]) -> Result<LoadError, String> {
+        let dir = tempfile::tempdir().map_err(show)?;
+        for link in links {
+            let path = dir
+                .path()
+                .join("manifest")
+                .join("supersessions")
+                .join(format!("{}.json", link.new_root.to_hex()));
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).map_err(show)?;
+            }
+            let body = format!(
+                "{{\"supersedes\":\"{}\",\"supersede_reason\":\"{}\"}}",
+                link.old_root.to_hex(),
+                link.reason
+            );
+            fs::write(path, body).map_err(show)?;
+        }
+        let id = DatasetId::parse(&id_for("metrics")).map_err(show)?;
+        let path = manifest_path(dir.path(), &id, ROOT);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(show)?;
+        }
+        fs::write(&path, bytes).map_err(show)?;
+        let digest = ManifestDigest::from_bytes(encode::sha256(bytes));
+        let day = CivilDay::new(2021, 6, 1).ok_or("day")?;
+        let range = DayRange::new(day, day).map_err(show)?;
+        let store = VersionStore::open(dir.path()).map_err(show)?;
+        match store.load(&id, ROOT, digest, range) {
+            Err(err) => Ok(err),
+            Ok(_) => Err("load returned rows".into()),
+        }
+    }
+
+    fn assert_superseded(
+        err: &LoadError,
+        rule: &str,
+        successor: Option<VersionRoot>,
+    ) -> Result<(), String> {
+        match err {
+            LoadError::SupersededVersion {
+                dataset_id,
+                root,
+                successor_root,
+                rule: found,
+            } => {
+                if dataset_id != &id_for("metrics")
+                    || *root != ROOT
+                    || *successor_root != successor
+                    || *found != rule
+                {
+                    return Err(format!("{err}"));
+                }
+                Ok(())
+            }
+            other => Err(format!("{other}")),
+        }
+    }
+
+    fn publish_of(dataset: &str, expected: crate::version::PublishError) -> Result<(), String> {
+        let dir = tempfile::tempdir().map_err(show)?;
+        let id = DatasetId::parse(&id_for(dataset)).map_err(show)?;
+        let day = CivilDay::new(2021, 6, 1).ok_or("day")?;
+        let range = DayRange::new(day, day).map_err(show)?;
+        let provenance = provenance();
+        let published = publish(&PublishRequest {
+            data_dir: dir.path(),
+            dataset: &id,
+            range,
+            provenance: &provenance,
+            run: RunId::from_bytes([1; 16]),
+            built_at: UtcMicros::from_micros(1),
+        });
+        match published {
+            Err(err) if err.name() == expected.name() => Ok(()),
+            Err(err) => Err(format!("publish {dataset}: {err}")),
+            Ok(_) => Err(format!("publish {dataset} was accepted")),
+        }
     }
 
     fn canonical_spec(dataset_id: &str) -> Result<Vec<u8>, String> {
@@ -1548,8 +1950,8 @@ mod tests {
 
     #[test]
     fn spec_version_listed_pairs_load() -> Result<(), String> {
-        for dataset in ["um-kline", "mark-price-kline", "funding-rate", "book-depth"] {
-            let id = dataset_id("um", dataset);
+        for dataset in V2_1_DATASETS {
+            let id = id_for(dataset);
             let bytes = canonical_spec(&id)?;
             if spec_of(&bytes)? != SPEC_V2_1 {
                 return Err(format!("{dataset} was not stamped v2.1"));
@@ -1558,13 +1960,30 @@ mod tests {
             if parsed.dataset_id != id {
                 return Err(format!("{dataset} dataset id"));
             }
+            if !matches!(parsed.gate, ManifestGate::Current) {
+                return Err(format!("{dataset} was not current"));
+            }
         }
-        let metrics = dataset_id("um", "metrics");
+        let metrics = id_for("metrics");
         let bytes = canonical_spec(&metrics)?;
         if spec_of(&bytes)? != SPEC_V2_2 {
             return Err("metrics was not stamped v2.2".into());
         }
-        parse_manifest(&bytes).map_err(|err| format!("metrics load: {err}"))?;
+        if payload_of(&bytes)? != encode::PAYLOAD_V3 {
+            return Err("metrics was not stamped payload/v3".into());
+        }
+        let parsed = parse_manifest(&bytes).map_err(|err| format!("metrics load: {err}"))?;
+        if !matches!(parsed.gate, ManifestGate::Current) {
+            return Err("metrics was not current".into());
+        }
+        for dataset in crate::vision::VisionDataset::ALL {
+            if encode::manifest_spec(dataset.as_str()).is_none() {
+                return Err(format!(
+                    "{} is missing from the spec table",
+                    dataset.as_str()
+                ));
+            }
+        }
         Ok(())
     }
 
@@ -1589,13 +2008,29 @@ mod tests {
     }
 
     #[test]
-    fn spec_version_metrics_on_v2_1_is_refused() -> Result<(), String> {
-        mismatch("metrics", SPEC_V2_1)
+    fn spec_version_index_price_kline_on_v2_2_is_refused() -> Result<(), String> {
+        mismatch("index-price-kline", SPEC_V2_2)
+    }
+
+    #[test]
+    fn spec_version_premium_index_kline_on_v2_2_is_refused() -> Result<(), String> {
+        mismatch("premium-index-kline", SPEC_V2_2)
+    }
+
+    #[test]
+    fn spec_version_spot_kline_on_v2_2_is_refused() -> Result<(), String> {
+        mismatch("spot-kline", SPEC_V2_2)
+    }
+
+    #[test]
+    fn spec_version_metrics_on_v2_1_is_superseded() -> Result<(), String> {
+        let err = load_manifest(&metrics_bytes(SPEC_V2_1, Some(encode::PAYLOAD_V3), &[])?)?;
+        assert_superseded(&err, "metrics_spec_v2.1", None)
     }
 
     fn mismatch(dataset: &str, spec: &str) -> Result<(), String> {
-        let base = canonical_spec(&dataset_id("um", "um-kline"))?;
-        let id = dataset_id("um", dataset);
+        let base = canonical_spec(&id_for("um-kline"))?;
+        let id = id_for(dataset);
         let bytes = with_spec(&base, &id, spec)?;
         let err = refused(&bytes, dataset)?;
         let expected = LoadError::SpecVersionMismatch {
@@ -1610,58 +2045,122 @@ mod tests {
 
     #[test]
     fn spec_version_unknown_version_is_refused() -> Result<(), String> {
-        let base = canonical_spec(&dataset_id("um", "um-kline"))?;
         let spec = "parangsae/dataset-manifest/v2.0";
-        let bytes = with_spec(&base, &dataset_id("um", "um-kline"), spec)?;
-        let err = refused(&bytes, spec)?;
-        if err
-            != (LoadError::SpecVersionMismatch {
-                dataset: "um-kline".to_owned(),
-                found: spec.to_owned(),
-            })
-        {
-            return Err(format!("{spec}: {err}"));
+        for dataset in V2_1_DATASETS {
+            mismatch(dataset, spec)?;
+        }
+        mismatch("metrics", spec)
+    }
+
+    #[test]
+    fn spec_version_unlisted_dataset_is_refused() -> Result<(), String> {
+        let dataset = "aggtrades";
+        let id = id_for(dataset);
+        let err = canonical_spec(&id).expect_err("publish bytes");
+        if err != encode::EncodeError::SpecVersionMismatch.to_string() {
+            return Err(format!("canonical {id}: {err}"));
+        }
+        mismatch(dataset, SPEC_V2_1)?;
+        publish_of(dataset, crate::version::PublishError::SpecVersionMismatch)
+    }
+
+    #[test]
+    fn spec_version_listed_klines_are_unpublished_rows() -> Result<(), String> {
+        for dataset in ["index-price-kline", "premium-index-kline", "spot-kline"] {
+            publish_of(dataset, crate::version::PublishError::UnsupportedDataset)?;
         }
         Ok(())
     }
 
     #[test]
-    fn spec_version_unlisted_dataset_is_refused() -> Result<(), String> {
-        let dataset = "index-price-kline";
-        let id = dataset_id("um", dataset);
-        let err = canonical_spec(&id).expect_err("publish bytes");
-        if err != encode::EncodeError::SpecVersionMismatch.to_string() {
-            return Err(format!("canonical {id}: {err}"));
+    fn superseded_metrics_root_names_its_successor() -> Result<(), String> {
+        let bytes = metrics_bytes(SPEC_V2_1, Some(encode::PAYLOAD_V3), &[])?;
+        let err = load_manifest(&bytes)?;
+        assert_superseded(&err, "metrics_spec_v2.1", None)?;
+        if matches!(
+            err,
+            LoadError::StalePayloadVersion { .. }
+                | LoadError::ZeroOiStored { .. }
+                | LoadError::MetricMissingMismatch { .. }
+        ) {
+            return Err(format!(
+                "superseded root reported as a partition fault: {err}"
+            ));
         }
-        let base = canonical_spec(&dataset_id("um", "um-kline"))?;
-        let bytes = with_spec(&base, &id, SPEC_V2_1)?;
-        let err = refused(&bytes, dataset)?;
-        if err
-            != (LoadError::SpecVersionMismatch {
-                dataset: dataset.to_owned(),
-                found: SPEC_V2_1.to_owned(),
-            })
-        {
-            return Err(format!("{dataset}: {err}"));
+        let successor = VersionRoot::from_bytes([2; 32]);
+        let err = load_manifest_with(
+            &bytes,
+            &[Supersession::new(successor, ROOT, "schema_change")],
+        )?;
+        assert_superseded(&err, "metrics_spec_v2.1", Some(successor))
+    }
+
+    #[test]
+    fn superseded_metrics_root_follows_the_chain() -> Result<(), String> {
+        let bytes = metrics_bytes(SPEC_V2_1, Some(encode::PAYLOAD_V3), &[])?;
+        let middle = VersionRoot::from_bytes([2; 32]);
+        let latest = VersionRoot::from_bytes([3; 32]);
+        let err = load_manifest_with(
+            &bytes,
+            &[
+                Supersession::new(middle, ROOT, "schema_change"),
+                Supersession::new(latest, middle, "schema_change"),
+            ],
+        )?;
+        assert_superseded(&err, "metrics_spec_v2.1", Some(latest))
+    }
+
+    #[test]
+    fn superseded_metrics_fork_is_manifest_order() -> Result<(), String> {
+        let bytes = metrics_bytes(SPEC_V2_1, Some(encode::PAYLOAD_V3), &[])?;
+        let err = load_manifest_with(
+            &bytes,
+            &[
+                Supersession::new(VersionRoot::from_bytes([2; 32]), ROOT, "schema_change"),
+                Supersession::new(VersionRoot::from_bytes([3; 32]), ROOT, "rule_change"),
+            ],
+        )?;
+        if err != LoadError::ManifestOrder {
+            return Err(format!("fork: {err}"));
         }
-        let dir = tempfile::tempdir().map_err(show)?;
-        let dataset_id = crate::version::id::DatasetId::parse(&id).map_err(show)?;
-        let day = crate::civil::CivilDay::new(2021, 6, 1).ok_or("day")?;
-        let range = DayRange::new(day, day).map_err(show)?;
-        let provenance = provenance();
-        let published = publish(&PublishRequest {
-            data_dir: dir.path(),
-            dataset: &dataset_id,
-            range,
-            provenance: &provenance,
-            run: RunId::from_bytes([1; 16]),
-            built_at: UtcMicros::from_micros(1),
-        });
-        match published {
-            Err(crate::version::PublishError::SpecVersionMismatch) => Ok(()),
-            Err(err) => Err(format!("publish {dataset}: {err}")),
-            Ok(_) => Err(format!("publish {dataset} was accepted")),
+        let unknown = load_manifest_with(
+            &bytes,
+            &[Supersession::new(
+                VersionRoot::from_bytes([2; 32]),
+                ROOT,
+                "not_a_reason",
+            )],
+        )?;
+        if unknown != LoadError::ManifestOrder {
+            return Err(format!("reason: {unknown}"));
         }
+        Ok(())
+    }
+
+    #[test]
+    fn superseded_metrics_payload_below_v3_is_not_stale() -> Result<(), String> {
+        let bytes = metrics_bytes(SPEC_V2_2, Some("payload/v2"), &[])?;
+        let err = load_manifest(&bytes)?;
+        assert_superseded(&err, "payload_version_below_v3", None)?;
+        let missing = metrics_bytes(SPEC_V2_2, None, &[])?;
+        let err = load_manifest(&missing)?;
+        assert_superseded(&err, "payload_version_below_v3", None)
+    }
+
+    #[test]
+    fn stale_payload_on_a_current_metrics_root_is_not_superseded() -> Result<(), String> {
+        let day = crate::civil::CivilDay::new(2024, 7, 9).ok_or("day")?;
+        let bytes = metrics_bytes(SPEC_V2_2, Some(encode::PAYLOAD_V3), &[day])?;
+        let err = load_manifest(&bytes)?;
+        let expected = LoadError::StalePayloadVersion {
+            date: day,
+            found: "payload/v2".to_owned(),
+            required: encode::PAYLOAD_V3.to_owned(),
+        };
+        if err != expected {
+            return Err(format!("stale: {err}"));
+        }
+        Ok(())
     }
 
     proptest! {

@@ -1,0 +1,15 @@
+[package]
+name = "parangsae-audit"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Audit loader for dataset versions that load refuses."
+
+[dependencies]
+parangsae-collector = { path = "../collector" }
+serde_json = "1.0.154"
+
+[dev-dependencies]
+tempfile = "3.27.0"
+trybuild = "1.0.122"

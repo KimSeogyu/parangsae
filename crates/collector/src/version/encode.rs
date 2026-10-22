@@ -27,14 +27,22 @@ pub const MANIFEST_SPEC_V2_1: &str = "parangsae/dataset-manifest/v2.1";
 pub const MANIFEST_SPEC_V2_2: &str = "parangsae/dataset-manifest/v2.2";
 /// Kline, funding, and book manifests. Metrics uses [`MANIFEST_SPEC_V2_2`].
 pub const MANIFEST_SPEC: &str = MANIFEST_SPEC_V2_1;
+/// Current metrics payload. A lower or missing version is a superseded metrics root.
+pub const PAYLOAD_V3: &str = "payload/v3";
 
 /// Spec string for one dataset name.
 ///
-/// The §3 table is exactly um-kline, mark-price-kline, funding-rate, and
-/// book-depth on v2.1, and metrics on v2.2. Every other name is `None`.
+/// §3 lists every `VisionDataset` name. The seven kline, funding, and book
+/// datasets are v2.1. Metrics is v2.2. Every other name is `None`.
 pub fn manifest_spec(dataset: &str) -> Option<&'static str> {
     match dataset {
-        "um-kline" | "mark-price-kline" | "funding-rate" | "book-depth" => Some(MANIFEST_SPEC_V2_1),
+        "um-kline"
+        | "mark-price-kline"
+        | "index-price-kline"
+        | "premium-index-kline"
+        | "spot-kline"
+        | "funding-rate"
+        | "book-depth" => Some(MANIFEST_SPEC_V2_1),
         "metrics" => Some(MANIFEST_SPEC_V2_2),
         _ => None,
     }
@@ -579,9 +587,25 @@ pub fn canonical_manifest(doc: &ManifestDoc<'_>) -> Result<Vec<u8>, EncodeError>
         "rule_versions".to_owned(),
         serde_json::Value::Object(rule_versions),
     );
+    let spec = manifest_spec_of(doc.dataset_id)?;
+    if spec == MANIFEST_SPEC_V2_2 {
+        schema.insert(
+            "payload_version".to_owned(),
+            serde_json::Value::String(PAYLOAD_V3.to_owned()),
+        );
+    }
     let mut partitions = Vec::with_capacity(doc.partitions.len());
     for part in doc.partitions {
-        partitions.push(partition_json(part)?);
+        let mut encoded = partition_json(part)?;
+        if spec == MANIFEST_SPEC_V2_2 {
+            if let Some(object) = encoded.as_object_mut() {
+                object.insert(
+                    "payload_version".to_owned(),
+                    serde_json::Value::String(PAYLOAD_V3.to_owned()),
+                );
+            }
+        }
+        partitions.push(encoded);
     }
     let mut range = serde_json::Map::new();
     range.insert(
@@ -601,7 +625,6 @@ pub fn canonical_manifest(doc: &ManifestDoc<'_>) -> Result<Vec<u8>, EncodeError>
         "rows".to_owned(),
         serde_json::Value::String(doc.rows.to_string()),
     );
-    let spec = manifest_spec_of(doc.dataset_id)?;
     let mut root = serde_json::Map::new();
     root.insert(
         "spec".to_owned(),

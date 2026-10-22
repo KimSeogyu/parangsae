@@ -373,6 +373,10 @@ fn load_status(err: &LoadError) -> ExitCode {
         | LoadError::UnlistedConflict { .. }
         | LoadError::LegacyObjectLine { .. }
         | LoadError::SpecVersionMismatch { .. }
+        | LoadError::SupersededVersion { .. }
+        | LoadError::StalePayloadVersion { .. }
+        | LoadError::ZeroOiStored { .. }
+        | LoadError::MetricMissingMismatch { .. }
         | LoadError::Io(_) => ExitCode::from(1),
     }
 }
@@ -477,6 +481,23 @@ mod tests {
                 dataset: "um-kline".to_owned(),
                 found: "parangsae/dataset-manifest/v2.2".to_owned(),
             },
+            LoadError::SupersededVersion {
+                dataset_id: "binance-vision.um.metrics.BTCUSDT".to_owned(),
+                root: parangsae_collector::version::VersionRoot::from_bytes([0; 32]),
+                successor_root: None,
+                rule: "metrics_spec_v2.1",
+            },
+            LoadError::StalePayloadVersion {
+                date,
+                found: "payload/v2".to_owned(),
+                required: "payload/v3".to_owned(),
+            },
+            LoadError::ZeroOiStored {
+                date,
+                pk: 1,
+                column: "sum_open_interest",
+            },
+            LoadError::MetricMissingMismatch { date },
             LoadError::Io("io".to_owned()),
         ];
         for err in &errors {
