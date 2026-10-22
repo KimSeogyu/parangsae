@@ -7,7 +7,7 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 use parangsae_collector::civil::{parse_day, DayRange};
 use parangsae_collector::fetch::HttpGet;
-use parangsae_collector::run::{self, RunRequest};
+use parangsae_collector::run::{self, RunRequest, VerifyFilter};
 use parangsae_collector::vision::VisionDataset;
 use parangsae_core::Symbol;
 
@@ -51,6 +51,15 @@ struct VisionArgs {
 struct VerifyArgs {
     #[arg(long, default_value = "./data")]
     data_dir: PathBuf,
+    /// Dataset name, repeatable. Same names as `vision --dataset`.
+    #[arg(long = "dataset")]
+    dataset: Vec<String>,
+    /// First UTC day, inclusive. YYYY-MM-DD.
+    #[arg(long)]
+    from: Option<String>,
+    /// Last UTC day, inclusive. YYYY-MM-DD.
+    #[arg(long)]
+    to: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -129,10 +138,18 @@ fn vision(args: VisionArgs) -> ExitCode {
 }
 
 fn verify(args: VerifyArgs) -> ExitCode {
-    match run::verify(&args.data_dir) {
-        Ok(summary) => {
-            println!("verify {summary}");
-            if summary.ok() {
+    let filter = match VerifyFilter::parse(&args.dataset, args.from.as_deref(), args.to.as_deref())
+    {
+        Ok(filter) => filter,
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
+    };
+    match run::verify(&args.data_dir, &filter) {
+        Ok(report) => {
+            println!("verify {report}");
+            if report.ok() {
                 ExitCode::SUCCESS
             } else {
                 ExitCode::from(1)

@@ -1,15 +1,21 @@
 //! Cucumber runner for `specs/features/collector`. A failed step exits non-zero.
 
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::io::{Cursor, Write};
+use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use cucumber::{given, then, when, World as _};
-use parangsae_collector::civil::{parse_day, CivilDay, YearMonth};
+use parangsae_collector::civil::{parse_day, CivilDay, DayRange, YearMonth};
+use parangsae_collector::fetch::MapBlob;
+use parangsae_collector::run::{self, RunRequest, VerifyFilter, VerifyReport};
 use parangsae_collector::store;
 use parangsae_collector::vision::{
-    book_day_gaps, book_row_faults, classify, collapse_by, funding_window, kline_day_gaps,
-    kline_row_faults, metrics_row_faults, missing_coverage, parse_book, parse_checksum,
-    parse_funding, parse_klines, parse_metrics, require_sha256, sha256_bytes, Classified,
-    FundingFact, Gap, KlineFact, MetricsFact, TickDomain, VisionDataset, BOOK_GAP_LIMIT_US,
+    book_day_gaps, book_row_faults, classify, collapse_by, download_url, funding_window,
+    kline_day_gaps, kline_row_faults, list_url, metrics_row_faults, missing_coverage, parse_book,
+    parse_checksum, parse_funding, parse_klines, parse_metrics, require_sha256, sha256_bytes,
+    Cadence, Classified, FundingFact, Gap, KlineFact, MetricsFact, TickDomain, VisionDataset,
+    BOOK_GAP_LIMIT_US,
 };
 use parangsae_collector::Error;
 use parangsae_core::{Amount, AvailableTs, EventTs, Qty, ReceivedTs, Symbol, TimeUnit, UtcMicros};
@@ -38,6 +44,9 @@ struct VisionWorld {
     gap_fails: Option<bool>,
     day: Option<CivilDay>,
     close_unit: Option<TimeUnit>,
+    verify_dir: Option<tempfile::TempDir>,
+    verify_report: Option<VerifyReport>,
+    verify_error: Option<String>,
 }
 
 fn symbol() -> Symbol {
@@ -531,6 +540,232 @@ fn stored_open(world: &mut VisionWorld) {
     let rows = store::load_klines(dir, "um-kline", "BTCUSDT", day).expect("load");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].open_ticks, world.open_ticks);
+}
+
+fn verify_prefix(dataset: VisionDataset, cadence: Cadence) -> Result<String, String> {
+    dataset
+        .prefixes("BTCUSDT")
+        .into_iter()
+        .find(|(kind, _)| *kind == cadence)
+        .map(|(_, text)| text)
+        .ok_or_else(|| format!("missing prefix for {dataset}"))
+}
+
+fn verify_zip(csv: &str) -> Result<Vec<u8>, String> {
+    let mut cursor = Cursor::new(Vec::new());
+    {
+        let mut writer = zip::ZipWriter::new(&mut cursor);
+        writer
+            .start_file("rows.csv", zip::write::SimpleFileOptions::default())
+            .map_err(|err| err.to_string())?;
+        writer
+            .write_all(csv.as_bytes())
+            .map_err(|err| err.to_string())?;
+        writer.finish().map_err(|err| err.to_string())?;
+    }
+    Ok(cursor.into_inner())
+}
+
+fn verify_ingest(
+    dir: &Path,
+    dataset: VisionDataset,
+    from: CivilDay,
+    to: CivilDay,
+    prefix: &str,
+    file_name: &str,
+    csv: &str,
+) -> Result<(), String> {
+    let zip_bytes = verify_zip(csv)?;
+    let digest = sha256_bytes(&zip_bytes);
+    let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
+    let checksum = format!("{hex}  {file_name}\n").into_bytes();
+    let key = format!("{prefix}{file_name}");
+    let checksum_key = format!("{key}.CHECKSUM");
+    let mut map = HashMap::new();
+    for (_, listed) in dataset.prefixes("BTCUSDT") {
+        let url = list_url(&listed, "").map_err(|err| err.to_string())?;
+        map.insert(
+            url,
+            b"<ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>".to_vec(),
+        );
+    }
+    let mut xml = String::from("<ListBucketResult><IsTruncated>false</IsTruncated>");
+    for (entry, size) in [
+        (&key, zip_bytes.len() as u64),
+        (&checksum_key, checksum.len() as u64),
+    ] {
+        xml.push_str(&format!(
+            "<Contents><Key>{entry}</Key><Size>{size}</Size></Contents>"
+        ));
+    }
+    xml.push_str("</ListBucketResult>");
+    let list = list_url(prefix, "").map_err(|err| err.to_string())?;
+    map.insert(list, xml.into_bytes());
+    map.insert(download_url(&key), zip_bytes);
+    map.insert(download_url(&checksum_key), checksum);
+    let request = RunRequest {
+        datasets: vec![dataset],
+        symbol: symbol(),
+        range: DayRange::new(from, to).map_err(|err| err.to_string())?,
+        data_dir: dir.to_path_buf(),
+        jobs: 1,
+        min_interval: Duration::from_millis(0),
+        fetched_at: received(),
+    };
+    let summary = run::run_vision(&request, &MapBlob::new(map))
+        .map_err(|err| err.to_string())?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "ingest returned no dataset".to_owned())?
+        .1;
+    if summary.faults != 0 || summary.conflicts != 0 || summary.rows_inserted == 0 {
+        return Err(format!("ingest failed: {summary}"));
+    }
+    Ok(())
+}
+
+fn run_verify(world: &mut VisionWorld, filter: Result<VerifyFilter, Error>) {
+    world.verify_report = None;
+    world.verify_error = None;
+    let filter = match filter {
+        Ok(filter) => filter,
+        Err(err) => {
+            world.verify_error = Some(err.to_string());
+            return;
+        }
+    };
+    let Some(dir) = world.verify_dir.as_ref() else {
+        panic!("verify store was not prepared");
+    };
+    match run::verify(dir.path(), &filter) {
+        Ok(report) => world.verify_report = Some(report),
+        Err(err) => world.verify_error = Some(err.to_string()),
+    }
+}
+
+#[given("a temp store with the 2021-06-01 um-kline fixture and the September 2026 funding fixture")]
+fn given_verify_store(world: &mut VisionWorld) {
+    let dir = tempfile::tempdir().expect("temp");
+    let june1 = CivilDay::new(2021, 6, 1).expect("june");
+    let september = CivilDay::new(2026, 9, 1).expect("september");
+    let september_end = CivilDay::new(2026, 9, 30).expect("september end");
+    verify_ingest(
+        dir.path(),
+        VisionDataset::UmKline,
+        june1,
+        june1,
+        &verify_prefix(VisionDataset::UmKline, Cadence::Daily).expect("prefix"),
+        "BTCUSDT-1m-2021-06-01.zip",
+        &fixture("um_kline_2021-06-01_headerless.csv"),
+    )
+    .expect("um ingest");
+    verify_ingest(
+        dir.path(),
+        VisionDataset::FundingRate,
+        september,
+        september_end,
+        &verify_prefix(VisionDataset::FundingRate, Cadence::Monthly).expect("prefix"),
+        "BTCUSDT-fundingRate-2026-09.zip",
+        &fixture("funding_2026-09-01.csv"),
+    )
+    .expect("funding ingest");
+    world.verify_dir = Some(dir);
+}
+
+#[given("the stored um-kline open on 2021-06-01 differs from the archive")]
+fn corrupt_stored_um(world: &mut VisionWorld) {
+    let dir = world.verify_dir.as_ref().expect("store").path();
+    let june1 = CivilDay::new(2021, 6, 1).expect("june");
+    let mut rows = store::load_klines(dir, "um-kline", "BTCUSDT", june1).expect("rows");
+    let open_us = june1.start_us().micros();
+    let row = rows
+        .iter_mut()
+        .find(|row| row.open_time.micros() == open_us)
+        .expect("opening bar");
+    row.open_ticks = row.open_ticks.checked_add(1).expect("open ticks");
+    let path = store::fact_path(dir, "um-kline", "BTCUSDT", june1);
+    std::fs::remove_file(path).expect("remove partition");
+    store::upsert_klines(dir, "um-kline", rows).expect("rewrite");
+}
+
+#[when(regex = r#"^verify is limited to dataset "([^"]+)"$"#)]
+fn when_verify_dataset(world: &mut VisionWorld, name: String) {
+    run_verify(world, VerifyFilter::parse(&[name], None, None));
+}
+
+#[when(
+    regex = r#"^verify is limited to dataset "([^"]+)" from "(\d{4}-\d{2}-\d{2})" to "(\d{4}-\d{2}-\d{2})"$"#
+)]
+fn when_verify_dataset_range(world: &mut VisionWorld, name: String, from: String, to: String) {
+    run_verify(
+        world,
+        VerifyFilter::parse(std::slice::from_ref(&name), Some(&from), Some(&to)),
+    );
+}
+
+#[when(regex = r#"^verify is asked for dataset "([^"]+)"$"#)]
+fn when_verify_asked(world: &mut VisionWorld, name: String) {
+    run_verify(world, VerifyFilter::parse(&[name], None, None));
+}
+
+#[when(regex = r#"^verify is limited from "(\d{4}-\d{2}-\d{2})" to "(\d{4}-\d{2}-\d{2})"$"#)]
+fn when_verify_range(world: &mut VisionWorld, from: String, to: String) {
+    run_verify(
+        world,
+        VerifyFilter::parse(&[] as &[&str], Some(&from), Some(&to)),
+    );
+}
+
+#[then("verify reports no faults")]
+fn then_verify_clean(world: &mut VisionWorld) {
+    let report = world
+        .verify_report
+        .as_ref()
+        .unwrap_or_else(|| panic!("verify error: {:?}", world.verify_error));
+    assert!(
+        report.fault_lines.is_empty(),
+        "{}",
+        report.fault_lines.join("; ")
+    );
+    assert!(report.ok(), "{report}");
+}
+
+#[then("verify checked only the funding-rate archives")]
+fn then_funding_only(world: &mut VisionWorld) {
+    let report = world.verify_report.as_ref().expect("report");
+    assert_eq!(report.summary.archives, 1, "{report}");
+    assert_eq!(report.archives_in_scope, 1);
+    assert_eq!(report.archives_total, 2);
+    assert_eq!(report.datasets_label, "funding-rate");
+    assert!(report
+        .to_string()
+        .contains("datasets=funding-rate, days=all, archives=1/2 in scope"));
+}
+
+#[then("verify reports a conflict fault")]
+fn then_verify_conflict(world: &mut VisionWorld) {
+    let report = world
+        .verify_report
+        .as_ref()
+        .unwrap_or_else(|| panic!("verify error: {:?}", world.verify_error));
+    assert!(
+        report
+            .fault_lines
+            .iter()
+            .any(|line| line.starts_with("conflict ")),
+        "{report}"
+    );
+    assert!(!report.ok());
+}
+
+#[then("verify rejects the request as usage")]
+fn then_verify_usage(world: &mut VisionWorld) {
+    assert!(world.verify_report.is_none(), "{:?}", world.verify_report);
+    let err = world.verify_error.as_deref().expect("usage error");
+    assert!(
+        err.contains("unknown dataset") || err.contains("reversed"),
+        "{err}"
+    );
 }
 
 fn bar(open: i64, close: i64, price: i64) -> KlineFact {

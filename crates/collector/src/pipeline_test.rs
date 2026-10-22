@@ -200,7 +200,7 @@ fn a_complete_day_verifies_and_a_replacement_price_conflicts_without_overwrite()
     assert_eq!(summary.rows_unchanged, 1440, "{summary}");
     assert_eq!(summary.gaps, 0, "{summary}");
     assert!(summary.ok(), "{summary}");
-    let verified = run::verify(dir.path()).unwrap();
+    let verified = run::verify(dir.path(), &run::VerifyFilter::all()).unwrap();
     assert!(verified.ok(), "{verified}");
 
     let replacement = zip_csv("c.csv", &minute_csv(day, 1440, "11"));

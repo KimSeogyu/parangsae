@@ -10,10 +10,10 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use parangsae_core::{ReceivedTs, Symbol, UtcMicros};
+use parangsae_core::{ReceivedTs, Symbol, TimeUnit, UtcMicros};
 use serde::Serialize;
 
-use crate::civil::{day_of, DayRange};
+use crate::civil::{day_of, parse_day, CivilDay, DayRange};
 use crate::fetch::{list_prefix, BlobGet, Pace};
 use crate::manifest::{ManifestLog, ObjectManifest};
 use crate::store::{self, WriteCounts};
@@ -23,7 +23,7 @@ use crate::vision::{
     funding_window, kline_day_gaps, kline_row_faults, metrics_day_gaps, metrics_row_faults,
     missing_coverage, parse_book, parse_checksum, parse_funding, parse_klines, parse_metrics,
     require_sha256, sha256_bytes, unzip_csv, ArchiveName, Cadence, Classified, FaultReport, Gap,
-    VisionDataset,
+    KlineFact, VisionDataset,
 };
 use crate::Error;
 
@@ -102,6 +102,141 @@ impl std::fmt::Display for RunSummary {
             write!(f, " first_fault={fault}")?;
         }
         Ok(())
+    }
+}
+
+/// Limits [`verify`] to datasets and inclusive UTC days.
+///
+/// An empty `datasets` list checks every dataset. A missing `from` or `to`
+/// leaves that side of the range open.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VerifyFilter {
+    pub datasets: Vec<VisionDataset>,
+    pub from: Option<CivilDay>,
+    pub to: Option<CivilDay>,
+}
+
+impl VerifyFilter {
+    pub fn all() -> Self {
+        Self {
+            datasets: Vec::new(),
+            from: None,
+            to: None,
+        }
+    }
+
+    /// `datasets` uses the same names as `vision --dataset`, including aliases.
+    /// `all` selects every dataset. An unknown name, or `from` after `to`, is
+    /// [`Error::Usage`].
+    pub fn parse(
+        datasets: &[impl AsRef<str>],
+        from: Option<&str>,
+        to: Option<&str>,
+    ) -> Result<Self, Error> {
+        let mut selected = Vec::new();
+        let mut saw_all = false;
+        for name in datasets {
+            let name = name.as_ref();
+            if name == "all" {
+                saw_all = true;
+                continue;
+            }
+            let Some(dataset) = VisionDataset::parse(name) else {
+                return Err(Error::Usage(format!("unknown dataset {name}")));
+            };
+            if !selected.contains(&dataset) {
+                selected.push(dataset);
+            }
+        }
+        if saw_all && !selected.is_empty() {
+            return Err(Error::Usage(
+                "dataset all cannot be combined with another dataset".into(),
+            ));
+        }
+        let datasets = if saw_all { Vec::new() } else { selected };
+        let from = from.map(parse_day).transpose()?;
+        let to = to.map(parse_day).transpose()?;
+        if let (Some(from), Some(to)) = (from, to) {
+            let _ = DayRange::new(from, to)?;
+        }
+        Ok(Self { datasets, from, to })
+    }
+
+    fn allows_dataset(&self, dataset: VisionDataset) -> bool {
+        self.datasets.is_empty() || self.datasets.contains(&dataset)
+    }
+
+    fn contains_day(&self, day: CivilDay) -> bool {
+        if let Some(from) = self.from {
+            if day < from {
+                return false;
+            }
+        }
+        if let Some(to) = self.to {
+            if day > to {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn limits_days(&self) -> bool {
+        self.from.is_some() || self.to.is_some()
+    }
+}
+
+/// Result of one `verify` run. `fault_lines` is every fault the summary counted,
+/// in the order they were found. `partition_loads` is one entry per fact-partition
+/// read, `dataset/symbol/YYYY-MM-DD`, so a second read of the same partition is visible.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VerifyReport {
+    pub summary: RunSummary,
+    pub fault_lines: Vec<String>,
+    pub datasets_label: String,
+    pub days_label: String,
+    pub archives_in_scope: u64,
+    pub archives_total: u64,
+    pub partition_loads: Vec<String>,
+}
+
+impl VerifyReport {
+    pub fn ok(&self) -> bool {
+        self.summary.ok()
+    }
+}
+
+impl std::fmt::Display for VerifyReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{summary} datasets={datasets}, days={days}, archives={in_scope}/{total} in scope",
+            summary = self.summary,
+            datasets = self.datasets_label,
+            days = self.days_label,
+            in_scope = self.archives_in_scope,
+            total = self.archives_total,
+        )
+    }
+}
+
+fn datasets_label(datasets: &[VisionDataset]) -> String {
+    if datasets.is_empty() {
+        "all".to_owned()
+    } else {
+        datasets
+            .iter()
+            .map(|dataset| dataset.as_str())
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+}
+
+fn days_label(from: Option<CivilDay>, to: Option<CivilDay>) -> String {
+    match (from, to) {
+        (None, None) => "all".to_owned(),
+        (Some(from), Some(to)) => format!("{from}..{to}"),
+        (Some(from), None) => format!("{from}.."),
+        (None, Some(to)) => format!("..{to}"),
     }
 }
 
@@ -981,175 +1116,517 @@ impl<G: BlobGet> BlobGet for Paced<'_, G> {
     }
 }
 
-pub fn verify(data_dir: &Path) -> Result<RunSummary, Error> {
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct PartitionKey {
+    dataset: String,
+    symbol: String,
+    day: CivilDay,
+}
+
+#[derive(Default)]
+struct PartitionCache {
+    pending: BTreeMap<PartitionKey, u32>,
+    loaded: BTreeMap<PartitionKey, Option<BTreeMap<i64, KlineFact>>>,
+    loads: Vec<String>,
+}
+
+enum StoredRow {
+    FileMissing,
+    Equal,
+    Conflict,
+    Missing,
+}
+
+impl PartitionCache {
+    fn compare_kline(
+        &mut self,
+        data_dir: &Path,
+        dataset: &str,
+        symbol: &str,
+        day: CivilDay,
+        row: &KlineFact,
+    ) -> Result<StoredRow, Error> {
+        let key = PartitionKey {
+            dataset: dataset.to_owned(),
+            symbol: symbol.to_owned(),
+            day,
+        };
+        if !self.loaded.contains_key(&key) {
+            let path = store::fact_path(data_dir, dataset, symbol, day);
+            if path.exists() {
+                let stored = store::load_klines(data_dir, dataset, symbol, day)?;
+                self.loads.push(format!("{dataset}/{symbol}/{day}"));
+                let mut index = BTreeMap::new();
+                for kept in stored {
+                    index.entry(kept.open_time.micros()).or_insert(kept);
+                }
+                self.loaded.insert(key.clone(), Some(index));
+            } else {
+                self.loaded.insert(key.clone(), None);
+            }
+        }
+        let Some(index) = self.loaded.get(&key).and_then(Option::as_ref) else {
+            return Ok(StoredRow::FileMissing);
+        };
+        Ok(match index.get(&row.open_time.micros()) {
+            Some(kept) if kept == row => StoredRow::Equal,
+            Some(_) => StoredRow::Conflict,
+            None => StoredRow::Missing,
+        })
+    }
+
+    fn release_archive(
+        &mut self,
+        dataset: VisionDataset,
+        symbol: &str,
+        name: &ArchiveName,
+        filter: &VerifyFilter,
+    ) {
+        if !loads_kline_facts(dataset) {
+            return;
+        }
+        for day in covered_days(name, filter) {
+            let key = PartitionKey {
+                dataset: dataset.as_str().to_owned(),
+                symbol: symbol.to_owned(),
+                day,
+            };
+            let finished = match self.pending.get_mut(&key) {
+                Some(left) if *left > 1 => {
+                    *left -= 1;
+                    false
+                }
+                Some(left) if *left == 1 => {
+                    *left = 0;
+                    true
+                }
+                Some(_) | None => false,
+            };
+            if finished {
+                self.pending.remove(&key);
+                self.loaded.remove(&key);
+            }
+        }
+    }
+}
+
+struct VerifyOut<'a> {
+    summary: &'a mut RunSummary,
+    fault_lines: &'a mut Vec<String>,
+}
+
+impl VerifyOut<'_> {
+    fn fault(&mut self, fault: impl Into<String>) {
+        let fault = fault.into();
+        self.fault_lines.push(fault.clone());
+        self.summary.note_fault(fault);
+    }
+}
+
+struct VerifyCtx<'a> {
+    data_dir: &'a Path,
+    filter: &'a VerifyFilter,
+    out: VerifyOut<'a>,
+    cache: &'a mut PartitionCache,
+}
+
+struct Decision {
+    in_scope: bool,
+    archive: Option<(VisionDataset, ArchiveName)>,
+}
+
+pub fn verify(data_dir: &Path, filter: &VerifyFilter) -> Result<VerifyReport, Error> {
     let manifest = ManifestLog::open(data_dir)?;
     let mut summary = RunSummary::default();
+    let mut fault_lines = Vec::new();
+    let mut cache = PartitionCache::default();
+    let mut decisions = Vec::with_capacity(manifest.active().len());
     for object in manifest.active() {
-        let path = raw_path(data_dir, &object.path);
-        let bytes = match fs::read(&path) {
-            Ok(bytes) => bytes,
-            Err(source) => {
-                summary.note_fault(format!("io {}: {source}", object.path));
-                continue;
-            }
-        };
-        if bytes.len() as u64 != object.size_bytes {
-            summary.note_fault(format!("size {}", object.path));
-            continue;
-        }
-        if let Err(err) = require_sha256(&bytes, object.sha256) {
-            summary.note_fault(format!("{err}"));
-            continue;
-        }
-        let checksum_text = match fs::read_to_string(checksum_path(&path)) {
-            Ok(text) => text,
-            Err(source) => {
-                summary.note_fault(format!("io checksum {}: {source}", object.path));
-                continue;
-            }
-        };
-        match parse_checksum(&checksum_text, basename(&object.path)) {
-            Ok(digest) if digest == object.sha256 => {}
-            Ok(_) => {
-                summary.note_fault(format!(
-                    "checksum {} does not match the manifest",
-                    object.path
-                ));
-                continue;
-            }
-            Err(err) => {
-                summary.note_fault(err.to_string());
-                continue;
+        let decision = decide(object, filter)?;
+        if let Some((dataset, name)) = &decision.archive {
+            if loads_kline_facts(*dataset) {
+                for day in covered_days(name, filter) {
+                    let key = PartitionKey {
+                        dataset: dataset.as_str().to_owned(),
+                        symbol: object.symbol.clone(),
+                        day,
+                    };
+                    *cache.pending.entry(key).or_default() += 1;
+                }
             }
         }
-        let dataset = match VisionDataset::parse(&object.dataset) {
-            Some(dataset) => dataset,
-            None => {
-                summary.note_fault(format!("schema {}", object.dataset));
-                continue;
-            }
-        };
-        let symbol = match Symbol::new(&object.symbol) {
-            Ok(symbol) => symbol,
-            Err(err) => {
-                summary.note_fault(err.to_string());
-                continue;
-            }
-        };
-        let Classified::Archive(name) = classify(dataset, symbol.as_str(), basename(&object.path))?
-        else {
-            summary.note_fault(format!("filename {}", object.path));
-            continue;
-        };
-        let csv = match unzip_csv(&bytes) {
-            Ok(csv) => csv,
-            Err(err) => {
-                summary.note_fault(err.to_string());
-                continue;
-            }
-        };
-        verify_archive(
-            data_dir,
-            dataset,
-            &symbol,
-            &name,
-            &csv,
-            object,
-            &mut summary,
-        )?;
-        summary.archives += 1;
+        decisions.push(decision);
     }
-    Ok(summary)
+    let archives_total = decisions.len() as u64;
+    let archives_in_scope = decisions
+        .iter()
+        .filter(|decision| decision.in_scope)
+        .count() as u64;
+    {
+        let mut ctx = VerifyCtx {
+            data_dir,
+            filter,
+            out: VerifyOut {
+                summary: &mut summary,
+                fault_lines: &mut fault_lines,
+            },
+            cache: &mut cache,
+        };
+        for (object, decision) in manifest.active().iter().zip(decisions.iter()) {
+            if !decision.in_scope {
+                continue;
+            }
+            let checked = verify_object(&mut ctx, object)?;
+            if let Some((dataset, name)) = &decision.archive {
+                ctx.cache
+                    .release_archive(*dataset, &object.symbol, name, ctx.filter);
+            }
+            if checked {
+                ctx.out.summary.archives += 1;
+            }
+        }
+    }
+    Ok(VerifyReport {
+        summary,
+        fault_lines,
+        datasets_label: datasets_label(&filter.datasets),
+        days_label: days_label(filter.from, filter.to),
+        archives_in_scope,
+        archives_total,
+        partition_loads: cache.loads,
+    })
+}
+
+fn verify_object(ctx: &mut VerifyCtx<'_>, object: &ObjectManifest) -> Result<bool, Error> {
+    let path = raw_path(ctx.data_dir, &object.path);
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(source) => {
+            ctx.out.fault(format!("io {}: {source}", object.path));
+            return Ok(false);
+        }
+    };
+    if bytes.len() as u64 != object.size_bytes {
+        ctx.out.fault(format!("size {}", object.path));
+        return Ok(false);
+    }
+    if let Err(err) = require_sha256(&bytes, object.sha256) {
+        ctx.out.fault(format!("{err}"));
+        return Ok(false);
+    }
+    let checksum_text = match fs::read_to_string(checksum_path(&path)) {
+        Ok(text) => text,
+        Err(source) => {
+            ctx.out
+                .fault(format!("io checksum {}: {source}", object.path));
+            return Ok(false);
+        }
+    };
+    match parse_checksum(&checksum_text, basename(&object.path)) {
+        Ok(digest) if digest == object.sha256 => {}
+        Ok(_) => {
+            ctx.out.fault(format!(
+                "checksum {} does not match the manifest",
+                object.path
+            ));
+            return Ok(false);
+        }
+        Err(err) => {
+            ctx.out.fault(err.to_string());
+            return Ok(false);
+        }
+    }
+    let dataset = match VisionDataset::parse(&object.dataset) {
+        Some(dataset) => dataset,
+        None => {
+            ctx.out.fault(format!("schema {}", object.dataset));
+            return Ok(false);
+        }
+    };
+    let symbol = match Symbol::new(&object.symbol) {
+        Ok(symbol) => symbol,
+        Err(err) => {
+            ctx.out.fault(err.to_string());
+            return Ok(false);
+        }
+    };
+    let Classified::Archive(name) = classify(dataset, symbol.as_str(), basename(&object.path))?
+    else {
+        ctx.out.fault(format!("filename {}", object.path));
+        return Ok(false);
+    };
+    let csv = match unzip_csv(&bytes) {
+        Ok(csv) => csv,
+        Err(err) => {
+            ctx.out.fault(err.to_string());
+            return Ok(false);
+        }
+    };
+    verify_archive(ctx, dataset, &symbol, &name, &csv, object)?;
+    Ok(true)
 }
 
 fn verify_archive(
-    data_dir: &Path,
+    ctx: &mut VerifyCtx<'_>,
     dataset: VisionDataset,
     symbol: &Symbol,
     name: &ArchiveName,
     csv: &str,
     object: &ObjectManifest,
-    summary: &mut RunSummary,
 ) -> Result<(), Error> {
-    let fetched_at = object.fetched_at;
     match dataset {
         VisionDataset::UmKline
         | VisionDataset::MarkPriceKline
         | VisionDataset::IndexPriceKline
         | VisionDataset::PremiumIndexKline
-        | VisionDataset::SpotKline => {
-            let clock = dataset
-                .clock(archive_clock_day(name))
-                .ok_or_else(|| Error::check("timestamp_unit", "clock"))?;
-            let domain = dataset
-                .tick_domain()
-                .ok_or_else(|| Error::check("schema", "domain"))?;
-            let parsed = parse_klines(csv, symbol, clock, domain, fetched_at)?;
-            if parsed.rows.len() as u64 != object.row_count {
-                summary.note_fault(format!("manifest_row_count {}", object.path));
-            }
-            let faults = kline_row_faults(&parsed.rows, clock.expected());
-            if !faults.is_empty() {
-                summary.note_fault(format!("{} {}", object.path, faults[0].name));
-                return Ok(());
-            }
-            for row in parsed.rows {
-                let day = day_of(row.open_time)?;
-                let path = store::fact_path(data_dir, dataset.as_str(), symbol.as_str(), day);
-                if !path.exists() {
-                    continue;
-                }
-                let stored = store::load_klines(data_dir, dataset.as_str(), symbol.as_str(), day)?;
-                match stored.iter().find(|kept| kept.open_time == row.open_time) {
-                    Some(kept) if kept == &row => {}
-                    Some(_) => summary.note_fault(format!("conflict {}", row.open_time.micros())),
-                    None => summary
-                        .note_fault(format!("missing parquet row {}", row.open_time.micros())),
-                }
-            }
+        | VisionDataset::SpotKline => verify_kline_archive(ctx, dataset, symbol, name, csv, object),
+        VisionDataset::FundingRate => verify_funding_archive(ctx, symbol, name, csv, object),
+        VisionDataset::Metrics => verify_metrics_archive(ctx, symbol, csv, object),
+        VisionDataset::BookDepth => verify_book_archive(ctx, symbol, csv, object),
+    }
+}
+
+fn verify_kline_archive(
+    ctx: &mut VerifyCtx<'_>,
+    dataset: VisionDataset,
+    symbol: &Symbol,
+    name: &ArchiveName,
+    csv: &str,
+    object: &ObjectManifest,
+) -> Result<(), Error> {
+    let clock = dataset
+        .clock(archive_clock_day(name))
+        .ok_or_else(|| Error::check("timestamp_unit", "clock"))?;
+    let domain = dataset
+        .tick_domain()
+        .ok_or_else(|| Error::check("schema", "domain"))?;
+    let parsed = parse_klines(csv, symbol, clock, domain, object.fetched_at)?;
+    if parsed.rows.len() as u64 != object.row_count {
+        ctx.out.fault(format!("manifest_row_count {}", object.path));
+    }
+    let faults = kline_faults_in_scope(&parsed.rows, clock.expected(), ctx.filter)?;
+    if !faults.is_empty() {
+        ctx.out.fault(format!("{} {}", object.path, faults[0].name));
+        return Ok(());
+    }
+    for row in &parsed.rows {
+        let day = day_of(row.open_time)?;
+        if !ctx.filter.contains_day(day) {
+            continue;
         }
-        VisionDataset::FundingRate => {
-            let parsed = parse_funding(csv, symbol, fetched_at)?;
-            if parsed.rows.len() as u64 != object.row_count {
-                summary.note_fault(format!("manifest_row_count {}", object.path));
+        match ctx
+            .cache
+            .compare_kline(ctx.data_dir, dataset.as_str(), symbol.as_str(), day, row)?
+        {
+            StoredRow::FileMissing | StoredRow::Equal => {}
+            StoredRow::Conflict => {
+                ctx.out
+                    .fault(format!("conflict {}", row.open_time.micros()));
             }
-            let gaps = match funding_window(&parsed.rows, name.month) {
-                Ok(gaps) => gaps,
-                Err(faults) => {
-                    summary.note_fault(format!("{} {}", object.path, faults[0].name));
-                    return Ok(());
-                }
-            };
-            let stored_gaps = gaps_by_day(&gaps)?;
-            for (day, expected) in stored_gaps {
-                let actual = store::load_gaps(data_dir, dataset.as_str(), symbol.as_str(), day)?;
-                if actual != expected {
-                    summary.note_fault(format!("funding_slot gap mismatch {day}"));
-                }
-            }
-        }
-        VisionDataset::Metrics => {
-            let parsed = parse_metrics(csv, symbol, fetched_at)?;
-            if parsed.rows.len() as u64 != object.row_count {
-                summary.note_fault(format!("manifest_row_count {}", object.path));
-            }
-            let faults = metrics_row_faults(&parsed.rows);
-            if !faults.is_empty() {
-                summary.note_fault(format!("{} {}", object.path, faults[0].name));
-            }
-        }
-        VisionDataset::BookDepth => {
-            let mut parsed = parse_book(csv, symbol, fetched_at)?;
-            if parsed.rows.len() as u64 != object.row_count {
-                summary.note_fault(format!("manifest_row_count {}", object.path));
-            }
-            let faults = book_row_faults(&mut parsed.rows);
-            if !faults.is_empty() {
-                summary.note_fault(format!("{} {}", object.path, faults[0].name));
+            StoredRow::Missing => {
+                ctx.out
+                    .fault(format!("missing parquet row {}", row.open_time.micros()));
             }
         }
     }
     Ok(())
+}
+
+fn verify_funding_archive(
+    ctx: &mut VerifyCtx<'_>,
+    symbol: &Symbol,
+    name: &ArchiveName,
+    csv: &str,
+    object: &ObjectManifest,
+) -> Result<(), Error> {
+    let parsed = parse_funding(csv, symbol, object.fetched_at)?;
+    if parsed.rows.len() as u64 != object.row_count {
+        ctx.out.fault(format!("manifest_row_count {}", object.path));
+    }
+    let gaps = match funding_window(&parsed.rows, name.month) {
+        Ok(gaps) => gaps,
+        Err(faults) => {
+            ctx.out.fault(format!("{} {}", object.path, faults[0].name));
+            return Ok(());
+        }
+    };
+    let stored_gaps = gaps_by_day(&gaps)?;
+    for (day, expected) in stored_gaps {
+        if !ctx.filter.contains_day(day) {
+            continue;
+        }
+        let actual = store::load_gaps(
+            ctx.data_dir,
+            VisionDataset::FundingRate.as_str(),
+            symbol.as_str(),
+            day,
+        )?;
+        if actual != expected {
+            ctx.out.fault(format!("funding_slot gap mismatch {day}"));
+        }
+    }
+    Ok(())
+}
+
+fn verify_metrics_archive(
+    ctx: &mut VerifyCtx<'_>,
+    symbol: &Symbol,
+    csv: &str,
+    object: &ObjectManifest,
+) -> Result<(), Error> {
+    let parsed = parse_metrics(csv, symbol, object.fetched_at)?;
+    if parsed.rows.len() as u64 != object.row_count {
+        ctx.out.fault(format!("manifest_row_count {}", object.path));
+    }
+    let faults = if ctx.filter.limits_days() {
+        let mut scoped = Vec::new();
+        for row in &parsed.rows {
+            if ctx.filter.contains_day(day_of(row.create_time)?) {
+                scoped.push(row.clone());
+            }
+        }
+        metrics_row_faults(&scoped)
+    } else {
+        metrics_row_faults(&parsed.rows)
+    };
+    if !faults.is_empty() {
+        ctx.out.fault(format!("{} {}", object.path, faults[0].name));
+    }
+    Ok(())
+}
+
+fn verify_book_archive(
+    ctx: &mut VerifyCtx<'_>,
+    symbol: &Symbol,
+    csv: &str,
+    object: &ObjectManifest,
+) -> Result<(), Error> {
+    let mut parsed = parse_book(csv, symbol, object.fetched_at)?;
+    if parsed.rows.len() as u64 != object.row_count {
+        ctx.out.fault(format!("manifest_row_count {}", object.path));
+    }
+    let faults = if ctx.filter.limits_days() {
+        let mut scoped = Vec::new();
+        for row in &parsed.rows {
+            if ctx.filter.contains_day(day_of(row.timestamp)?) {
+                scoped.push(row.clone());
+            }
+        }
+        book_row_faults(&mut scoped)
+    } else {
+        book_row_faults(&mut parsed.rows)
+    };
+    if !faults.is_empty() {
+        ctx.out.fault(format!("{} {}", object.path, faults[0].name));
+    }
+    Ok(())
+}
+
+fn kline_faults_in_scope(
+    rows: &[KlineFact],
+    unit: TimeUnit,
+    filter: &VerifyFilter,
+) -> Result<Vec<FaultReport>, Error> {
+    if !filter.limits_days() {
+        return Ok(kline_row_faults(rows, unit));
+    }
+    let mut scoped = Vec::new();
+    for row in rows {
+        if filter.contains_day(day_of(row.open_time)?) {
+            scoped.push(row.clone());
+        }
+    }
+    Ok(kline_row_faults(&scoped, unit))
+}
+
+fn decide(object: &ObjectManifest, filter: &VerifyFilter) -> Result<Decision, Error> {
+    let Some(dataset) = VisionDataset::parse(&object.dataset) else {
+        return Ok(Decision {
+            in_scope: filter.datasets.is_empty(),
+            archive: None,
+        });
+    };
+    if !filter.allows_dataset(dataset) {
+        return Ok(Decision {
+            in_scope: false,
+            archive: None,
+        });
+    }
+    let Ok(symbol) = Symbol::new(&object.symbol) else {
+        return Ok(Decision {
+            in_scope: true,
+            archive: None,
+        });
+    };
+    match classify(dataset, symbol.as_str(), basename(&object.path))? {
+        Classified::Archive(name) => {
+            let in_scope = coverage_intersects(&name, filter);
+            Ok(Decision {
+                in_scope,
+                archive: in_scope.then_some((dataset, name)),
+            })
+        }
+        Classified::Checksum { .. } | Classified::Quarantine { .. } => Ok(Decision {
+            in_scope: true,
+            archive: None,
+        }),
+    }
+}
+
+fn coverage_intersects(name: &ArchiveName, filter: &VerifyFilter) -> bool {
+    let (start, end) = match name.day {
+        Some(day) => (day, day),
+        None => (name.month.first(), name.month.last()),
+    };
+    if let Some(from) = filter.from {
+        if end < from {
+            return false;
+        }
+    }
+    if let Some(to) = filter.to {
+        if start > to {
+            return false;
+        }
+    }
+    true
+}
+
+fn covered_days(name: &ArchiveName, filter: &VerifyFilter) -> Vec<CivilDay> {
+    match name.day {
+        Some(day) => {
+            if filter.contains_day(day) {
+                vec![day]
+            } else {
+                Vec::new()
+            }
+        }
+        None => {
+            let mut days = Vec::new();
+            let mut cursor = name.month.first();
+            let last = name.month.last();
+            loop {
+                if filter.contains_day(cursor) {
+                    days.push(cursor);
+                }
+                if cursor == last {
+                    break;
+                }
+                cursor = cursor.next();
+            }
+            days
+        }
+    }
+}
+
+fn loads_kline_facts(dataset: VisionDataset) -> bool {
+    match dataset {
+        VisionDataset::UmKline
+        | VisionDataset::MarkPriceKline
+        | VisionDataset::IndexPriceKline
+        | VisionDataset::PremiumIndexKline
+        | VisionDataset::SpotKline => true,
+        VisionDataset::FundingRate | VisionDataset::Metrics | VisionDataset::BookDepth => false,
+    }
 }
 
 fn gaps_by_day(gaps: &[Gap]) -> Result<BTreeMap<crate::civil::CivilDay, Vec<Gap>>, Error> {
