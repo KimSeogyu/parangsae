@@ -1,0 +1,11 @@
+name: side
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  spoof:
+    name: gate
+    runs-on: ubuntu-latest
+    steps:
+      - run: true
