@@ -58,6 +58,9 @@ There is no readiness verdict. Research code does not read live fills, balances,
 | Gap rejects rows until resync; duplicate id is a no-op | `specs/tla/IngestSegment.tla`, TLC, one worker |
 | Vision fact write keeps the stored payload | `specs/tla/ManifestWrite.tla`, TLC, one worker; `merge_fact` |
 | Format and lints | `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` |
+| no f64 in money path | `deny(clippy::float_arithmetic)` in sim/backtest |
+| costs explicit | `Costs` has no `Default` |
+| fills at next open | G2 + P7 |
 
 ## Checks
 
