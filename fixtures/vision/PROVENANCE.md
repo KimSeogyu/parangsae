@@ -2,7 +2,9 @@
 
 Small slices used by the collector checks. They are not a market-data archive.
 
-CSV files are unmodified line ranges from public `data.binance.vision` objects, plus rows edited only where the name says `bad`, `missing`, `off`, or `duplicate`. The edited cells are the ones the scenario is about.
+CSV files are unmodified line ranges from public `data.binance.vision` objects, plus rows edited only where the name says `bad`, `missing`, `off`, or `duplicate`, and lines 2–10 of `BTCUSDT-fundingRate-2020-01.csv`. The edited cells are the ones the scenario is about.
+
+`BTCUSDT-fundingRate-2020-01.csv` is not the verbatim January 2020 funding archive. Lines 2–10 (the first nine data rows) were edited to carry the scenario tokens (`-3.5E-7`, `-1E-8`, `-1.0E-7`, `6E-8`, `0E-16`, and the following rates and calc times on those lines). The real archive has `-0.00012359` at calc_time `1577836800000`. The scenario ticks from those lines are synthetic except the `8.4E-7` row, which is 84 ticks. The unmodified month is `integrity/BTCUSDT-fundingRate-2020-01.vision.csv`.
 
 `um_kline_bad_taker_quote.csv` is the first line of `um_kline_2021-06-01_headerless.csv` with `taker_buy_quote_volume` set to `99999999.00000000`, above `quote_volume`. The other cells are unchanged.
 

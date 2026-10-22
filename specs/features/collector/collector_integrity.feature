@@ -15,3 +15,8 @@ Feature: Collector verify scope
     Then verify rejects the request as usage
     When verify is limited from "2021-06-02" to "2021-06-01"
     Then verify rejects the request as usage
+
+  Scenario: an archive that differs only in its header is not a conflict
+    Given the headerless 2021-06-01 um-kline rows are stored
+    When those rows are stored again with a kline header
+    Then the second write is unchanged and records no conflict

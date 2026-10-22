@@ -804,7 +804,67 @@ fn bar(open: i64, close: i64, price: i64) -> KlineFact {
 
 #[tokio::main]
 async fn main() {
-    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../specs/features/collector/vision_integrity.feature");
-    VisionWorld::cucumber().run_and_exit(features).await;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs/features/collector");
+    VisionWorld::cucumber()
+        .run_and_exit(root.join("vision_integrity.feature"))
+        .await;
+    VisionWorld::cucumber()
+        .run_and_exit(root.join("collector_integrity.feature"))
+        .await;
+}
+
+const KLINE_HEADER: &str = "open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore";
+
+#[given("the headerless 2021-06-01 um-kline rows are stored")]
+fn store_headerless(world: &mut VisionWorld) {
+    let dir = tempfile::tempdir().expect("temp").keep();
+    let rows = parse_klines(
+        &fixture("um_kline_2021-06-01_headerless.csv"),
+        &Symbol::new("BTCUSDT").expect("symbol"),
+        parangsae_collector::normalize::UM_KLINE_CLOCK,
+        TickDomain::Price,
+        Receipt::Archive {
+            fetched_at_run: RunId::from_bytes([1; 16]),
+        },
+        true,
+    )
+    .expect("parse")
+    .rows;
+    world.unchanged = u64::try_from(rows.len()).expect("len");
+    store::upsert_klines(&dir, "um-kline", rows).expect("insert");
+    world.data_dir = Some(dir);
+}
+
+#[when("those rows are stored again with a kline header")]
+fn store_headed(world: &mut VisionWorld) {
+    let dir = world.data_dir.as_ref().expect("dir");
+    let csv = format!(
+        "{KLINE_HEADER}\n{}",
+        fixture("um_kline_2021-06-01_headerless.csv")
+    );
+    let rows = parse_klines(
+        &csv,
+        &Symbol::new("BTCUSDT").expect("symbol"),
+        parangsae_collector::normalize::UM_KLINE_CLOCK,
+        TickDomain::Price,
+        Receipt::Archive {
+            fetched_at_run: RunId::from_bytes([2; 16]),
+        },
+        true,
+    )
+    .expect("parse")
+    .rows;
+    let counts = store::upsert_klines(dir, "um-kline", rows).expect("rewrite");
+    let mut summary = run::RunSummary::default();
+    summary.add_counts(counts);
+    world.unchanged = summary.rows_unchanged;
+    world.conflicts = summary.conflicts;
+}
+
+#[then("the second write is unchanged and records no conflict")]
+fn header_not_conflict(world: &mut VisionWorld) {
+    assert_eq!(world.conflicts, 0);
+    assert_eq!(world.unchanged, 3);
+    let dir = world.data_dir.as_ref().expect("dir");
+    assert!(!dir.join("conflicts").join("um-kline.jsonl").exists());
 }

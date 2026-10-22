@@ -1,9 +1,19 @@
-//! One parsed Vision row. Payload equality ignores `receipt`.
+//! One parsed Vision row.
 //!
+//! `PartialEq` ignores `receipt` and still includes clocks, `schema_version`,
+//! and `zero_volume_flat`. Conflict comparison uses [`DataEqual`], which is
+//! SHA-256 of [`KlineFact::data_payload_v2`] and the sibling payloads.
 //! `zero_volume_flat` is descriptive: OHLC is flat and volume is 0. It is not a
 //! halt flag and not a maintenance flag.
 
+use sha2::{Digest, Sha256};
+
+use crate::manifest::DataEqual;
 use parangsae_core::{Amount, AvailableTs, EventTs, Qty, Ratio, Receipt, Symbol, UtcMicros};
+
+fn payload_hash(payload: &str) -> String {
+    hex::encode(Sha256::digest(payload.as_bytes()))
+}
 
 /// `volume == 0`, `count == 0`, and open, high, low, and close are equal.
 ///
@@ -98,6 +108,39 @@ impl PartialEq for KlineFact {
 
 impl Eq for KlineFact {}
 
+impl KlineFact {
+    /// Market data only. Clocks, receipt, schema, and `zero_volume_flat` are excluded.
+    pub fn data_payload_v2(&self) -> String {
+        format!(
+            "symbol={symbol} interval_us={interval} open_time_us={open} close_time_us={close} open_ticks={open_ticks} high_ticks={high} low_ticks={low} close_ticks={close_ticks} volume_ticks={volume} quote_volume_ticks={quote} count={count} taker_buy_volume_ticks={taker} taker_buy_quote_volume_ticks={taker_quote} tick_domain={domain}",
+            symbol = self.symbol.as_str(),
+            interval = self.interval_us,
+            open = self.open_time.micros(),
+            close = self.close_time.micros(),
+            open_ticks = self.open_ticks,
+            high = self.high_ticks,
+            low = self.low_ticks,
+            close_ticks = self.close_ticks,
+            volume = self.volume.ticks(),
+            quote = self.quote_volume.ticks(),
+            count = self.count,
+            taker = self.taker_buy_volume.ticks(),
+            taker_quote = self.taker_buy_quote_volume.ticks(),
+            domain = self.tick_domain.as_str(),
+        )
+    }
+
+    pub fn data_hash(&self) -> String {
+        payload_hash(&self.data_payload_v2())
+    }
+}
+
+impl DataEqual for KlineFact {
+    fn data_equal(&self, other: &Self) -> bool {
+        self.data_hash() == other.data_hash()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct FundingFact {
     pub symbol: Symbol,
@@ -125,6 +168,29 @@ impl PartialEq for FundingFact {
 }
 
 impl Eq for FundingFact {}
+
+impl FundingFact {
+    pub fn data_payload_v2(&self) -> String {
+        format!(
+            "symbol={symbol} funding_time_us={funding} raw_calc_time_us={raw} interval_hours={interval} rate_ticks={rate}",
+            symbol = self.symbol.as_str(),
+            funding = self.funding_time.micros(),
+            raw = self.raw_calc_time.micros(),
+            interval = self.interval_hours,
+            rate = self.rate.ticks(),
+        )
+    }
+
+    pub fn data_hash(&self) -> String {
+        payload_hash(&self.data_payload_v2())
+    }
+}
+
+impl DataEqual for FundingFact {
+    fn data_equal(&self, other: &Self) -> bool {
+        self.data_hash() == other.data_hash()
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct MetricsFact {
@@ -162,6 +228,32 @@ impl PartialEq for MetricsFact {
 
 impl Eq for MetricsFact {}
 
+impl MetricsFact {
+    pub fn data_payload_v2(&self) -> String {
+        format!(
+            "symbol={symbol} create_time_us={create} sum_open_interest_ticks={oi} sum_open_interest_value_ticks={value} count_toptrader_long_short_ratio_ticks={count_top} sum_toptrader_long_short_ratio_ticks={sum_top} count_long_short_ratio_ticks={count_ls} sum_taker_long_short_vol_ratio_ticks={taker} missing_tokens=",
+            symbol = self.symbol.as_str(),
+            create = self.create_time.micros(),
+            oi = self.sum_open_interest.ticks(),
+            value = self.sum_open_interest_value.ticks(),
+            count_top = self.count_toptrader_long_short_ratio.ticks(),
+            sum_top = self.sum_toptrader_long_short_ratio.ticks(),
+            count_ls = self.count_long_short_ratio.ticks(),
+            taker = self.sum_taker_long_short_vol_ratio.ticks(),
+        )
+    }
+
+    pub fn data_hash(&self) -> String {
+        payload_hash(&self.data_payload_v2())
+    }
+}
+
+impl DataEqual for MetricsFact {
+    fn data_equal(&self, other: &Self) -> bool {
+        self.data_hash() == other.data_hash()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct BookFact {
     pub symbol: Symbol,
@@ -191,3 +283,26 @@ impl PartialEq for BookFact {
 }
 
 impl Eq for BookFact {}
+
+impl BookFact {
+    pub fn data_payload_v2(&self) -> String {
+        format!(
+            "symbol={symbol} timestamp_us={timestamp} percentage_ticks={percentage} depth_ticks={depth} notional_ticks={notional}",
+            symbol = self.symbol.as_str(),
+            timestamp = self.timestamp.micros(),
+            percentage = self.percentage.ticks(),
+            depth = self.depth.ticks(),
+            notional = self.notional.ticks(),
+        )
+    }
+
+    pub fn data_hash(&self) -> String {
+        payload_hash(&self.data_payload_v2())
+    }
+}
+
+impl DataEqual for BookFact {
+    fn data_equal(&self, other: &Self) -> bool {
+        self.data_hash() == other.data_hash()
+    }
+}

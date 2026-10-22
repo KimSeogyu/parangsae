@@ -100,7 +100,7 @@ def bundle_hash(entries):
 
 if __name__ == "__main__":
     DS = "binance-vision.um.um-kline.BTCUSDT"
-    RULES = ("rows/v2", "available_ts_rules/v0.2", "gap_rules/v1", "conflict_rules/v1")
+    RULES = ("rows/v2", "available_ts_rules/v0.2", "gap_rules/v1", "conflict_rules/v2")
     sh = schema_hash(DS, KLINE_COLS, RULES); print("schema_hash", sh.hex())
     leaves = []
     for fn, sv, date, day0 in [("um_kline_2021-06-01_headerless.csv", 1, "2021-06-01", 1622505600000000),

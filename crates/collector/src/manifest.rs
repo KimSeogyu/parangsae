@@ -1,9 +1,10 @@
 //! Downloaded-object identity and the idempotent write state machine.
 //!
-//! `merge_fact` is the Rust side of `specs/tla/ManifestWrite.tla`. Same payload
-//! is a no-op. A different payload records a conflict and leaves the stored
-//! value in place. `receipt` is not part of the payload, so a second ingest
-//! does not look like a new value. The model does not include checksum bytes.
+//! `merge_fact` is the Rust side of `specs/tla/ManifestWrite.tla`. Same data
+//! payload is a no-op. A different data payload records a conflict and leaves
+//! the stored value in place. Equality is [`DataEqual`], which for a Vision
+//! fact is `data_hash` and not `PartialEq`. The model does not include checksum
+//! bytes.
 
 use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
@@ -69,6 +70,15 @@ pub struct MergeOutcome<T> {
     pub committed: bool,
 }
 
+/// Market-data equality used by [`merge_fact`].
+///
+/// Vision facts compare `data_hash`. `PartialEq` stays receipt-insensitive and
+/// still includes clocks and schema, so a header-only pair can be unequal
+/// under `==` and equal here.
+pub trait DataEqual {
+    fn data_equal(&self, other: &Self) -> bool;
+}
+
 /// Merge a partition. One conflict leaves every stored payload untouched.
 pub fn merge_rows<T, K>(
     existing: Vec<T>,
@@ -76,7 +86,7 @@ pub fn merge_rows<T, K>(
     key_of: impl Fn(&T) -> K,
 ) -> MergeOutcome<T>
 where
-    T: Clone + PartialEq,
+    T: Clone + DataEqual,
     K: Ord + Clone,
 {
     let original = existing.clone();
@@ -138,7 +148,7 @@ fn placeholder_receipt() -> Receipt {
 }
 
 /// Apply one write. The stored payload never changes once it is present.
-pub fn merge_fact<T: Clone + PartialEq>(
+pub fn merge_fact<T: Clone + DataEqual>(
     slot: &mut Slot<T>,
     value: T,
     receipt: Receipt,
@@ -149,7 +159,7 @@ pub fn merge_fact<T: Clone + PartialEq>(
             *slot = Slot::Present(incoming);
             WriteEffect::Inserted
         }
-        Slot::Present(stored) if stored.value == incoming.value => WriteEffect::Unchanged,
+        Slot::Present(stored) if stored.value.data_equal(&incoming.value) => WriteEffect::Unchanged,
         Slot::Present(stored) => {
             let stored = stored.clone();
             *slot = Slot::Conflict {
@@ -158,7 +168,9 @@ pub fn merge_fact<T: Clone + PartialEq>(
             };
             WriteEffect::Conflict
         }
-        Slot::Conflict { stored, .. } if stored.value == incoming.value => WriteEffect::Unchanged,
+        Slot::Conflict { stored, .. } if stored.value.data_equal(&incoming.value) => {
+            WriteEffect::Unchanged
+        }
         Slot::Conflict { rejected, .. } => {
             *rejected = incoming;
             WriteEffect::Conflict
@@ -407,6 +419,24 @@ struct LegacyRunLine {
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    impl DataEqual for i32 {
+        fn data_equal(&self, other: &Self) -> bool {
+            self == other
+        }
+    }
+
+    impl DataEqual for u8 {
+        fn data_equal(&self, other: &Self) -> bool {
+            self == other
+        }
+    }
+
+    impl DataEqual for &'static str {
+        fn data_equal(&self, other: &Self) -> bool {
+            self == other
+        }
+    }
 
     fn at(byte: u8) -> Receipt {
         Receipt::Archive {

@@ -16,7 +16,7 @@ use parquet::file::properties::WriterProperties;
 use serde::Serialize;
 
 use crate::civil::{day_of, CivilDay};
-use crate::manifest::{merge_rows, MergeOutcome};
+use crate::manifest::{merge_rows, DataEqual, MergeOutcome};
 use crate::vision::{BookFact, FundingFact, Gap, GapKind, KlineFact, MetricsFact, TickDomain};
 use crate::Error;
 
@@ -120,7 +120,7 @@ fn upsert_by_day<T, K, DayOf, KeyOf, Read, Write, KeyText, Payload>(
     payload: Payload,
 ) -> Result<WriteCounts, Error>
 where
-    T: Clone + PartialEq + SymbolField,
+    T: Clone + DataEqual + SymbolField,
     K: Ord + Clone,
     DayOf: Fn(&T) -> Result<CivilDay, Error>,
     KeyOf: Fn(&T) -> K,

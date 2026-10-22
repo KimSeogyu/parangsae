@@ -7,6 +7,8 @@
 #![forbid(unsafe_code)]
 
 #[cfg(test)]
+mod data_hash_test;
+#[cfg(test)]
 mod pipeline_test;
 
 pub mod civil;

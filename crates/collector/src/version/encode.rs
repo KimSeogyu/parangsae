@@ -9,7 +9,7 @@ use parangsae_core::Receipt;
 pub const ROW_ENCODING_VERSION: &str = "rows/v2";
 pub const AVAILABLE_TS_RULES_VERSION: &str = "available_ts_rules/v0.2";
 pub const GAP_RULES_VERSION: &str = "gap_rules/v1";
-pub const CONFLICT_RULES_VERSION: &str = "conflict_rules/v1";
+pub const CONFLICT_RULES_VERSION: &str = "conflict_rules/v2";
 pub const CONTRACT_VERSION: &str = "data-contract v0.2";
 pub const MANIFEST_SPEC: &str = "parangsae/dataset-manifest/v2.1";
 
@@ -834,7 +834,7 @@ mod tests {
         let schema = schema_hash(DATASET, UM_KLINE_COLUMNS).map_err(|err| format!("{err:?}"))?;
         expect(
             &schema,
-            "711c8a9d4b9b9edc7ab02869faaadf6fd74be87ea5dff4c6f3134a77b2e146f4",
+            "4cb7157ad532ef2549f795cce7e7b2646fe2c88f41ab7d90d25646aa8c8f3afa",
         )?;
         let june = parsed("um_kline_2021-06-01_headerless.csv");
         let october = parsed("um_kline_2026-10-20_header.csv");
@@ -849,11 +849,11 @@ mod tests {
             kline_content_hash(&schema, &october).map_err(|err| format!("{err:?}"))?;
         expect(
             &june_content,
-            "c36dae6456b0c22f6f9cd2af72825794738617b1085c12f9f59823a7f8408930",
+            "e9516d86a16c59781bad9163f97157ed0e0ed627af88ede43f6cd32eccc9220c",
         )?;
         expect(
             &october_content,
-            "16169f77baa9f45d168daaa538844eaad4b857f07ec431de96528d0797d9e762",
+            "e2f69a541ec298ad8433fbc1790e7272a47070817d5ec965beddaafa1c32a980",
         )?;
         let empty_conflicts = conflicts_digest(&[]).map_err(|err| format!("{err:?}"))?;
         let empty_sources = sources_digest(&[]).map_err(|err| format!("{err:?}"))?;
@@ -887,16 +887,16 @@ mod tests {
         )?;
         expect(
             &june_leaf,
-            "e26399beed3160a553e9a32b6135315f3b332e7fac6d22b9ef71e933973f26cb",
+            "9408bb647c1982d997c958943baf7ba31fa5b591c4c9efee1b6fdfc518cbcfa0",
         )?;
         expect(
             &october_leaf,
-            "8d1b64888a2f184d7a32d44ff67dfd66099bc39a0ac945ce8629e27a053424ea",
+            "06301e1aecc1b85e45fd69cae24a3620c46bb5880e594bde99a7470a6cec3ed2",
         )?;
         let pair = merkle_tree_head(&[june_leaf, october_leaf]);
         expect(
             &pair,
-            "39ed5313887e8040e14580e6ce40c52785519c38c28649c0db3dbec97a1a1f32",
+            "0db15144e2b37f37bdce8e0819d4d181e51f270a47bc85c4aeb4badbe617995c",
         )?;
         let zero_content = kline_content_hash(&schema, &[]).map_err(|err| format!("{err:?}"))?;
         let missing = Gap {
@@ -923,12 +923,12 @@ mod tests {
         .map_err(|err| format!("{err:?}"))?;
         expect(
             &zero_leaf,
-            "1c724271b2abef0c1b03b7b5f8e993fd76c8000c290827ce4c1a0090cbda2b1c",
+            "97e9cc7715a38d2f1a082f1b663715eeace5574998317d24f2e13808fa473827",
         )?;
         let root = merkle_tree_head(&[june_leaf, zero_leaf]);
         expect(
             &root,
-            "35bfb3fe3d97d398cadc0b288a6afdb4fc7f7cb8a34ba5dab68f64b848e121a9",
+            "feaaa52b9c9531b0b8202363d0eafe7de484bf28116c99cd0181bb4ee91aca9c",
         )?;
         let conflict = conflicts_digest(&[ConflictInput {
             pk: vec![1_622_505_600_000_000],
@@ -970,7 +970,7 @@ mod tests {
         .map_err(|err| format!("{err:?}"))?;
         expect(
             &sided,
-            "5704b74d408e13b0c081de65bada6e41b137c4b1aefa0743baa4538f66366076",
+            "cd87f926d29bcdcae3d81eb4b939f5ee74a023cd534ac29b780ce970afeccc4f",
         )?;
         let mut live = june.clone();
         for row in &mut live {
@@ -981,7 +981,7 @@ mod tests {
         let live_hash = kline_content_hash(&schema, &live).map_err(|err| format!("{err:?}"))?;
         expect(
             &live_hash,
-            "2e2197fc7b81895d1faf4047019f6f413060f21aaee2c2618e87cf7e6ac85bf8",
+            "a0b9975b49fe9a26338e117160904f28fb0c77713c99e8cac8b280ea48c6d6b1",
         )?;
         let mut tampered = june.clone();
         tampered[0].open_ticks += 1;
@@ -989,7 +989,7 @@ mod tests {
             kline_content_hash(&schema, &tampered).map_err(|err| format!("{err:?}"))?;
         expect(
             &tampered_hash,
-            "df685b649e5c0a15dffe6cfe848cc63d5e9673c8f98fbf7930355966ea85f214",
+            "b1afc1e9bb498e0256ee27f6ae73b61d073fa4807ee8e8e601f17feccd1eac31",
         )?;
         let mut reversed = june.clone();
         reversed.reverse();
@@ -1000,7 +1000,7 @@ mod tests {
         let bundled = bundle_hash(&[(DATASET, root, zeros)]).map_err(|err| format!("{err:?}"))?;
         expect(
             &bundled,
-            "2bfa58e96148c4d1cb9f47993136aa7eb9bb31d8462a601f9fd9e174eada6a2a",
+            "48810ed3e8c898ad67b7d94c6ad964aea74b5828ab0bd2273894ecb063648725",
         )?;
         let bytes = canonical_manifest(&ManifestDoc {
             dataset_id: DATASET,
@@ -1041,13 +1041,13 @@ mod tests {
         }
         expect(
             &sha256(&bytes),
-            "1c47beeef27e8908d16773c474897fc2eb18c623a44408fc56c703b04bc39c16",
+            "f5b177adc8648d4499bc54026fa3855a70a57a8a4e16539f87dc94cef85afec8",
         )?;
         let real =
             bundle_hash(&[(DATASET, root, sha256(&bytes))]).map_err(|err| format!("{err:?}"))?;
         expect(
             &real,
-            "17816609cab074d874467e7a1af63c195d091cddf4d8b297a1e6b0fa362f14fc",
+            "2d21053475f514c38710a51b8a888f41665390686bcac6ed59aa2bbce7c1e4e3",
         )?;
         Ok(())
     }
