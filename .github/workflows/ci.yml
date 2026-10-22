@@ -150,9 +150,7 @@ jobs:
           PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
         run: |
-          if printf '%s' "$PARANGSAE_FLOOR_BASE" | grep -Eq '^0{40}$'; then
-            git fetch --depth=1 origin main
-          elif [ -n "$PARANGSAE_FLOOR_BASE" ]; then
+          if printf '%s' "$PARANGSAE_FLOOR_BASE" | grep -Eqv '^0{40}$' && [ -n "$PARANGSAE_FLOOR_BASE" ]; then
             git fetch --depth=1 origin "$PARANGSAE_FLOOR_BASE"
           fi
           cargo xtask guards
@@ -211,7 +209,6 @@ jobs:
           printf '%s\n' "$output" | grep -q 'unreadable'
       - name: all-zero before compares with merge-base and does not skip
         run: |
-          git fetch --depth=1 origin main
           set +e
           output=$(PARANGSAE_FLOOR_BASE=0000000000000000000000000000000000000000 cargo xtask guards 2>&1)
           status=$?
@@ -398,20 +395,35 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - name: skipped and cancelled results fail and success passes
+        run: |
+          set +e
+          skipped=$(NEEDS="$(cat fixtures/guards/ci/needs-skipped.json)" python3 .github/workflows/gate_results.py 2>&1)
+          skipped_status=$?
+          cancelled=$(NEEDS="$(cat fixtures/guards/ci/needs-cancelled.json)" python3 .github/workflows/gate_results.py 2>&1)
+          cancelled_status=$?
+          success=$(NEEDS="$(cat fixtures/guards/ci/needs-success.json)" python3 .github/workflows/gate_results.py 2>&1)
+          success_status=$?
+          set -e
+          printf '%s\n' "$skipped"
+          printf '%s\n' "$cancelled"
+          printf '%s\n' "$success"
+          if [ "$skipped_status" -eq 0 ]; then
+            echo "skipped result was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$skipped" | grep -q 'skipped'
+          if [ "$cancelled_status" -eq 0 ]; then
+            echo "cancelled result was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$cancelled" | grep -q 'cancelled'
+          if [ "$success_status" -ne 0 ]; then
+            echo "all-success needs was rejected"
+            exit 1
+          fi
       - name: fail unless every needed job succeeded
         env:
           NEEDS: ${{ toJSON(needs) }}
-        run: |
-          python3 - <<'PY'
-          import json, os, sys
-          needs = json.loads(os.environ["NEEDS"])
-          bad = [
-              f"{name}={info.get('result')}"
-              for name, info in sorted(needs.items())
-              if info.get("result") != "success"
-          ]
-          if not needs:
-              sys.exit("gate has no needed jobs")
-          if bad:
-              sys.exit("gate required success: " + ", ".join(bad))
-          PY
+        run: python3 .github/workflows/gate_results.py
