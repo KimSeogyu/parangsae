@@ -12,6 +12,17 @@ pub const AVAILABLE_TS_RULES_VERSION: &str = "available_ts_rules/v0.2";
 pub const GAP_RULES_VERSION: &str = "gap_rules/v1";
 pub const CONFLICT_RULES_VERSION: &str = "conflict_rules/v2";
 pub const CONTRACT_VERSION: &str = "data-contract v0.2";
+/// Fifth metrics rule string. 68 ASCII bytes. Kline, funding, and book do not hash it.
+pub const METRIC_MISSING_RULES: &str =
+    "metric_missing_rules/v1 merge=across_utc_days long_null_run_slots=12";
+/// Rule tuple for the v2.2 metrics goldens. Not the kline tuple.
+pub const METRICS_SCHEMA_RULES: [&str; 5] = [
+    ROW_ENCODING_VERSION,
+    "available_ts_rules/v0.3",
+    "gap_rules/v2",
+    CONFLICT_RULES_VERSION,
+    METRIC_MISSING_RULES,
+];
 pub const MANIFEST_SPEC_V2_1: &str = "parangsae/dataset-manifest/v2.1";
 pub const MANIFEST_SPEC_V2_2: &str = "parangsae/dataset-manifest/v2.2";
 /// Kline, funding, and book manifests. Metrics uses [`MANIFEST_SPEC_V2_2`].
@@ -119,6 +130,79 @@ pub const UM_KLINE_COLUMNS: &[Column] = &[
         ty: "bool",
     },
 ];
+
+/// Metrics columns for the v2.2 schema hash. Types are the spec strings, not Parquet types.
+pub const METRICS_COLUMNS: &[Column] = &[
+    Column {
+        name: "symbol",
+        ty: "utf8",
+    },
+    Column {
+        name: "create_time_us",
+        ty: "i64",
+    },
+    Column {
+        name: "sum_open_interest_ticks",
+        ty: "opt<i64>",
+    },
+    Column {
+        name: "sum_open_interest_value_ticks",
+        ty: "opt<i64>",
+    },
+    Column {
+        name: "count_toptrader_long_short_ratio",
+        ty: "opt<dec128s16>",
+    },
+    Column {
+        name: "sum_toptrader_long_short_ratio",
+        ty: "opt<dec128s16>",
+    },
+    Column {
+        name: "count_long_short_ratio",
+        ty: "opt<dec128s16>",
+    },
+    Column {
+        name: "sum_taker_long_short_vol_ratio",
+        ty: "opt<dec128s16>",
+    },
+    Column {
+        name: "missing_tokens",
+        ty: "opt<utf8>",
+    },
+    Column {
+        name: "event_ts_us",
+        ty: "i64",
+    },
+    Column {
+        name: "available_ts_us",
+        ty: "i64",
+    },
+    Column {
+        name: "receipt",
+        ty: "receipt",
+    },
+    Column {
+        name: "schema_version",
+        ty: "u32",
+    },
+];
+
+/// One metrics row in the v2.2 content hash. `None` is NULL (`0x00`), not zero.
+pub struct MetricsCanonicalRow<'a> {
+    pub symbol: &'a str,
+    pub create_time_us: i64,
+    pub open_interest_ticks: Option<i64>,
+    pub open_interest_value_ticks: Option<i64>,
+    pub count_toptrader_long_short_ratio: Option<i128>,
+    pub sum_toptrader_long_short_ratio: Option<i128>,
+    pub count_long_short_ratio: Option<i128>,
+    pub sum_taker_long_short_vol_ratio: Option<i128>,
+    pub missing_tokens: Option<&'a str>,
+    pub event_ts_us: i64,
+    pub available_ts_us: i64,
+    pub receipt: Receipt,
+    pub schema_version: u32,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EncodeError {
@@ -242,6 +326,42 @@ pub fn schema_hash(dataset_id: &str, columns: &[Column]) -> Result<[u8; 32], Enc
     push_str(&mut buf, AVAILABLE_TS_RULES_VERSION)?;
     push_str(&mut buf, GAP_RULES_VERSION)?;
     push_str(&mut buf, CONFLICT_RULES_VERSION)?;
+    Ok(sha256(&buf))
+}
+
+/// Schema hash for `binance-vision.um.metrics.*`: per-column scale and five rule strings.
+pub fn metrics_schema_hash(dataset_id: &str) -> Result<[u8; 32], EncodeError> {
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/schema/v2")?;
+    push_str(&mut buf, dataset_id)?;
+    push_u32(&mut buf, u32_len(METRICS_COLUMNS.len())?)?;
+    for column in METRICS_COLUMNS {
+        push_str(&mut buf, column.name)?;
+        push_str(&mut buf, column.ty)?;
+    }
+    push_str(&mut buf, "parangsae.scale=per-column")?;
+    for rule in METRICS_SCHEMA_RULES {
+        push_str(&mut buf, rule)?;
+    }
+    Ok(sha256(&buf))
+}
+
+pub fn metrics_content_hash(
+    schema: &[u8; 32],
+    rows: &[MetricsCanonicalRow<'_>],
+) -> Result<[u8; 32], EncodeError> {
+    for pair in rows.windows(2) {
+        if pair[1].create_time_us <= pair[0].create_time_us {
+            return Err(EncodeError::PkOrder);
+        }
+    }
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/rows/v2")?;
+    buf.extend_from_slice(schema);
+    push_u64(&mut buf, u64_len(rows.len())?)?;
+    for row in rows {
+        enc_metrics(&mut buf, row)?;
+    }
     Ok(sha256(&buf))
 }
 
@@ -761,6 +881,48 @@ fn enc_receipt(buf: &mut Vec<u8>, receipt: Receipt) -> Result<(), EncodeError> {
     Ok(())
 }
 
+fn enc_metrics(buf: &mut Vec<u8>, row: &MetricsCanonicalRow<'_>) -> Result<(), EncodeError> {
+    push_str(buf, row.symbol)?;
+    push_i64(buf, row.create_time_us);
+    push_opt_i64(buf, row.open_interest_ticks);
+    push_opt_i64(buf, row.open_interest_value_ticks);
+    push_opt_i128(buf, row.count_toptrader_long_short_ratio);
+    push_opt_i128(buf, row.sum_toptrader_long_short_ratio);
+    push_opt_i128(buf, row.count_long_short_ratio);
+    push_opt_i128(buf, row.sum_taker_long_short_vol_ratio);
+    match row.missing_tokens {
+        None => buf.push(0x00),
+        Some(text) => {
+            buf.push(0x01);
+            push_str(buf, text)?;
+        }
+    }
+    push_i64(buf, row.event_ts_us);
+    push_i64(buf, row.available_ts_us);
+    enc_receipt(buf, row.receipt)?;
+    push_u32(buf, row.schema_version)
+}
+
+fn push_opt_i64(buf: &mut Vec<u8>, value: Option<i64>) {
+    match value {
+        None => buf.push(0x00),
+        Some(value) => {
+            buf.push(0x01);
+            push_i64(buf, value);
+        }
+    }
+}
+
+fn push_opt_i128(buf: &mut Vec<u8>, value: Option<i128>) {
+    match value {
+        None => buf.push(0x00),
+        Some(value) => {
+            buf.push(0x01);
+            buf.extend_from_slice(&value.to_be_bytes());
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct ConflictEnt {
     pk: Vec<i64>,
@@ -826,6 +988,105 @@ mod tests {
         } else {
             Err(format!("{encoded} != {hex_text}"))
         }
+    }
+
+    const METRICS_ID: &str = "binance-vision.um.metrics.BTCUSDT";
+    const NULL_OI: &str = "sum_open_interest=\"0E-16\";sum_open_interest_value=\"0E-16\"";
+    const NULL_RATIOS: &str = "count_toptrader_long_short_ratio=\"\\\"\\\"\";sum_toptrader_long_short_ratio=\"\\\"\\\"\";count_long_short_ratio=\"\\\"\\\"\";sum_taker_long_short_vol_ratio=\"\\\"\\\"\"";
+
+    fn archive() -> Receipt {
+        Receipt::Archive {
+            fetched_at_run: RunId::from_bytes([0; 16]),
+        }
+    }
+
+    fn metrics_row<'a>(
+        create_time_us: i64,
+        oi: Option<i64>,
+        value: Option<i64>,
+        ratios: [Option<i128>; 4],
+        missing: Option<&'a str>,
+    ) -> MetricsCanonicalRow<'a> {
+        MetricsCanonicalRow {
+            symbol: "BTCUSDT",
+            create_time_us,
+            open_interest_ticks: oi,
+            open_interest_value_ticks: value,
+            count_toptrader_long_short_ratio: ratios[0],
+            sum_toptrader_long_short_ratio: ratios[1],
+            count_long_short_ratio: ratios[2],
+            sum_taker_long_short_vol_ratio: ratios[3],
+            missing_tokens: missing,
+            event_ts_us: create_time_us,
+            available_ts_us: create_time_us + 300_000_000,
+            receipt: archive(),
+            schema_version: 6,
+        }
+    }
+
+    #[test]
+    fn metrics_v2_2_goldens_match_section_4_7_1() -> Result<(), String> {
+        let schema = metrics_schema_hash(METRICS_ID).map_err(|err| err.to_string())?;
+        expect(
+            &schema,
+            "d4f9313a0c0a5a745412d2ae4c24e3dbc9526d6839afed37643fc501d610c2ef",
+        )?;
+        let three = [
+            metrics_row(
+                1_720_545_600_000_000,
+                Some(8_107_070_500_000),
+                Some(466_141_999_090_011_700),
+                [
+                    Some(19_127_967_400_000_000),
+                    Some(16_027_240_000_000_000),
+                    Some(17_918_580_100_000_000),
+                    Some(10_458_250_000_000_000),
+                ],
+                None,
+            ),
+            metrics_row(
+                1_720_545_900_000_000,
+                None,
+                None,
+                [
+                    Some(19_113_286_700_000_000),
+                    Some(16_038_800_000_000_000),
+                    Some(17_959_065_800_000_000),
+                    Some(32_169_940_000_000_000),
+                ],
+                Some(NULL_OI),
+            ),
+            metrics_row(
+                1_720_546_200_000_000,
+                Some(8_108_182_300_000),
+                Some(466_890_045_478_454_500),
+                [
+                    Some(19_098_314_800_000_000),
+                    Some(16_041_570_000_000_000),
+                    Some(17_922_812_500_000_000),
+                    Some(5_946_510_000_000_000),
+                ],
+                None,
+            ),
+        ];
+        let three_hash = metrics_content_hash(&schema, &three).map_err(|err| err.to_string())?;
+        expect(
+            &three_hash,
+            "68f5b06841e63fd7e0a00ac39814e37ff3af5310a937a09c839c32cc9d9949e0",
+        )?;
+        let one = [metrics_row(
+            1_640_995_200_000_000,
+            Some(7_480_341_000_000),
+            Some(345_668_379_032_415_250),
+            [None, None, None, None],
+            Some(NULL_RATIOS),
+        )];
+        let one_hash = metrics_content_hash(&schema, &one).map_err(|err| err.to_string())?;
+        expect(
+            &one_hash,
+            "b5c3268e1fbd6552d60fa1ba892a55c5f2e4b085de7cf513d898bf2207c51784",
+        )?;
+        Ok(())
     }
 
     fn receipt() -> Receipt {
