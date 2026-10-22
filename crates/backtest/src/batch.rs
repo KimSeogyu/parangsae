@@ -7,9 +7,14 @@
 //! unless a test or v1a supplies them).
 //!
 //! A window touches the holdout when `start >= 2025-10-01T00:00:00Z` or
-//! `end` is past that instant. `end` is exclusive, so an end equal to the
-//! holdout instant is the in-sample boundary.
+//! `end` is past that instant, including a start on the holdout whose end is
+//! at or before that instant. `end` is exclusive, so an end equal to the
+//! holdout instant with an earlier start is the in-sample boundary.
+//!
+//! `config_id` is the lowercase sha256 of the canonical config. Anything else
+//! is refused before a trial line is written.
 
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::panic::{self, AssertUnwindSafe};
 use std::path::Path;
@@ -48,11 +53,15 @@ pub struct TrialMetrics {
 }
 
 /// One config in a batch, plus the trial identity written before compute.
+///
+/// `params` is the grid point. Keys are ASCII and ordered by byte. Values are
+/// integers. `config_id` must be [`canonical_config_id`] of this spec.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrialSpec {
     pub run_id: String,
     pub config_id: String,
     pub family: String,
+    pub params: BTreeMap<String, i64>,
     pub attempt: u64,
     pub ts: UtcMicros,
     pub run: RunConfig,
@@ -71,6 +80,8 @@ pub struct ResultRow {
     pub turnover_ticks: Option<i64>,
     pub flat_bars: Option<FlatBars>,
     pub net_return_ticks: Option<[i64; 4]>,
+    pub slippage_bps: u32,
+    pub fee_grid_bps: [u32; 4],
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,6 +102,9 @@ pub enum BatchError {
         expected: String,
         got: String,
     },
+    ConfigId {
+        run_id: String,
+    },
 }
 
 impl std::fmt::Display for BatchError {
@@ -110,6 +124,12 @@ impl std::fmt::Display for BatchError {
                 expected,
                 got,
             } => write!(f, "pin sha256 mismatch for {path}: {got} != {expected}"),
+            Self::ConfigId { run_id } => {
+                write!(
+                    f,
+                    "config_id is not sha256 of the canonical config for {run_id}"
+                )
+            }
         }
     }
 }
@@ -214,6 +234,11 @@ pub trait TargetRunner {
     type Error: std::fmt::Display;
 
     fn run_targets(&mut self, cfg: &RunConfig) -> Result<TrialMetrics, Self::Error>;
+
+    /// Slippage recorded on every results row. Fee scenarios are not trials.
+    fn slippage_bps(&self) -> u32 {
+        0
+    }
 }
 
 /// v0 adapter: four fee replays, one set of metrics, headline at 5 bps.
@@ -252,6 +277,10 @@ where
     F: FnMut() -> S,
 {
     type Error = EngineError;
+
+    fn slippage_bps(&self) -> u32 {
+        self.slippage.0
+    }
 
     fn run_targets(&mut self, cfg: &RunConfig) -> Result<TrialMetrics, EngineError> {
         let costs = Costs {
@@ -318,8 +347,9 @@ fn sum_notional(report: &Report) -> Result<i128, SimError> {
 ///
 /// Daily returns are consecutive level changes at scale `1e18`, then rescaled
 /// to `1e8`. The sample standard deviation uses `n - 1`. The annual factor is
-/// `sqrt(365)`. Fewer than two returns, or a zero sum of squares, is `None`.
-/// Square roots are integer (truncating). The final division is half-even.
+/// one integer square root of `(n - 1) * 365 * 1e16` (the `1e8` scale sits
+/// inside that root). Fewer than two returns, or a zero sum of squares, is
+/// `None`. The final division is half-even.
 pub fn annual_sharpe_ticks(levels_ticks: &[i64]) -> Result<Option<i64>, SimError> {
     let returns = level_returns(levels_ticks)?;
     if returns.len() < 2 {
@@ -348,12 +378,15 @@ pub fn annual_sharpe_ticks(levels_ticks: &[i64]) -> Result<Option<i64>, SimError
     if squares == 0 {
         return Ok(None);
     }
-    let factor = (n - 1).checked_mul(365).ok_or(SimError::Overflow)?;
-    if factor < 0 {
+    let periods = (n - 1).checked_mul(365).ok_or(SimError::Overflow)?;
+    if periods < 0 {
         return Err(SimError::Overflow);
     }
-    let num_root =
-        isqrt(u128::try_from(factor).map_err(|_| SimError::Overflow)?).ok_or(SimError::Overflow)?;
+    let scaled_annual = u128::try_from(periods)
+        .map_err(|_| SimError::Overflow)?
+        .checked_mul(10_000_000_000_000_000)
+        .ok_or(SimError::Overflow)?;
+    let num_root = isqrt(scaled_annual).ok_or(SimError::Overflow)?;
     let den_root = isqrt(u128::try_from(squares).map_err(|_| SimError::Overflow)?)
         .ok_or(SimError::Overflow)?;
     if den_root == 0 {
@@ -361,8 +394,6 @@ pub fn annual_sharpe_ticks(levels_ticks: &[i64]) -> Result<Option<i64>, SimError
     }
     let num = sum
         .checked_mul(i128::try_from(num_root).map_err(|_| SimError::Overflow)?)
-        .ok_or(SimError::Overflow)?
-        .checked_mul(SCALE)
         .ok_or(SimError::Overflow)?;
     let ticks = div_half_even(
         num,
@@ -445,8 +476,38 @@ pub fn metrics_digest(metrics: &TrialMetrics) -> String {
     sha256_hex(metrics_preimage(metrics).as_bytes())
 }
 
+/// sha256 of the JCS object `{end_us, family, initial_cash, params, start_us}`.
+///
+/// `attempt`, `run_id`, `ts`, and `pinned_root` are not part of the config.
+/// `params` values are JSON integers. Keys are written in byte order.
+pub fn canonical_config_id(spec: &TrialSpec) -> String {
+    sha256_hex(config_preimage(spec).as_bytes())
+}
+
+fn config_preimage(spec: &TrialSpec) -> String {
+    let mut params = String::from("{");
+    for (index, (key, value)) in spec.params.iter().enumerate() {
+        if index > 0 {
+            params.push(',');
+        }
+        params.push_str(&json_string(key));
+        params.push(':');
+        params.push_str(&value.to_string());
+    }
+    params.push('}');
+    format!(
+        "{{\"end_us\":{},\"family\":{},\"initial_cash\":{},\"params\":{params},\"start_us\":{}}}",
+        spec.run.end.micros(),
+        json_string(&spec.family),
+        spec.run.initial_cash.0,
+        spec.run.start.micros(),
+    )
+}
+
 /// Log every config, then compute the ones whose window stays before the holdout.
 ///
+/// `config_id` must equal [`canonical_config_id`]. Any other value, including a
+/// family label, is refused before the log is touched and before compute.
 /// `RunStarted` is fsynced before `run_targets`. An engine error aborts that
 /// trial and the batch continues. A holdout window is an aborted trial and
 /// does not call `run_targets`. Later configs are still logged. The call then
@@ -479,6 +540,12 @@ fn drive<R: TargetRunner>(
     results_path: &Path,
     runner: &mut R,
 ) -> Result<ResultRow, BatchError> {
+    if spec.config_id != canonical_config_id(spec) {
+        return Err(BatchError::ConfigId {
+            run_id: spec.run_id.clone(),
+        });
+    }
+    let slippage_bps = runner.slippage_bps();
     let id = trial_id(&spec.config_id, pins.pinned_root(), spec.attempt);
     log.begin(StartRecord {
         run_id: &spec.run_id,
@@ -492,7 +559,7 @@ fn drive<R: TargetRunner>(
     .map_err(map_trial)?;
     if let Some(reason) = gate(spec) {
         log.abort(&spec.run_id, reason).map_err(map_trial)?;
-        let row = aborted_row(spec, &id, reason);
+        let row = aborted_row(spec, &id, reason, slippage_bps);
         write_row(results_path, spec, &row, pins.pinned_root(), None)?;
         return Ok(row);
     }
@@ -513,6 +580,8 @@ fn drive<R: TargetRunner>(
                 turnover_ticks: Some(metrics.turnover.ticks()),
                 flat_bars: Some(metrics.flat_bars),
                 net_return_ticks: Some(metrics.net_return.map(Ratio::ticks)),
+                slippage_bps,
+                fee_grid_bps: FEE_GRID_BPS,
             };
             write_row(
                 results_path,
@@ -526,13 +595,13 @@ fn drive<R: TargetRunner>(
         Ok(Err(err)) => {
             let reason = err.to_string();
             log.abort(&spec.run_id, &reason).map_err(map_trial)?;
-            let row = aborted_row(spec, &id, &reason);
+            let row = aborted_row(spec, &id, &reason, slippage_bps);
             write_row(results_path, spec, &row, pins.pinned_root(), None)?;
             Ok(row)
         }
         Err(payload) => {
             let _ = log.abort(&spec.run_id, "panic");
-            let row = aborted_row(spec, &id, "panic");
+            let row = aborted_row(spec, &id, "panic", slippage_bps);
             let _ = write_row(results_path, spec, &row, pins.pinned_root(), None);
             panic::resume_unwind(payload);
         }
@@ -542,11 +611,11 @@ fn drive<R: TargetRunner>(
 fn gate(spec: &TrialSpec) -> Option<&'static str> {
     let start = spec.run.start.micros();
     let end = spec.run.end.micros();
-    if end < start {
-        return Some("bad window");
-    }
     if start >= HOLDOUT_START_US || end > HOLDOUT_START_US {
         return Some("holdout");
+    }
+    if end < start {
+        return Some("bad window");
     }
     None
 }
@@ -564,7 +633,7 @@ fn gate_error(spec: &TrialSpec, reason: &str) -> BatchError {
     }
 }
 
-fn aborted_row(spec: &TrialSpec, trial_id: &str, reason: &str) -> ResultRow {
+fn aborted_row(spec: &TrialSpec, trial_id: &str, reason: &str, slippage_bps: u32) -> ResultRow {
     ResultRow {
         run_id: spec.run_id.clone(),
         trial_id: trial_id.to_owned(),
@@ -577,6 +646,8 @@ fn aborted_row(spec: &TrialSpec, trial_id: &str, reason: &str) -> ResultRow {
         turnover_ticks: None,
         flat_bars: None,
         net_return_ticks: None,
+        slippage_bps,
+        fee_grid_bps: FEE_GRID_BPS,
     }
 }
 
@@ -603,6 +674,8 @@ struct RowJson<'a> {
     turnover_ticks: Option<i64>,
     flat_bars: Option<FlatJson>,
     net_return_ticks: Option<NetJson>,
+    slippage_bps: u32,
+    fee_grid_bps: &'a [u32],
     metrics_digest: Option<&'a str>,
 }
 
@@ -658,6 +731,8 @@ fn write_row(
         turnover_ticks: row.turnover_ticks,
         flat_bars: flat,
         net_return_ticks: nets,
+        slippage_bps: row.slippage_bps,
+        fee_grid_bps: &row.fee_grid_bps,
         metrics_digest,
     };
     let line = serde_json::to_string(&json).map_err(|err| BatchError::Append(err.to_string()))?;
@@ -670,9 +745,37 @@ mod tests {
     use proptest::prelude::*;
 
     #[test]
+    fn one_parameter_changes_the_canonical_config_and_the_trial_id() {
+        let mut left = TrialSpec {
+            run_id: "r".to_owned(),
+            config_id: String::new(),
+            family: "S01".to_owned(),
+            params: BTreeMap::new(),
+            attempt: 0,
+            ts: UtcMicros::from_micros(1),
+            run: RunConfig {
+                initial_cash: Cash(100),
+                start: UtcMicros::from_micros(1),
+                end: UtcMicros::from_micros(2),
+            },
+        };
+        left.params.insert("n".to_owned(), 24);
+        assert_eq!(
+            config_preimage(&left),
+            "{\"end_us\":2,\"family\":\"S01\",\"initial_cash\":100,\"params\":{\"n\":24},\"start_us\":1}"
+        );
+        let mut right = left.clone();
+        right.params.insert("n".to_owned(), 72);
+        let left_id = canonical_config_id(&left);
+        let right_id = canonical_config_id(&right);
+        assert_ne!(left_id, right_id);
+        assert_ne!(trial_id(&left_id, "pin", 0), trial_id(&right_id, "pin", 0));
+    }
+
+    #[test]
     fn sharpe_of_100_200_300_is_the_integer_golden() {
         let ticks = annual_sharpe_ticks(&[100, 200, 300]).unwrap();
-        assert_eq!(ticks, Some(4_030_508_660));
+        assert_eq!(ticks, Some(4_052_776_832));
     }
 
     #[test]

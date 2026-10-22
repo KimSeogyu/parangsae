@@ -1,8 +1,11 @@
-//! Append-only `trials.jsonl`.
+//! Append-only `trials.jsonl`. The log is single-writer only: there is no
+//! lock, and concurrent writers are not supported.
 //!
 //! `RunStarted` is fsynced before the caller computes. The next line for that
 //! `run_id` is `RunFinished` or `RunAborted`. A second start with the same
 //! `run_id` is refused. Lines are not rewritten or deleted.
+//!
+//! A hard crash that leaves `RunStarted` with no terminal line counts as aborted.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
@@ -78,6 +81,11 @@ pub fn trial_preimage(config_id: &str, pinned_root: &str, attempt: u64) -> Strin
 
 pub fn trial_id(config_id: &str, pinned_root: &str, attempt: u64) -> String {
     sha256_hex(trial_preimage(config_id, pinned_root, attempt).as_bytes())
+}
+
+/// Append `RunFinished`. A second terminal line for `run_id` is refused.
+pub fn finish_trial(path: &Path, run_id: &str, metrics_digest: &str) -> Result<(), TrialError> {
+    TrialLog::new(path).finish(run_id, metrics_digest)
 }
 
 pub(crate) struct TrialLog {
@@ -228,6 +236,10 @@ mod tests {
         assert_eq!(
             trial_preimage("a\"b", "p", 0),
             "{\"attempt\":0,\"config_id\":\"a\\\"b\",\"pinned_root\":\"p\"}"
+        );
+        assert_eq!(
+            trial_id(&"a".repeat(64), &"b".repeat(64), 0),
+            "f1d676a241133f91c32cfbd9f578c43d475a103194a281c63cee13d3d254b1db"
         );
         assert_eq!(
             trial_id("S01", "pin-v2", 1),

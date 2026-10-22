@@ -3,10 +3,12 @@
 //! L1 injects a panic where the first bar would be processed. The started line
 //! is already on disk and no finished line is written.
 //! L2 refuses a second `RunStarted` with the same `run_id`.
-//! L3 locks `trial_id` to sha256 of the JCS object `{attempt, config_id, pinned_root}`.
+//! L3 locks `trial_id` to sha256 of the JCS object `{attempt, config_id, pinned_root}`
+//! for the frozen ledger preimage (64 `a`s, 64 `b`s, attempt 0).
 
 mod support;
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
@@ -15,23 +17,26 @@ use std::sync::Arc;
 
 use parangsae_backtest::fixture::Scripted;
 use parangsae_backtest::{
-    run_batch, run_fee_grid, trial_id, turnover_ratio, BatchError, FeeGridRunner, FlatBars,
-    SweepPins, TrialMetrics, TrialSpec, HOLDOUT_START_US,
+    canonical_config_id, finish_trial, run_batch, run_fee_grid, trial_id, turnover_ratio,
+    BatchError, FeeGridRunner, FlatBars, SweepPins, TrialError, TrialMetrics, TrialSpec,
+    HOLDOUT_START_US,
 };
 use parangsae_core::{Ratio, UtcMicros};
 use parangsae_sim::{Cash, SlippageBps};
 use serde_json::Value;
 use support::{at, btc, buy, cfg, costs, sell, series, tape_of};
 
-const TRIAL_GOLDEN: &str = "348a2ff92849201353936a41b07acb0a187315168a133dc2d8ba4053522143ba";
+const L3_GOLDEN: &str = "f1d676a241133f91c32cfbd9f578c43d475a103194a281c63cee13d3d254b1db";
+const TRIAL_EXTRA: &str = "348a2ff92849201353936a41b07acb0a187315168a133dc2d8ba4053522143ba";
 const PIN_GOLDEN: &str = "680da465962c596b6d728e73cbc93bd156e2afbd7c3fe1e2ffa6bf03bb9fbdc5";
 const ALPHA_SHA: &str = "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8";
 
 fn spec(run_id: &str, start: i64, end: i64) -> TrialSpec {
-    TrialSpec {
+    seal(TrialSpec {
         run_id: run_id.to_owned(),
-        config_id: "S01".to_owned(),
+        config_id: String::new(),
         family: "S01".to_owned(),
+        params: BTreeMap::new(),
         attempt: 1,
         ts: UtcMicros::from_micros(start),
         run: parangsae_backtest::RunConfig {
@@ -39,7 +44,12 @@ fn spec(run_id: &str, start: i64, end: i64) -> TrialSpec {
             start: UtcMicros::from_micros(start),
             end: UtcMicros::from_micros(end),
         },
-    }
+    })
+}
+
+fn seal(mut spec: TrialSpec) -> TrialSpec {
+    spec.config_id = canonical_config_id(&spec);
+    spec
 }
 
 fn in_sample(run_id: &str) -> TrialSpec {
@@ -128,7 +138,7 @@ fn l1_run_started_is_on_disk_before_compute_and_panic_writes_no_finish() {
     let text = fs::read_to_string(&trials).unwrap();
     assert!(text.contains("\"kind\":\"RunStarted\""));
     assert!(text.contains("\"run_id\":\"run-l1\""));
-    let expected = trial_id("S01", PIN_GOLDEN, 1);
+    let expected = trial_id(&in_sample("run-l1").config_id, PIN_GOLDEN, 1);
     assert!(text.contains(&format!("\"trial_id\":\"{expected}\"")));
     assert!(!text.contains("RunFinished"));
     assert!(text.contains("RunAborted"));
@@ -172,9 +182,79 @@ fn l2_duplicate_run_id_is_refused_and_the_log_is_not_rewritten() {
 
 #[test]
 fn l3_trial_id_golden() {
-    assert_eq!(trial_id("S01", "pin-v2", 1), TRIAL_GOLDEN);
-    assert_eq!(TRIAL_GOLDEN.len(), 64);
-    assert!(TRIAL_GOLDEN.starts_with("348a2ff9"));
+    let config_id = "a".repeat(64);
+    let pinned_root = "b".repeat(64);
+    assert_eq!(trial_id(&config_id, &pinned_root, 0), L3_GOLDEN);
+    assert!(L3_GOLDEN.starts_with("f1d676a2"));
+    assert!(L3_GOLDEN.ends_with("b1db"));
+    assert_eq!(trial_id("S01", "pin-v2", 1), TRIAL_EXTRA);
+}
+
+#[test]
+fn s01_style_config_id_is_refused_before_compute() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = write_pins(dir.path());
+    let called = flag();
+    let mut runner = FlagRunner {
+        called: Arc::clone(&called),
+        metrics: zero_metrics(),
+    };
+    let mut sample = in_sample("run-s01");
+    sample.config_id = "S01".to_owned();
+    let err = run_batch(
+        &[sample],
+        &pins,
+        &dir.path().join("trials.jsonl"),
+        &dir.path().join("results.jsonl"),
+        &mut runner,
+    )
+    .unwrap_err();
+    assert!(matches!(err, BatchError::ConfigId { .. }));
+    let mut impostor = in_sample("run-hex");
+    impostor.config_id = "a".repeat(64);
+    let err = run_batch(
+        &[impostor],
+        &pins,
+        &dir.path().join("trials.jsonl"),
+        &dir.path().join("results.jsonl"),
+        &mut runner,
+    )
+    .unwrap_err();
+    assert!(matches!(err, BatchError::ConfigId { .. }));
+    assert!(!called.load(Ordering::SeqCst));
+    assert!(!dir.path().join("trials.jsonl").exists());
+}
+
+#[test]
+fn configs_differing_by_one_parameter_get_different_trial_ids() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = write_pins(dir.path());
+    let mut slow = in_sample("run-24");
+    slow.params.insert("n".to_owned(), 24);
+    let slow = seal(slow);
+    let mut fast = in_sample("run-72");
+    fast.params.insert("n".to_owned(), 72);
+    let fast = seal(fast);
+    assert_eq!(slow.family, fast.family);
+    assert_eq!(slow.attempt, fast.attempt);
+    assert_eq!(slow.run, fast.run);
+    let rows = run_batch(
+        &[slow, fast],
+        &pins,
+        &dir.path().join("trials.jsonl"),
+        &dir.path().join("results.jsonl"),
+        &mut FlagRunner {
+            called: flag(),
+            metrics: zero_metrics(),
+        },
+    )
+    .unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_ne!(rows[0].config_id, rows[1].config_id);
+    assert_ne!(rows[0].trial_id, rows[1].trial_id);
+    let text = fs::read_to_string(dir.path().join("trials.jsonl")).unwrap();
+    assert!(text.contains(&rows[0].trial_id));
+    assert!(text.contains(&rows[1].trial_id));
 }
 
 #[test]
@@ -211,6 +291,7 @@ fn holdout_window_is_refused_counts_as_aborted_and_does_not_compute() {
     };
     let start = HOLDOUT_START_US - 60_000_000;
     let spec = spec("run-holdout", start, HOLDOUT_START_US + 60_000_000);
+    let config_id = spec.config_id.clone();
     let err = run_batch(&[spec], &pins, &trials, &results, &mut runner).unwrap_err();
     assert!(matches!(err, BatchError::Holdout { .. }));
     assert!(!called.load(Ordering::SeqCst));
@@ -228,7 +309,7 @@ fn holdout_window_is_refused_counts_as_aborted_and_does_not_compute() {
     )
     .unwrap();
     assert_eq!(row["status"], "aborted");
-    assert_eq!(row["config_id"], "S01");
+    assert_eq!(row["config_id"], config_id);
 }
 
 #[test]
@@ -250,6 +331,35 @@ fn window_ending_at_holdout_is_in_sample() {
     )
     .unwrap();
     assert!(called.load(Ordering::SeqCst));
+}
+
+#[test]
+fn start_equal_holdout_with_end_at_or_before_holdout_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = write_pins(dir.path());
+    for (name, end) in [
+        ("run-eq", HOLDOUT_START_US),
+        ("run-before", HOLDOUT_START_US - 1),
+    ] {
+        let called = flag();
+        let mut runner = FlagRunner {
+            called: Arc::clone(&called),
+            metrics: zero_metrics(),
+        };
+        let err = run_batch(
+            &[spec(name, HOLDOUT_START_US, end)],
+            &pins,
+            &dir.path().join(format!("{name}-trials.jsonl")),
+            &dir.path().join(format!("{name}-results.jsonl")),
+            &mut runner,
+        )
+        .unwrap_err();
+        assert!(
+            matches!(err, BatchError::Holdout { .. }),
+            "{name} must be a holdout refusal, got {err}"
+        );
+        assert!(!called.load(Ordering::SeqCst), "{name} computed");
+    }
 }
 
 #[test]
@@ -297,13 +407,13 @@ fn batch_writes_one_row_per_config_with_fee_grid_and_flat_bars() {
         funding_slot_missing: 2,
     });
     let mut second = in_sample("run-b");
-    second.config_id = "S02".to_owned();
     second.family = "S02".to_owned();
     second.attempt = 1;
     second.run = base;
+    let second = seal(second);
     let mut first = in_sample("run-a");
-    first.config_id = "S01".to_owned();
     first.run = base;
+    let first = seal(first);
     let rows = run_batch(
         &[first, second],
         &pins,
@@ -360,6 +470,65 @@ fn batch_writes_one_row_per_config_with_fee_grid_and_flat_bars() {
     );
     let turnover = result_lines[0]["turnover_ticks"].as_i64().unwrap();
     assert!(turnover > 0);
+}
+
+#[test]
+fn second_terminal_line_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = write_pins(dir.path());
+    let trials = dir.path().join("trials.jsonl");
+    run_batch(
+        &[in_sample("run-term")],
+        &pins,
+        &trials,
+        &dir.path().join("results.jsonl"),
+        &mut FlagRunner {
+            called: flag(),
+            metrics: zero_metrics(),
+        },
+    )
+    .unwrap();
+    let before = fs::read(&trials).unwrap();
+    let err = finish_trial(&trials, "run-term", "digest").unwrap_err();
+    assert!(matches!(err, TrialError::AlreadyTerminal(_)));
+    assert_eq!(fs::read(&trials).unwrap(), before);
+}
+
+#[test]
+fn slippage_and_fee_grid_are_recorded_on_each_results_row() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = write_pins(dir.path());
+    let bars = series(at(12, 0), &[(100, 100), (100, 100), (110, 110)]);
+    let tape = tape_of(bars.clone());
+    let base = cfg(&bars, 1000);
+    let mut engine = FeeGridRunner::new(&tape, SlippageBps(2), || {
+        Scripted::new(vec![Some(buy(btc(1))), Some(sell(btc(1)))])
+    });
+    let mut first = in_sample("run-slip-a");
+    first.run = base;
+    let first = seal(first);
+    let mut second = in_sample("run-slip-b");
+    second.run = base;
+    second.params.insert("n".to_owned(), 72);
+    let second = seal(second);
+    run_batch(
+        &[first, second],
+        &pins,
+        &dir.path().join("trials.jsonl"),
+        &dir.path().join("results.jsonl"),
+        &mut engine,
+    )
+    .unwrap();
+    let rows: Vec<Value> = fs::read_to_string(dir.path().join("results.jsonl"))
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(rows.len(), 2);
+    for row in &rows {
+        assert_eq!(row["slippage_bps"].as_u64(), Some(2));
+        assert_eq!(row["fee_grid_bps"], serde_json::json!([2, 4, 5, 6]));
+    }
 }
 
 #[test]
