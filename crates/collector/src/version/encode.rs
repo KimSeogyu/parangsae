@@ -1,0 +1,1055 @@
+//! Canonical hashing for a dataset version. Compression and receipt run ids
+//! stay outside the hash. A non-increasing primary key is rejected, not sorted.
+
+use sha2::{Digest, Sha256};
+
+use crate::vision::{Gap, KlineFact};
+use parangsae_core::Receipt;
+
+pub const ROW_ENCODING_VERSION: &str = "rows/v2";
+pub const AVAILABLE_TS_RULES_VERSION: &str = "available_ts_rules/v0.2";
+pub const GAP_RULES_VERSION: &str = "gap_rules/v1";
+pub const CONFLICT_RULES_VERSION: &str = "conflict_rules/v1";
+pub const CONTRACT_VERSION: &str = "data-contract v0.2";
+pub const MANIFEST_SPEC: &str = "parangsae/dataset-manifest/v2.1";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Column {
+    pub name: &'static str,
+    pub ty: &'static str,
+}
+
+pub const UM_KLINE_COLUMNS: &[Column] = &[
+    Column {
+        name: "symbol",
+        ty: "utf8",
+    },
+    Column {
+        name: "interval_us",
+        ty: "i64",
+    },
+    Column {
+        name: "open_time_us",
+        ty: "i64",
+    },
+    Column {
+        name: "close_time_us",
+        ty: "i64",
+    },
+    Column {
+        name: "open_ticks",
+        ty: "i64",
+    },
+    Column {
+        name: "high_ticks",
+        ty: "i64",
+    },
+    Column {
+        name: "low_ticks",
+        ty: "i64",
+    },
+    Column {
+        name: "close_ticks",
+        ty: "i64",
+    },
+    Column {
+        name: "volume_ticks",
+        ty: "i64",
+    },
+    Column {
+        name: "quote_volume_ticks",
+        ty: "i64",
+    },
+    Column {
+        name: "count",
+        ty: "i64",
+    },
+    Column {
+        name: "taker_buy_volume_ticks",
+        ty: "i64",
+    },
+    Column {
+        name: "taker_buy_quote_volume_ticks",
+        ty: "i64",
+    },
+    Column {
+        name: "event_ts_us",
+        ty: "i64",
+    },
+    Column {
+        name: "available_ts_us",
+        ty: "i64",
+    },
+    Column {
+        name: "receipt",
+        ty: "receipt",
+    },
+    Column {
+        name: "schema_version",
+        ty: "u32",
+    },
+    Column {
+        name: "tick_domain",
+        ty: "utf8",
+    },
+    Column {
+        name: "zero_volume_flat",
+        ty: "bool",
+    },
+];
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum EncodeError {
+    PkOrder,
+    DuplicateGap,
+    DuplicateConflict,
+    Length,
+    Column(&'static str),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BundleError {
+    DuplicateDataset,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConflictInput {
+    pub pk: Vec<i64>,
+    pub class: String,
+    pub stored: String,
+    pub rejected: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SourceInput {
+    pub url: String,
+    pub sha256: [u8; 32],
+}
+
+pub struct LeafInput<'a> {
+    pub dataset_id: &'a str,
+    pub symbol: &'a str,
+    pub date: &'a str,
+    pub schema_hash: &'a [u8; 32],
+    pub row_count: u64,
+    pub pk_min_us: i64,
+    pub pk_max_us: i64,
+    pub content_hash: &'a [u8; 32],
+    pub gaps_digest: &'a [u8; 32],
+    pub conflicts_digest: &'a [u8; 32],
+    pub sources_digest: &'a [u8; 32],
+}
+
+pub struct PartitionDoc<'a> {
+    pub date: &'a str,
+    pub path: &'a str,
+    pub row_count: u64,
+    pub pk_min_us: i64,
+    pub pk_max_us: i64,
+    pub available_min_us: i64,
+    pub available_max_us: i64,
+    pub content_hash: &'a [u8; 32],
+    pub gaps: &'a [Gap],
+    pub leaf_hash: &'a [u8; 32],
+    pub gaps_digest: &'a [u8; 32],
+    pub conflicts_digest: &'a [u8; 32],
+    pub sources_digest: &'a [u8; 32],
+}
+
+pub struct ManifestDoc<'a> {
+    pub dataset_id: &'a str,
+    pub columns: &'a [Column],
+    pub schema_hash: &'a [u8; 32],
+    pub version_root: &'a [u8; 32],
+    pub first_date: &'a str,
+    pub last_date: &'a str,
+    pub partitions: &'a [PartitionDoc<'a>],
+    pub rows: u64,
+}
+
+pub fn sha256(bytes: &[u8]) -> [u8; 32] {
+    let digest = Sha256::digest(bytes);
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&digest);
+    out
+}
+
+pub fn schema_hash(dataset_id: &str, columns: &[Column]) -> Result<[u8; 32], EncodeError> {
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/schema/v2")?;
+    push_str(&mut buf, dataset_id)?;
+    push_u32(&mut buf, u32_len(columns.len())?)?;
+    for column in columns {
+        push_str(&mut buf, column.name)?;
+        push_str(&mut buf, column.ty)?;
+    }
+    push_str(&mut buf, "parangsae.scale=100000000")?;
+    push_str(&mut buf, ROW_ENCODING_VERSION)?;
+    push_str(&mut buf, AVAILABLE_TS_RULES_VERSION)?;
+    push_str(&mut buf, GAP_RULES_VERSION)?;
+    push_str(&mut buf, CONFLICT_RULES_VERSION)?;
+    Ok(sha256(&buf))
+}
+
+pub fn kline_content_hash(schema: &[u8; 32], rows: &[KlineFact]) -> Result<[u8; 32], EncodeError> {
+    for pair in rows.windows(2) {
+        if pair[1].open_time.micros() <= pair[0].open_time.micros() {
+            return Err(EncodeError::PkOrder);
+        }
+    }
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/rows/v2")?;
+    buf.extend_from_slice(schema);
+    push_u64(&mut buf, u64_len(rows.len())?)?;
+    for row in rows {
+        for column in UM_KLINE_COLUMNS {
+            enc_kline(&mut buf, row, column.name)?;
+        }
+    }
+    Ok(sha256(&buf))
+}
+
+pub fn gaps_digest(gaps: &[Gap]) -> Result<[u8; 32], EncodeError> {
+    let mut items: Vec<(&str, i64, i64)> = gaps
+        .iter()
+        .map(|gap| (gap.kind.as_str(), gap.start.micros(), gap.end.micros()))
+        .collect();
+    items.sort_by(|left, right| {
+        left.1
+            .cmp(&right.1)
+            .then(left.2.cmp(&right.2))
+            .then(left.0.as_bytes().cmp(right.0.as_bytes()))
+    });
+    for pair in items.windows(2) {
+        if pair[0] == pair[1] {
+            return Err(EncodeError::DuplicateGap);
+        }
+    }
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/gaps/v1")?;
+    push_u32(&mut buf, u32_len(items.len())?)?;
+    for (kind, start, end) in items {
+        push_str(&mut buf, kind)?;
+        push_i64(&mut buf, start);
+        push_i64(&mut buf, end);
+    }
+    Ok(sha256(&buf))
+}
+
+pub fn conflicts_digest(conflicts: &[ConflictInput]) -> Result<[u8; 32], EncodeError> {
+    let mut items: Vec<ConflictEnt> = conflicts
+        .iter()
+        .map(|conflict| ConflictEnt {
+            pk: conflict.pk.clone(),
+            class: conflict.class.clone(),
+            stored: sha256(conflict.stored.as_bytes()),
+            rejected: sha256(conflict.rejected.as_bytes()),
+        })
+        .collect();
+    items.sort();
+    items.dedup();
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/conflicts/v1")?;
+    push_u32(&mut buf, u32_len(items.len())?)?;
+    for item in items {
+        let ConflictEnt {
+            pk,
+            class,
+            stored,
+            rejected,
+        } = item;
+        push_u32(&mut buf, u32_len(pk.len())?)?;
+        for element in pk {
+            push_i64(&mut buf, element);
+        }
+        push_str(&mut buf, &class)?;
+        buf.extend_from_slice(&stored);
+        buf.extend_from_slice(&rejected);
+    }
+    Ok(sha256(&buf))
+}
+
+pub fn sources_digest(sources: &[SourceInput]) -> Result<[u8; 32], EncodeError> {
+    let mut items: Vec<(&str, [u8; 32])> = sources
+        .iter()
+        .map(|source| (source.url.as_str(), source.sha256))
+        .collect();
+    items.sort_by(|left, right| {
+        left.0
+            .as_bytes()
+            .cmp(right.0.as_bytes())
+            .then(left.1.cmp(&right.1))
+    });
+    items.dedup();
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/sources/v1")?;
+    push_u32(&mut buf, u32_len(items.len())?)?;
+    for (url, sha) in items {
+        push_str(&mut buf, url)?;
+        buf.extend_from_slice(&sha);
+    }
+    Ok(sha256(&buf))
+}
+
+pub fn leaf_hash(input: &LeafInput<'_>) -> Result<[u8; 32], EncodeError> {
+    let mut buf = Vec::new();
+    buf.push(0x00);
+    push_str(&mut buf, "parangsae/merkle/v1")?;
+    push_str(&mut buf, input.dataset_id)?;
+    push_str(&mut buf, input.symbol)?;
+    push_str(&mut buf, input.date)?;
+    buf.extend_from_slice(input.schema_hash);
+    push_u64(&mut buf, input.row_count)?;
+    push_i64(&mut buf, input.pk_min_us);
+    push_i64(&mut buf, input.pk_max_us);
+    buf.extend_from_slice(input.content_hash);
+    buf.extend_from_slice(input.gaps_digest);
+    buf.extend_from_slice(input.conflicts_digest);
+    buf.extend_from_slice(input.sources_digest);
+    Ok(sha256(&buf))
+}
+
+pub fn node(left: &[u8; 32], right: &[u8; 32]) -> [u8; 32] {
+    let mut buf = Vec::with_capacity(65);
+    buf.push(0x01);
+    buf.extend_from_slice(left);
+    buf.extend_from_slice(right);
+    sha256(&buf)
+}
+
+pub fn merkle_tree_head(leaves: &[[u8; 32]]) -> [u8; 32] {
+    if leaves.is_empty() {
+        return sha256(b"");
+    }
+    if leaves.len() == 1 {
+        return leaves[0];
+    }
+    let mut width = 1usize;
+    while width * 2 < leaves.len() {
+        width *= 2;
+    }
+    node(
+        &merkle_tree_head(&leaves[..width]),
+        &merkle_tree_head(&leaves[width..]),
+    )
+}
+
+pub fn bundle_hash(entries: &[(&str, [u8; 32], [u8; 32])]) -> Result<[u8; 32], BundleError> {
+    let mut items = entries.to_vec();
+    items.sort_by(|left, right| left.0.as_bytes().cmp(right.0.as_bytes()));
+    for pair in items.windows(2) {
+        if pair[0].0 == pair[1].0 {
+            return Err(BundleError::DuplicateDataset);
+        }
+    }
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/bundle/v1").map_err(|_| BundleError::DuplicateDataset)?;
+    push_u32(
+        &mut buf,
+        u32_len(items.len()).map_err(|_| BundleError::DuplicateDataset)?,
+    )
+    .map_err(|_| BundleError::DuplicateDataset)?;
+    for (dataset, root, digest) in items {
+        push_str(&mut buf, dataset).map_err(|_| BundleError::DuplicateDataset)?;
+        buf.extend_from_slice(&root);
+        buf.extend_from_slice(&digest);
+    }
+    Ok(sha256(&buf))
+}
+
+pub fn canonical_manifest(doc: &ManifestDoc<'_>) -> Result<Vec<u8>, EncodeError> {
+    let columns = doc
+        .columns
+        .iter()
+        .map(|column| {
+            serde_json::Value::Array(vec![
+                serde_json::Value::String(column.name.to_owned()),
+                serde_json::Value::String(column.ty.to_owned()),
+            ])
+        })
+        .collect();
+    let mut rule_versions = serde_json::Map::new();
+    rule_versions.insert(
+        "row_encoding".to_owned(),
+        serde_json::Value::String(ROW_ENCODING_VERSION.to_owned()),
+    );
+    rule_versions.insert(
+        "available_ts_rules".to_owned(),
+        serde_json::Value::String(AVAILABLE_TS_RULES_VERSION.to_owned()),
+    );
+    rule_versions.insert(
+        "gap_rules".to_owned(),
+        serde_json::Value::String(GAP_RULES_VERSION.to_owned()),
+    );
+    rule_versions.insert(
+        "conflict_rules".to_owned(),
+        serde_json::Value::String(CONFLICT_RULES_VERSION.to_owned()),
+    );
+    let mut schema = serde_json::Map::new();
+    schema.insert("schema_hash".to_owned(), json_hex(doc.schema_hash));
+    schema.insert("columns".to_owned(), serde_json::Value::Array(columns));
+    schema.insert(
+        "excluded_from_hash".to_owned(),
+        serde_json::Value::Array(vec![serde_json::Value::String(
+            "receipt.Archive.fetched_at_run".to_owned(),
+        )]),
+    );
+    schema.insert(
+        "scale".to_owned(),
+        serde_json::Value::String("100000000".to_owned()),
+    );
+    schema.insert(
+        "contract_version".to_owned(),
+        serde_json::Value::String(CONTRACT_VERSION.to_owned()),
+    );
+    schema.insert(
+        "rule_versions".to_owned(),
+        serde_json::Value::Object(rule_versions),
+    );
+    let mut partitions = Vec::with_capacity(doc.partitions.len());
+    for part in doc.partitions {
+        partitions.push(partition_json(part)?);
+    }
+    let mut range = serde_json::Map::new();
+    range.insert(
+        "first_date".to_owned(),
+        serde_json::Value::String(doc.first_date.to_owned()),
+    );
+    range.insert(
+        "last_date".to_owned(),
+        serde_json::Value::String(doc.last_date.to_owned()),
+    );
+    let mut summary = serde_json::Map::new();
+    summary.insert(
+        "partitions".to_owned(),
+        serde_json::Value::String(doc.partitions.len().to_string()),
+    );
+    summary.insert(
+        "rows".to_owned(),
+        serde_json::Value::String(doc.rows.to_string()),
+    );
+    let mut root = serde_json::Map::new();
+    root.insert(
+        "spec".to_owned(),
+        serde_json::Value::String(MANIFEST_SPEC.to_owned()),
+    );
+    root.insert(
+        "dataset_id".to_owned(),
+        serde_json::Value::String(doc.dataset_id.to_owned()),
+    );
+    root.insert("version_root".to_owned(), json_hex(doc.version_root));
+    root.insert("schema".to_owned(), serde_json::Value::Object(schema));
+    root.insert("range".to_owned(), serde_json::Value::Object(range));
+    root.insert(
+        "partitions".to_owned(),
+        serde_json::Value::Array(partitions),
+    );
+    root.insert("summary".to_owned(), serde_json::Value::Object(summary));
+    serde_json::to_vec(&serde_json::Value::Object(root)).map_err(|_| EncodeError::Length)
+}
+
+fn partition_json(part: &PartitionDoc<'_>) -> Result<serde_json::Value, EncodeError> {
+    let gaps = part
+        .gaps
+        .iter()
+        .map(|gap| {
+            let mut object = serde_json::Map::new();
+            object.insert(
+                "kind".to_owned(),
+                serde_json::Value::String(gap.kind.as_str().to_owned()),
+            );
+            object.insert("start_us".to_owned(), json_i64(gap.start.micros()));
+            object.insert("end_us".to_owned(), json_i64(gap.end.micros()));
+            serde_json::Value::Object(object)
+        })
+        .collect();
+    let mut object = serde_json::Map::new();
+    object.insert(
+        "date".to_owned(),
+        serde_json::Value::String(part.date.to_owned()),
+    );
+    object.insert(
+        "path".to_owned(),
+        serde_json::Value::String(part.path.to_owned()),
+    );
+    object.insert("row_count".to_owned(), json_u64(part.row_count));
+    object.insert("pk_min_us".to_owned(), json_i64(part.pk_min_us));
+    object.insert("pk_max_us".to_owned(), json_i64(part.pk_max_us));
+    object.insert(
+        "available_ts_min_us".to_owned(),
+        json_i64(part.available_min_us),
+    );
+    object.insert(
+        "available_ts_max_us".to_owned(),
+        json_i64(part.available_max_us),
+    );
+    object.insert("content_hash".to_owned(), json_hex(part.content_hash));
+    object.insert("sources".to_owned(), serde_json::Value::Array(Vec::new()));
+    object.insert("open_gaps".to_owned(), serde_json::Value::Array(gaps));
+    object.insert("conflicts".to_owned(), serde_json::Value::Array(Vec::new()));
+    object.insert(
+        "excluded_windows".to_owned(),
+        serde_json::Value::Array(Vec::new()),
+    );
+    object.insert("gaps_digest".to_owned(), json_hex(part.gaps_digest));
+    object.insert(
+        "conflicts_digest".to_owned(),
+        json_hex(part.conflicts_digest),
+    );
+    object.insert("sources_digest".to_owned(), json_hex(part.sources_digest));
+    object.insert("leaf_hash".to_owned(), json_hex(part.leaf_hash));
+    Ok(serde_json::Value::Object(object))
+}
+
+fn enc_kline(buf: &mut Vec<u8>, row: &KlineFact, name: &str) -> Result<(), EncodeError> {
+    match name {
+        "symbol" => push_str(buf, row.symbol.as_str()),
+        "interval_us" => {
+            push_i64(buf, row.interval_us);
+            Ok(())
+        }
+        "open_time_us" => {
+            push_i64(buf, row.open_time.micros());
+            Ok(())
+        }
+        "close_time_us" => {
+            push_i64(buf, row.close_time.micros());
+            Ok(())
+        }
+        "open_ticks" => {
+            push_i64(buf, row.open_ticks);
+            Ok(())
+        }
+        "high_ticks" => {
+            push_i64(buf, row.high_ticks);
+            Ok(())
+        }
+        "low_ticks" => {
+            push_i64(buf, row.low_ticks);
+            Ok(())
+        }
+        "close_ticks" => {
+            push_i64(buf, row.close_ticks);
+            Ok(())
+        }
+        "volume_ticks" => {
+            push_i64(buf, row.volume.ticks());
+            Ok(())
+        }
+        "quote_volume_ticks" => {
+            push_i64(buf, row.quote_volume.ticks());
+            Ok(())
+        }
+        "count" => {
+            push_i64(buf, row.count);
+            Ok(())
+        }
+        "taker_buy_volume_ticks" => {
+            push_i64(buf, row.taker_buy_volume.ticks());
+            Ok(())
+        }
+        "taker_buy_quote_volume_ticks" => {
+            push_i64(buf, row.taker_buy_quote_volume.ticks());
+            Ok(())
+        }
+        "event_ts_us" => {
+            push_i64(buf, row.event_ts.micros().micros());
+            Ok(())
+        }
+        "available_ts_us" => {
+            push_i64(buf, row.available_ts.micros().micros());
+            Ok(())
+        }
+        "receipt" => enc_receipt(buf, row.receipt),
+        "schema_version" => {
+            push_u32(buf, row.schema_version)?;
+            Ok(())
+        }
+        "tick_domain" => push_str(buf, row.tick_domain.as_str()),
+        "zero_volume_flat" => {
+            buf.push(u8::from(row.zero_volume_flat));
+            Ok(())
+        }
+        _ => Err(EncodeError::Column("unknown kline column")),
+    }
+}
+
+fn enc_receipt(buf: &mut Vec<u8>, receipt: Receipt) -> Result<(), EncodeError> {
+    match receipt {
+        Receipt::Archive { .. } => buf.push(0x00),
+        Receipt::Live { received_ts } => {
+            buf.push(0x01);
+            push_i64(buf, received_ts.micros());
+        }
+    }
+    Ok(())
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct ConflictEnt {
+    pk: Vec<i64>,
+    class: String,
+    stored: [u8; 32],
+    rejected: [u8; 32],
+}
+
+fn push_str(buf: &mut Vec<u8>, text: &str) -> Result<(), EncodeError> {
+    push_u32(buf, u32_len(text.len())?)?;
+    buf.extend_from_slice(text.as_bytes());
+    Ok(())
+}
+
+fn push_u32(buf: &mut Vec<u8>, value: u32) -> Result<(), EncodeError> {
+    buf.extend_from_slice(&value.to_be_bytes());
+    Ok(())
+}
+
+fn push_u64(buf: &mut Vec<u8>, value: u64) -> Result<(), EncodeError> {
+    buf.extend_from_slice(&value.to_be_bytes());
+    Ok(())
+}
+
+fn push_i64(buf: &mut Vec<u8>, value: i64) {
+    buf.extend_from_slice(&value.to_be_bytes());
+}
+
+fn u32_len(len: usize) -> Result<u32, EncodeError> {
+    u32::try_from(len).map_err(|_| EncodeError::Length)
+}
+
+fn u64_len(len: usize) -> Result<u64, EncodeError> {
+    u64::try_from(len).map_err(|_| EncodeError::Length)
+}
+
+fn json_hex(bytes: &[u8; 32]) -> serde_json::Value {
+    serde_json::Value::String(hex::encode(bytes))
+}
+
+fn json_i64(value: i64) -> serde_json::Value {
+    serde_json::Value::String(value.to_string())
+}
+
+fn json_u64(value: u64) -> serde_json::Value {
+    serde_json::Value::String(value.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::civil::CivilDay;
+    use crate::normalize::UM_KLINE_CLOCK;
+    use crate::vision::{kline_day_gaps, parse_klines, GapKind, TickDomain};
+    use parangsae_core::{Receipt, RunId, Symbol, UtcMicros};
+
+    const DATASET: &str = "binance-vision.um.um-kline.BTCUSDT";
+
+    fn expect(got: &[u8; 32], hex_text: &str) -> Result<(), String> {
+        let encoded = hex::encode(got);
+        if encoded == hex_text {
+            Ok(())
+        } else {
+            Err(format!("{encoded} != {hex_text}"))
+        }
+    }
+
+    fn receipt() -> Receipt {
+        Receipt::Archive {
+            fetched_at_run: RunId::from_bytes([9; 16]),
+        }
+    }
+
+    fn fixture(name: &str) -> String {
+        std::fs::read_to_string(format!(
+            "{}/../../fixtures/vision/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap()
+    }
+
+    fn parsed(name: &str) -> Vec<KlineFact> {
+        parse_klines(
+            &fixture(name),
+            &Symbol::new("BTCUSDT").unwrap(),
+            UM_KLINE_CLOCK,
+            TickDomain::Price,
+            receipt(),
+            true,
+        )
+        .unwrap()
+        .rows
+    }
+
+    fn day(year: i32, month: u8, day_num: u8) -> CivilDay {
+        CivilDay::new(year, month, day_num).unwrap()
+    }
+
+    #[test]
+    fn fixture_hashes_match_the_golden_table() -> Result<(), String> {
+        let schema = schema_hash(DATASET, UM_KLINE_COLUMNS).map_err(|err| format!("{err:?}"))?;
+        expect(
+            &schema,
+            "711c8a9d4b9b9edc7ab02869faaadf6fd74be87ea5dff4c6f3134a77b2e146f4",
+        )?;
+        let june = parsed("um_kline_2021-06-01_headerless.csv");
+        let october = parsed("um_kline_2026-10-20_header.csv");
+        let june_day = day(2021, 6, 1);
+        let october_day = day(2026, 10, 20);
+        let next = day(2021, 6, 2);
+        if june_day.start_us().micros() != 1_622_505_600_000_000 {
+            return Err("2021-06-01 start".into());
+        }
+        let june_content = kline_content_hash(&schema, &june).map_err(|err| format!("{err:?}"))?;
+        let october_content =
+            kline_content_hash(&schema, &october).map_err(|err| format!("{err:?}"))?;
+        expect(
+            &june_content,
+            "c36dae6456b0c22f6f9cd2af72825794738617b1085c12f9f59823a7f8408930",
+        )?;
+        expect(
+            &october_content,
+            "16169f77baa9f45d168daaa538844eaad4b857f07ec431de96528d0797d9e762",
+        )?;
+        let empty_conflicts = conflicts_digest(&[]).map_err(|err| format!("{err:?}"))?;
+        let empty_sources = sources_digest(&[]).map_err(|err| format!("{err:?}"))?;
+        let june_gaps = kline_day_gaps(&june, june_day);
+        let october_gaps = kline_day_gaps(&october, october_day);
+        let june_gap_hash = gaps_digest(&june_gaps).map_err(|err| format!("{err:?}"))?;
+        let october_gap_hash = gaps_digest(&october_gaps).map_err(|err| format!("{err:?}"))?;
+        let june_leaf = leaf_of(
+            &schema,
+            &DayLeaf {
+                date: "2021-06-01",
+                rows: &june,
+                content: &june_content,
+                gaps_hash: &june_gap_hash,
+                conflicts: &empty_conflicts,
+                sources: &empty_sources,
+                day_start: june_day.start_us().micros(),
+            },
+        )?;
+        let october_leaf = leaf_of(
+            &schema,
+            &DayLeaf {
+                date: "2026-10-20",
+                rows: &october,
+                content: &october_content,
+                gaps_hash: &october_gap_hash,
+                conflicts: &empty_conflicts,
+                sources: &empty_sources,
+                day_start: october_day.start_us().micros(),
+            },
+        )?;
+        expect(
+            &june_leaf,
+            "e26399beed3160a553e9a32b6135315f3b332e7fac6d22b9ef71e933973f26cb",
+        )?;
+        expect(
+            &october_leaf,
+            "8d1b64888a2f184d7a32d44ff67dfd66099bc39a0ac945ce8629e27a053424ea",
+        )?;
+        let pair = merkle_tree_head(&[june_leaf, october_leaf]);
+        expect(
+            &pair,
+            "39ed5313887e8040e14580e6ce40c52785519c38c28649c0db3dbec97a1a1f32",
+        )?;
+        let zero_content = kline_content_hash(&schema, &[]).map_err(|err| format!("{err:?}"))?;
+        let missing = Gap {
+            kind: GapKind::MissingFile,
+            start: next.start_us(),
+            end: UtcMicros::from_micros(next.start_us().micros() + 86_400_000_000),
+            detail: String::new(),
+        };
+        let zero_gaps =
+            gaps_digest(std::slice::from_ref(&missing)).map_err(|err| format!("{err:?}"))?;
+        let zero_leaf = leaf_hash(&LeafInput {
+            dataset_id: DATASET,
+            symbol: "BTCUSDT",
+            date: "2021-06-02",
+            schema_hash: &schema,
+            row_count: 0,
+            pk_min_us: next.start_us().micros(),
+            pk_max_us: next.start_us().micros(),
+            content_hash: &zero_content,
+            gaps_digest: &zero_gaps,
+            conflicts_digest: &empty_conflicts,
+            sources_digest: &empty_sources,
+        })
+        .map_err(|err| format!("{err:?}"))?;
+        expect(
+            &zero_leaf,
+            "1c724271b2abef0c1b03b7b5f8e993fd76c8000c290827ce4c1a0090cbda2b1c",
+        )?;
+        let root = merkle_tree_head(&[june_leaf, zero_leaf]);
+        expect(
+            &root,
+            "35bfb3fe3d97d398cadc0b288a6afdb4fc7f7cb8a34ba5dab68f64b848e121a9",
+        )?;
+        let conflict = conflicts_digest(&[ConflictInput {
+            pk: vec![1_622_505_600_000_000],
+            class: "schema_only_by_log".to_owned(),
+            stored: "open=1 schema=1".to_owned(),
+            rejected: "open=1 schema=2".to_owned(),
+        }])
+        .map_err(|err| format!("{err:?}"))?;
+        expect(
+            &conflict,
+            "1c9d06cf65c34eb3025133ec5b06022da05b23dabc2091676c608c204e881944",
+        )?;
+        let sha = hex::decode("fc949a2cdb72753faafbed1eb93a3a1847b3ba77056b6360a3a87e93a9f37141")
+            .map_err(|err| err.to_string())?;
+        let mut source_sha = [0u8; 32];
+        source_sha.copy_from_slice(&sha);
+        let source = sources_digest(&[SourceInput {
+            url: "https://data.binance.vision/data/futures/um/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2021-06-01.zip".to_owned(),
+            sha256: source_sha,
+        }])
+        .map_err(|err| format!("{err:?}"))?;
+        expect(
+            &source,
+            "2d63d7da37aa0db89bd26da420a0c9e92a9b5453ec0a6316cb116a383790d33c",
+        )?;
+        let sided = leaf_hash(&LeafInput {
+            dataset_id: DATASET,
+            symbol: "BTCUSDT",
+            date: "2021-06-01",
+            schema_hash: &schema,
+            row_count: u64_len(june.len()).map_err(|err| format!("{err:?}"))?,
+            pk_min_us: june[0].open_time.micros(),
+            pk_max_us: june[june.len() - 1].open_time.micros(),
+            content_hash: &june_content,
+            gaps_digest: &june_gap_hash,
+            conflicts_digest: &conflict,
+            sources_digest: &source,
+        })
+        .map_err(|err| format!("{err:?}"))?;
+        expect(
+            &sided,
+            "5704b74d408e13b0c081de65bada6e41b137c4b1aefa0743baa4538f66366076",
+        )?;
+        let mut live = june.clone();
+        for row in &mut live {
+            row.receipt = Receipt::Live {
+                received_ts: UtcMicros::from_micros(1_792_454_400_123_456),
+            };
+        }
+        let live_hash = kline_content_hash(&schema, &live).map_err(|err| format!("{err:?}"))?;
+        expect(
+            &live_hash,
+            "2e2197fc7b81895d1faf4047019f6f413060f21aaee2c2618e87cf7e6ac85bf8",
+        )?;
+        let mut tampered = june.clone();
+        tampered[0].open_ticks += 1;
+        let tampered_hash =
+            kline_content_hash(&schema, &tampered).map_err(|err| format!("{err:?}"))?;
+        expect(
+            &tampered_hash,
+            "df685b649e5c0a15dffe6cfe848cc63d5e9673c8f98fbf7930355966ea85f214",
+        )?;
+        let mut reversed = june.clone();
+        reversed.reverse();
+        if kline_content_hash(&schema, &reversed) != Err(EncodeError::PkOrder) {
+            return Err("reversed rows were accepted".into());
+        }
+        let zeros = [0u8; 32];
+        let bundled = bundle_hash(&[(DATASET, root, zeros)]).map_err(|err| format!("{err:?}"))?;
+        expect(
+            &bundled,
+            "2bfa58e96148c4d1cb9f47993136aa7eb9bb31d8462a601f9fd9e174eada6a2a",
+        )?;
+        let bytes = canonical_manifest(&ManifestDoc {
+            dataset_id: DATASET,
+            columns: UM_KLINE_COLUMNS,
+            schema_hash: &schema,
+            version_root: &root,
+            first_date: "2021-06-01",
+            last_date: "2021-06-02",
+            rows: u64_len(june.len()).map_err(|err| format!("{err:?}"))?,
+            partitions: &[
+                part_doc(&PartArgs {
+                    date: "2021-06-01",
+                    rows: &june,
+                    content: &june_content,
+                    gaps: &june_gaps,
+                    leaf: &june_leaf,
+                    gap_hash: &june_gap_hash,
+                    conflicts: &empty_conflicts,
+                    sources: &empty_sources,
+                    day_start: june_day.start_us().micros(),
+                }),
+                part_doc(&PartArgs {
+                    date: "2021-06-02",
+                    rows: &[],
+                    content: &zero_content,
+                    gaps: std::slice::from_ref(&missing),
+                    leaf: &zero_leaf,
+                    gap_hash: &zero_gaps,
+                    conflicts: &empty_conflicts,
+                    sources: &empty_sources,
+                    day_start: next.start_us().micros(),
+                }),
+            ],
+        })
+        .map_err(|err| format!("{err:?}"))?;
+        if bytes.len() != 2733 {
+            return Err(format!("manifest bytes {}", bytes.len()));
+        }
+        expect(
+            &sha256(&bytes),
+            "1c47beeef27e8908d16773c474897fc2eb18c623a44408fc56c703b04bc39c16",
+        )?;
+        let real =
+            bundle_hash(&[(DATASET, root, sha256(&bytes))]).map_err(|err| format!("{err:?}"))?;
+        expect(
+            &real,
+            "17816609cab074d874467e7a1af63c195d091cddf4d8b297a1e6b0fa362f14fc",
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn merkle_vectors_do_not_duplicate_an_odd_leaf() -> Result<(), String> {
+        let mut leaves = Vec::new();
+        for index in 0..5u32 {
+            let mut buf = Vec::new();
+            push_str(&mut buf, "leaf").map_err(|err| format!("{err:?}"))?;
+            push_u32(&mut buf, index).map_err(|err| format!("{err:?}"))?;
+            leaves.push(sha256(&buf));
+        }
+        let expected = [
+            (
+                0,
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            ),
+            (
+                1,
+                "3450fc6ac25a937aec78b45ecf4ce4f517843f6a6b0c8d1c7cea14a65233b57a",
+            ),
+            (
+                2,
+                "9ed9d0de1dfc9b990a01117b0e8e9716c0b632387c39ced449118fb24b733ed5",
+            ),
+            (
+                3,
+                "2b3c8c09ab84e0355757c00a918073b04466b8c06966b1a7b70194183f9cc074",
+            ),
+            (
+                5,
+                "310da59839bbc14ae0422b97f0dadc20d770e8962ddcc950f85139061dc7e036",
+            ),
+        ];
+        for (count, hex_text) in expected {
+            expect(&merkle_tree_head(&leaves[..count]), hex_text)?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bundle_hash_is_independent_of_input_order() -> Result<(), String> {
+        let root = [1u8; 32];
+        let other = [2u8; 32];
+        let digest = [3u8; 32];
+        let um = ("binance-vision.um.um-kline.BTCUSDT", root, digest);
+        let mark = ("binance-vision.um.mark-price-kline.BTCUSDT", other, digest);
+        let forward = bundle_hash(&[um, mark]).map_err(|err| format!("{err:?}"))?;
+        let backward = bundle_hash(&[mark, um]).map_err(|err| format!("{err:?}"))?;
+        if forward != backward {
+            return Err("bundle hash depends on input order".into());
+        }
+        if bundle_hash(&[um, um]).is_ok() {
+            return Err("duplicate dataset id was accepted".into());
+        }
+        Ok(())
+    }
+
+    struct DayLeaf<'a> {
+        date: &'a str,
+        rows: &'a [KlineFact],
+        content: &'a [u8; 32],
+        gaps_hash: &'a [u8; 32],
+        conflicts: &'a [u8; 32],
+        sources: &'a [u8; 32],
+        day_start: i64,
+    }
+
+    fn leaf_of(schema: &[u8; 32], day: &DayLeaf<'_>) -> Result<[u8; 32], String> {
+        let rows = day.rows;
+        let (pk_min, pk_max) = if rows.is_empty() {
+            (day.day_start, day.day_start)
+        } else {
+            (
+                rows[0].open_time.micros(),
+                rows[rows.len() - 1].open_time.micros(),
+            )
+        };
+        leaf_hash(&LeafInput {
+            dataset_id: DATASET,
+            symbol: "BTCUSDT",
+            date: day.date,
+            schema_hash: schema,
+            row_count: u64_len(rows.len()).map_err(|err| format!("{err:?}"))?,
+            pk_min_us: pk_min,
+            pk_max_us: pk_max,
+            content_hash: day.content,
+            gaps_digest: day.gaps_hash,
+            conflicts_digest: day.conflicts,
+            sources_digest: day.sources,
+        })
+        .map_err(|err| format!("{err:?}"))
+    }
+
+    struct PartArgs<'a> {
+        date: &'a str,
+        rows: &'a [KlineFact],
+        content: &'a [u8; 32],
+        gaps: &'a [Gap],
+        leaf: &'a [u8; 32],
+        gap_hash: &'a [u8; 32],
+        conflicts: &'a [u8; 32],
+        sources: &'a [u8; 32],
+        day_start: i64,
+    }
+
+    fn part_doc<'a>(args: &PartArgs<'a>) -> PartitionDoc<'a> {
+        let rows = args.rows;
+        let (pk_min, pk_max, available_min, available_max) = if rows.is_empty() {
+            (
+                args.day_start,
+                args.day_start,
+                args.day_start,
+                args.day_start,
+            )
+        } else {
+            let pk_min = rows.iter().map(|row| row.open_time.micros()).min().unwrap();
+            let pk_max = rows.iter().map(|row| row.open_time.micros()).max().unwrap();
+            let available_min = rows
+                .iter()
+                .map(|row| row.available_ts.micros().micros())
+                .min()
+                .unwrap();
+            let available_max = rows
+                .iter()
+                .map(|row| row.available_ts.micros().micros())
+                .max()
+                .unwrap();
+            (pk_min, pk_max, available_min, available_max)
+        };
+        PartitionDoc {
+            date: args.date,
+            path: match args.date {
+                "2021-06-01" => "parquet/um-kline/symbol=BTCUSDT/date=2021-06-01/part.parquet",
+                _ => "parquet/um-kline/symbol=BTCUSDT/date=2021-06-02/part.parquet",
+            },
+            row_count: u64::try_from(rows.len()).unwrap_or(0),
+            pk_min_us: pk_min,
+            pk_max_us: pk_max,
+            available_min_us: available_min,
+            available_max_us: available_max,
+            content_hash: args.content,
+            gaps: args.gaps,
+            leaf_hash: args.leaf,
+            gaps_digest: args.gap_hash,
+            conflicts_digest: args.conflicts,
+            sources_digest: args.sources,
+        }
+    }
+}

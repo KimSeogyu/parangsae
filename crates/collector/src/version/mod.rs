@@ -1,6 +1,7 @@
 //! Dataset version manifest. Receipt migration is the first piece; hashing and
 //! publish land in later units.
 
+pub mod encode;
 pub mod legacy;
 pub mod migrate;
 
