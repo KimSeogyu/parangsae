@@ -1,0 +1,5 @@
+error[E0599]: no method named `micros` found for struct `RunId` in the current scope
+ --> tests/ui/archive_run_micros.rs:5:63
+  |
+5 |         Receipt::Archive { fetched_at_run } => fetched_at_run.micros(),
+  |                                                               ^^^^^^ method not found in `RunId`

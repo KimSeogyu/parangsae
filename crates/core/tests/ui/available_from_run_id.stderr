@@ -1,0 +1,17 @@
+error[E0308]: mismatched types
+ --> tests/ui/available_from_run_id.rs:4:30
+  |
+4 |     AvailableTs::from_micros(run_id).micros()
+  |     ------------------------ ^^^^^^ expected `UtcMicros`, found `RunId`
+  |     |
+  |     arguments to this function are incorrect
+  |
+note: associated function defined here
+ --> src/timestamps.rs
+  |
+  |             pub const fn from_micros(ts: UtcMicros) -> Self {
+  |                          ^^^^^^^^^^^
+...
+  | ts_newtype!(AvailableTs, "available_ts");
+  | ---------------------------------------- in this macro invocation
+  = note: this error originates in the macro `ts_newtype` (in Nightly builds, run with -Z macro-backtrace for more info)

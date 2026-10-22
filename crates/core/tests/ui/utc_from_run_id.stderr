@@ -1,0 +1,12 @@
+error[E0308]: mismatched types
+ --> tests/ui/utc_from_run_id.rs:4:21
+  |
+3 | fn f(run_id: RunId, _r: Receipt) -> UtcMicros {
+  |                                     --------- this return type influences the call expression's return type
+4 |     UtcMicros::from(run_id)
+  |     --------------- ^^^^^^ expected `UtcMicros`, found `RunId`
+  |     |
+  |     arguments to this function are incorrect
+  |
+note: associated function defined here
+ --> $RUST/core/src/convert/mod.rs

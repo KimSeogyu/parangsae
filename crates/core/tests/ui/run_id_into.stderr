@@ -1,0 +1,7 @@
+error[E0277]: the trait bound `UtcMicros: From<RunId>` is not satisfied
+ --> tests/ui/run_id_into.rs:4:12
+  |
+4 |     run_id.into()
+  |            ^^^^ the trait `From<RunId>` is not implemented for `UtcMicros`
+  |
+  = note: required for `RunId` to implement `Into<UtcMicros>`
