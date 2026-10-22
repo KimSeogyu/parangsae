@@ -1,5 +1,6 @@
 //! `cargo xtask depgraph` checks `policy/deps.toml` against `cargo metadata`.
 //! `cargo xtask guards` checks feature ownership, TLC config coverage, and floors.
+//! `cargo xtask run-exact <full::path>` runs one xtask lib test and fails unless it passed.
 
 use std::io::{self, Write};
 use std::process::ExitCode;
@@ -18,7 +19,7 @@ fn run() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let command = args
         .next()
-        .ok_or_else(|| "usage: cargo xtask <depgraph|guards>".to_owned())?;
+        .ok_or_else(|| "usage: cargo xtask <depgraph|guards|run-exact>".to_owned())?;
     let root = xtask::workspace_root()?;
     match command.as_str() {
         "depgraph" => {
@@ -37,6 +38,15 @@ fn run() -> Result<(), String> {
             }
         }
         "guards" => xtask::guards::run(&root, &args.collect::<Vec<_>>()),
+        "run-exact" => {
+            let test = args
+                .next()
+                .ok_or_else(|| "usage: cargo xtask run-exact <test-path>".to_owned())?;
+            if args.next().is_some() {
+                return Err("unexpected argument after run-exact".to_owned());
+            }
+            xtask::run_exact(&root, &test)
+        }
         other => Err(format!("unknown command {other}")),
     }
 }
