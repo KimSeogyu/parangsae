@@ -1,0 +1,25 @@
+[package]
+name = "parangsae-lint-violation"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Own workspace root so the parent `cargo clippy --workspace` does not build it.
+[workspace]
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+wildcard_enum_match_arm = "deny"
+cast_possible_truncation = "deny"
+cast_possible_wrap = "deny"
+cast_sign_loss = "deny"
+float_arithmetic = "deny"
+allow_attributes_without_reason = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+exit = "deny"

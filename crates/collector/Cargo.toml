@@ -6,6 +6,9 @@ publish.workspace = true
 rust-version.workspace = true
 description = "Binance Vision backfill. Public archives only; no API key and no order route."
 
+[lints]
+workspace = true
+
 [dependencies]
 arrow-array = { version = "60", default-features = false }
 arrow-schema = { version = "60", default-features = false }

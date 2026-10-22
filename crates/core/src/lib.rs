@@ -4,8 +4,6 @@
 //! into these types. Signal code reads a [`Causal`] view, which exists only for
 //! rows whose `available_ts` is at or before the decision time.
 
-#![forbid(unsafe_code)]
-
 pub mod bar;
 pub mod causal;
 pub mod fixed;

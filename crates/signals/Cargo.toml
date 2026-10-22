@@ -6,6 +6,9 @@ publish.workspace = true
 rust-version.workspace = true
 description = "Causal signals. Views come from Observation::causal_at."
 
+[lints]
+workspace = true
+
 [dependencies]
 parangsae-core = { path = "../core" }
 libm = { version = "=0.2.16", default-features = false, features = ["force-soft-floats"] }

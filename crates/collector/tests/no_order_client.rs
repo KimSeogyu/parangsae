@@ -1,5 +1,12 @@
 //! The collector may download public Vision bytes. It must not grow an order client.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "filesystem walk helpers sit outside the #[test] item, so clippy.toml does not cover them"
+)]
+
 use std::fs;
 use std::path::Path;
 

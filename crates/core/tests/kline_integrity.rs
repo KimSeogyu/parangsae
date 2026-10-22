@@ -1,5 +1,12 @@
 //! Cucumber runner for `specs/features`. A failed or undefined step panics the binary.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "cucumber steps are not #[test] items, so clippy.toml does not cover them"
+)]
+
 use std::path::PathBuf;
 
 use cucumber::{gherkin::Step, given, then, when, World as _};
@@ -41,7 +48,8 @@ fn read_micros(world: &mut KlineWorld) {
 fn normalized_is(world: &mut KlineWorld, expected: i64) {
     match world.read.as_ref() {
         Some(Ok(timestamp)) => assert_eq!(timestamp.micros(), expected),
-        other => panic!("expected a normalized timestamp, got {other:?}"),
+        Some(Err(message)) => panic!("expected a normalized timestamp, got {message}"),
+        None => panic!("expected a normalized timestamp, missing read"),
     }
 }
 
@@ -49,7 +57,8 @@ fn normalized_is(world: &mut KlineWorld, expected: i64) {
 fn close_time_is(world: &mut KlineWorld, expected: i64) {
     let open = match world.read.as_ref() {
         Some(Ok(timestamp)) => *timestamp,
-        other => panic!("expected a normalized open time, got {other:?}"),
+        Some(Err(message)) => panic!("expected a normalized open time, got {message}"),
+        None => panic!("expected a normalized open time, missing read"),
     };
     let unit = world.unit.expect("declared unit");
     let close = expected_close(open, Interval::ONE_MINUTE, unit).expect("close time fits");
@@ -65,7 +74,8 @@ fn read_fails(world: &mut KlineWorld) {
                 "error did not report a unit mismatch: {message}"
             );
         }
-        other => panic!("expected a unit mismatch, got {other:?}"),
+        Some(Ok(timestamp)) => panic!("expected a unit mismatch, got {timestamp}"),
+        None => panic!("expected a unit mismatch, missing read"),
     }
 }
 

@@ -71,7 +71,12 @@ pub fn list_page(xml: &str) -> Result<ListPage, Error> {
                 }
             }
             Event::Eof => break,
-            _ => {}
+            Event::CData(_)
+            | Event::Comment(_)
+            | Event::Decl(_)
+            | Event::PI(_)
+            | Event::DocType(_)
+            | Event::GeneralRef(_) => {}
         }
         buf.clear();
     }

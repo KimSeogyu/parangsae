@@ -8,8 +8,8 @@ description = "Domain types for parangsae. No I/O."
 
 [dependencies]
 
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
+[lints]
+workspace = true
 
 [dev-dependencies]
 cucumber = "=0.22.1"

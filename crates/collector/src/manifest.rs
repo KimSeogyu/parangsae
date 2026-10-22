@@ -353,7 +353,9 @@ mod tests {
                 assert_eq!(stored.value, "bar");
                 assert_eq!(stored.received, at(1));
             }
-            other => panic!("expected present, got {other:?}"),
+            other @ (Slot::Absent | Slot::Conflict { .. }) => {
+                panic!("expected present, got {other:?}")
+            }
         }
     }
 
@@ -367,7 +369,9 @@ mod tests {
                 assert_eq!(stored.value, 1);
                 assert_eq!(rejected.value, 2);
             }
-            other => panic!("expected conflict, got {other:?}"),
+            other @ (Slot::Absent | Slot::Present(_)) => {
+                panic!("expected conflict, got {other:?}")
+            }
         }
         assert_eq!(merge_fact(&mut slot, 1, at(3)), WriteEffect::Unchanged);
         assert_eq!(slot.stored().unwrap().value, 1);
@@ -379,7 +383,7 @@ mod tests {
             let mut slot = Slot::<u8>::Absent;
             let first = writes[0];
             for (index, value) in writes.into_iter().enumerate() {
-                merge_fact(&mut slot, value, at(index as i64));
+                merge_fact(&mut slot, value, at(i64::try_from(index).unwrap()));
             }
             let stored = slot.stored().expect("a write happened");
             prop_assert_eq!(stored.value, first);

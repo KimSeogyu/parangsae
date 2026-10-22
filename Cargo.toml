@@ -9,6 +9,12 @@ members = [
     "crates/sim",
     "crates/backtest",
 ]
+# Lint fixtures are separate workspace roots. They are expected to fail.
+exclude = [
+    "fixtures/lint/violation",
+    "fixtures/lint/unsafe-forbid",
+    "fixtures/lint/missing-inheritance",
+]
 
 [workspace.package]
 version = "0.0.0"
@@ -19,3 +25,25 @@ rust-version = "1.88"
 # Checked arithmetic stays checked in release builds. A wrapping notional is a bug.
 [profile.release]
 overflow-checks = true
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
+
+# Library code returns Result. Tests may unwrap; see clippy.toml.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+wildcard_enum_match_arm = "deny"
+cast_possible_truncation = "deny"
+cast_possible_wrap = "deny"
+cast_sign_loss = "deny"
+float_arithmetic = "deny"
+allow_attributes_without_reason = "deny"
+print_stdout = "deny"
+print_stderr = "deny"
+exit = "deny"

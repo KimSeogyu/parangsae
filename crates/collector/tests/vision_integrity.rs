@@ -1,5 +1,12 @@
 //! Cucumber runner for `specs/features/collector`. A failed step exits non-zero.
 
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    reason = "cucumber steps are not #[test] items, so clippy.toml does not cover them"
+)]
+
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
@@ -332,7 +339,9 @@ fn given_metrics(world: &mut VisionWorld, name: String) {
 fn order_metrics(world: &mut VisionWorld) {
     let rows = match std::mem::take(&mut world.loaded) {
         Loaded::Metrics(rows) => rows,
-        other => panic!("metrics, got {other:?}"),
+        other @ (Loaded::Empty | Loaded::Klines(_) | Loaded::Funding(_)) => {
+            panic!("metrics, got {other:?}")
+        }
     };
     world.faults = metrics_row_faults(&rows)
         .into_iter()

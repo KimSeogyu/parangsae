@@ -7,8 +7,6 @@
 //!
 //! The proptests in this crate sample invariants. They are not a proof.
 
-#![forbid(unsafe_code)]
-
 mod bars;
 mod feature;
 mod funding;

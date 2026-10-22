@@ -14,6 +14,16 @@ use crate::vision::{download_url, list_url, sha256_bytes, VisionDataset};
 use crate::Error;
 use parangsae_core::{Amount, AvailableTs, EventTs, Qty, ReceivedTs, Symbol, UtcMicros};
 
+trait ToU64 {
+    fn to_u64(self) -> u64;
+}
+
+impl ToU64 for usize {
+    fn to_u64(self) -> u64 {
+        u64::try_from(self).unwrap()
+    }
+}
+
 fn symbol() -> Symbol {
     Symbol::new("BTCUSDT").expect("symbol")
 }
@@ -116,8 +126,8 @@ fn a_partial_day_is_stored_and_a_rerun_does_not_insert_again() {
     map.insert(
         list_url(prefix, "").unwrap(),
         listing(&[
-            (&key, zip_bytes.len() as u64),
-            (&checksum_key, checksum.len() as u64),
+            (&key, zip_bytes.len().to_u64()),
+            (&checksum_key, checksum.len().to_u64()),
             (&part, 4),
         ]),
     );
@@ -161,20 +171,20 @@ fn a_complete_day_verifies_and_a_replacement_price_conflicts_without_overwrite()
     map.insert(
         list_url(daily_prefix, "").unwrap(),
         listing(&[
-            (&daily_key, daily_zip.len() as u64),
+            (&daily_key, daily_zip.len().to_u64()),
             (
                 &format!("{daily_key}.CHECKSUM"),
-                daily_checksum.len() as u64,
+                daily_checksum.len().to_u64(),
             ),
         ]),
     );
     map.insert(
         list_url(monthly_prefix, "").unwrap(),
         listing(&[
-            (&monthly_key, monthly_zip.len() as u64),
+            (&monthly_key, monthly_zip.len().to_u64()),
             (
                 &format!("{monthly_key}.CHECKSUM"),
-                monthly_checksum.len() as u64,
+                monthly_checksum.len().to_u64(),
             ),
         ]),
     );
@@ -212,10 +222,10 @@ fn a_complete_day_verifies_and_a_replacement_price_conflicts_without_overwrite()
     replaced.insert(
         list_url(daily_prefix, "").unwrap(),
         listing(&[
-            (&daily_key, replacement.len() as u64),
+            (&daily_key, replacement.len().to_u64()),
             (
                 &format!("{daily_key}.CHECKSUM"),
-                replacement_checksum.len() as u64,
+                replacement_checksum.len().to_u64(),
             ),
         ]),
     );
@@ -252,8 +262,8 @@ fn a_bad_checksum_stores_nothing() {
     map.insert(
         list_url(prefix, "").unwrap(),
         listing(&[
-            (&key, zip_bytes.len() as u64),
-            (&format!("{key}.CHECKSUM"), checksum.len() as u64),
+            (&key, zip_bytes.len().to_u64()),
+            (&format!("{key}.CHECKSUM"), checksum.len().to_u64()),
         ]),
     );
     map.insert(download_url(&key), zip_bytes);
@@ -379,13 +389,13 @@ proptest! {
     #[test]
     fn reingest_keeps_the_first_open_and_the_first_received_time(count in 1usize..24, price in 1i64..1_000_000i64) {
         let dir = tempfile::tempdir().unwrap();
-        let rows: Vec<_> = (0..count as i64).map(|minute| sample_bar(minute, price, 1)).collect();
+        let rows: Vec<_> = (0..i64::try_from(count).unwrap()).map(|minute| sample_bar(minute, price, 1)).collect();
         let first = store::upsert_klines(dir.path(), "um-kline", rows.clone()).unwrap();
-        prop_assert_eq!(first.inserted, count as u64);
-        let again: Vec<_> = (0..count as i64).map(|minute| sample_bar(minute, price, 99)).collect();
+        prop_assert_eq!(first.inserted, count.to_u64());
+        let again: Vec<_> = (0..i64::try_from(count).unwrap()).map(|minute| sample_bar(minute, price, 99)).collect();
         let second = store::upsert_klines(dir.path(), "um-kline", again).unwrap();
         prop_assert_eq!(second.inserted, 0);
-        prop_assert_eq!(second.unchanged, count as u64);
+        prop_assert_eq!(second.unchanged, count.to_u64());
         let day = CivilDay::new(2026, 9, 1).unwrap();
         let stored = store::load_klines(dir.path(), "um-kline", "BTCUSDT", day).unwrap();
         prop_assert_eq!(stored.len(), count);

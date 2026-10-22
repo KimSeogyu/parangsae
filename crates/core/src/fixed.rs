@@ -4,6 +4,8 @@
 //! The product is computed in `i128`. A result that does not fit in `i64` is
 //! [`FixedError::Overflow`], never a wrapped value.
 
+#![deny(clippy::arithmetic_side_effects)]
+
 use std::fmt;
 
 /// Minor units per whole unit (8 decimal places).
@@ -117,11 +119,15 @@ fn notional_ticks(price_ticks: i64, qty_lots: i64) -> Result<i64, FixedError> {
     let product = i128::from(price_ticks)
         .checked_mul(i128::from(qty_lots))
         .ok_or(FixedError::Overflow)?;
-    let scaled = product / SCALE;
+    let scaled = product.checked_div(SCALE).ok_or(FixedError::Overflow)?;
     i64::try_from(scaled).map_err(|_| FixedError::Overflow)
 }
 
 #[cfg(kani)]
+#[allow(
+    clippy::arithmetic_side_effects,
+    reason = "these proofs state the exact product the checked path must match"
+)]
 mod proofs {
     use super::*;
 
@@ -135,10 +141,9 @@ mod proofs {
         kani::assume(qty_lots >= 0);
         let product = i128::from(price_ticks).checked_mul(i128::from(qty_lots));
         assert!(product.is_some());
-        assert_eq!(
-            product.unwrap(),
-            i128::from(price_ticks) * i128::from(qty_lots)
-        );
+        if let Some(value) = product {
+            assert_eq!(value, i128::from(price_ticks) * i128::from(qty_lots));
+        }
     }
 
     /// End-to-end quotient for every pair in `0..=1_000_000` ticks.
@@ -151,9 +156,10 @@ mod proofs {
         kani::assume(price_ticks >= 0 && price_ticks <= 1_000_000);
         kani::assume(qty_lots >= 0 && qty_lots <= 1_000_000);
         let expected = (i128::from(price_ticks) * i128::from(qty_lots)) / SCALE;
-        match notional_ticks(price_ticks, qty_lots) {
-            Ok(ticks) => assert_eq!(i128::from(ticks), expected),
-            Err(_) => panic!("this square cannot overflow"),
+        let ticks = notional_ticks(price_ticks, qty_lots);
+        assert!(ticks.is_ok());
+        if let Ok(ticks) = ticks {
+            assert_eq!(i128::from(ticks), expected);
         }
     }
 
@@ -173,15 +179,17 @@ mod tests {
 
     #[test]
     fn one_whole_unit_times_one_whole_unit() {
-        let price = Price::from_ticks(SCALE as i64).unwrap();
-        let qty = Qty::from_ticks(SCALE as i64).unwrap();
-        assert_eq!(notional(price, qty).unwrap().ticks(), SCALE as i64);
+        let scale = i64::try_from(SCALE).unwrap();
+        let price = Price::from_ticks(scale).unwrap();
+        let qty = Qty::from_ticks(scale).unwrap();
+        assert_eq!(notional(price, qty).unwrap().ticks(), scale);
     }
 
     #[test]
     fn product_below_one_minor_unit_truncates_toward_zero() {
+        let scale = i64::try_from(SCALE).unwrap();
         let price = Price::from_ticks(1).unwrap();
-        let qty = Qty::from_ticks(SCALE as i64 - 1).unwrap();
+        let qty = Qty::from_ticks(scale.checked_sub(1).unwrap()).unwrap();
         assert_eq!(notional(price, qty).unwrap().ticks(), 0);
     }
 
