@@ -25,9 +25,33 @@
             exit 1
           fi
       - name: kline integrity features
-        run: cargo test -p parangsae-core --test kline_integrity
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test -p parangsae-core --test kline_integrity)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards cucumber-summary --runner kline
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
       - name: vision integrity features
-        run: cargo test -p parangsae-collector --test vision_integrity
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test -p parangsae-collector --test vision_integrity)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards cucumber-summary --runner vision
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
       - name: instrument rules features
-        run: cargo test -p parangsae-core --test instrument_rules
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test -p parangsae-core --test instrument_rules)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards cucumber-summary --runner instrument_rules
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
 

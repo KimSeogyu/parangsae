@@ -1,0 +1,2 @@
+control ok
+mutant fail

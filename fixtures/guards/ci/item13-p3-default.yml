@@ -1,0 +1,16 @@
+name: ci
+on:
+  push:
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - name: probe
+        run: |
+          case "$output" in
+            *'ci job fmt bytes do not match'*) ;;
+            *)
+              echo missed
+              exit 1
+              ;;
+          esac

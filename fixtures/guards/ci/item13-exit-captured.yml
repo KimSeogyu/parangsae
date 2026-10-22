@@ -1,0 +1,11 @@
+name: ci
+on:
+  push:
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - name: probe
+        run: |
+          status=$?
+          exit "$status"

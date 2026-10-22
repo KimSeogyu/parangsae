@@ -27,8 +27,24 @@
             exit 1
           fi
       - name: cargo test (unit, proptest, cucumber, execution lock)
-        run: cargo test --workspace
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test --workspace)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards test-output --job test --step 'cargo test (unit, proptest, cucumber, execution lock)'
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
       - name: causal gate compile-fail
         # trybuild is not in the workspace lock, so this step cannot use --offline.
-        run: cargo test --manifest-path fixtures/causal/closed-gate/Cargo.toml --locked
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test --manifest-path fixtures/causal/closed-gate/Cargo.toml --locked)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards test-output --job test --step 'causal gate compile-fail'
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
 

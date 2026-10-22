@@ -1,0 +1,16 @@
+name: ci
+on:
+  push:
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - name: probe
+        run: |
+          set -o pipefail
+          output=$(cargo test --workspace -- --exact '${{ github.sha }}' 2>&1)
+          status=$?
+          printf '%s\n' "$output" | cargo xtask guards test-output --job sample --step probe
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi

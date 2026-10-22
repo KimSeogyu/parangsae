@@ -308,10 +308,26 @@ jobs:
             exit 1
           fi
       - name: cargo test (unit, proptest, cucumber, execution lock)
-        run: cargo test --workspace
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test --workspace)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards test-output --job test --step 'cargo test (unit, proptest, cucumber, execution lock)'
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
       - name: causal gate compile-fail
         # trybuild is not in the workspace lock, so this step cannot use --offline.
-        run: cargo test --manifest-path fixtures/causal/closed-gate/Cargo.toml --locked
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test --manifest-path fixtures/causal/closed-gate/Cargo.toml --locked)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards test-output --job test --step 'causal gate compile-fail'
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
 
   cucumber:
     name: cucumber
@@ -340,11 +356,35 @@ jobs:
             exit 1
           fi
       - name: kline integrity features
-        run: cargo test -p parangsae-core --test kline_integrity
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test -p parangsae-core --test kline_integrity)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards cucumber-summary --runner kline
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
       - name: vision integrity features
-        run: cargo test -p parangsae-collector --test vision_integrity
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test -p parangsae-collector --test vision_integrity)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards cucumber-summary --runner vision
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
       - name: instrument rules features
-        run: cargo test -p parangsae-core --test instrument_rules
+        run: |
+          set -o pipefail
+          output=$(2>&1 cargo test -p parangsae-core --test instrument_rules)
+          status=$?
+          printf '%s\n' "$output"
+          printf '%s\n' "$output" | cargo xtask guards cucumber-summary --runner instrument_rules
+          if [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
 
   guards:
     name: guards
@@ -811,6 +851,7 @@ jobs:
       - name: Fetch TLC 2.19 (TLA+ 1.7.4)
         run: |
           cd specs/tla
+          set -o pipefail
           curl -fsSL -o tla2tools.jar -L \
             https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
           echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  tla2tools.jar" | sha256sum -c -

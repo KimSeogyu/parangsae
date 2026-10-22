@@ -1,0 +1,18 @@
+name: ci
+on:
+  push:
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - name: probe
+        run: |
+          out=$(mktemp)
+          printf '%s\n' hi > "$out"
+          grep -qF -- 'hi' "$out"
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            true
+          else
+            exit 1
+          fi

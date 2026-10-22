@@ -20,11 +20,14 @@
 //! `DENY_VERSION`, `DENY_TARBALL_SHA256`, `DENY_BIN_SHA256`, `CARGO_MANIFESTS`,
 //! `CARGO_MANIFESTS_SHA256`, `CI_HEADER`, `CI_HEADER_SHA256`,
 //! `ALLOWED_TRIGGERS`, `ALLOWED_WORKFLOW_FILES`, `ALLOWED_DEMO_SECRETS`,
-//! `VISION_SMOKE_SHA256`, and `GATE_RESULTS_SHA256`
+//! `VISION_SMOKE_SHA256`, `GATE_RESULTS_SHA256`, `CLOSURE_PINS`,
+//! `TEST_BINARY_COUNTS`, `ENV_I_TEMPLATES`, `ENV_I_OCCURRENCES`,
+//! `PY_HEREDOC_TEMPLATE`, `PRINTF_GREP_STATEMENTS`, `CASE_LITERAL_MATCHES`,
+//! `CUCUMBER_CRATE`, and `GHERKIN_CRATE`
 //! are Reviewer-protected. Baseline resolution never skips the other guards.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -127,6 +130,29 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
                 Some(name) => Err(name.to_owned()),
                 None => Ok(()),
             }
+        }
+        "test-output" => {
+            let job = required_value(args, "--job")?;
+            let step = required_value(args, "--step")?;
+            let log = read_stdin()?;
+            finish(Ok(test_binary_table_gaps(&log, &job, &step)?))
+        }
+        "cucumber-summary" => {
+            let runner = required_value(args, "--runner")?;
+            let log = read_stdin()?;
+            finish(Ok(cucumber_summary_gaps(root, &runner, &log)?))
+        }
+        "command-inventory" => {
+            if args.len() != 1 {
+                return Err("unexpected argument after command-inventory".to_owned());
+            }
+            let ci = read(&root.join(".github/workflows/ci.yml"))?;
+            let lines = command_listing(root, &ci)?;
+            let mut out = std::io::stdout().lock();
+            for line in lines {
+                writeln!(out, "{line}").map_err(|err| format!("write inventory: {err}"))?;
+            }
+            Ok(())
         }
         other => Err(format!("unknown guards command {other}")),
     }
@@ -522,12 +548,12 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "test",
         include_str!("pinned_jobs/test.job"),
-        "145b7655b7bf117eece294045627bf56872afd8fe4435bfd3b01ebe0a7f38b3d",
+        "fa3dddbb33063df6a725f0f0d583ee2822d0aab80644f7480873af22e781aeaa",
     ),
     (
         "cucumber",
         include_str!("pinned_jobs/cucumber.job"),
-        "4d9a916bfdda0c324e86feb27211cc0ec376658c5cb6eebd6d2e5a8374a171d2",
+        "6998c905a4900a0f86652775f7e6f0b1989c858f0782f7e2392e44fa91335be2",
     ),
     (
         "guards",
@@ -542,7 +568,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "tla",
         include_str!("pinned_jobs/tla.job"),
-        "eba18ff70621fdeca50876fbac4e492cb0c4e22bbafb48c6d580b3368c7fdaa6",
+        "80a41530941e1ff9ff4e9f6439649db724ca8ab35ad5bfb96aa36fb16fe8b822",
     ),
     (
         "kani",
@@ -1832,6 +1858,8 @@ fn cucumber_count_violations(root: &Path, floors: &Floors) -> Result<Vec<String>
             ));
         }
     }
+    let ci_text = read(&root.join(".github/workflows/ci.yml"))?;
+    violations.extend(cucumber_runner_contract_gaps(root, &ci_text)?);
     Ok(violations)
 }
 
@@ -2347,6 +2375,7 @@ fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
         violations.push("guards checkout fetch-depth is not 0".to_owned());
     }
     violations.extend(pinned_guards_steps(&ci));
+    violations.extend(command_inventory_gaps(root, &ci)?);
     Ok(violations)
 }
 
@@ -5526,6 +5555,2997 @@ fn rule_rows(text: &str) -> Result<u64, String> {
         count = count.saturating_add(1);
     }
     Ok(count)
+}
+
+/// Reviewer-protected. sha256 of every closure file except the trust root
+/// `xtask/src/guards.rs`. TLA models are inputs to TLC, not executed scripts,
+/// so they are not pins.
+const CLOSURE_PINS: &[(&str, &str)] = &[
+    (
+        ".cargo/config.toml",
+        "783fdc447abb5b8f8b5652157aa9ede64da640813fa89679c29c5251c8e0cbe6",
+    ),
+    (
+        ".github/workflows/gate_results.py",
+        "67f96791665fc8b870c26e70c16d62a06cfa127e7e1dc9f86974654c0f567a24",
+    ),
+    (
+        "Cargo.toml",
+        "aa107d267f220f4269ddefd0005043d1a6cd9e505de4e0d057deeb63c80aa63b",
+    ),
+    (
+        "xtask/Cargo.toml",
+        "42a9ecbae2259630a8dd6daf2796cd04aaf65f0e926986f96aa1b624a0130896",
+    ),
+    (
+        "xtask/src/depgraph.rs",
+        "2a6dcebaa2bfb17c594b281dc667488d6c742a7bf04a70e2ae8510d881f4b0ef",
+    ),
+    (
+        "xtask/src/gate_fixture_step.txt",
+        "f89ee58483375c617c8cb37522e99b3c3586addb9cf6b71a7aad19bedaca0f0f",
+    ),
+    (
+        "xtask/src/lib.rs",
+        "66a1876f3cb3728f267db7b0ab3ac1b9841ad2634b030507d1e2b2e11b326683",
+    ),
+    (
+        "xtask/src/lints.rs",
+        "62fe583b2c533dd5a5d8a62a6738ee537af1fc08b7f1fe995b092bbcbddbfa68",
+    ),
+    (
+        "xtask/src/main.rs",
+        "de0aa384a5f0100cd490f29b6ae0ea44d69395b5f9e9067c7d7faa546de1fea5",
+    ),
+    (
+        "xtask/src/pinned_jobs/ci.header",
+        "e70f3eb0e8ab1ec9cb815c23ee523d4cf29bd82824f34cdaf07e83468bff5671",
+    ),
+    (
+        "xtask/src/pinned_jobs/changes.job",
+        "3c01b3bbc841341ebf4a8ad837048aadfcefd7914d40f515226c7639845c8bd2",
+    ),
+    (
+        "xtask/src/pinned_jobs/clippy.job",
+        "8ea34e7b3dc7a05f07669ba2eb74e294ecee5dad3fa8e9f3c44747578535a595",
+    ),
+    (
+        "xtask/src/pinned_jobs/cucumber.job",
+        "6998c905a4900a0f86652775f7e6f0b1989c858f0782f7e2392e44fa91335be2",
+    ),
+    (
+        "xtask/src/pinned_jobs/deny.job",
+        "7093a5d12c7a3341f5381b8619c1f07b44e403e495c1f4fccdcdc07160c8a58e",
+    ),
+    (
+        "xtask/src/pinned_jobs/depgraph.job",
+        "548ac0a08768f080287437bdb53b314291eee5e85d6abd16851ca57e52dd9c58",
+    ),
+    (
+        "xtask/src/pinned_jobs/fmt.job",
+        "acccaa8b48519fcd2d982011ef693eb4b926388b7cc9f27d4d9f4ab60c1e84bf",
+    ),
+    (
+        "xtask/src/pinned_jobs/gate.job",
+        "1af2588254a4e34454b5636408978164be1a78e728ea2002cd83cc71af313153",
+    ),
+    (
+        "xtask/src/pinned_jobs/guard-fixtures.job",
+        "4ef405352108d9f22fcf9741dcb65dbc8f8451ab7cbb7a21f5af774fa93d4e59",
+    ),
+    (
+        "xtask/src/pinned_jobs/guards.job",
+        "6fd148f17910d86586d13a8435d809c07e46ea18c3db3e1f0f5341950d081e3d",
+    ),
+    (
+        "xtask/src/pinned_jobs/kani.job",
+        "72d4932b7331e414e6cf16f701c6b75462725ed6436967f15e32e616bec8dd64",
+    ),
+    (
+        "xtask/src/pinned_jobs/lint-fixture.job",
+        "e2fd8711baa3796507ef2011afa25bdf7d4baff51ed489df32d0a2aa8955862d",
+    ),
+    (
+        "xtask/src/pinned_jobs/test.job",
+        "fa3dddbb33063df6a725f0f0d583ee2822d0aab80644f7480873af22e781aeaa",
+    ),
+    (
+        "xtask/src/pinned_jobs/tla.job",
+        "80a41530941e1ff9ff4e9f6439649db724ca8ab35ad5bfb96aa36fb16fe8b822",
+    ),
+];
+
+/// Reviewer-protected. Count of `printf '%s\n' "$var" | grep -q '<lit>'`
+/// statements that are not under `pipefail`.
+const PRINTF_GREP_STATEMENTS: usize = 35;
+
+/// Reviewer-protected.
+const CUCUMBER_CRATE: (&str, &str, &str) = (
+    "cucumber",
+    "0.22.1",
+    "16cbb27bc2064274afa3a3d8bc9a0e71333589850573aa632ec4520e4af14d94",
+);
+
+/// Reviewer-protected.
+const GHERKIN_CRATE: (&str, &str, &str) = (
+    "gherkin",
+    "0.15.0",
+    "70197ce7751bfe8bc828e3a855502d3a869a1e9416b58b10c4bde5cf8a0a3cb3",
+);
+
+const PINNED_CARGO: &str =
+    "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo";
+
+/// Reviewer-protected. Both P3 `case` shapes on the final head. Pending Reviewer review.
+const CASE_LITERAL_MATCHES: usize = 2;
+
+const ENUMERATED_MATCH_FORMS: &[&str] = &[
+    "grep -qF -- '<lit>' \"$f\"",
+    "case \"$v\" in *'<lit>'*) body ;; esac",
+    "case \"$v\" in *'<lit>'*) ;; *) body ;; esac",
+];
+
+const API_SNAPSHOT_POSTCHECK: &str = "\
+test \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\n\
+git diff --exit-code -- crates/core/tests/snapshots/\n\
+test -z \"$(git status --porcelain -- crates/core/tests/snapshots/)\"\n";
+
+const H2_INSTALL: &str = "\
+rustup toolchain install \"$PUBLIC_API_NIGHTLY\" --profile minimal\n\
+for i in 1 2; do\n\
+  sleep 30\n\
+done\n";
+
+macro_rules! env_a {
+    ($($tail:literal)*) => {
+        concat!(
+            "env -i HOME=/home/runner PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin CARGO_HOME=/home/runner/.cargo RUSTUP_HOME=/home/runner/.rustup",
+            $($tail)*
+        )
+    };
+}
+
+macro_rules! env_b {
+    ($($tail:literal)*) => {
+        concat!(
+            "env -i HOME=/home/runner PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin CARGO_HOME=/home/runner/.cargo RUSTUP_HOME=/home/runner/.rustup CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc",
+            $($tail)*
+        )
+    };
+}
+
+/// Reviewer-protected. The distinct `env -i` commands, one normalized line each.
+const ENV_I_TEMPLATES: &[&str] = &[
+    env_a!(" /usr/bin/curl --fail --location --silent --show-error --output \"$tarball\" https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz"),
+    env_a!(" /usr/bin/sha256sum \"$tarball\""),
+    env_a!(" /usr/bin/tar -xzf \"$tarball\" -C /tmp"),
+    env_a!(" /usr/bin/sha256sum /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny"),
+    env_a!(" /usr/bin/sha256sum deny.toml"),
+    env_a!(" /usr/bin/sha256sum Cargo.lock"),
+    env_a!(" /usr/bin/sha256sum rust-toolchain.toml"),
+    env_a!(" /usr/bin/sha256sum Cargo.toml crates/collector/Cargo.toml crates/core/Cargo.toml crates/execution/Cargo.toml crates/regime/Cargo.toml crates/signals/Cargo.toml crates/sim/Cargo.toml xtask/Cargo.toml"),
+    env_a!(" /usr/bin/sha256sum"),
+    env_a!(" /usr/bin/sha256sum .cargo/config.toml"),
+    env_b!(" /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny check"),
+    env_b!(" /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny --manifest-path fixtures/deny/banned-reqwest/Cargo.toml --config deny.toml check bans 2>&1"),
+    env_b!(" /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files"),
+];
+
+/// Reviewer-protected. `(trailer, count)` aligned with `ENV_I_TEMPLATES` in E1–E13 order.
+/// Trailers are the shell bytes after the command, with continuation indent removed.
+/// E13 is the stack head's thirteenth template; its count is a protected change.
+const ENV_I_OCCURRENCES: &[(&str, usize)] = &[
+    ("", 1),
+    (")\"", 1),
+    ("", 1),
+    (")\"", 3),
+    (")\"", 2),
+    (")\"", 1),
+    (")\"", 1),
+    (" \\\n| ", 1),
+    (")\"", 1),
+    (")\"", 2),
+    ("", 1),
+    (" 2>&1)", 1),
+    ("", 2),
+];
+
+/// Reviewer-protected. The T2 heredoc from the `python3` line through `PY`,
+/// with the 10-space YAML indent removed and the relative indent kept.
+const PY_HEREDOC_TEMPLATE: &str = r#"python3 - "$copy" <<'PY'
+import pathlib, sys
+root = pathlib.Path(sys.argv[1])
+path = root / ".github/workflows/ci.yml"
+text = path.read_text()
+needle = "    name: fmt\n"
+at = text.find(needle)
+if at < 0:
+    raise SystemExit("fmt job marker missing")
+byte_at = at + len("    name: fm")
+chars = list(text)
+if chars[byte_at] != "t":
+    raise SystemExit("fmt name byte is not t")
+chars[byte_at] = "u"
+path.write_text("".join(chars))
+PY
+"#;
+
+/// Reviewer-protected. `(step, package, kind, target, N)`.
+/// `step` is `(job id, step name)`. A `0` count is a binary whose log says
+/// `running 0 tests`.
+type StepPair = (&'static str, &'static str);
+type TestBinaryCount = (StepPair, &'static str, &'static str, &'static str, usize);
+const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-collector",
+        "lib",
+        "unittests src/lib.rs (target/debug/deps/parangsae_collector-",
+        47,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-collector",
+        "bin",
+        "unittests src/bin/parangsae-collect.rs",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-collector",
+        "bin",
+        "unittests src/bin/segment-invariants.rs",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-collector",
+        "test",
+        "tests/no_order_client.rs",
+        1,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-collector",
+        "test",
+        "tests/verify_filters.rs",
+        5,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-collector",
+        "test",
+        "tests/vision_integrity.rs",
+        29,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-core",
+        "lib",
+        "unittests src/lib.rs (target/debug/deps/parangsae_core-",
+        19,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-core",
+        "test",
+        "tests/feature_reject.rs",
+        1,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-core",
+        "test",
+        "tests/instrument_rules.rs",
+        3,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-core",
+        "test",
+        "tests/instrument_spec.rs",
+        13,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-core",
+        "test",
+        "tests/kline_integrity.rs",
+        12,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-core",
+        "test",
+        "tests/workspace_lints.rs",
+        4,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-execution",
+        "lib",
+        "unittests src/lib.rs (target/debug/deps/parangsae_execution-",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-execution",
+        "test",
+        "tests/no_live_client.rs",
+        1,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-regime",
+        "lib",
+        "unittests src/lib.rs (target/debug/deps/parangsae_regime-",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "lib",
+        "unittests src/lib.rs (target/debug/deps/parangsae_signals-",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "test",
+        "tests/producer_gate.rs",
+        1,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-sim",
+        "lib",
+        "unittests src/lib.rs (target/debug/deps/parangsae_sim-",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "xtask",
+        "lib",
+        "unittests src/lib.rs (target/debug/deps/xtask-",
+        93,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "xtask",
+        "bin",
+        "unittests src/main.rs (target/debug/deps/xtask-",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-collector",
+        "doctest",
+        "Doc-tests parangsae_collector",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-core",
+        "doctest",
+        "Doc-tests parangsae_core",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-execution",
+        "doctest",
+        "Doc-tests parangsae_execution",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-regime",
+        "doctest",
+        "Doc-tests parangsae_regime",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "doctest",
+        "Doc-tests parangsae_signals",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-sim",
+        "doctest",
+        "Doc-tests parangsae_sim",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "xtask",
+        "doctest",
+        "Doc-tests xtask",
+        0,
+    ),
+    (
+        ("test", "test-support constructors"),
+        "parangsae-core",
+        "lib",
+        "unittests src/lib.rs (target/debug/deps/parangsae_core-",
+        20,
+    ),
+    (
+        ("test", "causal gate compile-fail"),
+        "closed-gate",
+        "lib",
+        "deps/closed_gate-",
+        0,
+    ),
+    (
+        ("test", "causal gate compile-fail"),
+        "closed-gate",
+        "test",
+        "tests/gate_closed.rs",
+        1,
+    ),
+    (
+        ("test", "causal gate compile-fail"),
+        "closed-gate",
+        "doctest",
+        "Doc-tests closed_gate",
+        0,
+    ),
+];
+
+#[derive(Clone, Copy)]
+struct BinaryRow {
+    job: &'static str,
+    step: &'static str,
+    package: &'static str,
+    kind: &'static str,
+    target: &'static str,
+    count: usize,
+}
+
+fn binary_rows() -> Vec<BinaryRow> {
+    TEST_BINARY_COUNTS
+        .iter()
+        .map(|(step, package, kind, target, count)| BinaryRow {
+            job: step.0,
+            step: step.1,
+            package,
+            kind,
+            target,
+            count: *count,
+        })
+        .collect()
+}
+
+#[derive(Default)]
+struct ShellReport {
+    gaps: Vec<String>,
+    listing: Vec<String>,
+    env_forms: Vec<String>,
+    printf_grep: usize,
+    heredocs: Vec<String>,
+    facts: Vec<CmdFact>,
+    p3_body: usize,
+    p3_default: usize,
+}
+
+#[derive(Clone, Copy)]
+struct CmdFact {
+    test_running: bool,
+    self_checked: bool,
+    kani: bool,
+    teed: bool,
+    captured: bool,
+    in_pipeline: bool,
+    suppressed: bool,
+    pipefail: bool,
+}
+
+struct Cmd {
+    argv: Vec<String>,
+    display: String,
+}
+
+struct Cur<'a> {
+    src: &'a str,
+    i: usize,
+}
+
+impl<'a> Cur<'a> {
+    fn new(src: &'a str) -> Self {
+        Self { src, i: 0 }
+    }
+
+    fn eof(&self) -> bool {
+        self.i >= self.src.len()
+    }
+
+    fn rest(&self) -> &'a str {
+        self.src.get(self.i..).unwrap_or("")
+    }
+
+    fn peek(&self) -> Option<char> {
+        self.rest().chars().next()
+    }
+
+    fn starts(&self, token: &str) -> bool {
+        self.rest().starts_with(token)
+    }
+
+    fn bump(&mut self) {
+        if let Some(ch) = self.peek() {
+            self.i = self.i.saturating_add(ch.len_utf8());
+        }
+    }
+
+    fn bump_str(&mut self, token: &str) {
+        if self.starts(token) {
+            self.i = self.i.saturating_add(token.len());
+        }
+    }
+
+    fn skip_inline(&mut self) {
+        loop {
+            if self.starts("\\\n") {
+                self.bump_str("\\\n");
+                continue;
+            }
+            if self.starts("\\\r\n") {
+                self.bump_str("\\\r\n");
+                continue;
+            }
+            match self.peek() {
+                Some(' ' | '\t' | '\r') => self.bump(),
+                _ => break,
+            }
+        }
+    }
+
+    fn skip_comment(&mut self) {
+        if self.peek() == Some('#') {
+            while self.peek().is_some_and(|ch| ch != '\n') {
+                self.bump();
+            }
+        }
+    }
+
+    fn starts_kw(&self, kw: &str) -> bool {
+        let rest = self.rest();
+        let Some(after) = rest.strip_prefix(kw) else {
+            return false;
+        };
+        after
+            .chars()
+            .next()
+            .is_none_or(|ch| matches!(ch, ' ' | '\t' | '\n' | '\r' | ';' | '|' | '&' | ')' | '('))
+    }
+}
+
+struct Ctx<'a> {
+    step_key: &'a str,
+    file_line: usize,
+    pipefail: bool,
+    captured: bool,
+    in_if_cond: bool,
+    status_vars: BTreeSet<String>,
+    report: ShellReport,
+}
+
+impl<'a> Ctx<'a> {
+    fn gap(&mut self, message: &str) {
+        push_gap(&mut self.report.gaps, message.to_owned());
+    }
+
+    fn line_of(&self, src: &str, index: usize) -> usize {
+        let prefix = src.get(..index).unwrap_or("");
+        self.file_line
+            .saturating_add(prefix.bytes().filter(|byte| *byte == b'\n').count())
+    }
+}
+
+fn parse_run_script(script: &str, step_key: &str, file_line: usize) -> ShellReport {
+    let mut ctx = Ctx {
+        step_key,
+        file_line,
+        pipefail: false,
+        captured: false,
+        in_if_cond: false,
+        status_vars: BTreeSet::new(),
+        report: ShellReport::default(),
+    };
+    let mut cur = Cur::new(script);
+    parse_body(&mut cur, &mut ctx);
+    finish_script(script, &mut ctx);
+    ctx.report
+}
+
+fn parse_body(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    loop {
+        skip_separators(cur);
+        if cur.eof() {
+            break;
+        }
+        let before = cur.i;
+        parse_stmt(cur, ctx);
+        if cur.i == before {
+            ctx.gap("unparseable run step");
+            cur.bump();
+        }
+    }
+}
+
+fn skip_separators(cur: &mut Cur<'_>) {
+    loop {
+        cur.skip_inline();
+        if cur.peek() == Some('#') {
+            cur.skip_comment();
+            continue;
+        }
+        if cur.peek() == Some('\n') {
+            cur.bump();
+            continue;
+        }
+        break;
+    }
+}
+
+fn parse_stmt(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    cur.skip_inline();
+    if cur.eof() || cur.peek() == Some('\n') {
+        return;
+    }
+    if cur.starts_kw("if") {
+        parse_if(cur, ctx);
+        return;
+    }
+    if cur.starts_kw("for") {
+        parse_for(cur, ctx);
+        return;
+    }
+    if cur.starts_kw("case") {
+        parse_case(cur, ctx);
+        return;
+    }
+    if cur.starts_kw("while") || cur.starts_kw("until") {
+        ctx.gap("unclassified command while");
+        skip_line(cur);
+        return;
+    }
+    parse_list(cur, ctx);
+}
+
+fn parse_if(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    cur.bump_str("if");
+    ctx.in_if_cond = true;
+    parse_condition(cur, ctx);
+    ctx.in_if_cond = false;
+    cur.skip_inline();
+    if cur.peek() == Some(';') && !cur.starts(";;") {
+        cur.bump();
+    }
+    skip_separators(cur);
+    if !consume_kw(cur, "then") {
+        ctx.gap("unparseable run step");
+        return;
+    }
+    parse_until(cur, ctx, &["fi", "else", "elif"]);
+    if cur.starts_kw("else") {
+        cur.bump_str("else");
+        parse_until(cur, ctx, &["fi"]);
+    }
+    while cur.starts_kw("elif") {
+        cur.bump_str("elif");
+        ctx.in_if_cond = true;
+        parse_condition(cur, ctx);
+        ctx.in_if_cond = false;
+        cur.skip_inline();
+        if cur.peek() == Some(';') && !cur.starts(";;") {
+            cur.bump();
+        }
+        skip_separators(cur);
+        if !consume_kw(cur, "then") {
+            ctx.gap("unparseable run step");
+            return;
+        }
+        parse_until(cur, ctx, &["fi", "else", "elif"]);
+    }
+    if !consume_kw(cur, "fi") {
+        ctx.gap("unparseable run step");
+    }
+}
+
+fn parse_for(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    cur.bump_str("for");
+    cur.skip_inline();
+    let _name = scan_word(cur, ctx);
+    cur.skip_inline();
+    if !consume_kw(cur, "in") {
+        ctx.gap("unparseable run step");
+        return;
+    }
+    loop {
+        cur.skip_inline();
+        if cur.eof() || cur.starts_kw("do") || (cur.peek() == Some(';') && !cur.starts(";;")) {
+            break;
+        }
+        if cur.peek() == Some('\n') {
+            break;
+        }
+        let before = cur.i;
+        let _word = scan_word(cur, ctx);
+        if cur.i == before {
+            ctx.gap("unparseable run step");
+            cur.bump();
+            break;
+        }
+    }
+    cur.skip_inline();
+    if cur.peek() == Some(';') && !cur.starts(";;") {
+        cur.bump();
+    }
+    skip_separators(cur);
+    if !consume_kw(cur, "do") {
+        ctx.gap("unparseable run step");
+        return;
+    }
+    parse_until(cur, ctx, &["done"]);
+    if !consume_kw(cur, "done") {
+        ctx.gap("unparseable run step");
+    }
+}
+
+fn parse_case(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    let line = ctx.line_of(cur.src, cur.i);
+    cur.bump_str("case");
+    cur.skip_inline();
+    let subject = scan_word(cur, ctx);
+    skip_separators(cur);
+    if !consume_kw(cur, "in") || !is_p3_subject(&subject) {
+        ctx.gap("case form is not a p3 match");
+        skip_until_esac(cur);
+        return;
+    }
+    skip_separators(cur);
+    let pattern = scan_word(cur, ctx);
+    cur.skip_inline();
+    if cur.peek() != Some(')') || !is_p3_pattern(&pattern) {
+        ctx.gap("case form is not a p3 match");
+        skip_until_esac(cur);
+        return;
+    }
+    cur.bump();
+    cur.skip_inline();
+    if cur.starts(";;") {
+        cur.bump_str(";;");
+        if !parse_p3_default_arm(cur, ctx) {
+            ctx.gap("case form is not a p3 match");
+            skip_until_esac(cur);
+            return;
+        }
+        ctx.report.p3_default = ctx.report.p3_default.saturating_add(1);
+        ctx.report
+            .listing
+            .push(format!("{} L{line} case :: match:p3-default", ctx.step_key));
+        return;
+    }
+    parse_until(cur, ctx, &["esac"]);
+    cur.skip_inline();
+    if !cur.starts(";;") {
+        ctx.gap("case form is not a p3 match");
+        skip_until_esac(cur);
+        return;
+    }
+    cur.bump_str(";;");
+    skip_separators(cur);
+    if !consume_kw(cur, "esac") {
+        ctx.gap("case form is not a p3 match");
+        skip_until_esac(cur);
+        return;
+    }
+    ctx.report.p3_body = ctx.report.p3_body.saturating_add(1);
+    ctx.report
+        .listing
+        .push(format!("{} L{line} case :: match:p3-body", ctx.step_key));
+}
+
+fn is_p3_subject(word: &str) -> bool {
+    let Some(inner) = word
+        .strip_prefix("\"$")
+        .and_then(|rest| rest.strip_suffix('"'))
+    else {
+        return false;
+    };
+    !inner.is_empty()
+        && inner
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+}
+
+fn is_p3_pattern(word: &str) -> bool {
+    let Some(inner) = word.strip_prefix("*'") else {
+        return false;
+    };
+    let Some(inner) = inner.strip_suffix("'*") else {
+        return false;
+    };
+    !inner.is_empty() && !inner.contains('\'')
+}
+
+fn parse_p3_default_arm(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) -> bool {
+    skip_separators(cur);
+    let star = scan_word(cur, ctx);
+    cur.skip_inline();
+    if star != "*" || cur.peek() != Some(')') {
+        return false;
+    }
+    cur.bump();
+    parse_until(cur, ctx, &["esac"]);
+    cur.skip_inline();
+    if !cur.starts(";;") {
+        return false;
+    }
+    cur.bump_str(";;");
+    skip_separators(cur);
+    consume_kw(cur, "esac")
+}
+
+fn skip_until_esac(cur: &mut Cur<'_>) {
+    while !cur.eof() && !cur.starts_kw("esac") {
+        cur.bump();
+    }
+    if cur.starts_kw("esac") {
+        cur.bump_str("esac");
+    }
+}
+
+fn parse_until(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>, stop: &[&str]) {
+    loop {
+        skip_separators(cur);
+        if cur.eof() || stop.iter().any(|kw| cur.starts_kw(kw)) || cur.starts(";;") {
+            return;
+        }
+        let before = cur.i;
+        parse_stmt(cur, ctx);
+        if cur.i == before {
+            ctx.gap("unparseable run step");
+            cur.bump();
+        }
+    }
+}
+
+fn parse_condition(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    parse_pipeline(cur, ctx);
+    loop {
+        cur.skip_inline();
+        if cur.starts("&&") || cur.starts("||") {
+            cur.bump_str(if cur.starts("&&") { "&&" } else { "||" });
+            parse_pipeline(cur, ctx);
+            continue;
+        }
+        break;
+    }
+}
+
+fn parse_list(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    parse_pipeline(cur, ctx);
+    loop {
+        cur.skip_inline();
+        if cur.starts(";;") {
+            break;
+        }
+        if cur.starts("&&") || cur.starts("||") {
+            let op = if cur.starts("&&") { "&&" } else { "||" };
+            cur.bump_str(op);
+            parse_pipeline(cur, ctx);
+            continue;
+        }
+        if cur.peek() == Some(';') {
+            cur.bump();
+            cur.skip_inline();
+            if cur.eof()
+                || cur.peek() == Some('\n')
+                || cur.starts_kw("then")
+                || cur.starts_kw("do")
+                || cur.starts_kw("fi")
+                || cur.starts_kw("done")
+                || cur.starts_kw("else")
+                || cur.starts_kw("elif")
+                || cur.starts_kw("esac")
+            {
+                break;
+            }
+            parse_pipeline(cur, ctx);
+            continue;
+        }
+        break;
+    }
+}
+
+fn parse_pipeline(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    cur.skip_inline();
+    let negated = at_bang(cur);
+    if negated {
+        cur.bump();
+        cur.skip_inline();
+    }
+    let fact_at = ctx.report.facts.len();
+    let mut stages = Vec::new();
+    stages.push(parse_simple(cur, ctx));
+    loop {
+        cur.skip_inline();
+        if cur.peek() == Some('|') && !cur.starts("||") {
+            cur.bump();
+            stages.push(parse_simple(cur, ctx));
+            continue;
+        }
+        break;
+    }
+    classify_pipeline(ctx, negated, fact_at, &stages);
+}
+
+fn parse_simple(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) -> Cmd {
+    let mut argv = Vec::new();
+    let mut redirs = Vec::new();
+    let mut heredoc: Option<(String, usize)> = None;
+    let mut started = false;
+    loop {
+        cur.skip_inline();
+        if simple_stops(cur) {
+            break;
+        }
+        if cur.starts("<<<") {
+            cur.bump_str("<<<");
+            cur.skip_inline();
+            if !simple_stops(cur) {
+                let _body = scan_word(cur, ctx);
+            }
+            ctx.gap("here-string is not accepted");
+            continue;
+        }
+        if cur.starts("<<") {
+            let mark = cur.i;
+            let delim = scan_heredoc_delim(cur);
+            heredoc = Some((delim, mark));
+            continue;
+        }
+        if at_redir(cur) {
+            redirs.push(scan_redir(cur));
+            continue;
+        }
+        let before = cur.i;
+        let word = scan_word(cur, ctx);
+        if cur.i == before {
+            ctx.gap("unparseable run step");
+            cur.bump();
+            break;
+        }
+        if argv.is_empty() && is_name_assignment(&word) {
+            note_status_assignment(ctx, &word);
+            continue;
+        }
+        if argv.is_empty() && cur.peek() == Some('(') {
+            ctx.gap("functions defined in the step are not accepted");
+            skip_line(cur);
+            break;
+        }
+        if !started {
+            started = true;
+        }
+        argv.push(word);
+    }
+    let mut heredoc_text = None;
+    if let Some((delim, _)) = heredoc {
+        cur.skip_inline();
+        if cur.peek() == Some('\n') {
+            cur.bump();
+        }
+        let body_from = argv_origin(cur, &argv);
+        consume_heredoc_body(cur, &delim);
+        if let Some(from) = body_from {
+            heredoc_text = cur.src.get(from..cur.i).map(str::to_owned);
+        }
+    }
+    let display = command_display(&argv, &redirs);
+    let cmd = Cmd { argv, display };
+    classify_simple(ctx, &cmd, heredoc_text.as_deref(), cur);
+    cmd
+}
+
+fn argv_origin(cur: &Cur<'_>, argv: &[String]) -> Option<usize> {
+    let first = argv.first()?;
+    cur.src
+        .get(..cur.i)
+        .and_then(|prefix| prefix.rfind(first.as_str()))
+}
+
+fn consume_heredoc_body(cur: &mut Cur<'_>, delim: &str) {
+    loop {
+        if cur.eof() {
+            return;
+        }
+        let start = cur.i;
+        while cur.peek().is_some_and(|ch| ch != '\n') {
+            cur.bump();
+        }
+        let line = cur.src.get(start..cur.i).unwrap_or("");
+        let newline = cur.peek() == Some('\n');
+        if newline {
+            cur.bump();
+        }
+        if line.trim() == delim {
+            return;
+        }
+        if !newline {
+            return;
+        }
+    }
+}
+
+fn simple_stops(cur: &Cur<'_>) -> bool {
+    if cur.eof() {
+        return true;
+    }
+    if cur.starts(";;") || cur.starts("&&") || cur.starts("||") {
+        return true;
+    }
+    if matches!(cur.peek(), Some('\n' | ';' | '|' | ')' | '&')) {
+        return true;
+    }
+    ["then", "do", "done", "fi", "else", "elif", "esac"]
+        .iter()
+        .any(|kw| cur.starts_kw(kw))
+}
+
+fn at_bang(cur: &Cur<'_>) -> bool {
+    let rest = cur.rest();
+    let Some(after) = rest.strip_prefix('!') else {
+        return false;
+    };
+    after
+        .chars()
+        .next()
+        .is_none_or(|ch| matches!(ch, ' ' | '\t' | '\n' | '\r'))
+}
+
+fn at_redir(cur: &Cur<'_>) -> bool {
+    let rest = cur.rest();
+    if rest.starts_with("<<") {
+        return false;
+    }
+    let bytes = rest.as_bytes();
+    let mut index = 0usize;
+    while bytes.get(index).is_some_and(|byte| byte.is_ascii_digit()) {
+        index = index.saturating_add(1);
+    }
+    matches!(bytes.get(index), Some(b'>' | b'<'))
+}
+
+fn scan_redir(cur: &mut Cur<'_>) -> String {
+    let start = cur.i;
+    while cur.peek().is_some_and(|ch| ch.is_ascii_digit()) {
+        cur.bump();
+    }
+    if cur.starts(">>") {
+        cur.bump_str(">>");
+    } else if cur.peek() == Some('>') || cur.peek() == Some('<') {
+        cur.bump();
+    }
+    if cur.peek() == Some('&') {
+        cur.bump();
+    }
+    while cur
+        .peek()
+        .is_some_and(|ch| !matches!(ch, ' ' | '\t' | '\n' | ';' | '|' | ')' | '&'))
+    {
+        cur.bump();
+    }
+    cur.src.get(start..cur.i).unwrap_or("").to_owned()
+}
+
+fn scan_heredoc_delim(cur: &mut Cur<'_>) -> String {
+    cur.bump_str("<<");
+    let quote = cur.peek().filter(|ch| *ch == '\'' || *ch == '"');
+    if quote.is_some() {
+        cur.bump();
+    }
+    let start = cur.i;
+    while cur
+        .peek()
+        .is_some_and(|ch| !matches!(ch, ' ' | '\t' | '\n' | ';' | '|' | '\'' | '"' | ')'))
+    {
+        cur.bump();
+    }
+    let delim = cur.src.get(start..cur.i).unwrap_or("").to_owned();
+    if quote.is_some() && cur.peek() == quote {
+        cur.bump();
+    }
+    delim
+}
+
+fn scan_word(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) -> String {
+    let start = cur.i;
+    while let Some(ch) = cur.peek() {
+        if cur.starts("\\\n") {
+            cur.bump_str("\\\n");
+            continue;
+        }
+        match ch {
+            '\'' => scan_single(cur),
+            '"' => scan_double(cur, ctx),
+            '`' => {
+                ctx.gap("backticks are not accepted");
+                cur.bump();
+                while cur.peek().is_some_and(|next| next != '`' && next != '\n') {
+                    cur.bump();
+                }
+                if cur.peek() == Some('`') {
+                    cur.bump();
+                }
+            }
+            '$' => scan_dollar(cur, ctx),
+            '>' | '<' => {
+                let so_far = cur.src.get(start..cur.i).unwrap_or("");
+                if !so_far.is_empty() && so_far.chars().all(|item| item.is_ascii_digit()) {
+                    cur.bump();
+                    while cur
+                        .peek()
+                        .is_some_and(|next| !matches!(next, ' ' | '\t' | '\n' | ';' | '|' | ')'))
+                    {
+                        cur.bump();
+                    }
+                    continue;
+                }
+                break;
+            }
+            ' ' | '\t' | '\n' | '\r' | ';' | '|' | '&' | '(' | ')' | '#' => break,
+            _ => cur.bump(),
+        }
+    }
+    cur.src.get(start..cur.i).unwrap_or("").to_owned()
+}
+
+fn scan_single(cur: &mut Cur<'_>) {
+    cur.bump();
+    while let Some(ch) = cur.peek() {
+        cur.bump();
+        if ch == '\'' {
+            break;
+        }
+    }
+}
+
+fn scan_double(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    cur.bump();
+    while let Some(ch) = cur.peek() {
+        if ch == '\\' {
+            cur.bump();
+            cur.bump();
+            continue;
+        }
+        if ch == '"' {
+            cur.bump();
+            break;
+        }
+        if ch == '$' {
+            scan_dollar(cur, ctx);
+            continue;
+        }
+        if ch == '`' {
+            ctx.gap("backticks are not accepted");
+            cur.bump();
+            continue;
+        }
+        cur.bump();
+    }
+}
+
+fn scan_dollar(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
+    if cur.starts("$(") {
+        let inner = take_subst(cur);
+        let mut child = Ctx {
+            step_key: ctx.step_key,
+            file_line: ctx.line_of(cur.src, cur.i),
+            pipefail: ctx.pipefail,
+            captured: true,
+            in_if_cond: false,
+            status_vars: BTreeSet::new(),
+            report: ShellReport::default(),
+        };
+        parse_body(&mut Cur::new(&inner), &mut child);
+        ctx.report.gaps.extend(child.report.gaps);
+        ctx.report.listing.extend(child.report.listing);
+        ctx.report.env_forms.extend(child.report.env_forms);
+        ctx.report.printf_grep = ctx
+            .report
+            .printf_grep
+            .saturating_add(child.report.printf_grep);
+        ctx.report.heredocs.extend(child.report.heredocs);
+        ctx.report.facts.extend(child.report.facts);
+        ctx.report.p3_body = ctx.report.p3_body.saturating_add(child.report.p3_body);
+        ctx.report.p3_default = ctx
+            .report
+            .p3_default
+            .saturating_add(child.report.p3_default);
+        return;
+    }
+    if cur.starts("${{") {
+        cur.bump_str("${{");
+        while !cur.eof() && !cur.starts("}}") {
+            cur.bump();
+        }
+        if cur.starts("}}") {
+            cur.bump_str("}}");
+        }
+        return;
+    }
+    if cur.starts("${") {
+        cur.bump_str("${");
+        while cur.peek().is_some_and(|ch| ch != '}') {
+            cur.bump();
+        }
+        if cur.peek() == Some('}') {
+            cur.bump();
+        }
+        return;
+    }
+    if cur.starts("$?") {
+        cur.bump_str("$?");
+        return;
+    }
+    cur.bump();
+    while cur
+        .peek()
+        .is_some_and(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+    {
+        cur.bump();
+    }
+}
+
+fn take_subst(cur: &mut Cur<'_>) -> String {
+    cur.bump_str("$(");
+    let start = cur.i;
+    let mut depth = 1i32;
+    let mut quote: Option<char> = None;
+    while let Some(ch) = cur.peek() {
+        if let Some(open) = quote {
+            if open == '"' && ch == '\\' {
+                cur.bump();
+                cur.bump();
+                continue;
+            }
+            cur.bump();
+            if ch == open {
+                quote = None;
+            }
+            continue;
+        }
+        match ch {
+            '\'' | '"' => {
+                quote = Some(ch);
+                cur.bump();
+            }
+            '(' => {
+                depth = depth.saturating_add(1);
+                cur.bump();
+            }
+            ')' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    let inner = cur.src.get(start..cur.i).unwrap_or("").to_owned();
+                    cur.bump();
+                    return inner;
+                }
+                cur.bump();
+            }
+            _ => cur.bump(),
+        }
+    }
+    cur.src.get(start..cur.i).unwrap_or("").to_owned()
+}
+
+fn consume_kw(cur: &mut Cur<'_>, kw: &str) -> bool {
+    cur.skip_inline();
+    if !cur.starts_kw(kw) {
+        return false;
+    }
+    cur.bump_str(kw);
+    true
+}
+
+fn skip_line(cur: &mut Cur<'_>) {
+    while cur.peek().is_some_and(|ch| ch != '\n') {
+        cur.bump();
+    }
+}
+
+fn is_name_assignment(word: &str) -> bool {
+    let Some((name, _)) = word.split_once('=') else {
+        return false;
+    };
+    let mut chars = name.chars();
+    match chars.next() {
+        Some(first) if first.is_ascii_alphabetic() || first == '_' => {}
+        _ => return false,
+    }
+    chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+}
+
+fn note_status_assignment(ctx: &mut Ctx<'_>, word: &str) {
+    let Some((name, rhs)) = word.split_once('=') else {
+        return;
+    };
+    if rhs == "$?" {
+        ctx.status_vars.insert(name.to_owned());
+    }
+}
+
+fn command_display(argv: &[String], redirs: &[String]) -> String {
+    let mut parts = argv.to_vec();
+    parts.extend(redirs.iter().cloned());
+    parts.join(" ")
+}
+
+fn classify_simple(ctx: &mut Ctx<'_>, cmd: &Cmd, heredoc: Option<&str>, cur: &Cur<'_>) {
+    let Some(argv0) = cmd.argv.first() else {
+        return;
+    };
+    let line = ctx.line_of(cur.src, cur.i);
+    if let Some(text) = heredoc {
+        ctx.report.heredocs.push(text.to_owned());
+        if let Some(message) = heredoc_gap(argv0, text) {
+            ctx.gap(&message);
+            return;
+        }
+    }
+    if swallowed_wrapper(argv0, &cmd.argv) {
+        if let Some(message) = wrapper_message(argv0, &cmd.argv) {
+            ctx.gap(&message);
+        }
+        return;
+    }
+    if argv0_is_var(argv0) {
+        ctx.gap("argv0 comes from a variable");
+        return;
+    }
+    if argv0.contains("${{") {
+        ctx.gap("github expression in argv0 or test selector");
+        return;
+    }
+    if let Some(message) = command_gap(cmd) {
+        ctx.gap(&message);
+        return;
+    }
+    let class = command_class(cmd);
+    if class.test_running && selector_has_github(&cmd.argv) {
+        ctx.gap("github expression in argv0 or test selector");
+        return;
+    }
+    if let Some(message) = summary_outside(ctx.step_key, cmd) {
+        ctx.gap(&message);
+    }
+    if argv0 == "env" {
+        if let Some(message) = env_command_gap(&cmd.display) {
+            ctx.gap(&message);
+        } else if ENV_I_TEMPLATES.contains(&cmd.display.as_str()) {
+            ctx.report.env_forms.push(cmd.display.clone());
+        }
+    }
+    if let Some(path) = executed_repo_path(&cmd.argv) {
+        if !CLOSURE_PINS.iter().any(|(pin, _)| *pin == path) {
+            ctx.gap(&format!("unpinned callee {path}"));
+        }
+    }
+    ctx.report.listing.push(format!(
+        "{} L{line} {} :: {}",
+        ctx.step_key, cmd.display, class.label
+    ));
+    ctx.report.facts.push(CmdFact {
+        test_running: class.test_running,
+        self_checked: class.self_checked,
+        kani: class.kani,
+        teed: false,
+        captured: ctx.captured,
+        in_pipeline: false,
+        suppressed: false,
+        pipefail: ctx.pipefail,
+    });
+    if argv0 == "set" && sets_pipefail(&cmd.argv) {
+        ctx.pipefail = true;
+    }
+    if argv0 == "exit" {
+        if let Some(message) = exit_gap(&cmd.argv, &ctx.status_vars) {
+            ctx.gap(&message);
+        }
+    }
+}
+
+struct Class {
+    label: &'static str,
+    test_running: bool,
+    self_checked: bool,
+    kani: bool,
+}
+
+fn classify_pipeline(ctx: &mut Ctx<'_>, negated: bool, fact_at: usize, stages: &[Cmd]) {
+    let multi = stages.len() > 1;
+    if multi {
+        for fact in ctx.report.facts.iter_mut().skip(fact_at) {
+            fact.in_pipeline = true;
+        }
+    }
+    if ctx.pipefail && pipeline_ends_blocked(stages) && !test_piped_to_grep(stages) {
+        ctx.gap(&format!(
+            "{}: early-exit reader in a pipeline under pipefail",
+            ctx.step_key
+        ));
+        for fact in ctx.report.facts.iter_mut().skip(fact_at) {
+            fact.suppressed = true;
+        }
+        return;
+    }
+    if test_piped_to_grep(stages) || grep_pattern_is_test_result(stages) {
+        ctx.gap(&format!("{}: test output is piped into grep", ctx.step_key));
+        for fact in ctx.report.facts.iter_mut().skip(fact_at) {
+            fact.suppressed = true;
+        }
+        return;
+    }
+    if is_printf_grep(stages) {
+        if ctx.in_if_cond && negated {
+            ctx.report.listing.push(format!(
+                "{} printf-grep :: match:printf-grep-bang",
+                ctx.step_key
+            ));
+            return;
+        }
+        if ctx.in_if_cond && !negated {
+            ctx.gap("positive printf grep is not accepted");
+            return;
+        }
+        if !negated && printf_grep_is_literal(stages) {
+            ctx.report.printf_grep = ctx.report.printf_grep.saturating_add(1);
+            ctx.report.listing.push(format!(
+                "{} printf-grep :: match:printf-grep-literal",
+                ctx.step_key
+            ));
+            return;
+        }
+        ctx.gap("positive printf grep is not accepted");
+        return;
+    }
+    if multi
+        && stages
+            .iter()
+            .any(|stage| stage.argv.first().is_some_and(|arg| arg == "tee"))
+    {
+        for fact in ctx.report.facts.iter_mut().skip(fact_at) {
+            if fact.test_running || fact.kani {
+                fact.teed = true;
+            }
+        }
+    }
+    if multi && !ctx.pipefail {
+        ctx.gap("pipeline without pipefail");
+    }
+}
+
+fn pipeline_ends_blocked(stages: &[Cmd]) -> bool {
+    stages.len() >= 2 && stages.last().is_some_and(early_exit_reader)
+}
+
+fn early_exit_reader(cmd: &Cmd) -> bool {
+    let Some(argv0) = cmd.argv.first() else {
+        return false;
+    };
+    match argv0.as_str() {
+        "head" => true,
+        "sed" | "awk" => true,
+        "grep" => cmd.argv.iter().skip(1).any(|arg| {
+            arg == "-q"
+                || arg == "-m"
+                || arg.starts_with("-q")
+                || (arg.starts_with("-m") && arg.len() > 2)
+        }),
+        _ => false,
+    }
+}
+
+fn test_piped_to_grep(stages: &[Cmd]) -> bool {
+    let Some(grep_at) = stages
+        .iter()
+        .position(|stage| stage.argv.first().is_some_and(|arg| arg == "grep"))
+    else {
+        return false;
+    };
+    stages.iter().take(grep_at).any(stage_is_test_running)
+}
+
+fn stage_is_test_running(stage: &Cmd) -> bool {
+    command_class(stage).test_running || command_class(stage).kani
+}
+
+fn grep_pattern_is_test_result(stages: &[Cmd]) -> bool {
+    stages.iter().any(|stage| {
+        stage.argv.first().is_some_and(|arg| arg == "grep")
+            && stage.argv.iter().any(|arg| arg.contains("test result:"))
+    }) && stages
+        .iter()
+        .any(|stage| stage.argv.first().is_some_and(|arg| arg == "printf"))
+}
+
+fn is_printf_grep(stages: &[Cmd]) -> bool {
+    let Some(printf) = stages.first() else {
+        return false;
+    };
+    let Some(grep) = stages.get(1) else {
+        return false;
+    };
+    stages.len() == 2
+        && printf.argv.first().is_some_and(|arg| arg == "printf")
+        && printf.argv.get(1).is_some_and(|arg| arg == "'%s\\n'")
+        && grep.argv.first().is_some_and(|arg| arg == "grep")
+        && grep.argv.get(1).is_some_and(|arg| arg == "-q")
+}
+
+fn printf_grep_is_literal(stages: &[Cmd]) -> bool {
+    stages
+        .get(1)
+        .and_then(|grep| grep.argv.get(2))
+        .is_some_and(|arg| arg.starts_with('\'') && arg.ends_with('\'') && arg.len() >= 2)
+}
+
+fn finish_script(script: &str, ctx: &mut Ctx<'_>) {
+    let file_grep = script.contains("grep -qF") || script.contains("grep -qxF");
+    let piped_grep = script.contains("| grep -qF") || script.contains("| grep -qxF");
+    if file_grep
+        && !piped_grep
+        && !(script.contains("-eq 0") && script.contains("-eq 1") && script.contains("-gt 1"))
+    {
+        ctx.gap(&format!(
+            "{}: grep rc above 1 is treated as absent",
+            ctx.step_key
+        ));
+    }
+    let checker = script.contains("guards test-output") || script.contains("cucumber-summary");
+    let mut assert_gap = false;
+    let mut mask_gap = false;
+    for fact in &ctx.report.facts {
+        if fact.suppressed || fact.self_checked {
+            continue;
+        }
+        if fact.kani {
+            if !fact.teed && !fact.captured {
+                assert_gap = true;
+            }
+            continue;
+        }
+        if !fact.test_running {
+            continue;
+        }
+        if fact.in_pipeline && !fact.teed && !fact.pipefail {
+            mask_gap = true;
+            continue;
+        }
+        if fact.teed {
+            continue;
+        }
+        if fact.captured {
+            if !checker {
+                assert_gap = true;
+            }
+            continue;
+        }
+        assert_gap = true;
+    }
+    if assert_gap {
+        ctx.gap(&format!(
+            "{}: test step does not assert its output",
+            ctx.step_key
+        ));
+    }
+    if mask_gap {
+        ctx.gap(&format!("{}: test step masks its exit code", ctx.step_key));
+    }
+    let specific: Vec<String> = ctx
+        .report
+        .gaps
+        .iter()
+        .filter(|gap| {
+            gap.contains("test output is piped into grep")
+                || gap.contains("test summary outside a binary section")
+        })
+        .cloned()
+        .collect();
+    if !specific.is_empty() {
+        ctx.report.gaps = specific;
+    }
+}
+
+fn heredoc_gap(argv0: &str, text: &str) -> Option<String> {
+    if argv0 == "sh" || argv0 == "bash" {
+        return Some("heredoc into a shell is not accepted".to_owned());
+    }
+    if argv0 == "python3" && text.starts_with("python3 - ") {
+        if normalize_heredoc(text) == PY_HEREDOC_TEMPLATE {
+            return None;
+        }
+        return Some("heredoc body is not the pinned template".to_owned());
+    }
+    Some("unlisted heredoc".to_owned())
+}
+
+fn swallowed_wrapper(argv0: &str, argv: &[String]) -> bool {
+    match argv0 {
+        "sh" => argv.get(1).is_some_and(|arg| arg == "-c"),
+        "bash" => argv.get(1).is_some_and(|arg| arg == "-c"),
+        "source" | "." | "exec" | "timeout" | "command" | "xargs" | "eval" => true,
+        "find" => argv.iter().any(|arg| arg == "-exec"),
+        _ => false,
+    }
+}
+
+fn wrapper_message(argv0: &str, argv: &[String]) -> Option<String> {
+    let message = match argv0 {
+        "sh" if argv.get(1).is_some_and(|arg| arg == "-c") => "sh -c is not accepted",
+        "bash" if argv.get(1).is_some_and(|arg| arg == "-c") => "bash -c is not accepted",
+        "source" | "." => "source is not accepted",
+        "exec" => "exec is not accepted",
+        "timeout" => "timeout is not accepted",
+        "command" => "command is not accepted",
+        "xargs" => "xargs is not accepted",
+        "eval" => "eval is not accepted",
+        "find" if argv.iter().any(|arg| arg == "-exec") => "find -exec is not accepted",
+        _ => return None,
+    };
+    Some(message.to_owned())
+}
+
+fn argv0_is_var(argv0: &str) -> bool {
+    if let Some(name) = argv0.strip_prefix("$") {
+        return !name.is_empty()
+            && name
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '_');
+    }
+    if let Some(inner) = argv0.strip_prefix("${") {
+        return inner.ends_with('}') && !inner.contains("${{");
+    }
+    false
+}
+
+fn command_gap(cmd: &Cmd) -> Option<String> {
+    let argv0 = cmd.argv.first().map(String::as_str).unwrap_or("");
+    if argv0.ends_with("/bin/cargo") && argv0 != PINNED_CARGO && argv0 != "cargo" {
+        return Some("absolute cargo path is not the pinned toolchain".to_owned());
+    }
+    if argv0 == "env" {
+        return None;
+    }
+    if known_command(&cmd.argv) {
+        return None;
+    }
+    Some(format!("unclassified command {}", cmd.display))
+}
+
+fn known_command(argv: &[String]) -> bool {
+    let Some(argv0) = argv.first().map(String::as_str) else {
+        return false;
+    };
+    match argv0 {
+        "cd" | "set" | "exit" | "test" | "[" | "true" | "false" | "echo" | "printf" | "grep"
+        | "head" | "sed" | "awk" | "tee" | "cat" | "curl" | "sha256sum" | "tar" | "sleep"
+        | "mkdir" | "mktemp" | "jq" | "/usr/bin/curl" | "/usr/bin/sha256sum" | "/usr/bin/tar" => {
+            true
+        }
+        "cargo" | "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo" => {
+            known_cargo(argv)
+        }
+        "rustup" => known_rustup(argv),
+        "rustc" => true,
+        "git" => known_git(argv),
+        "python3" => known_python(argv),
+        "bash" => known_bash(argv),
+        "java" => known_java(argv),
+        "/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny" => true,
+        other => other.contains("/deps/"),
+    }
+}
+
+fn known_cargo(argv: &[String]) -> bool {
+    let Some(sub) = argv.get(1).map(String::as_str) else {
+        return false;
+    };
+    match sub {
+        "fmt" | "clippy" | "test" | "check" | "install" | "run" | "nextest" | "metadata" => true,
+        "xtask" => matches!(
+            argv.get(2).map(String::as_str),
+            Some("guards" | "depgraph" | "run-exact" | "api-snapshot")
+        ),
+        "kani" => true,
+        _ => false,
+    }
+}
+
+fn known_rustup(argv: &[String]) -> bool {
+    matches!(
+        (
+            argv.get(1).map(String::as_str),
+            argv.get(2).map(String::as_str),
+        ),
+        (Some("which"), Some("cargo" | "rustc")) | (Some("toolchain"), Some("install"))
+    )
+}
+
+fn known_git(argv: &[String]) -> bool {
+    let mut args = argv.iter().skip(1);
+    if args.clone().next().is_some_and(|arg| arg == "-C") {
+        let _dir = args.next();
+        let _path = args.next();
+    }
+    matches!(
+        args.next().map(String::as_str),
+        Some("clone" | "rev-parse" | "diff" | "status" | "checkout")
+    )
+}
+
+fn known_python(argv: &[String]) -> bool {
+    argv.get(1)
+        .is_some_and(|arg| arg.ends_with("gate_results.py") || arg == "-")
+}
+
+fn known_bash(argv: &[String]) -> bool {
+    matches!(
+        argv.get(1).map(String::as_str),
+        Some("scripts/load-versions.sh" | "scripts/api-snapshot-postcheck.sh")
+    )
+}
+
+fn known_java(argv: &[String]) -> bool {
+    let has_cp = argv.iter().any(|arg| arg == "-cp");
+    let has_jar = argv.iter().any(|arg| arg.contains("tla2tools.jar"));
+    let has_tlc = argv.iter().any(|arg| arg.contains("tlc2.TLC"));
+    has_cp && has_jar && has_tlc
+}
+
+fn command_class(cmd: &Cmd) -> Class {
+    let argv0 = cmd.argv.first().map(String::as_str).unwrap_or("");
+    let cargo = argv0 == "cargo" || argv0 == PINNED_CARGO;
+    if cargo
+        && cmd
+            .argv
+            .get(1)
+            .is_some_and(|arg| arg == "test" || arg == "nextest")
+    {
+        return Class {
+            label: "test-running",
+            test_running: true,
+            self_checked: false,
+            kani: false,
+        };
+    }
+    if cargo && cmd.argv.get(1).is_some_and(|arg| arg == "kani") {
+        if cmd.argv.get(2).is_some_and(|arg| arg == "setup") {
+            return Class {
+                label: "plain",
+                test_running: false,
+                self_checked: false,
+                kani: false,
+            };
+        }
+        return Class {
+            label: "kani",
+            test_running: false,
+            self_checked: false,
+            kani: true,
+        };
+    }
+    if cargo
+        && cmd.argv.get(1).is_some_and(|arg| arg == "xtask")
+        && cmd.argv.get(2).is_some_and(|arg| arg == "run-exact")
+    {
+        return Class {
+            label: "self-checked",
+            test_running: true,
+            self_checked: true,
+            kani: false,
+        };
+    }
+    if argv0.contains("/deps/") {
+        return Class {
+            label: "test-running",
+            test_running: true,
+            self_checked: false,
+            kani: false,
+        };
+    }
+    let label = if is_grep_qf(&cmd.argv) {
+        "match:grep-qF"
+    } else {
+        "plain"
+    };
+    Class {
+        label,
+        test_running: false,
+        self_checked: false,
+        kani: false,
+    }
+}
+
+fn is_grep_qf(argv: &[String]) -> bool {
+    argv.len() >= 4
+        && argv.first().is_some_and(|arg| arg == "grep")
+        && argv.get(1).is_some_and(|arg| arg == "-qF" || arg == "-qxF")
+        && argv.get(2).is_some_and(|arg| arg == "--")
+        && argv
+            .get(3)
+            .is_some_and(|arg| arg.starts_with('\'') && arg.ends_with('\''))
+}
+
+fn selector_has_github(argv: &[String]) -> bool {
+    let Some(split) = argv.iter().position(|arg| arg == "--") else {
+        return false;
+    };
+    argv.iter()
+        .skip(split.saturating_add(1))
+        .any(|arg| arg.contains("${{"))
+}
+
+fn summary_outside(step_key: &str, cmd: &Cmd) -> Option<String> {
+    let argv0 = cmd.argv.first().map(String::as_str)?;
+    if argv0 != "echo" && argv0 != "printf" {
+        return None;
+    }
+    if cmd.argv.iter().any(|arg| arg.contains("test result:")) {
+        Some(format!("{step_key}: test summary outside a binary section"))
+    } else {
+        None
+    }
+}
+
+fn sets_pipefail(argv: &[String]) -> bool {
+    let has_name = argv.iter().any(|arg| arg == "pipefail");
+    let has_o = argv.iter().any(|arg| {
+        arg == "-o" || (arg.starts_with('-') && !arg.starts_with("--") && arg.contains('o'))
+    });
+    has_name && has_o
+}
+
+fn exit_gap(argv: &[String], status_vars: &BTreeSet<String>) -> Option<String> {
+    let word = argv.get(1).map(String::as_str).unwrap_or("0");
+    if word.chars().all(|ch| ch.is_ascii_digit()) {
+        return None;
+    }
+    let name = exit_var_name(word);
+    if name.is_some_and(|item| status_vars.contains(item)) {
+        return None;
+    }
+    Some("exit status was not captured".to_owned())
+}
+
+fn exit_var_name(word: &str) -> Option<&str> {
+    if let Some(name) = word.strip_prefix("$") {
+        if !name.is_empty()
+            && name
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+        {
+            return Some(name);
+        }
+    }
+    word.strip_prefix("\"$")
+        .and_then(|inner| inner.strip_suffix('"'))
+        .or_else(|| {
+            word.strip_prefix("${")
+                .and_then(|inner| inner.strip_suffix('}'))
+        })
+}
+
+fn executed_repo_path(argv: &[String]) -> Option<&str> {
+    let argv0 = argv.first().map(String::as_str)?;
+    let path = match argv0 {
+        "python3" | "bash" | "source" => argv.get(1).map(String::as_str)?,
+        _ => return None,
+    };
+    if path.ends_with(".py") || path.ends_with(".sh") || path.starts_with("scripts/") {
+        Some(path)
+    } else {
+        None
+    }
+}
+
+fn env_command_gap(display: &str) -> Option<String> {
+    if ENV_I_TEMPLATES.contains(&display) {
+        return None;
+    }
+    let words: Vec<&str> = display.split(' ').filter(|word| !word.is_empty()).collect();
+    if words.first() != Some(&"env") || words.get(1) != Some(&"-i") {
+        return Some("env is not accepted".to_owned());
+    }
+    let (keys, cmd) = split_env_words(&words[2..]);
+    let names = key_names(&keys);
+    let mut same_keys = Vec::new();
+    for template in ENV_I_TEMPLATES {
+        let template_words: Vec<&str> = template
+            .split(' ')
+            .filter(|word| !word.is_empty())
+            .collect();
+        let (template_keys, template_cmd) = split_env_words(&template_words[2..]);
+        if key_names(&template_keys) == names {
+            same_keys.push((template_keys, template_cmd));
+        }
+    }
+    if same_keys.is_empty() {
+        return Some("env -i key was added or removed".to_owned());
+    }
+    if !same_keys
+        .iter()
+        .any(|(template_keys, _)| template_keys == &keys)
+    {
+        return Some("env -i value is not an accepted deny form".to_owned());
+    }
+    let binary = cmd.first().copied().unwrap_or("");
+    let same_bin: Vec<_> = same_keys
+        .into_iter()
+        .filter(|(_, template_cmd)| template_cmd.first().copied() == Some(binary))
+        .collect();
+    if same_bin.is_empty() {
+        return Some("env -i binary path is not an accepted deny form".to_owned());
+    }
+    Some("env -i argument is not an accepted deny form".to_owned())
+}
+
+fn split_env_words<'a>(words: &[&'a str]) -> (Vec<&'a str>, Vec<&'a str>) {
+    let mut keys = Vec::new();
+    let mut rest = words;
+    while let Some(word) = rest.first() {
+        if !is_name_assignment(word) {
+            break;
+        }
+        keys.push(*word);
+        rest = rest.get(1..).unwrap_or(&[]);
+    }
+    (keys, rest.to_vec())
+}
+
+fn key_names<'a>(keys: &[&'a str]) -> Vec<&'a str> {
+    keys.iter()
+        .filter_map(|word| word.split_once('=').map(|(name, _)| name))
+        .collect()
+}
+
+struct RunStep {
+    job: String,
+    name: String,
+    script: String,
+    line: usize,
+}
+
+fn ci_run_steps(text: &str) -> Vec<RunStep> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut job = String::new();
+    let mut step_name = String::new();
+    let mut out = Vec::new();
+    let mut idx = 0usize;
+    let mut block = RunBlockScan::Outside;
+    while idx < lines.len() {
+        let line = lines[idx];
+        let inside = line_inside_block(&mut block, line);
+        if !inside {
+            if let Some(id) = job_id(line) {
+                job = id;
+                step_name.clear();
+            }
+            let trimmed = strip_yaml_comment(line).trim();
+            let name_body = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+            if let Some((key, value)) = split_yaml_key(name_body) {
+                if key.trim() == "name" {
+                    step_name = value.trim().trim_matches('"').trim_matches('\'').to_owned();
+                }
+            }
+            if let Some(rest) = run_prefix(trimmed) {
+                let rest = rest.trim();
+                if rest.is_empty() || block_scalar_header(rest) {
+                    let indent = line.len().saturating_sub(line.trim_start().len());
+                    idx = idx.saturating_add(1);
+                    let start_line = idx.saturating_add(1);
+                    let mut script = String::new();
+                    while idx < lines.len() {
+                        let child = lines[idx];
+                        if !child.trim().is_empty() {
+                            let findent = child.len().saturating_sub(child.trim_start().len());
+                            if findent <= indent {
+                                break;
+                            }
+                        }
+                        script.push_str(child);
+                        script.push('\n');
+                        idx = idx.saturating_add(1);
+                    }
+                    block = RunBlockScan::Outside;
+                    out.push(RunStep {
+                        job: job.clone(),
+                        name: step_name.clone(),
+                        script,
+                        line: start_line,
+                    });
+                    continue;
+                }
+                out.push(RunStep {
+                    job: job.clone(),
+                    name: step_name.clone(),
+                    script: format!("{rest}\n"),
+                    line: idx.saturating_add(1),
+                });
+            }
+            if let Some(next) = open_run_block(line) {
+                block = next;
+            }
+        }
+        idx = idx.saturating_add(1);
+    }
+    out
+}
+
+fn step_key(step: &RunStep) -> String {
+    format!("{} {}", step.job, step.name)
+}
+
+struct Inventory {
+    gaps: Vec<String>,
+    listing: Vec<String>,
+}
+
+fn inventory_report(root: &Path, ci: &str) -> Result<Inventory, String> {
+    let mut gaps = Vec::new();
+    let mut listing = Vec::new();
+    let mut env_forms = Vec::new();
+    let mut printf_grep = 0usize;
+    let mut heredocs = Vec::new();
+    let mut p3_body = 0usize;
+    let mut p3_default = 0usize;
+    let mut steps = Vec::new();
+    for step in ci_run_steps(ci) {
+        let key = step_key(&step);
+        let report = parse_run_script(&step.script, &key, step.line);
+        gaps.extend(report.gaps);
+        listing.extend(report.listing);
+        let trailers = env_trailer_list(&step.script);
+        if trailers.len() != report.env_forms.len() {
+            push_gap(
+                &mut gaps,
+                format!("{key}: env -i trailer not in ENV_I_OCCURRENCES"),
+            );
+        }
+        for (display, trailer) in report.env_forms.iter().zip(trailers.iter()) {
+            env_forms.push((key.clone(), display.clone(), trailer.clone()));
+        }
+        printf_grep = printf_grep.saturating_add(report.printf_grep);
+        heredocs.extend(report.heredocs);
+        p3_body = p3_body.saturating_add(report.p3_body);
+        p3_default = p3_default.saturating_add(report.p3_default);
+        steps.push((step, report.facts));
+    }
+    gaps.extend(env_occurrence_gaps(&env_forms));
+    if printf_grep != PRINTF_GREP_STATEMENTS {
+        gaps.push(format!(
+            "printf grep statements counted {printf_grep} does not match {PRINTF_GREP_STATEMENTS}"
+        ));
+    }
+    let case_matches = p3_body.saturating_add(p3_default);
+    if case_matches != CASE_LITERAL_MATCHES || p3_body != 1 || p3_default != 1 {
+        gaps.push(format!(
+            "case literal matches counted {case_matches} does not match {CASE_LITERAL_MATCHES}"
+        ));
+    }
+    let matched = heredocs
+        .iter()
+        .filter(|text| normalize_heredoc(text) == PY_HEREDOC_TEMPLATE)
+        .count();
+    if matched != 1 {
+        push_gap(
+            &mut gaps,
+            "heredoc body is not the pinned template".to_owned(),
+        );
+    }
+    gaps.extend(closure_gaps(root)?);
+    gaps.extend(crate_pin_gaps(&read(&root.join("Cargo.lock"))?)?);
+    gaps.extend(binary_placement_gaps(&steps));
+    gaps.extend(cucumber_runner_wiring_gaps(ci));
+    gaps.extend(embedded_sample_gaps(root));
+    Ok(Inventory { gaps, listing })
+}
+
+fn embedded_sample_gaps(root: &Path) -> Vec<String> {
+    let mut gaps = parse_run_script(API_SNAPSHOT_POSTCHECK, "api-snapshot postcheck", 1).gaps;
+    gaps.extend(parse_run_script(H2_INSTALL, "h2 install", 1).gaps);
+    if ENUMERATED_MATCH_FORMS.len() != 3 {
+        gaps.push("match forms are not enumerated".to_owned());
+    }
+    let bespoke = root.join("fixtures/guards/bespoke/cases.txt");
+    if bespoke.is_file() {
+        gaps.extend(bespoke_fixture_gaps(
+            root,
+            "fixtures/guards/bespoke/cases.txt",
+            "control ok\nmutant fail\n2\n",
+        ));
+    }
+    gaps
+}
+
+fn command_inventory_gaps(root: &Path, ci: &str) -> Result<Vec<String>, String> {
+    Ok(inventory_report(root, ci)?.gaps)
+}
+
+fn command_listing(root: &Path, ci: &str) -> Result<Vec<String>, String> {
+    let report = inventory_report(root, ci)?;
+    if report.gaps.is_empty() {
+        Ok(report.listing)
+    } else {
+        Err(report.gaps.join("\n"))
+    }
+}
+
+fn env_occurrence_gaps(found: &[(String, String, String)]) -> Vec<String> {
+    if ENV_I_TEMPLATES.len() != ENV_I_OCCURRENCES.len() {
+        return vec!["env -i occurrence count does not match".to_owned()];
+    }
+    let mut gaps = Vec::new();
+    for (template, (trailer, expected)) in ENV_I_TEMPLATES.iter().zip(ENV_I_OCCURRENCES.iter()) {
+        let got = found
+            .iter()
+            .filter(|(_, display, found_trailer)| display == template && found_trailer == trailer)
+            .count();
+        if got != *expected {
+            push_gap(
+                &mut gaps,
+                "env -i occurrence count does not match".to_owned(),
+            );
+        }
+    }
+    for (step_key, display, trailer) in found {
+        if env_row_known(display, trailer) {
+            continue;
+        }
+        if ENV_I_TEMPLATES.contains(&display.as_str()) {
+            push_gap(
+                &mut gaps,
+                format!("{step_key}: env -i trailer not in ENV_I_OCCURRENCES"),
+            );
+        } else {
+            push_gap(&mut gaps, "env -i is not an accepted deny form".to_owned());
+        }
+    }
+    gaps
+}
+
+fn env_row_known(display: &str, trailer: &str) -> bool {
+    ENV_I_TEMPLATES
+        .iter()
+        .zip(ENV_I_OCCURRENCES.iter())
+        .any(|(template, (row_trailer, _))| display == *template && trailer == *row_trailer)
+}
+
+fn normalize_heredoc(text: &str) -> String {
+    let mut out = String::new();
+    for line in text.split_inclusive('\n') {
+        if let Some(rest) = line.strip_prefix("          ") {
+            out.push_str(rest);
+        } else {
+            out.push_str(line);
+        }
+    }
+    out
+}
+
+fn env_trailer_list(script: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut index = 0usize;
+    while index < script.len() {
+        if env_i_at(script, index) {
+            let (trailer, next) = read_env_trailer(script, index);
+            out.push(trailer);
+            index = next.max(index.saturating_add(1));
+            continue;
+        }
+        index = index.saturating_add(1);
+    }
+    out
+}
+
+fn env_i_at(script: &str, index: usize) -> bool {
+    if index > 0 {
+        let prev = script.as_bytes()[index - 1];
+        if prev.is_ascii_alphanumeric() || prev == b'_' || prev == b'/' {
+            return false;
+        }
+    }
+    script[index..].starts_with("env -i")
+}
+
+fn read_env_trailer(script: &str, start: usize) -> (String, usize) {
+    let bytes = script.as_bytes();
+    let mut index = start;
+    let mut last_word = String::new();
+    loop {
+        let mut look = index;
+        let mut continued = false;
+        loop {
+            if look >= bytes.len() {
+                return (String::new(), look);
+            }
+            match bytes[look] {
+                b' ' | b'\t' => look = look.saturating_add(1),
+                b'\\' if script[look..].starts_with("\\\n") => {
+                    continued = true;
+                    look = look.saturating_add(2);
+                }
+                _ => break,
+            }
+        }
+        if look >= bytes.len() {
+            return (String::new(), look);
+        }
+        if bytes[look] == b'|' && continued {
+            return (" \\\n| ".to_owned(), look);
+        }
+        index = look;
+        match bytes[index] {
+            b')' => {
+                let trailer = if last_word == "2>&1" {
+                    " 2>&1)".to_owned()
+                } else if script[index.saturating_add(1)..].starts_with('"') {
+                    ")\"".to_owned()
+                } else {
+                    ")".to_owned()
+                };
+                return (trailer, index.saturating_add(1));
+            }
+            b'\n' | b';' => return (String::new(), index),
+            b'\'' | b'"' => {
+                let word_start = index;
+                index = skip_trailer_quote(script, index);
+                last_word = script.get(word_start..index).unwrap_or("").to_owned();
+            }
+            _ => {
+                let word_start = index;
+                while index < bytes.len() {
+                    let ch = bytes[index];
+                    if matches!(ch, b' ' | b'\t' | b'\n' | b'\\' | b'|' | b')' | b';') {
+                        break;
+                    }
+                    index = index.saturating_add(1);
+                }
+                last_word = script.get(word_start..index).unwrap_or("").to_owned();
+            }
+        }
+    }
+}
+
+fn skip_trailer_quote(script: &str, start: usize) -> usize {
+    let bytes = script.as_bytes();
+    let quote = bytes[start];
+    let mut index = start.saturating_add(1);
+    while index < bytes.len() {
+        if bytes[index] == quote {
+            return index.saturating_add(1);
+        }
+        index = index.saturating_add(1);
+    }
+    index
+}
+
+fn cucumber_runner_wiring_gaps(ci: &str) -> Vec<String> {
+    let runners = ["kline", "vision", "instrument_rules", "feature_reject"];
+    let mut gaps = Vec::new();
+    for runner in runners {
+        let needle = format!("cucumber-summary --runner {runner}");
+        if !ci.contains(&needle) {
+            gaps.push(format!(
+                "cucumber step does not invoke cucumber-summary for {runner}"
+            ));
+        }
+    }
+    gaps
+}
+
+fn read_stdin() -> Result<String, String> {
+    let mut buf = String::new();
+    std::io::stdin()
+        .read_to_string(&mut buf)
+        .map_err(|err| format!("read stdin: {err}"))?;
+    Ok(buf)
+}
+
+fn closure_gaps(root: &Path) -> Result<Vec<String>, String> {
+    let mut files = Vec::new();
+    collect_closure_files(root, &mut files)?;
+    let mut owned = Vec::new();
+    for path in &files {
+        let bytes = read_bytes(&root.join(path))?;
+        owned.push((path.clone(), bytes));
+    }
+    let views: Vec<(&str, &[u8])> = owned
+        .iter()
+        .map(|(path, bytes)| (path.as_str(), bytes.as_slice()))
+        .collect();
+    Ok(assess_closure(&views, CLOSURE_PINS))
+}
+
+fn collect_closure_files(root: &Path, out: &mut Vec<String>) -> Result<(), String> {
+    walk_closure_dir(root, &root.join("xtask/src"), out)?;
+    out.retain(|path| path != "xtask/src/guards.rs");
+    for path in [
+        "xtask/Cargo.toml",
+        "Cargo.toml",
+        ".github/workflows/gate_results.py",
+    ] {
+        let full = root.join(path);
+        if full.is_file() {
+            out.push(path.to_owned());
+        }
+    }
+    let cargo_dir = root.join(".cargo");
+    if cargo_dir.is_dir() {
+        let entries = std::fs::read_dir(&cargo_dir)
+            .map_err(|err| format!("read {}: {err}", cargo_dir.display()))?;
+        for entry in entries {
+            let entry = entry.map_err(|err| format!("read {}: {err}", cargo_dir.display()))?;
+            let path = entry.path();
+            if path.is_file() {
+                out.push(rel_string(root, &path)?);
+            }
+        }
+    }
+    find_build_rs(root, root, out)?;
+    out.sort();
+    out.dedup();
+    Ok(())
+}
+
+fn walk_closure_dir(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
+    let entries = std::fs::read_dir(dir).map_err(|err| format!("read {}: {err}", dir.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
+        let path = entry.path();
+        if path.is_dir() {
+            walk_closure_dir(root, &path, out)?;
+            continue;
+        }
+        out.push(rel_string(root, &path)?);
+    }
+    Ok(())
+}
+
+fn find_build_rs(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
+    let entries = std::fs::read_dir(dir).map_err(|err| format!("read {}: {err}", dir.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name == ".git" || name == "target" {
+            continue;
+        }
+        let path = entry.path();
+        if path.is_dir() {
+            find_build_rs(root, &path, out)?;
+            continue;
+        }
+        if name == "build.rs" {
+            out.push(rel_string(root, &path)?);
+        }
+    }
+    Ok(())
+}
+
+fn rel_string(root: &Path, path: &Path) -> Result<String, String> {
+    let relative = path
+        .strip_prefix(root)
+        .map_err(|_| format!("path {} is outside {}", path.display(), root.display()))?;
+    Ok(relative.to_string_lossy().replace('\\', "/"))
+}
+
+fn assess_closure(files: &[(&str, &[u8])], pins: &[(&str, &str)]) -> Vec<String> {
+    let mut gaps = Vec::new();
+    let file_names: BTreeSet<&str> = files.iter().map(|(path, _)| *path).collect();
+    for (path, _) in pins {
+        if *path == "xtask/src/guards.rs" {
+            push_gap(&mut gaps, "closure pin names guards.rs".to_owned());
+        } else if !file_names.contains(path) {
+            push_gap(&mut gaps, format!("{path} is outside the closure"));
+        }
+    }
+    for (path, bytes) in files {
+        match pins.iter().find(|(pin, _)| pin == path) {
+            None => push_gap(&mut gaps, format!("{path} is not pinned")),
+            Some((_, hash)) => {
+                if sha256_hex(bytes) != *hash {
+                    push_gap(&mut gaps, format!("{path} sha256 does not match"));
+                }
+            }
+        }
+    }
+    gaps
+}
+
+fn crate_pin_gaps(lock: &str) -> Result<Vec<String>, String> {
+    let mut gaps = Vec::new();
+    for (name, version, checksum) in [CUCUMBER_CRATE, GHERKIN_CRATE] {
+        match lock_package(lock, name) {
+            Some((found_version, found_checksum))
+                if found_version == version && found_checksum == checksum => {}
+            _ => gaps.push("cucumber/gherkin crate pin does not match Cargo.lock".to_owned()),
+        }
+    }
+    Ok(gaps)
+}
+
+fn lock_package<'a>(lock: &'a str, name: &str) -> Option<(&'a str, &'a str)> {
+    let mut version = None;
+    let mut checksum = None;
+    let mut in_package = false;
+    let mut saw_name = false;
+    for line in lock.lines() {
+        if line.starts_with("[[package]]") {
+            if saw_name && version.is_some() && checksum.is_some() {
+                return Some((version?, checksum?));
+            }
+            in_package = true;
+            saw_name = false;
+            version = None;
+            checksum = None;
+            continue;
+        }
+        if !in_package {
+            continue;
+        }
+        if let Some(value) = lock_value(line, "name") {
+            saw_name = value == name;
+            if value != name {
+                in_package = false;
+            }
+        } else if saw_name && version.is_none() {
+            if let Some(value) = lock_value(line, "version") {
+                version = Some(value);
+            }
+        } else if saw_name && checksum.is_none() {
+            if let Some(value) = lock_value(line, "checksum") {
+                checksum = Some(value);
+            }
+        }
+    }
+    if saw_name {
+        Some((version?, checksum?))
+    } else {
+        None
+    }
+}
+
+fn lock_value<'a>(line: &'a str, key: &str) -> Option<&'a str> {
+    let rest = line.trim().strip_prefix(key)?;
+    let rest = rest.trim().strip_prefix('=')?.trim();
+    rest.strip_prefix('"')?.strip_suffix('"')
+}
+
+fn binary_placement_gaps(steps: &[(RunStep, Vec<CmdFact>)]) -> Vec<String> {
+    let rows = binary_rows();
+    let mut gaps = Vec::new();
+    let mut seen = BTreeSet::new();
+    for (step, facts) in steps {
+        let cucumber = step.script.contains("cucumber-summary");
+        let needs = !cucumber
+            && facts.iter().any(|fact| {
+                fact.test_running && !fact.self_checked && !fact.kani && !fact.suppressed
+            });
+        if !needs {
+            continue;
+        }
+        let key = (step.job.as_str(), step.name.as_str());
+        seen.insert((step.job.clone(), step.name.clone()));
+        if !rows.iter().any(|row| row.job == key.0 && row.step == key.1) {
+            gaps.push(format!(
+                "{} {}: libtest invocation has no binary rows",
+                step.job, step.name
+            ));
+        }
+    }
+    for row in &rows {
+        if !seen
+            .iter()
+            .any(|(job, step)| job == row.job && step == row.step)
+        {
+            push_gap(
+                &mut gaps,
+                format!(
+                    "{} {}: test binary step key matches no step",
+                    row.job, row.step
+                ),
+            );
+        }
+    }
+    gaps
+}
+
+fn test_binary_table_gaps(log: &str, job: &str, step: &str) -> Result<Vec<String>, String> {
+    Ok(test_binary_table_with(log, job, step, &binary_rows()))
+}
+
+fn test_binary_table_with(log: &str, job: &str, step: &str, rows: &[BinaryRow]) -> Vec<String> {
+    let mine: Vec<&BinaryRow> = rows
+        .iter()
+        .filter(|row| row.job == job && row.step == step)
+        .collect();
+    let mut gaps = Vec::new();
+    if mine.is_empty() {
+        gaps.push(format!(
+            "{job} {step}: libtest invocation has no binary rows"
+        ));
+        return gaps;
+    }
+    let sections = log_sections(log);
+    let mut matched = vec![false; mine.len()];
+    for section in &sections {
+        if !section.mappable {
+            gaps.push(format!("{job} {step}: unmappable Running line"));
+            continue;
+        }
+        let own = best_row(&section.header, &mine);
+        if let Some((index, row)) = own {
+            if let Some(slot) = matched.get_mut(index) {
+                *slot = true;
+            }
+            push_count_gap(&mut gaps, job, step, row, section.count);
+            continue;
+        }
+        if best_row(&section.header, &rows.iter().collect::<Vec<_>>()).is_some() {
+            gaps.push(format!("{job} {step}: test binary row is on another step"));
+        } else {
+            gaps.push(format!("{job} {step}: test binary row removed"));
+        }
+    }
+    for (index, row) in mine.iter().enumerate() {
+        if matched.get(index).is_some_and(|flag| *flag) {
+            continue;
+        }
+        gaps.push(format!(
+            "{job} {step} {} {}: test binary row extra",
+            row.package, row.target
+        ));
+    }
+    gaps
+}
+
+fn push_count_gap(gaps: &mut Vec<String>, job: &str, step: &str, row: &BinaryRow, observed: usize) {
+    if observed == row.count {
+        return;
+    }
+    if row.count == 0 && observed > 0 {
+        gaps.push(format!(
+            "{job} {step} {} {}: test binary count is 0 for a binary that runs tests",
+            row.package, row.kind
+        ));
+        return;
+    }
+    if row.count < observed {
+        gaps.push(format!(
+            "{job} {step} {} {}: test binary count lowered",
+            row.package, row.kind
+        ));
+    }
+}
+
+fn best_row<'a>(header: &str, rows: &[&'a BinaryRow]) -> Option<(usize, &'a BinaryRow)> {
+    rows.iter()
+        .enumerate()
+        .filter(|(_, row)| header.contains(row.target))
+        .max_by_key(|(_, row)| row.target.len())
+        .map(|(index, row)| (index, *row))
+}
+
+struct LogSection {
+    header: String,
+    count: usize,
+    mappable: bool,
+}
+
+fn log_sections(log: &str) -> Vec<LogSection> {
+    let lines: Vec<&str> = log.lines().collect();
+    let mut starts = Vec::new();
+    for (index, line) in lines.iter().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("Running ") || trimmed.starts_with("Doc-tests ") {
+            starts.push(index);
+        }
+    }
+    let mut sections = Vec::new();
+    for (offset, start) in starts.iter().enumerate() {
+        let end = starts
+            .get(offset.saturating_add(1))
+            .copied()
+            .unwrap_or(lines.len());
+        let header = lines.get(*start).unwrap_or(&"").trim().to_owned();
+        let body = lines.get(*start..end).unwrap_or(&[]);
+        let mappable = section_mappable(&header);
+        let count = section_count(body).unwrap_or(0);
+        sections.push(LogSection {
+            header,
+            count,
+            mappable,
+        });
+    }
+    sections
+}
+
+fn section_mappable(header: &str) -> bool {
+    if let Some(rest) = header.strip_prefix("Doc-tests ") {
+        return !rest.is_empty() && !rest.contains(' ');
+    }
+    header.starts_with("Running ") && header.contains('(')
+}
+
+fn section_count(lines: &[&str]) -> Option<usize> {
+    for line in lines {
+        if let Some(count) = running_count(line.trim()) {
+            return Some(count);
+        }
+    }
+    let mut scenarios = 0usize;
+    let mut saw = false;
+    for line in lines {
+        if let Some(count) = scenario_count_line(line.trim()) {
+            scenarios = scenarios.saturating_add(count);
+            saw = true;
+        }
+    }
+    if saw {
+        Some(scenarios)
+    } else {
+        None
+    }
+}
+
+fn running_count(line: &str) -> Option<usize> {
+    let rest = line.strip_prefix("running ")?;
+    let (count, suffix) = rest.split_once(' ')?;
+    if suffix != "test" && suffix != "tests" {
+        return None;
+    }
+    count.parse().ok()
+}
+
+fn scenario_count_line(line: &str) -> Option<usize> {
+    let (count, rest) = line.split_once(' ')?;
+    if rest.starts_with("scenario") {
+        count.parse().ok()
+    } else {
+        None
+    }
+}
+
+fn cucumber_summary_gaps(root: &Path, runner: &str, log: &str) -> Result<Vec<String>, String> {
+    let plain = strip_ansi(log);
+    if runner == "feature_reject" {
+        return Ok(feature_reject_summary_gaps(&plain));
+    }
+    let policy: FeaturePolicy = toml::from_str(&read(&root.join("policy/features.toml"))?)
+        .map_err(|err| format!("parse policy/features.toml: {err}"))?;
+    let Some(item) = policy.runner.iter().find(|item| item.name == runner) else {
+        return Ok(vec![format!(
+            "cucumber runner {runner} is not in the policy"
+        )]);
+    };
+    let files = expand_glob(root, &item.glob)?;
+    let mut gaps = Vec::new();
+    if files.is_empty() {
+        gaps.push(format!("cucumber runner {runner} has no features"));
+        return Ok(gaps);
+    }
+    for path in &files {
+        let (scenarios, steps, rules) = contract_counts(&read(path)?)
+            .map_err(|err| format!("malformed feature {}: {err}", path.display()))?;
+        let block = summary_block(1, rules, scenarios, steps, 0, 0, 0);
+        if !plain.contains(&block) {
+            gaps.push(format!(
+                "cucumber summary does not match {}",
+                rel_string(root, path)?
+            ));
+        }
+    }
+    Ok(gaps)
+}
+
+fn feature_reject_summary_gaps(log: &str) -> Vec<String> {
+    let broken = "[Summary]\n0 features\n0 scenarios\n0 steps\n1 parsing error\n";
+    let undefined = "[Summary]\n1 feature\n1 scenario (1 failed)\n1 step (1 failed)\n";
+    let mut gaps = Vec::new();
+    if !log.contains(broken) || !log.contains(undefined) {
+        gaps.push("cucumber summary does not match feature_reject".to_owned());
+    }
+    gaps
+}
+
+fn cucumber_runner_contract_gaps(root: &Path, ci: &str) -> Result<Vec<String>, String> {
+    let mut gaps = cucumber_runner_wiring_gaps(ci);
+    let policy: FeaturePolicy = toml::from_str(&read(&root.join("policy/features.toml"))?)
+        .map_err(|err| format!("parse policy/features.toml: {err}"))?;
+    for runner in &policy.runner {
+        let files = expand_glob(root, &runner.glob)?;
+        for path in files {
+            if let Err(err) = contract_counts(&read(&path)?) {
+                gaps.push(format!("malformed feature {}: {err}", path.display()));
+            }
+        }
+    }
+    for relative in [
+        "fixtures/guards/cucumber-count/background.feature",
+        "fixtures/guards/cucumber-count/rule-background.feature",
+        "fixtures/guards/cucumber-count/examples.feature",
+    ] {
+        let path = root.join(relative);
+        if path.is_file() {
+            contract_counts(&read(&path)?)
+                .map_err(|err| format!("malformed feature {relative}: {err}"))?;
+        }
+    }
+    Ok(gaps)
+}
+
+fn contract_counts(text: &str) -> Result<(usize, usize, usize), String> {
+    let mut owned = text.to_owned();
+    if !owned.ends_with('\n') {
+        owned.push('\n');
+    }
+    let feature = gherkin::Feature::parse(&owned, gherkin::GherkinEnv::default())
+        .map_err(|err| err.to_string())?;
+    let feature_bg = background_steps(feature.background.as_ref());
+    let mut scenarios = 0usize;
+    let mut steps = 0usize;
+    for scenario in &feature.scenarios {
+        let (extra_scenarios, extra_steps) = scenario_weight(scenario, feature_bg, 0);
+        scenarios = scenarios.saturating_add(extra_scenarios);
+        steps = steps.saturating_add(extra_steps);
+    }
+    for rule in &feature.rules {
+        let rule_bg = background_steps(rule.background.as_ref());
+        for scenario in &rule.scenarios {
+            let (extra_scenarios, extra_steps) = scenario_weight(scenario, feature_bg, rule_bg);
+            scenarios = scenarios.saturating_add(extra_scenarios);
+            steps = steps.saturating_add(extra_steps);
+        }
+    }
+    Ok((scenarios, steps, feature.rules.len()))
+}
+
+fn scenario_weight(
+    scenario: &gherkin::Scenario,
+    feature_bg: usize,
+    rule_bg: usize,
+) -> (usize, usize) {
+    let multiplier = if scenario.examples.is_empty() {
+        1
+    } else {
+        scenario.examples.iter().fold(0usize, |total, examples| {
+            let rows = examples
+                .table
+                .as_ref()
+                .map(|table| table.rows.len().saturating_sub(1))
+                .unwrap_or(0);
+            total.saturating_add(rows)
+        })
+    };
+    let per = feature_bg
+        .saturating_add(rule_bg)
+        .saturating_add(scenario.steps.len());
+    (multiplier, multiplier.saturating_mul(per))
+}
+
+fn summary_block(
+    features: usize,
+    rules: usize,
+    scenarios: usize,
+    steps: usize,
+    parsing_errors: usize,
+    failed_scenarios: usize,
+    failed_steps: usize,
+) -> String {
+    let mut lines = vec![
+        "[Summary]".to_owned(),
+        count_noun(features, "feature", "features"),
+    ];
+    if rules > 0 {
+        lines.push(count_noun(rules, "rule", "rules"));
+    }
+    lines.push(outcome_noun(
+        scenarios,
+        "scenario",
+        "scenarios",
+        failed_scenarios,
+    ));
+    lines.push(outcome_noun(steps, "step", "steps", failed_steps));
+    if parsing_errors > 0 {
+        lines.push(count_noun(
+            parsing_errors,
+            "parsing error",
+            "parsing errors",
+        ));
+    }
+    lines.push(String::new());
+    lines.join("\n")
+}
+
+fn count_noun(count: usize, singular: &str, plural: &str) -> String {
+    if count == 1 {
+        format!("1 {singular}")
+    } else {
+        format!("{count} {plural}")
+    }
+}
+
+fn outcome_noun(count: usize, singular: &str, plural: &str, failed: usize) -> String {
+    let head = count_noun(count, singular, plural);
+    if count == 0 {
+        return head;
+    }
+    if failed == 0 {
+        format!("{head} ({count} passed)")
+    } else {
+        format!("{head} ({failed} failed)")
+    }
+}
+
+fn strip_ansi(text: &str) -> String {
+    let mut out = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next();
+            for next in chars.by_ref() {
+                if next.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+fn bespoke_fixture_gaps(root: &Path, cases_rel: &str, output: &str) -> Vec<String> {
+    let path = root.join(cases_rel);
+    let text = match read(&path) {
+        Ok(text) => text,
+        Err(_) => return vec!["bespoke harness fixture is missing".to_owned()],
+    };
+    bespoke_case_gaps(&text, output)
+}
+
+fn bespoke_case_gaps(cases: &str, output: &str) -> Vec<String> {
+    let parsed: Vec<(&str, &str)> = cases
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() {
+                None
+            } else {
+                line.split_once(' ')
+            }
+        })
+        .collect();
+    if parsed.is_empty() {
+        return vec!["bespoke harness has no cases".to_owned()];
+    }
+    let mut gaps = Vec::new();
+    let output_lines: BTreeSet<&str> = output.lines().map(str::trim).collect();
+    for (name, outcome) in &parsed {
+        if *outcome == "fail" && output_lines.contains(format!("{name} ok").as_str()) {
+            push_gap(
+                &mut gaps,
+                "bespoke harness case unexpectedly passed".to_owned(),
+            );
+        }
+        let expected = format!("{name} {outcome}");
+        if !output_lines.contains(expected.as_str())
+            && !gaps
+                .iter()
+                .any(|gap| gap == "bespoke harness case unexpectedly passed")
+        {
+            push_gap(
+                &mut gaps,
+                "bespoke harness case unexpectedly passed".to_owned(),
+            );
+        }
+    }
+    let total = parsed.len().to_string();
+    if !output_lines.contains(total.as_str()) {
+        push_gap(
+            &mut gaps,
+            "bespoke harness case unexpectedly passed".to_owned(),
+        );
+    }
+    gaps
 }
 
 #[cfg(test)]
@@ -10357,5 +13377,652 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             .env("GIT_TERMINAL_PROMPT", "0")
             .output()
             .map_err(|err| format!("git: {err}"))
+    }
+
+    fn script_gaps(text: &str) -> Vec<String> {
+        let mut gaps = Vec::new();
+        for step in ci_run_steps(text) {
+            let report = parse_run_script(&step.script, &step_key(&step), step.line);
+            gaps.extend(report.gaps);
+        }
+        gaps
+    }
+
+    fn fixture_script_gaps(rel: &str) -> Result<Vec<String>, String> {
+        let root = crate::workspace_root()?;
+        let text = read(&root.join(rel))?;
+        Ok(script_gaps(&text))
+    }
+
+    #[test]
+    fn item13_head_ci_parses_and_match_forms_are_enumerated() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        let report = inventory_report(&root, &ci)?;
+        expect_gaps("head ci", report.gaps, &[])?;
+        assert_eq!(
+            ENUMERATED_MATCH_FORMS,
+            &[
+                "grep -qF -- '<lit>' \"$f\"",
+                "case \"$v\" in *'<lit>'*) body ;; esac",
+                "case \"$v\" in *'<lit>'*) ;; *) body ;; esac",
+            ]
+        );
+        assert_eq!(ENV_I_TEMPLATES.len(), 13);
+        let mut occurrences = 0usize;
+        for count in ENV_I_OCCURRENCES {
+            occurrences = occurrences.saturating_add(count.1);
+        }
+        assert_eq!(occurrences, 18);
+        assert_eq!(PRINTF_GREP_STATEMENTS, 35);
+        assert_eq!(CASE_LITERAL_MATCHES, 2);
+        for needle in [
+            "match:p3-body",
+            "match:p3-default",
+            "match:printf-grep-literal",
+        ] {
+            if !report.listing.iter().any(|line| line.contains(needle)) {
+                return Err(format!("listing missing {needle}"));
+            }
+        }
+        let steps = ci_run_steps(&ci);
+        if steps.is_empty() {
+            return Err("head ci has no run steps".to_owned());
+        }
+        for step in &steps {
+            let key = step_key(step);
+            let listed = report.listing.iter().any(|line| line.starts_with(&key));
+            if !listed {
+                return Err(format!("{key} L{} was not classified", step.line));
+            }
+        }
+        let post = parse_run_script(API_SNAPSHOT_POSTCHECK, "api-snapshot postcheck", 1);
+        expect_gaps("postcheck", post.gaps, &[])?;
+        let install = parse_run_script(H2_INSTALL, "h2 install", 1);
+        expect_gaps("h2", install.gaps, &[])?;
+        let qf = fixture_script_gaps("fixtures/guards/ci/item13-grep-qf.yml")?;
+        expect_gaps("grep -qF", qf, &[])?;
+        let qf_report = parse_run_script(
+            &ci_run_steps(&read(&root.join("fixtures/guards/ci/item13-grep-qf.yml"))?)
+                .first()
+                .ok_or("grep -qF fixture has no step")?
+                .script,
+            "sample probe",
+            1,
+        );
+        if !qf_report
+            .listing
+            .iter()
+            .any(|line| line.contains("match:grep-qF"))
+        {
+            return Err(format!(
+                "grep -qF was not classified: {:?}",
+                qf_report.listing
+            ));
+        }
+        expect_gaps(
+            "p3 body",
+            fixture_script_gaps("fixtures/guards/ci/item13-p3-body.yml")?,
+            &[],
+        )?;
+        expect_gaps(
+            "p3 default",
+            fixture_script_gaps("fixtures/guards/ci/item13-p3-default.yml")?,
+            &[],
+        )?;
+        expect_gaps(
+            "pipefail plain",
+            fixture_script_gaps("fixtures/guards/ci/item13-pipefail-plain.yml")?,
+            &[],
+        )?;
+        expect_gaps(
+            "exit captured",
+            fixture_script_gaps("fixtures/guards/ci/item13-exit-captured.yml")?,
+            &[],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn item13_named_rejections() -> Result<(), String> {
+        let cases: &[(&str, &[&str])] = &[
+            (
+                "fixtures/guards/ci/item13-variable-argv0.yml",
+                &["argv0 comes from a variable"],
+            ),
+            (
+                "fixtures/guards/ci/item13-eval.yml",
+                &["eval is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-backticks.yml",
+                &["backticks are not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-github-argv0.yml",
+                &["github expression in argv0 or test selector"],
+            ),
+            (
+                "fixtures/guards/ci/item13-github-selector.yml",
+                &["github expression in argv0 or test selector"],
+            ),
+            (
+                "fixtures/guards/ci/item13-bash-c.yml",
+                &["bash -c is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-sh-c.yml",
+                &["sh -c is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-source.yml",
+                &["source is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-dot-source.yml",
+                &["source is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-function.yml",
+                &["functions defined in the step are not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-unlisted-heredoc.yml",
+                &["unlisted heredoc"],
+            ),
+            (
+                "fixtures/guards/ci/item13-heredoc-shell.yml",
+                &["heredoc into a shell is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-heredoc-body.yml",
+                &["heredoc body is not the pinned template"],
+            ),
+            (
+                "fixtures/guards/ci/item13-env.yml",
+                &["env is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-env-key.yml",
+                &["env -i key was added or removed"],
+            ),
+            (
+                "fixtures/guards/ci/item13-env-value.yml",
+                &["env -i value is not an accepted deny form"],
+            ),
+            (
+                "fixtures/guards/ci/item13-env-binary.yml",
+                &["env -i binary path is not an accepted deny form"],
+            ),
+            (
+                "fixtures/guards/ci/item13-env-argument.yml",
+                &["env -i argument is not an accepted deny form"],
+            ),
+            (
+                "fixtures/guards/ci/item13-pipeline-without-pipefail.yml",
+                &["pipeline without pipefail"],
+            ),
+            (
+                "fixtures/guards/ci/item13-positive-printf-grep.yml",
+                &["positive printf grep is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-test-piped-grep.yml",
+                &["sample probe: test output is piped into grep"],
+            ),
+            (
+                "fixtures/guards/ci/item13-test-piped-grep-pipefail.yml",
+                &["sample probe: test output is piped into grep"],
+            ),
+            (
+                "fixtures/guards/ci/item13-faked-summary.yml",
+                &["sample probe: test summary outside a binary section"],
+            ),
+            (
+                "fixtures/guards/ci/item13-faked-printf.yml",
+                &["sample probe: test summary outside a binary section"],
+            ),
+            (
+                "fixtures/guards/ci/item13-exec.yml",
+                &["exec is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-timeout.yml",
+                &["timeout is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-command.yml",
+                &["command is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-xargs.yml",
+                &["xargs is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-find-exec.yml",
+                &["find -exec is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-here-string.yml",
+                &["here-string is not accepted"],
+            ),
+            (
+                "fixtures/guards/ci/item13-absolute-cargo.yml",
+                &["absolute cargo path is not the pinned toolchain"],
+            ),
+            (
+                "fixtures/guards/ci/item13-exit-uncaptured.yml",
+                &["exit status was not captured"],
+            ),
+            (
+                "fixtures/guards/ci/item13-grep-q-pipefail.yml",
+                &["sample probe: early-exit reader in a pipeline under pipefail"],
+            ),
+            (
+                "fixtures/guards/ci/item13-grep-m-pipefail.yml",
+                &["sample probe: early-exit reader in a pipeline under pipefail"],
+            ),
+            (
+                "fixtures/guards/ci/item13-head-pipefail.yml",
+                &["sample probe: early-exit reader in a pipeline under pipefail"],
+            ),
+            (
+                "fixtures/guards/ci/item13-sed-pipefail.yml",
+                &["sample probe: early-exit reader in a pipeline under pipefail"],
+            ),
+            (
+                "fixtures/guards/ci/item13-awk-pipefail.yml",
+                &["sample probe: early-exit reader in a pipeline under pipefail"],
+            ),
+            (
+                "fixtures/guards/ci/item13-grep-qf-absent.yml",
+                &["sample probe: grep rc above 1 is treated as absent"],
+            ),
+            (
+                "fixtures/guards/ci/item13-grep-qf-pipe.yml",
+                &["sample probe: early-exit reader in a pipeline under pipefail"],
+            ),
+            (
+                "fixtures/guards/ci/item13-case-double-quote.yml",
+                &["case form is not a p3 match"],
+            ),
+            (
+                "fixtures/guards/ci/item13-unpinned-callee.yml",
+                &["unpinned callee fixtures/not-pinned/gate_results.py"],
+            ),
+            (
+                "fixtures/guards/ci/item13-unclassified.yml",
+                &["unclassified command not-a-command"],
+            ),
+            (
+                "fixtures/guards/ci/item13-bare-cargo-test.yml",
+                &["sample probe: test step does not assert its output"],
+            ),
+            (
+                "fixtures/guards/ci/item13-test-mask.yml",
+                &[
+                    "pipeline without pipefail",
+                    "sample probe: test step masks its exit code",
+                ],
+            ),
+        ];
+        for (path, expected) in cases {
+            expect_gaps(path, fixture_script_gaps(path)?, expected)?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn item13_env_occurrence_and_closure_and_bespoke() -> Result<(), String> {
+        let mut short = Vec::new();
+        for (template, (trailer, _)) in ENV_I_TEMPLATES.iter().zip(ENV_I_OCCURRENCES.iter()) {
+            short.push((
+                "step".to_owned(),
+                (*template).to_owned(),
+                (*trailer).to_owned(),
+            ));
+        }
+        expect_gaps(
+            "env short",
+            env_occurrence_gaps(&short),
+            &["env -i occurrence count does not match"],
+        )?;
+        short.push((
+            "step".to_owned(),
+            "env -i HOME=/tmp /bin/true".to_owned(),
+            String::new(),
+        ));
+        if !env_occurrence_gaps(&short)
+            .iter()
+            .any(|gap| gap == "env -i is not an accepted deny form")
+        {
+            return Err("unknown env form was accepted".to_owned());
+        }
+        let mut trailed = Vec::new();
+        for (template, (trailer, count)) in ENV_I_TEMPLATES.iter().zip(ENV_I_OCCURRENCES.iter()) {
+            for _ in 0..*count {
+                trailed.push((
+                    "step".to_owned(),
+                    (*template).to_owned(),
+                    (*trailer).to_owned(),
+                ));
+            }
+        }
+        trailed.push((
+            "deny cargo-deny check".to_owned(),
+            ENV_I_TEMPLATES[4].to_owned(),
+            " 2>/dev/null)".to_owned(),
+        ));
+        expect_gaps(
+            "env trailer",
+            env_occurrence_gaps(&trailed),
+            &["deny cargo-deny check: env -i trailer not in ENV_I_OCCURRENCES"],
+        )?;
+        expect_gaps(
+            "pin guards.rs",
+            assess_closure(&[], &[("xtask/src/guards.rs", "abc")]),
+            &["closure pin names guards.rs"],
+        )?;
+        expect_gaps(
+            "outside",
+            assess_closure(&[], &[("not/a/file", "abc")]),
+            &["not/a/file is outside the closure"],
+        )?;
+        expect_gaps(
+            "unpinned",
+            assess_closure(&[("a.rs", b"hi")], &[]),
+            &["a.rs is not pinned"],
+        )?;
+        expect_gaps(
+            "sha",
+            assess_closure(&[("a.rs", b"hi")], &[("a.rs", "deadbeef")]),
+            &["a.rs sha256 does not match"],
+        )?;
+        let root = crate::workspace_root()?;
+        expect_gaps(
+            "bespoke missing",
+            bespoke_fixture_gaps(&root, "fixtures/guards/bespoke/missing.txt", ""),
+            &["bespoke harness fixture is missing"],
+        )?;
+        expect_gaps(
+            "bespoke empty",
+            bespoke_fixture_gaps(&root, "fixtures/guards/bespoke/empty.txt", ""),
+            &["bespoke harness has no cases"],
+        )?;
+        expect_gaps(
+            "bespoke pass",
+            bespoke_fixture_gaps(
+                &root,
+                "fixtures/guards/bespoke/cases.txt",
+                "control ok\nmutant ok\n2\n",
+            ),
+            &["bespoke harness case unexpectedly passed"],
+        )?;
+        expect_gaps(
+            "bespoke held",
+            bespoke_fixture_gaps(
+                &root,
+                "fixtures/guards/bespoke/cases.txt",
+                "control ok\nmutant fail\n2\n",
+            ),
+            &[],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn item13_binary_table_negatives() -> Result<(), String> {
+        let own = BinaryRow {
+            job: "test",
+            step: "alpha",
+            package: "pkg",
+            kind: "lib",
+            target: "deps/aaa-",
+            count: 1,
+        };
+        let other = BinaryRow {
+            job: "test",
+            step: "beta",
+            package: "pkg",
+            kind: "lib",
+            target: "deps/bbb-",
+            count: 1,
+        };
+        let rows = [own, other];
+        let log_ok = "\
+Running unittests src/lib.rs (target/debug/deps/aaa-hash)
+running 1 test
+test result: ok. 1 passed
+";
+        expect_gaps(
+            "match",
+            test_binary_table_with(log_ok, "test", "alpha", &rows),
+            &[],
+        )?;
+        let lowered = BinaryRow { count: 1, ..own };
+        let log_high = "\
+Running unittests src/lib.rs (target/debug/deps/aaa-hash)
+running 2 tests
+";
+        expect_gaps(
+            "lowered",
+            test_binary_table_with(log_high, "test", "alpha", &[lowered, other]),
+            &["test alpha pkg lib: test binary count lowered"],
+        )?;
+        let zero = BinaryRow { count: 0, ..own };
+        expect_gaps(
+            "zero",
+            test_binary_table_with(log_ok, "test", "alpha", &[zero, other]),
+            &["test alpha pkg lib: test binary count is 0 for a binary that runs tests"],
+        )?;
+        let log_removed = "\
+Running unittests src/lib.rs (target/debug/deps/aaa-hash)
+running 1 test
+Running unittests src/lib.rs (target/debug/deps/unknown-)
+running 1 test
+";
+        expect_gaps(
+            "removed",
+            test_binary_table_with(log_removed, "test", "alpha", &rows),
+            &["test alpha: test binary row removed"],
+        )?;
+        let log_other = "\
+Running unittests src/lib.rs (target/debug/deps/aaa-hash)
+running 1 test
+Running unittests src/lib.rs (target/debug/deps/bbb-hash)
+running 1 test
+";
+        expect_gaps(
+            "other step",
+            test_binary_table_with(log_other, "test", "alpha", &rows),
+            &["test alpha: test binary row is on another step"],
+        )?;
+        expect_gaps(
+            "extra",
+            test_binary_table_with("", "test", "alpha", &rows),
+            &["test alpha pkg deps/aaa-: test binary row extra"],
+        )?;
+        let log_unmap = "\
+Running unittests src/lib.rs (target/debug/deps/aaa-hash)
+running 1 test
+Running tests
+";
+        expect_gaps(
+            "unmappable",
+            test_binary_table_with(log_unmap, "test", "alpha", &rows),
+            &["test alpha: unmappable Running line"],
+        )?;
+        expect_gaps(
+            "no rows",
+            test_binary_table_with(log_ok, "test", "missing", &rows),
+            &["test missing: libtest invocation has no binary rows"],
+        )?;
+        let running = CmdFact {
+            test_running: true,
+            self_checked: false,
+            kani: false,
+            teed: false,
+            captured: false,
+            in_pipeline: false,
+            suppressed: false,
+            pipefail: true,
+        };
+        let mut steps = Vec::new();
+        let mut seen = BTreeSet::new();
+        for row in binary_rows() {
+            if seen.insert((row.job, row.step)) {
+                steps.push((
+                    RunStep {
+                        job: row.job.to_owned(),
+                        name: row.step.to_owned(),
+                        script: String::new(),
+                        line: 1,
+                    },
+                    vec![running],
+                ));
+            }
+        }
+        expect_gaps("placed", binary_placement_gaps(&steps), &[])?;
+        let dropped = steps.pop().ok_or("no binary steps")?;
+        let dropped_key = format!("{} {}", dropped.0.job, dropped.0.name);
+        expect_gaps(
+            "missing step",
+            binary_placement_gaps(&steps),
+            &[&format!(
+                "{dropped_key}: test binary step key matches no step"
+            )],
+        )?;
+        steps.push((
+            RunStep {
+                job: "test".to_owned(),
+                name: "not-in-the-table".to_owned(),
+                script: String::new(),
+                line: 1,
+            },
+            vec![running],
+        ));
+        steps.push(dropped);
+        expect_gaps(
+            "extra step",
+            binary_placement_gaps(&steps),
+            &["test not-in-the-table: libtest invocation has no binary rows"],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn item13_cucumber_contract_counts() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let samples = [
+            (
+                "fixtures/guards/cucumber-count/background.feature",
+                2usize,
+                8usize,
+                0usize,
+            ),
+            (
+                "fixtures/guards/cucumber-count/rule-background.feature",
+                3,
+                11,
+                1,
+            ),
+            ("fixtures/guards/cucumber-count/examples.feature", 6, 12, 0),
+        ];
+        for (rel, scenarios, steps, rules) in samples {
+            let counts = contract_counts(&read(&root.join(rel))?)?;
+            if counts != (scenarios, steps, rules) {
+                return Err(format!("{rel}: {counts:?}"));
+            }
+        }
+        let mut log = String::new();
+        let policy: FeaturePolicy = toml::from_str(&read(&root.join("policy/features.toml"))?)
+            .map_err(|err| format!("parse policy: {err}"))?;
+        for runner in &policy.runner {
+            for path in expand_glob(&root, &runner.glob)? {
+                let (scenarios, steps, rules) = contract_counts(&read(&path)?)?;
+                log.push_str(&summary_block(1, rules, scenarios, steps, 0, 0, 0));
+            }
+        }
+        for runner in ["kline", "vision", "instrument_rules"] {
+            expect_gaps(runner, cucumber_summary_gaps(&root, runner, &log)?, &[])?;
+            let missing = cucumber_summary_gaps(&root, runner, "")?;
+            if missing.is_empty() {
+                return Err(format!("{runner} accepted an empty log"));
+            }
+        }
+        let reject = "\
+[Summary]
+0 features
+0 scenarios
+0 steps
+1 parsing error
+[Summary]
+1 feature
+1 scenario (1 failed)
+1 step (1 failed)
+";
+        expect_gaps(
+            "feature_reject",
+            cucumber_summary_gaps(&root, "feature_reject", reject)?,
+            &[],
+        )?;
+        let wrong = cucumber_summary_gaps(&root, "feature_reject", "")?;
+        expect_gaps(
+            "feature_reject empty",
+            wrong,
+            &["cucumber summary does not match feature_reject"],
+        )?;
+        let lock = "name = \"not-cucumber\"\n";
+        expect_gaps(
+            "crate pin",
+            crate_pin_gaps(lock)?,
+            &[
+                "cucumber/gherkin crate pin does not match Cargo.lock",
+                "cucumber/gherkin crate pin does not match Cargo.lock",
+            ],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn item13_early_exit_positions_use_two_hundred_kilobytes() -> Result<(), String> {
+        let blob = "x".repeat(200_000);
+        let scripts = [
+            format!("set -o pipefail\nprintf '%s\\n' '{blob}' | grep -q 'z'\n"),
+            format!("set -o pipefail\nif printf '%s\\n' '{blob}' | grep -q 'z'; then exit 1; fi\n"),
+            format!(
+                "set -o pipefail\nif ! printf '%s\\n' '{blob}' | grep -m 1 'z'; then exit 1; fi\n"
+            ),
+            format!("set -o pipefail\nprintf '%s\\n' '{blob}' | grep -q 'z' && true\n"),
+            format!("set -o pipefail\nprintf '%s\\n' '{blob}' | head -n 1 || true\n"),
+        ];
+        for script in scripts {
+            if script.len() < 200_000 {
+                return Err("early-exit negative was under 200KB".to_owned());
+            }
+            let report = parse_run_script(&script, "sample probe", 1);
+            if !report
+                .gaps
+                .iter()
+                .any(|gap| gap == "sample probe: early-exit reader in a pipeline under pipefail")
+            {
+                return Err(format!("{:?}", report.gaps));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn item13_run_exact_decision() {
+        assert!(
+            crate::run_exact_decision("test result: ok. 1 passed; 0 failed\n", "", true).is_ok()
+        );
+        assert!(
+            crate::run_exact_decision("test result: ok. 1 passed; 0 failed\n", "", false).is_err()
+        );
+        assert!(
+            crate::run_exact_decision("test result: ok. 0 passed; 0 failed\n", "", true).is_err()
+        );
+        assert!(crate::run_exact_decision("", "error: no tests matched", false).is_err());
     }
 }

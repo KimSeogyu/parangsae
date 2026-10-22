@@ -1,0 +1,24 @@
+name: ci
+on:
+  push:
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - name: probe
+        run: |
+          out=$(mktemp)
+          printf '%s\n' hi > "$out"
+          writer_status=$?
+          if [ "$writer_status" -ne 0 ]; then
+            exit "$writer_status"
+          fi
+          grep -qF -- 'hi' "$out"
+          status=$?
+          if [ "$status" -eq 0 ]; then
+            true
+          elif [ "$status" -eq 1 ]; then
+            exit 1
+          elif [ "$status" -gt 1 ]; then
+            exit "$status"
+          fi

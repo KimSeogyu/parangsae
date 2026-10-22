@@ -93,12 +93,19 @@ pub fn run_exact(root: &Path, test: &str) -> Result<(), String> {
     err.write_all(stderr.as_bytes())
         .map_err(|err| format!("write test output: {err}"))?;
     drop(err);
+    run_exact_decision(&stdout, &stderr, output.status.success())
+}
+
+/// Decide a `run-exact` result from cargo's streams and status.
+/// A selector that matches nothing has no `test result: ok. 1 passed` line.
+/// A nonzero cargo status fails even when the summary line says one passed.
+pub fn run_exact_decision(stdout: &str, stderr: &str, success: bool) -> Result<(), String> {
     let summary = stdout
         .lines()
         .chain(stderr.lines())
         .find(|line| line.starts_with("test result:"));
     match summary {
-        Some(line) if libtest_summary_is_one_pass(line) && output.status.success() => Ok(()),
+        Some(line) if libtest_summary_is_one_pass(line) && success => Ok(()),
         Some(line) => Err(format!(
             "run-exact expected test result: ok. 1 passed, got {line}"
         )),
