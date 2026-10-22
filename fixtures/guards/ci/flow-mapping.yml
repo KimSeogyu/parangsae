@@ -1,0 +1,11 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    concurrency: {group: ci}
+    steps:
+      - run: echo fmt
