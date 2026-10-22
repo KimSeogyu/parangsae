@@ -1,0 +1,10 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: LD_PRELOAD=/tmp/lib.so cargo test

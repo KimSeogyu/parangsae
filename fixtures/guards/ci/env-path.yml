@@ -1,0 +1,16 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+env:
+  PATH: /tmp/bin
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    env:
+      PATH: /tmp/bin
+    steps:
+      - env:
+          PATH: /tmp/bin
+        run: echo fmt

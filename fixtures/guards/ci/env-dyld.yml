@@ -1,0 +1,12 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          DYLD_INSERT_LIBRARIES: /tmp/lib.dylib
+        run: echo fmt
