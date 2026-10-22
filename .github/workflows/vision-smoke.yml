@@ -1,6 +1,9 @@
 name: vision-smoke
 
 # Optional. Not part of the required push checks. Downloads one public Vision day.
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
@@ -14,9 +17,9 @@ jobs:
     name: one UM kline day
     runs-on: [self-hosted, linux, x64, parangsae]
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.98.0
-      - uses: Swatinem/rust-cache@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - name: download and ingest one day
         run: >
           cargo run -p parangsae-collector --release --

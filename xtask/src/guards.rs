@@ -2,15 +2,17 @@
 //!
 //! Feature ownership, TLC config coverage, distinct-state floors, Kani harness
 //! names, B2 measurements, and the ratchet in `regressions/floors.toml`.
-//! The baseline commit comes from `PARANGSAE_FLOOR_BASE`. A missing file,
-//! an unreadable sha, or a direct push to main with no floors file fails.
-//! GitHub's all-zero `before` on a branch's first push is not a skip: the
-//! comparison unshallows a depth-1 checkout, fetches
-//! `refs/remotes/origin/main`, and uses `merge-base` with that ref. A failed
-//! fetch, a failed merge-base, or a missing file still fails. There is no
-//! fallback to the branch tip or to no baseline.
+//! The baseline commit comes from `PARANGSAE_FLOOR_BASE`. An all-zero
+//! `before` is not a base: it unshallows a shallow checkout, fetches
+//! `refs/remotes/origin/main`, and uses `merge-base`. A missing
+//! `regressions/floors.toml` is accepted only when that resolved commit is
+//! exactly `BOOTSTRAP_BASE`, the raw sha256 of the current floors file is
+//! `BOOTSTRAP_FLOORS_SHA256`, and `origin/main` does not already contain the
+//! file. Any other missing baseline fails. Those two consts are
+//! Reviewer-protected. Baseline resolution never skips the other guards.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -105,24 +107,214 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
 }
 
 fn check_workspace(root: &Path) -> Result<(), String> {
-    let base = resolve_baseline(root)?;
-    let mut violations = feature_ownership(root, root, true)?;
-    violations.extend(tla_models(root)?);
-    let floors = load_floors(&root.join("regressions/floors.toml"))?;
-    violations.extend(required_floor_keys(&floors));
-    violations.extend(ratchet(&floors, &base));
-    violations.extend(b2_violations(root, &floors)?);
-    violations.extend(cucumber_count_violations(root, &floors)?);
-    violations.extend(ci_gate_gaps(&read(
-        &root.join(".github/workflows/ci.yml"),
-    )?)?);
-    violations.extend(gate_results_pin(&read_bytes(
+    let base = std::env::var("PARANGSAE_FLOOR_BASE").ok();
+    let reports = guard_reports(root, base.as_deref(), env_flag("PARANGSAE_ON_MAIN"));
+    for report in &reports {
+        emit_guard_line(&report.line())?;
+    }
+    emit_guard_line(&guard_summary(&reports))?;
+    let mut errors = Vec::new();
+    for report in &reports {
+        if report.ran && !report.passed {
+            if report.detail.is_empty() {
+                errors.push(format!("guard {} failed", report.name));
+            } else {
+                errors.push(report.detail.clone());
+            }
+        }
+    }
+    errors.extend(guard_run_gaps(&reports));
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("\n"))
+    }
+}
+
+/// Reviewer-protected. Bootstrap applies only when the resolved base equals this commit.
+const BOOTSTRAP_BASE: &str = "4db8a75a7bd0886f4cdeefa050a2d89e3a36118d";
+
+/// Reviewer-protected. Raw sha256 of `regressions/floors.toml` on the bootstrap path.
+const BOOTSTRAP_FLOORS_SHA256: &str =
+    "0b44e3cf3df05877948066c6838f5ac92e708478d8615dbc48e06440c95edd73";
+
+const NON_RATCHET_GUARDS: &[&str] = &[
+    "feature-ownership",
+    "tla-models",
+    "floor-keys",
+    "b2-counts",
+    "cucumber-counts",
+    "ci-gate",
+    "gate-script",
+    "gate-fixtures",
+    "workflow-permissions",
+    "action-pins",
+    "cargo-workspace-dir",
+];
+
+struct GuardReport {
+    name: &'static str,
+    ran: bool,
+    passed: bool,
+    detail: String,
+}
+
+impl GuardReport {
+    fn line(&self) -> String {
+        let status = if self.passed { "passed" } else { "failed" };
+        format!("guard {} ran {status}", self.name)
+    }
+}
+
+fn expected_guard_runs() -> usize {
+    NON_RATCHET_GUARDS.len() + 1
+}
+
+fn emit_guard_line(line: &str) -> Result<(), String> {
+    writeln!(std::io::stdout().lock(), "{line}").map_err(|err| format!("write guard log: {err}"))
+}
+
+fn guard_summary(reports: &[GuardReport]) -> String {
+    let ran = reports.iter().filter(|report| report.ran).count();
+    let passed = reports
+        .iter()
+        .filter(|report| report.ran && report.passed)
+        .count();
+    format!("guards ran {ran} passed {passed}")
+}
+
+fn guard_run_gaps(reports: &[GuardReport]) -> Vec<String> {
+    let mut gaps = Vec::new();
+    let ran = reports.iter().filter(|report| report.ran).count();
+    let expected = expected_guard_runs();
+    if ran < expected {
+        gaps.push(format!("guards ran {ran} which is below {expected}"));
+    }
+    for name in NON_RATCHET_GUARDS {
+        if !reports
+            .iter()
+            .any(|report| report.name == *name && report.ran)
+        {
+            gaps.push(format!("guard {name} did not run"));
+        }
+    }
+    if !reports
+        .iter()
+        .any(|report| report.name == "ratchet" && report.ran)
+    {
+        gaps.push("guard ratchet did not run".to_owned());
+    }
+    gaps
+}
+
+fn guard_reports(root: &Path, floor_base: Option<&str>, on_main: bool) -> Vec<GuardReport> {
+    let mut reports = Vec::new();
+    reports.push(guard_from_result(
+        "feature-ownership",
+        feature_ownership(root, root, true),
+    ));
+    reports.push(guard_from_result("tla-models", tla_models(root)));
+    let floors = load_floors(&root.join("regressions/floors.toml"));
+    reports.push(match &floors {
+        Ok(floors) => guard_from_violations("floor-keys", required_floor_keys(floors)),
+        Err(err) => guard_failed("floor-keys", err.clone()),
+    });
+    reports.push(ratchet_report(root, floor_base, on_main, &floors));
+    match &floors {
+        Ok(floors) => {
+            reports.push(guard_from_result("b2-counts", b2_violations(root, floors)));
+            reports.push(guard_from_result(
+                "cucumber-counts",
+                cucumber_count_violations(root, floors),
+            ));
+        }
+        Err(err) => {
+            reports.push(guard_failed("b2-counts", err.clone()));
+            reports.push(guard_failed("cucumber-counts", err.clone()));
+        }
+    }
+    reports.push(guard_from_result("ci-gate", ci_gate_result(root)));
+    reports.push(guard_from_result("gate-script", gate_script_result(root)));
+    reports.push(guard_from_result(
+        "gate-fixtures",
+        gate_fixture_result(root),
+    ));
+    reports.push(guard_from_result(
+        "workflow-permissions",
+        workflow_permission_result(root),
+    ));
+    reports.push(guard_from_result("action-pins", action_pin_result(root)));
+    reports.push(guard_from_violations(
+        "cargo-workspace-dir",
+        cargo_workspace_dir_violations(),
+    ));
+    reports
+}
+
+fn guard_from_result(name: &'static str, result: Result<Vec<String>, String>) -> GuardReport {
+    match result {
+        Ok(violations) => guard_from_violations(name, violations),
+        Err(err) => guard_failed(name, err),
+    }
+}
+
+fn guard_from_violations(name: &'static str, violations: Vec<String>) -> GuardReport {
+    if violations.is_empty() {
+        GuardReport {
+            name,
+            ran: true,
+            passed: true,
+            detail: String::new(),
+        }
+    } else {
+        GuardReport {
+            name,
+            ran: true,
+            passed: false,
+            detail: violations.join("\n"),
+        }
+    }
+}
+
+fn guard_failed(name: &'static str, detail: String) -> GuardReport {
+    GuardReport {
+        name,
+        ran: true,
+        passed: false,
+        detail,
+    }
+}
+
+fn ci_gate_result(root: &Path) -> Result<Vec<String>, String> {
+    ci_gate_gaps(&read(&root.join(".github/workflows/ci.yml"))?)
+}
+
+fn gate_script_result(root: &Path) -> Result<Vec<String>, String> {
+    Ok(gate_results_pin(&read_bytes(
         &root.join(".github/workflows/gate_results.py"),
-    )?));
+    )?))
+}
+
+fn gate_fixture_result(root: &Path) -> Result<Vec<String>, String> {
+    let mut violations = Vec::new();
     for (name, _) in GATE_FIXTURE_SHA256 {
         violations.extend(gate_fixture_pin(name, &read_bytes(&root.join(name))?));
     }
-    finish(Ok(violations))
+    Ok(violations)
+}
+
+fn cargo_workspace_dir_violations() -> Vec<String> {
+    let github_actions = std::env::var_os("GITHUB_ACTIONS").is_some_and(|value| {
+        let value = value.to_string_lossy();
+        !value.is_empty() && value != "0"
+    });
+    match crate::reject_cargo_workspace_dir_in_ci(
+        github_actions,
+        std::env::var_os("CARGO_WORKSPACE_DIR").as_deref(),
+    ) {
+        Ok(()) => Vec::new(),
+        Err(err) => vec![err],
+    }
 }
 
 const GATE_CHECK_STEP: &str = concat!(
@@ -1117,22 +1309,215 @@ enum BaselineChoice {
     Sha(String),
 }
 
-fn resolve_baseline(root: &Path) -> Result<Floors, String> {
-    let on_main = env_flag("PARANGSAE_ON_MAIN");
-    let env_sha = std::env::var("PARANGSAE_FLOOR_BASE").ok();
-    let sha = match choose_baseline(env_sha.as_deref(), on_main) {
-        BaselineChoice::DirectPush => {
-            return Err("direct push has no floor baseline".to_owned());
+fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
+    let mut violations = Vec::new();
+    for name in [
+        ".github/workflows/ci.yml",
+        ".github/workflows/vision-smoke.yml",
+    ] {
+        let text = read(&root.join(name))?;
+        if !permissions_are_contents_read(&text) {
+            violations.push(format!("{name} permissions are not contents: read"));
         }
-        BaselineChoice::Unreadable => return Err("floor baseline is unreadable".to_owned()),
-        BaselineChoice::MergeBase => merge_base_origin_main(root)?,
+    }
+    let ci = read(&root.join(".github/workflows/ci.yml"))?;
+    if !guards_fetch_depth_is_zero(&ci) {
+        violations.push("guards checkout fetch-depth is not 0".to_owned());
+    }
+    Ok(violations)
+}
+
+fn permissions_are_contents_read(text: &str) -> bool {
+    let lines: Vec<&str> = text.lines().collect();
+    for (idx, line) in lines.iter().enumerate() {
+        if !is_top_level(line) {
+            continue;
+        }
+        let code = strip_yaml_comment(line).trim();
+        if code == "permissions: contents: read" {
+            return true;
+        }
+        if code == "permissions:" {
+            for follow in lines.iter().skip(idx + 1) {
+                if is_top_level(follow) {
+                    break;
+                }
+                if strip_yaml_comment(follow).trim() == "contents: read" {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+    false
+}
+
+fn guards_fetch_depth_is_zero(text: &str) -> bool {
+    job_block(text, "guards").is_some_and(|block| {
+        block
+            .lines()
+            .any(|line| strip_yaml_comment(line).trim() == "fetch-depth: 0")
+    })
+}
+
+fn action_pin_result(root: &Path) -> Result<Vec<String>, String> {
+    let mut violations = Vec::new();
+    for name in [
+        ".github/workflows/ci.yml",
+        ".github/workflows/vision-smoke.yml",
+    ] {
+        let text = read(&root.join(name))?;
+        violations.extend(action_pin_gaps(&text));
+    }
+    Ok(violations)
+}
+
+fn action_pin_gaps(text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    for line in text.lines() {
+        let Some(uses) = uses_value(line) else {
+            continue;
+        };
+        if !action_is_sha_pinned(uses) {
+            gaps.push(format!("action {uses} is not pinned to a sha"));
+        }
+    }
+    gaps
+}
+
+fn uses_value(line: &str) -> Option<&str> {
+    let code = strip_yaml_comment(line).trim();
+    let rest = code
+        .strip_prefix("- uses:")
+        .or_else(|| code.strip_prefix("uses:"))?;
+    let rest = rest.trim().trim_matches(['"', '\'']);
+    if rest.is_empty() {
+        None
+    } else {
+        Some(rest)
+    }
+}
+
+fn action_is_sha_pinned(uses: &str) -> bool {
+    let Some((repo, sha)) = uses.rsplit_once('@') else {
+        return false;
+    };
+    !repo.is_empty()
+        && repo.contains('/')
+        && sha.len() == 40
+        && sha.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+enum ResolvedBaseline {
+    Present(Floors),
+    Missing { sha: String },
+    Error(String),
+}
+
+fn ratchet_report(
+    root: &Path,
+    floor_base: Option<&str>,
+    on_main: bool,
+    floors: &Result<Floors, String>,
+) -> GuardReport {
+    match resolve_floor_base(root, floor_base, on_main) {
+        ResolvedBaseline::Present(base) => match floors {
+            Ok(current) => guard_from_violations("ratchet", ratchet(current, &base)),
+            Err(err) => guard_failed("ratchet", err.clone()),
+        },
+        ResolvedBaseline::Missing { sha } if sha == BOOTSTRAP_BASE => {
+            bootstrap_report(root, floors)
+        }
+        ResolvedBaseline::Missing { sha } => guard_failed(
+            "ratchet",
+            format!("baseline floors.toml is missing at {sha}"),
+        ),
+        ResolvedBaseline::Error(err) => guard_failed("ratchet", err),
+    }
+}
+
+fn bootstrap_report(root: &Path, floors: &Result<Floors, String>) -> GuardReport {
+    if let Err(err) = floors {
+        return guard_failed("ratchet", err.clone());
+    }
+    match origin_main_has_floors(root) {
+        Ok(true) => {
+            return guard_failed(
+                "ratchet",
+                "bootstrap path is closed: origin/main contains regressions/floors.toml".to_owned(),
+            );
+        }
+        Ok(false) => {}
+        Err(err) => return guard_failed("ratchet", err),
+    }
+    match read_bytes(&root.join("regressions/floors.toml")) {
+        Ok(bytes) if sha256_hex(&bytes) == BOOTSTRAP_FLOORS_SHA256 => {
+            guard_from_violations("ratchet", Vec::new())
+        }
+        Ok(_) => guard_failed(
+            "ratchet",
+            "bootstrap floors.toml sha256 does not match".to_owned(),
+        ),
+        Err(err) => guard_failed("ratchet", err),
+    }
+}
+
+fn origin_main_has_floors(root: &Path) -> Result<bool, String> {
+    git(
+        root,
+        &[
+            "fetch",
+            "--no-tags",
+            "origin",
+            "main:refs/remotes/origin/main",
+        ],
+    )?;
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args([
+            "cat-file",
+            "-e",
+            "refs/remotes/origin/main:regressions/floors.toml",
+        ])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .map_err(|err| format!("git: {err}"))?;
+    Ok(output.status.success())
+}
+
+fn resolve_floor_base(root: &Path, floor_base: Option<&str>, on_main: bool) -> ResolvedBaseline {
+    let sha = match choose_baseline(floor_base.map(str::trim), on_main) {
+        BaselineChoice::DirectPush => {
+            return ResolvedBaseline::Error("direct push has no floor baseline".to_owned());
+        }
+        BaselineChoice::Unreadable => {
+            return ResolvedBaseline::Error("floor baseline is unreadable".to_owned());
+        }
+        BaselineChoice::MergeBase => match merge_base_origin_main(root) {
+            Ok(sha) => sha,
+            Err(err) => return ResolvedBaseline::Error(err),
+        },
         BaselineChoice::Sha(sha) => sha,
     };
-    if baseline_sha_unreadable(&sha) {
-        return Err("floor baseline is unreadable".to_owned());
+    if first_push_sentinel(&sha) {
+        return ResolvedBaseline::Error("all-zero before is not a baseline".to_owned());
     }
-    let text = git_show(root, &sha, "regressions/floors.toml")?;
-    baseline_from_show(on_main, &sha, text.as_deref())
+    if baseline_sha_unreadable(&sha) {
+        return ResolvedBaseline::Error("floor baseline is unreadable".to_owned());
+    }
+    let text = match git_show(root, &sha, "regressions/floors.toml") {
+        Ok(text) => text,
+        Err(err) => return ResolvedBaseline::Error(err),
+    };
+    if text.is_none() && sha == BOOTSTRAP_BASE {
+        return ResolvedBaseline::Missing { sha };
+    }
+    match baseline_from_show(on_main, &sha, text.as_deref()) {
+        Ok(floors) => ResolvedBaseline::Present(floors),
+        Err(_) if text.is_none() && !on_main => ResolvedBaseline::Missing { sha },
+        Err(err) => ResolvedBaseline::Error(err),
+    }
 }
 
 fn choose_baseline(env_sha: Option<&str>, on_main: bool) -> BaselineChoice {
@@ -1232,10 +1617,21 @@ fn git(root: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 fn git_show(root: &Path, base: &str, path: &str) -> Result<Option<String>, String> {
+    let commit = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["cat-file", "-e", &format!("{base}^{{commit}}")])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .map_err(|err| format!("git show: {err}"))?;
+    if !commit.status.success() {
+        return Err(format!("baseline commit {base} is not in this checkout"));
+    }
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
         .args(["show", &format!("{base}:{path}")])
+        .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .map_err(|err| format!("git show: {err}"))?;
     if !output.status.success() {
@@ -1691,6 +2087,352 @@ kani.min_harnesses=1
             other => return Err(format!("direct push: {other:?}")),
         }
         Ok(())
+    }
+
+    fn assert_non_ratchet_ran(reports: &[GuardReport]) -> Result<(), String> {
+        for name in NON_RATCHET_GUARDS {
+            match reports.iter().find(|report| report.name == *name) {
+                Some(report) if report.ran => {}
+                Some(_) => return Err(format!("guard {name} did not run")),
+                None => return Err(format!("guard {name} missing")),
+            }
+        }
+        if !reports
+            .iter()
+            .any(|report| report.name == "ratchet" && report.ran)
+        {
+            return Err("guard ratchet did not run".to_owned());
+        }
+        let ran = reports.iter().filter(|report| report.ran).count();
+        if ran < expected_guard_runs() {
+            return Err(format!("guards ran {ran}"));
+        }
+        Ok(())
+    }
+
+    fn report_named<'a>(reports: &'a [GuardReport], name: &str) -> Result<&'a GuardReport, String> {
+        reports
+            .iter()
+            .find(|report| report.name == name)
+            .ok_or_else(|| format!("guard {name} missing"))
+    }
+
+    #[test]
+    fn all_zero_before_with_a_non_bootstrap_base_fails_and_still_runs_guards() -> Result<(), String>
+    {
+        let root = TempGit::new("nonzero-base")?;
+        let origin = root.path.join("origin");
+        std::fs::create_dir_all(&origin).map_err(|err| format!("mkdir: {err}"))?;
+        git_fixture(&origin, &["init", "-b", "main"])?;
+        std::fs::write(origin.join("file"), "main\n").map_err(|err| format!("write: {err}"))?;
+        git_fixture(&origin, &["add", "file"])?;
+        git_fixture(&origin, &["commit", "-m", "main"])?;
+        let main_sha = git_stdout(&origin, &["rev-parse", "HEAD"])?;
+        git_fixture(&origin, &["checkout", "-b", "feature"])?;
+        std::fs::write(origin.join("file"), "feature\n").map_err(|err| format!("write: {err}"))?;
+        git_fixture(&origin, &["add", "file"])?;
+        git_fixture(&origin, &["commit", "-m", "feature"])?;
+        let origin_url = format!(
+            "file://{}",
+            origin.to_str().ok_or("origin path is not utf-8")?
+        );
+        git_fixture(
+            &root.path,
+            &[
+                "clone",
+                "--depth",
+                "1",
+                "--single-branch",
+                "--branch",
+                "feature",
+                &origin_url,
+                "clone",
+            ],
+        )?;
+        let clone = root.path.join("clone");
+        let zeros = "0000000000000000000000000000000000000000";
+        let reports = guard_reports(&clone, Some(zeros), false);
+        assert_non_ratchet_ran(&reports)?;
+        let ratchet = report_named(&reports, "ratchet")?;
+        if ratchet.passed {
+            return Err("non-bootstrap missing floors passed".to_owned());
+        }
+        if !ratchet.detail.contains(&main_sha) || ratchet.detail.contains(zeros) {
+            return Err(format!(
+                "resolved base was not merge-base: {}",
+                ratchet.detail
+            ));
+        }
+        if main_sha == BOOTSTRAP_BASE {
+            return Err("fixture main collided with the bootstrap base".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn baseline_paths_run_every_non_ratchet_guard() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let head = git_stdout(&root, &["rev-parse", "HEAD"])?;
+        let normal = guard_reports(&root, Some(head.trim()), false);
+        assert_non_ratchet_ran(&normal)?;
+        if normal.iter().any(|report| !report.passed) {
+            return Err(normal
+                .iter()
+                .filter(|report| !report.passed)
+                .map(|report| format!("{}: {}", report.name, report.detail))
+                .collect::<Vec<_>>()
+                .join("\n"));
+        }
+        let bootstrap = guard_reports(&root, Some(BOOTSTRAP_BASE), false);
+        assert_non_ratchet_ran(&bootstrap)?;
+        if bootstrap.iter().any(|report| !report.passed) {
+            return Err(format!(
+                "bootstrap: {}",
+                bootstrap
+                    .iter()
+                    .filter(|report| !report.passed)
+                    .map(|report| format!("{}: {}", report.name, report.detail))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ));
+        }
+        let zeros = "0000000000000000000000000000000000000000";
+        let first_push = guard_reports(&root, Some(zeros), false);
+        assert_non_ratchet_ran(&first_push)?;
+        if first_push.iter().any(|report| !report.passed) {
+            return Err(format!(
+                "first push: {}",
+                first_push
+                    .iter()
+                    .filter(|report| !report.passed)
+                    .map(|report| format!("{}: {}", report.name, report.detail))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ));
+        }
+        let ancestor = "a84508c798fa3e2f08f71d4be988da43ef1c5472";
+        let missing = guard_reports(&root, Some(ancestor), false);
+        assert_non_ratchet_ran(&missing)?;
+        let ratchet = report_named(&missing, "ratchet")?;
+        if ratchet.passed || !ratchet.detail.contains(ancestor) {
+            return Err(format!("ancestor baseline: {}", ratchet.detail));
+        }
+        let floors = read_bytes(&root.join("regressions/floors.toml"))?;
+        if sha256_hex(&floors) != BOOTSTRAP_FLOORS_SHA256 {
+            return Err(
+                "BOOTSTRAP_FLOORS_SHA256 does not match regressions/floors.toml".to_owned(),
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bootstrap_fails_on_a_mutated_gate_pin_or_a_closed_origin_main() -> Result<(), String> {
+        let source = crate::workspace_root()?;
+        let mutated = shared_workspace("mutated-pin")?;
+        std::fs::copy(
+            source.join(".github/workflows/ci.yml"),
+            mutated.path.join(".github/workflows/ci.yml"),
+        )
+        .map_err(|err| format!("copy ci.yml: {err}"))?;
+        std::fs::copy(
+            source.join(".github/workflows/vision-smoke.yml"),
+            mutated.path.join(".github/workflows/vision-smoke.yml"),
+        )
+        .map_err(|err| format!("copy vision-smoke: {err}"))?;
+        std::fs::write(
+            mutated.path.join(".github/workflows/gate_results.py"),
+            "import sys\nsys.exit(0)\n",
+        )
+        .map_err(|err| format!("write gate script: {err}"))?;
+        point_origin_at_main_without_floors(&mutated.path)?;
+        let reports = guard_reports(&mutated.path, Some(BOOTSTRAP_BASE), false);
+        assert_non_ratchet_ran(&reports)?;
+        let pin = report_named(&reports, "gate-script")?;
+        if pin.passed || !pin.detail.contains("sha256 does not match") {
+            return Err(format!("mutated pin: {}", pin.detail));
+        }
+        if reports.iter().all(|report| report.passed) {
+            return Err("mutated pin bootstrap passed".to_owned());
+        }
+
+        let closed = shared_workspace("closed-main")?;
+        std::fs::copy(
+            source.join(".github/workflows/ci.yml"),
+            closed.path.join(".github/workflows/ci.yml"),
+        )
+        .map_err(|err| format!("copy ci.yml: {err}"))?;
+        std::fs::copy(
+            source.join(".github/workflows/vision-smoke.yml"),
+            closed.path.join(".github/workflows/vision-smoke.yml"),
+        )
+        .map_err(|err| format!("copy vision-smoke: {err}"))?;
+        let remote = closed.path.join("remote-main");
+        std::fs::create_dir_all(&remote).map_err(|err| format!("mkdir: {err}"))?;
+        git_fixture(&remote, &["init", "-b", "main"])?;
+        std::fs::create_dir_all(remote.join("regressions"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::write(
+            remote.join("regressions/floors.toml"),
+            "lint.suppressions=0\n",
+        )
+        .map_err(|err| format!("write: {err}"))?;
+        git_fixture(&remote, &["add", "regressions/floors.toml"])?;
+        git_fixture(&remote, &["commit", "-m", "floors"])?;
+        let remote_url = format!(
+            "file://{}",
+            remote.to_str().ok_or("remote path is not utf-8")?
+        );
+        git_fixture(&closed.path, &["remote", "set-url", "origin", &remote_url])?;
+        clear_origin_main(&closed.path)?;
+        let reports = guard_reports(&closed.path, Some(BOOTSTRAP_BASE), false);
+        assert_non_ratchet_ran(&reports)?;
+        let ratchet = report_named(&reports, "ratchet")?;
+        if ratchet.passed || !ratchet.detail.contains("origin/main contains") {
+            return Err(format!("closed bootstrap: {}", ratchet.detail));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_bootstrap_floors_sha_mismatch_fails() -> Result<(), String> {
+        let source = crate::workspace_root()?;
+        let cloned = shared_workspace("floors-sha")?;
+        std::fs::copy(
+            source.join(".github/workflows/ci.yml"),
+            cloned.path.join(".github/workflows/ci.yml"),
+        )
+        .map_err(|err| format!("copy ci.yml: {err}"))?;
+        std::fs::copy(
+            source.join(".github/workflows/vision-smoke.yml"),
+            cloned.path.join(".github/workflows/vision-smoke.yml"),
+        )
+        .map_err(|err| format!("copy vision-smoke: {err}"))?;
+        let mut floors = read_bytes(&source.join("regressions/floors.toml"))?;
+        floors.push(b'\n');
+        std::fs::write(cloned.path.join("regressions/floors.toml"), floors)
+            .map_err(|err| format!("write floors: {err}"))?;
+        point_origin_at_main_without_floors(&cloned.path)?;
+        let reports = guard_reports(&cloned.path, Some(BOOTSTRAP_BASE), false);
+        assert_non_ratchet_ran(&reports)?;
+        let ratchet = report_named(&reports, "ratchet")?;
+        if ratchet.passed || !ratchet.detail.contains("bootstrap floors.toml sha256") {
+            return Err(format!("sha mismatch: {}", ratchet.detail));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn permissions_and_action_shas_are_required() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let missing = read(&root.join("fixtures/guards/ci/no-permissions.yml"))?;
+        if permissions_are_contents_read(&missing) {
+            return Err("missing permissions was accepted".to_owned());
+        }
+        let unpinned = read(&root.join("fixtures/guards/ci/unpinned-action.yml"))?;
+        let gaps = action_pin_gaps(&unpinned);
+        if gaps != ["action actions/checkout@v4 is not pinned to a sha".to_owned()] {
+            return Err(format!("{gaps:?}"));
+        }
+        if !permissions_are_contents_read(&read(&root.join(".github/workflows/ci.yml"))?) {
+            return Err("ci.yml permissions".to_owned());
+        }
+        if !action_pin_gaps(&read(&root.join(".github/workflows/ci.yml"))?).is_empty() {
+            return Err(format!(
+                "{:?}",
+                action_pin_gaps(&read(&root.join(".github/workflows/ci.yml"))?)
+            ));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bootstrap_base_missing_from_the_checkout_does_not_bootstrap() -> Result<(), String> {
+        let root = TempGit::new("missing-object")?;
+        git_fixture(&root.path, &["init", "-b", "feature"])?;
+        std::fs::write(root.path.join("file"), "feature\n")
+            .map_err(|err| format!("write: {err}"))?;
+        git_fixture(&root.path, &["add", "file"])?;
+        git_fixture(&root.path, &["commit", "-m", "feature"])?;
+        let reports = guard_reports(&root.path, Some(BOOTSTRAP_BASE), false);
+        assert_non_ratchet_ran(&reports)?;
+        let ratchet = report_named(&reports, "ratchet")?;
+        if ratchet.passed
+            || !ratchet.detail.contains("is not in this checkout")
+            || ratchet.detail.contains("sha256")
+        {
+            return Err(format!("missing object: {}", ratchet.detail));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn cargo_workspace_dir_in_ci_fails() -> Result<(), String> {
+        let set = std::ffi::OsStr::new("/tmp/other");
+        let empty = std::ffi::OsStr::new("");
+        if crate::reject_cargo_workspace_dir_in_ci(true, Some(set)).is_ok() {
+            return Err("CI override was accepted".to_owned());
+        }
+        if crate::reject_cargo_workspace_dir_in_ci(true, Some(empty)).is_err() {
+            return Err("empty override was rejected".to_owned());
+        }
+        if crate::reject_cargo_workspace_dir_in_ci(true, None).is_err() {
+            return Err("unset override was rejected".to_owned());
+        }
+        if crate::reject_cargo_workspace_dir_in_ci(false, Some(set)).is_err() {
+            return Err("local override was rejected".to_owned());
+        }
+        Ok(())
+    }
+
+    struct SharedWorkspace {
+        _keep: TempGit,
+        path: PathBuf,
+    }
+
+    fn clear_origin_main(repo: &Path) -> Result<(), String> {
+        let present = git_command(
+            repo,
+            &[
+                "rev-parse",
+                "--verify",
+                "--quiet",
+                "refs/remotes/origin/main",
+            ],
+        )?;
+        if present.status.success() {
+            git_fixture(repo, &["update-ref", "-d", "refs/remotes/origin/main"])?;
+        }
+        Ok(())
+    }
+
+    fn point_origin_at_main_without_floors(repo: &Path) -> Result<(), String> {
+        let parent = repo.parent().ok_or("clone has no parent")?;
+        let remote = parent.join("empty-main");
+        std::fs::create_dir_all(&remote).map_err(|err| format!("mkdir: {err}"))?;
+        git_fixture(&remote, &["init", "-b", "main"])?;
+        std::fs::write(remote.join("keep"), "keep\n").map_err(|err| format!("write: {err}"))?;
+        git_fixture(&remote, &["add", "keep"])?;
+        git_fixture(&remote, &["commit", "-m", "main"])?;
+        let url = format!(
+            "file://{}",
+            remote.to_str().ok_or("remote path is not utf-8")?
+        );
+        git_fixture(repo, &["remote", "set-url", "origin", &url])?;
+        clear_origin_main(repo)?;
+        Ok(())
+    }
+
+    fn shared_workspace(label: &str) -> Result<SharedWorkspace, String> {
+        let source = crate::workspace_root()?;
+        let temp = TempGit::new(label)?;
+        let source_text = source.to_str().ok_or("workspace path is not utf-8")?;
+        git_fixture(
+            &temp.path,
+            &["clone", "--shared", "--quiet", source_text, "repo"],
+        )?;
+        let path = temp.path.join("repo");
+        Ok(SharedWorkspace { _keep: temp, path })
     }
 
     #[test]
