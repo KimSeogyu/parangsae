@@ -1,0 +1,14 @@
+name: ci
+on:
+  push:
+jobs:
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - name: allowed and rejected
+        run: |
+          env -i \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
+            /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny check
+          env -i CARGO_HOME=/tmp CARGO=/tmp/fake RUSTC=/tmp/rustc RUSTFLAGS=-Awarnings /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny check

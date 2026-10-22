@@ -3,8 +3,11 @@
 //! Feature ownership, TLC config coverage, distinct-state floors, Kani harness
 //! names, B2 measurements, and the ratchet in `regressions/floors.toml`.
 //! The baseline commit comes from `PARANGSAE_FLOOR_BASE`. An all-zero
-//! `before` is not a base: it unshallows a shallow checkout, fetches
-//! `refs/remotes/origin/main`, and uses `merge-base`. A missing
+//! `before`, a `before` missing from the checkout, or a `before` that is
+//! not an ancestor of `HEAD` is not a ratchet baseline. Those cases use
+//! `merge-base` of `HEAD` and `refs/remotes/origin/main` and never fetch
+//! the `before` commit. `origin/main` is present because the checkout uses
+//! `fetch-depth: 0`; if it is missing, resolution fails closed. A missing
 //! `regressions/floors.toml` is accepted only when that resolved commit is
 //! exactly `BOOTSTRAP_BASE`, the raw sha256 of the current floors file is
 //! `BOOTSTRAP_FLOORS_SHA256`, and `origin/main` does not already contain the
@@ -521,7 +524,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "guard-fixtures",
         include_str!("pinned_jobs/guard-fixtures.job"),
-        "3d989760b962de684d3e7aad602c67ec577deb7b5aaa753c7eada000a3942c31",
+        "7e0c16b4320771c54eda98f4aa9d9921374d4d41593afb251684811404832791",
     ),
     (
         "tla",
@@ -536,7 +539,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "0b93b20ed10bcaa6608c49fdf80efeedc5d6dafaab2af2294adfdb7905989408",
+        "eaec4130ebf51df6027dbab593bf1eb45cd17d09ab9f5dddb3fcd015638f1282",
     ),
     (
         "gate",
@@ -970,12 +973,6 @@ fn job_block<'a>(text: &'a str, id: &str) -> Option<&'a str> {
     Some(&text[line_offset(text, start)..line_offset(text, end)])
 }
 
-enum RunBlockScan {
-    Outside,
-    NeedIndent,
-    Inside(usize),
-}
-
 fn jobs_region(lines: &[&str]) -> Option<(usize, usize)> {
     let jobs_at = lines
         .iter()
@@ -1000,11 +997,8 @@ fn job_key_lines(lines: &[&str]) -> Vec<(usize, String)> {
         if line_inside_block(&mut block, line) {
             continue;
         }
-        if let Some(content) = block_scalar_content_indent(line) {
-            block = match content {
-                Some(indent) => RunBlockScan::Inside(indent),
-                None => RunBlockScan::NeedIndent,
-            };
+        if let Some(next) = open_run_block(line) {
+            block = next;
             continue;
         }
         if let Some(id) = job_id(line) {
@@ -1014,25 +1008,63 @@ fn job_key_lines(lines: &[&str]) -> Vec<(usize, String)> {
     found
 }
 
+enum RunBlockScan {
+    Outside,
+    /// Parent indent of an auto-detected block scalar. Content must be
+    /// indented strictly past that parent; otherwise the block is empty.
+    NeedIndent(usize),
+    Inside(usize),
+}
+
+/// YAML block scalars end by indentation. An explicit `|n` or `>n` (the
+/// digit and the chomp flag may be in either order) means the parent indent
+/// plus n. A following line at a smaller indent, including a job key after
+/// an empty `|`, is outside the block.
+fn open_run_block(line: &str) -> Option<RunBlockScan> {
+    let extra = block_scalar_content_indent(line)?;
+    let parent = block_scalar_parent_indent(line);
+    Some(match extra {
+        Some(extra) => RunBlockScan::Inside(parent.saturating_add(extra)),
+        None => RunBlockScan::NeedIndent(parent),
+    })
+}
+
+fn block_scalar_parent_indent(line: &str) -> usize {
+    let (indent, _) = leading_indent(line);
+    let rest = line.get(indent..).unwrap_or("");
+    if rest.starts_with("- ") {
+        indent.saturating_add(2)
+    } else {
+        indent
+    }
+}
+
 fn line_inside_block(block: &mut RunBlockScan, line: &str) -> bool {
     match *block {
         RunBlockScan::Outside => false,
-        RunBlockScan::NeedIndent | RunBlockScan::Inside(_) => {
+        RunBlockScan::NeedIndent(parent) => {
             if strip_yaml_comment(line).trim().is_empty() {
                 return true;
             }
             let (indent, _) = leading_indent(line);
-            match *block {
-                RunBlockScan::NeedIndent => {
-                    *block = RunBlockScan::Inside(indent);
-                    true
-                }
-                RunBlockScan::Inside(min) if indent >= min => true,
-                RunBlockScan::Inside(_) => {
-                    *block = RunBlockScan::Outside;
-                    false
-                }
-                RunBlockScan::Outside => false,
+            if indent > parent {
+                *block = RunBlockScan::Inside(indent);
+                true
+            } else {
+                *block = RunBlockScan::Outside;
+                false
+            }
+        }
+        RunBlockScan::Inside(min) => {
+            if strip_yaml_comment(line).trim().is_empty() {
+                return true;
+            }
+            let (indent, _) = leading_indent(line);
+            if indent >= min {
+                true
+            } else {
+                *block = RunBlockScan::Outside;
+                false
             }
         }
     }
@@ -1050,18 +1082,18 @@ fn block_scalar_content_indent(line: &str) -> Option<Option<usize>> {
         return Some(None);
     }
     if indented_block_scalar(value) {
-        return Some(explicit_block_indent(value));
+        return explicit_block_indent(value).map(Some);
     }
     None
 }
 
 fn explicit_block_indent(value: &str) -> Option<usize> {
-    let rest = value.trim().trim_start_matches(['|', '>']);
-    let digits: String = rest.chars().take_while(|ch| ch.is_ascii_digit()).collect();
-    if digits.is_empty() {
-        None
+    let digits: String = value.chars().filter(|ch| ch.is_ascii_digit()).collect();
+    let extra = digits.parse::<usize>().ok()?;
+    if (1..=9).contains(&extra) {
+        Some(extra)
     } else {
-        digits.parse().ok()
+        None
     }
 }
 
@@ -1908,11 +1940,8 @@ fn job_steps(text: &str) -> Vec<String> {
                 steps.push(done.join("\n"));
             }
             current = Some(vec![line]);
-            if let Some(content) = block_scalar_content_indent(line) {
-                block = match content {
-                    Some(indent) => RunBlockScan::Inside(indent),
-                    None => RunBlockScan::NeedIndent,
-                };
+            if let Some(next) = open_run_block(line) {
+                block = next;
             }
             continue;
         }
@@ -1922,11 +1951,8 @@ fn job_steps(text: &str) -> Vec<String> {
             }
         }
         if !inside {
-            if let Some(content) = block_scalar_content_indent(line) {
-                block = match content {
-                    Some(indent) => RunBlockScan::Inside(indent),
-                    None => RunBlockScan::NeedIndent,
-                };
+            if let Some(next) = open_run_block(line) {
+                block = next;
             }
         }
         if let Some(step) = current.as_mut() {
@@ -2009,7 +2035,7 @@ fn compiling_tool_env_gaps(name: &str, text: &str) -> Vec<String> {
                     }) {
                         continue;
                     }
-                    if pinned_tool_assignment(&key, &value) {
+                    if pinned_tool_assignment(line, &key, &value) {
                         continue;
                     }
                     push_gap(&mut gaps, format!("{name} job {job} assigns {key}={value}"));
@@ -2024,14 +2050,26 @@ fn tool_env_key(key: &str) -> bool {
     matches!(key, "CARGO" | "RUSTC" | "RUSTFLAGS")
 }
 
-fn pinned_tool_assignment(key: &str, value: &str) -> bool {
+fn pinned_tool_assignment(line: &str, key: &str, value: &str) -> bool {
+    env_i_assignment_line(line) && pinned_tool_path(key) == Some(value)
+}
+
+fn pinned_tool_path(key: &str) -> Option<&'static str> {
     const CARGO: &str = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo";
     const RUSTC: &str = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc";
     match key {
-        "CARGO" => value == CARGO,
-        "RUSTC" => value == RUSTC,
-        _ => false,
+        "CARGO" => Some(CARGO),
+        "RUSTC" => Some(RUSTC),
+        _ => None,
     }
+}
+
+fn env_i_assignment_line(line: &str) -> bool {
+    let words = shell_words(line);
+    !words.is_empty()
+        && words.iter().all(|word| {
+            *word == "env" || *word == "-i" || *word == "\\" || assignment_name(word).is_some()
+        })
 }
 
 fn line_tool_assignments(line: &str) -> Vec<(String, String)> {
@@ -2987,9 +3025,12 @@ fn deny_release_pin_gaps(text: &str) -> Vec<String> {
             "deny job does not re-check the cargo-deny binary sha256 before execution".to_owned(),
         );
     }
-    if !block.contains(CARGO_CONFIG_SHA256) {
-        gaps.push("deny job does not re-hash .cargo/config.toml".to_owned());
-    }
+    gaps.extend(deny_rehash_gaps(
+        block,
+        CARGO_CONFIG_SHA256,
+        ".cargo/config.toml",
+    ));
+    gaps.extend(deny_rehash_gaps(block, DENY_TOML_SHA256, "deny.toml"));
     if deny_exec_missing_config_absence(block) {
         gaps.push("deny job does not reject an extensionless .cargo/config".to_owned());
     }
@@ -3061,7 +3102,74 @@ fn deny_cargo_env_gaps(block: &str) -> Vec<String> {
             idx += 1;
         }
     }
+    gaps.extend(deny_env_i_literal_gaps(block));
     gaps
+}
+
+fn deny_rehash_gaps(block: &str, hash: &str, label: &str) -> Vec<String> {
+    if !block.contains(hash) {
+        vec![format!("deny job does not re-hash {label}")]
+    } else if deny_exec_missing_before(block, hash) {
+        vec![format!(
+            "deny job does not re-hash {label} before execution"
+        )]
+    } else {
+        Vec::new()
+    }
+}
+
+fn deny_env_i_literal_gaps(block: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    let mut pending = false;
+    for line in block.lines() {
+        let segment = if pending {
+            line
+        } else if let Some(rest) = line_after_env_i(line) {
+            rest
+        } else {
+            continue;
+        };
+        let mut ended = false;
+        for word in shell_words(segment) {
+            if word == "\\" {
+                continue;
+            }
+            if let Some(key) = assignment_name(word) {
+                if matches!(key, "CARGO" | "RUSTC" | "RUSTFLAGS") {
+                    let value = word
+                        .split_once('=')
+                        .map(|(_, value)| value.trim_end_matches('\\'))
+                        .unwrap_or("");
+                    if pinned_tool_path(key) != Some(value) {
+                        push_gap(&mut gaps, format!("deny job sets {key}={value} in env -i"));
+                    }
+                }
+                continue;
+            }
+            ended = true;
+            break;
+        }
+        pending = !ended && line.trim_end().ends_with('\\');
+    }
+    gaps
+}
+
+fn line_after_env_i(line: &str) -> Option<&str> {
+    let bytes = line.as_bytes();
+    let needle = "env -i";
+    let mut start = 0usize;
+    while let Some(rel) = line[start..].find(needle) {
+        let idx = start + rel;
+        let before_ok =
+            idx == 0 || (bytes[idx - 1] != b'_' && !bytes[idx - 1].is_ascii_alphanumeric());
+        let after = idx + needle.len();
+        let after_ok = after >= bytes.len() || bytes[after].is_ascii_whitespace();
+        if before_ok && after_ok {
+            return Some(&line[after..]);
+        }
+        start = idx + needle.len();
+    }
+    None
 }
 
 fn record_flow_cargo(gaps: &mut Vec<String>, rest: &str) {
@@ -4608,7 +4716,10 @@ fn resolve_floor_base(root: &Path, floor_base: Option<&str>, on_main: bool) -> R
             Ok(sha) => sha,
             Err(err) => return ResolvedBaseline::Error(err),
         },
-        BaselineChoice::Sha(sha) => sha,
+        BaselineChoice::Sha(sha) => match trusted_floor_sha(root, &sha) {
+            Ok(sha) => sha,
+            Err(err) => return ResolvedBaseline::Error(err),
+        },
     };
     if first_push_sentinel(&sha) {
         return ResolvedBaseline::Error("all-zero before is not a baseline".to_owned());
@@ -4702,6 +4813,34 @@ fn command_failure_detail(stderr: &str, stdout: &str, code: Option<i32>) -> Stri
     }
 }
 
+fn trusted_floor_sha(root: &Path, sha: &str) -> Result<String, String> {
+    if first_push_sentinel(sha) {
+        return Err("all-zero before is not a baseline".to_owned());
+    }
+    if baseline_sha_unreadable(sha) {
+        return Err("floor baseline is unreadable".to_owned());
+    }
+    if trusted_ancestor(root, sha) {
+        Ok(sha.to_owned())
+    } else {
+        merge_base_origin_main(root)
+    }
+}
+
+fn trusted_ancestor(root: &Path, base: &str) -> bool {
+    commit_present(root, base) && commit_is_ancestor(root, base)
+}
+
+fn commit_is_ancestor(root: &Path, base: &str) -> bool {
+    Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["merge-base", "--is-ancestor", base, "HEAD"])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
 fn commit_present(root: &Path, base: &str) -> bool {
     Command::new("git")
         .arg("-C")
@@ -4710,19 +4849,6 @@ fn commit_present(root: &Path, base: &str) -> bool {
         .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .is_ok_and(|output| output.status.success())
-}
-
-fn fetch_baseline_commit(root: &Path, base: &str) -> bool {
-    let Ok(output) = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["fetch", "--no-tags", "origin", base])
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-    else {
-        return false;
-    };
-    output.status.success() && commit_present(root, base)
 }
 
 fn git(root: &Path, args: &[&str]) -> Result<String, String> {
@@ -4750,7 +4876,7 @@ fn git(root: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 fn git_show(root: &Path, base: &str, path: &str) -> Result<Option<String>, String> {
-    if !commit_present(root, base) && !fetch_baseline_commit(root, base) {
+    if !commit_present(root, base) {
         return Err(format!("baseline commit {base} is not in this checkout"));
     }
     let output = Command::new("git")
@@ -5364,13 +5490,6 @@ kani.min_harnesses=1
                     .join("\n")
             ));
         }
-        let ancestor = "a84508c798fa3e2f08f71d4be988da43ef1c5472";
-        let missing = guard_reports(&root, Some(ancestor), false);
-        assert_non_ratchet_ran(&missing)?;
-        let ratchet = report_named(&missing, "ratchet")?;
-        if ratchet.passed || !ratchet.detail.contains(ancestor) {
-            return Err(format!("ancestor baseline: {}", ratchet.detail));
-        }
         let floors = read_bytes(&root.join("regressions/floors.toml"))?;
         if sha256_hex(&floors) != BOOTSTRAP_FLOORS_SHA256 {
             return Err(
@@ -5490,8 +5609,10 @@ kani.min_harnesses=1
         assert_guards_ran_except_unloaded_counts(&reports)?;
         let ratchet = report_named(&reports, "ratchet")?;
         if ratchet.passed
-            || !ratchet.detail.contains("is not in this checkout")
-            || ratchet.detail.contains("sha256")
+            || ratchet.detail.contains("is not in this checkout")
+            || ratchet.detail.contains(BOOTSTRAP_BASE)
+            || !ratchet.detail.contains("refs/remotes/origin/main")
+            || !ratchet.detail.contains("failed")
         {
             return Err(format!("missing object: {}", ratchet.detail));
         }
@@ -5499,7 +5620,7 @@ kani.min_harnesses=1
     }
 
     #[test]
-    fn replaced_tip_baseline_is_fetched_from_origin() -> Result<(), String> {
+    fn git_show_does_not_fetch_a_missing_baseline() -> Result<(), String> {
         let root = TempGit::new("replaced-tip")?;
         let origin = root.path.join("origin");
         std::fs::create_dir_all(origin.join("regressions"))
@@ -5545,19 +5666,57 @@ kani.min_harnesses=1
         if already.status.success() {
             return Err("replaced tip was already in the clone".to_owned());
         }
-        let shown = git_show(&clone, &old, "regressions/floors.toml")?;
-        if shown.as_deref() != Some("old-floors\n") {
-            return Err(format!("replaced tip floors: {shown:?}"));
+        match git_show(&clone, &old, "regressions/floors.toml") {
+            Err(err) if err.contains("is not in this checkout") => {}
+            other => return Err(format!("missing baseline was fetched: {other:?}")),
         }
-        let missing = git_show(
-            &clone,
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "regressions/floors.toml",
-        );
-        match missing {
-            Err(err) if err.contains("is not in this checkout") => Ok(()),
-            other => Err(format!("missing baseline: {other:?}")),
+        let still_missing = git_command(&clone, &["cat-file", "-e", &format!("{old}^{{commit}}")])?;
+        if still_missing.status.success() {
+            return Err("git show fetched the replaced tip".to_owned());
         }
+        Ok(())
+    }
+
+    #[test]
+    fn force_push_over_a_lowered_floor_ratchets_against_main() -> Result<(), String> {
+        let repo = lowered_floor_repo()?;
+        git_fixture(&repo.clone, &["checkout", "--quiet", "tip-b"])?;
+        let ancestor = git_command(
+            &repo.clone,
+            &["merge-base", "--is-ancestor", &repo.tip_a, "HEAD"],
+        )?;
+        if ancestor.status.success() {
+            return Err("lowered tip is an ancestor of the force-pushed head".to_owned());
+        }
+        let reports = guard_reports(&repo.clone, Some(&repo.tip_a), false);
+        let ratchet = report_named(&reports, "ratchet")?;
+        if ratchet.passed
+            || !ratchet
+                .detail
+                .contains("floor cucumber.kline.scenarios decreased from 12 to 11")
+            || ratchet.detail.contains(&repo.tip_a)
+        {
+            return Err(format!("force-push baseline: {}", ratchet.detail));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn all_zero_before_on_a_new_branch_ratchets_against_main() -> Result<(), String> {
+        let repo = lowered_floor_repo()?;
+        git_fixture(&repo.clone, &["checkout", "--quiet", "tip-a"])?;
+        let zeros = "0000000000000000000000000000000000000000";
+        let reports = guard_reports(&repo.clone, Some(zeros), false);
+        let ratchet = report_named(&reports, "ratchet")?;
+        if ratchet.passed
+            || !ratchet
+                .detail
+                .contains("floor cucumber.kline.scenarios decreased from 12 to 11")
+            || ratchet.detail.contains(zeros)
+        {
+            return Err(format!("new-branch baseline: {}", ratchet.detail));
+        }
+        Ok(())
     }
 
     #[test]
@@ -6393,6 +6552,12 @@ jobs:
                 deny.matches(CARGO_CONFIG_SHA256).count()
             ));
         }
+        if deny.matches(DENY_TOML_SHA256).count() != 2 {
+            return Err(format!(
+                "deny job deny.toml sha checks: {}",
+                deny.matches(DENY_TOML_SHA256).count()
+            ));
+        }
         let deny_bin_path =
             format!("/tmp/cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny");
         let deny_lines: Vec<&str> = deny.lines().collect();
@@ -7035,6 +7200,16 @@ jobs:
                 "run-inline-tool-env.yml job fmt assigns RUSTFLAGS=-Awarnings",
             ],
         )?;
+        let prefix = read(&root.join("fixtures/guards/ci/deny-prefix-cargo.yml"))?;
+        let cargo = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo";
+        expect_gaps(
+            "deny-prefix-cargo.yml",
+            compiling_tool_env_gaps("deny-prefix-cargo.yml", &prefix),
+            &[
+                "deny-prefix-cargo.yml job deny assigns CARGO=x",
+                &format!("deny-prefix-cargo.yml job deny assigns CARGO={cargo}"),
+            ],
+        )?;
         Ok(())
     }
 
@@ -7085,16 +7260,56 @@ jobs:
         if job_block(&header, "push").is_some() {
             return Err("header id push was extracted as a job".to_owned());
         }
-        let run_block = read(&root.join("fixtures/guards/ci/job-id-run-block.yml"))?;
-        if job_block(&run_block, "clippy").is_some() {
-            return Err(format!(
-                "run block key was extracted as clippy:\n{}",
-                job_block(&run_block, "clippy").unwrap_or("")
-            ));
+        for (path, content) in [
+            ("fixtures/guards/ci/job-id-run-block.yml", "echo kept"),
+            ("fixtures/guards/ci/job-id-empty-block.yml", ""),
+            (
+                "fixtures/guards/ci/job-id-block-boundary.yml",
+                "echo still-fmt",
+            ),
+        ] {
+            let text = read(&root.join(path))?;
+            assert_yaml_parses(path, &text)?;
+            let clippy = job_block(&text, "clippy").ok_or_else(|| format!("{path} hid clippy"))?;
+            if !clippy.contains("echo clippy-job") {
+                return Err(format!("{path} clippy job:\n{clippy}"));
+            }
+            let fmt = job_block(&text, "fmt").ok_or_else(|| format!("{path} has no fmt job"))?;
+            if fmt.contains("echo clippy-job") || fmt.contains("\n  clippy:\n") {
+                return Err(format!("{path} fmt job swallowed clippy:\n{fmt}"));
+            }
+            if !content.is_empty() && !fmt.contains(content) {
+                return Err(format!("{path} fmt job dropped {content}:\n{fmt}"));
+            }
+            let steps = job_steps(fmt);
+            if steps.iter().any(|step| step.contains("\n  clippy:\n")) {
+                return Err(format!("{path} run step swallowed clippy"));
+            }
         }
-        let fmt = job_block(&run_block, "fmt").ok_or("run block fixture has no fmt job")?;
-        if !fmt.contains("echo still-the-script") || !fmt.contains("\n  clippy:\n") {
-            return Err(format!("fmt job dropped the run block:\n{fmt}"));
+        for indicator in ["|2-", "|-2"] {
+            let text = format!(
+                "\
+name: ci
+on:
+  push:
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: {indicator}
+          echo kept
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo clippy-job
+"
+            );
+            assert_yaml_parses(indicator, &text)?;
+            let clippy =
+                job_block(&text, "clippy").ok_or_else(|| format!("{indicator} hid clippy"))?;
+            if !clippy.contains("echo clippy-job") {
+                return Err(format!("{indicator} clippy job:\n{clippy}"));
+            }
         }
         Ok(())
     }
@@ -7220,21 +7435,49 @@ jobs:
 
     #[test]
     fn allowlisted_yml_without_a_path_keyed_pin_fails() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let mut on_disk = Vec::new();
+        let dir = root.join(".github/workflows");
+        for entry in std::fs::read_dir(&dir).map_err(|err| format!("read workflows: {err}"))? {
+            let entry = entry.map_err(|err| format!("read workflows: {err}"))?;
+            let path = entry.path();
+            if path.is_file() {
+                on_disk.push(workflow_display(&root, &path));
+            }
+        }
+        on_disk.sort();
+        let mut pinned: Vec<String> = ALLOWED_WORKFLOW_FILES
+            .iter()
+            .map(|(path, _)| (*path).to_owned())
+            .collect();
+        pinned.sort();
+        if on_disk != pinned {
+            return Err(format!(
+                "workflow directory {on_disk:?} is not the pin table {pinned:?}"
+            ));
+        }
+        let notes = ".github/workflows/notes.txt".to_owned();
+        if pinned.iter().any(|path| path == &notes) {
+            return Err("notes.txt is in the pin table".to_owned());
+        }
+        let mut with_notes = on_disk.clone();
+        with_notes.push(notes);
+        let note_gaps: Vec<String> = with_notes
+            .iter()
+            .filter(|path| workflow_file_pin(path).is_none())
+            .map(|path| format!("{path} is not an allowed workflow file"))
+            .collect();
+        expect_gaps(
+            "notes.txt",
+            note_gaps,
+            &[".github/workflows/notes.txt is not an allowed workflow file"],
+        )?;
         let live = allowed_workflow_paths();
         expect_gaps(
             "live allowlist",
             allowlisted_yml_without_pin_gaps(&live, ALLOWED_WORKFLOW_FILES),
             &[],
         )?;
-        if live
-            != [
-                ".github/workflows/ci.yml",
-                ".github/workflows/gate_results.py",
-                ".github/workflows/vision-smoke.yml",
-            ]
-        {
-            return Err(format!("allowlist drifted from the pin table: {live:?}"));
-        }
         if workflow_file_pin(".github/workflows/ci.yml") != Some(WorkflowFilePin::Ci) {
             return Err("ci.yml pin is not keyed by its path".to_owned());
         }
@@ -8108,6 +8351,284 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         Ok(())
     }
 
+    #[test]
+    fn tracked_nested_target_toolchain_files_fail_and_the_old_skip_missed_them(
+    ) -> Result<(), String> {
+        let repo = TempGit::new("tracked-nested-target")?;
+        git_fixture(&repo.path, &["init", "-b", "main"])?;
+        let toolchain = repo.path.join("crates/core/target/rust-toolchain.toml");
+        let config = repo.path.join("crates/core/target/.cargo/config");
+        std::fs::create_dir_all(config.parent().ok_or("config has no parent")?)
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::write(&toolchain, "[toolchain]\nchannel = \"nightly\"\n")
+            .map_err(|err| format!("write: {err}"))?;
+        std::fs::write(&config, "paths = []\n").map_err(|err| format!("write: {err}"))?;
+        git_fixture(
+            &repo.path,
+            &["add", "-f", "crates/core/target/rust-toolchain.toml"],
+        )?;
+        git_fixture(
+            &repo.path,
+            &["add", "-f", "crates/core/target/.cargo/config"],
+        )?;
+        git_fixture(&repo.path, &["commit", "-m", "track nested target"])?;
+        let listed = git_stdout(&repo.path, &["ls-files"])?;
+        if !listed.contains("crates/core/target/rust-toolchain.toml")
+            || !listed.contains("crates/core/target/.cargo/config")
+        {
+            return Err(format!("nested target files are not tracked: {listed}"));
+        }
+        expect_gaps(
+            "production walk",
+            toolchain_file_gaps(&repo.path)?,
+            &[
+                "crates/core/target/.cargo/config is a nested cargo config; only the root .cargo/config.toml is allowed",
+                "crates/core/target/rust-toolchain.toml is a toolchain override; only the root rust-toolchain.toml is allowed",
+            ],
+        )?;
+        expect_gaps(
+            "bbe4674 skip",
+            toolchain_gaps_skipping_every_target(&repo.path)?,
+            &[],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn deny_rehash_is_checked_before_every_exec() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("live deny rehash", deny_release_pin_gaps(&ci), &[])?;
+        let config_late = zero_nth_hash(&ci, CARGO_CONFIG_SHA256, 1)?;
+        expect_gaps(
+            "config hash after the first exec",
+            deny_release_pin_gaps(&config_late),
+            &["deny job does not re-hash .cargo/config.toml before execution"],
+        )?;
+        let toml_late = zero_nth_hash(&ci, DENY_TOML_SHA256, 1)?;
+        expect_gaps(
+            "deny.toml hash after the first exec",
+            deny_release_pin_gaps(&toml_late),
+            &["deny job does not re-hash deny.toml before execution"],
+        )?;
+        let toml_gone = ci.replace(DENY_TOML_SHA256, &"0".repeat(DENY_TOML_SHA256.len()));
+        expect_gaps(
+            "deny.toml hash absent",
+            deny_release_pin_gaps(&toml_gone),
+            &["deny job does not re-hash deny.toml"],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn deny_env_i_rejects_unpinned_tool_arguments() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        let deny = job_block(&ci, "deny").ok_or("ci.yml has no deny job")?;
+        expect_gaps("live env -i", deny_cargo_env_gaps(deny), &[])?;
+        let fixture = read(&root.join("fixtures/guards/ci/deny-env-i-cargo.yml"))?;
+        let block = job_block(&fixture, "deny").ok_or("fixture has no deny job")?;
+        expect_gaps(
+            "env -i cargo",
+            deny_cargo_env_gaps(block),
+            &[
+                "deny job sets CARGO=/tmp/fake in env -i",
+                "deny job sets RUSTC=/tmp/rustc in env -i",
+                "deny job sets RUSTFLAGS=-Awarnings in env -i",
+            ],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn manifest_pipeline_fails_when_the_first_stage_fails() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let script = manifest_pipeline_script()?;
+        if !script.contains("set -o pipefail")
+            || !script.contains("sha256sum \\\n            Cargo.toml")
+        {
+            return Err("manifest pipeline script dropped pipefail or the first stage".to_owned());
+        }
+        let dir = TempGit::new("manifest-pipe")?;
+        provision_deny_inputs(&root, &dir.path)?;
+        std::fs::remove_file(dir.path.join("xtask/Cargo.toml"))
+            .map_err(|err| format!("remove manifest: {err}"))?;
+        let output = Command::new("bash")
+            .arg("-e")
+            .arg("-c")
+            .arg(&script)
+            .current_dir(&dir.path)
+            .output()
+            .map_err(|err| format!("bash: {err}"))?;
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        if output.status.success()
+            || !text.contains("No such file")
+            || text.contains("cargo manifests sha256 does not match")
+        {
+            let code = match output.status.code() {
+                Some(code) => code.to_string(),
+                None => "signal".to_owned(),
+            };
+            return Err(format!("first pipe stage: code {code}: {text}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn each_required_job_byte_mutation_fails_its_pin() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("unmutated jobs", required_job_pin_gaps(&ci), &[])?;
+        for (name, _, _) in REQUIRED_JOBS {
+            let block = job_block(&ci, name).ok_or_else(|| format!("ci.yml has no {name} job"))?;
+            let name_at = block
+                .find("\n    name:")
+                .ok_or_else(|| format!("{name} name field is missing"))?;
+            let line_end = block[name_at + 1..]
+                .find('\n')
+                .ok_or_else(|| format!("{name} name line has no end"))?
+                + name_at
+                + 1;
+            if line_end == 0 {
+                return Err(format!("{name} name line is empty"));
+            }
+            let block_at = ci
+                .find(block)
+                .ok_or_else(|| format!("{name} block is missing from ci.yml"))?;
+            let byte_at = block_at + line_end - 1;
+            let mut bytes = ci.as_bytes().to_vec();
+            let last = bytes[byte_at];
+            bytes[byte_at] = if last == b'z' { b'y' } else { last + 1 };
+            let mutated = String::from_utf8(bytes).map_err(|err| format!("utf-8: {err}"))?;
+            let gaps = required_job_pin_gaps(&mutated);
+            let message = format!("ci job {name} bytes do not match");
+            let hits: Vec<&String> = gaps.iter().filter(|gap| gap.contains(&message)).collect();
+            if hits.len() != 1 || gaps.len() != 1 {
+                return Err(format!("{name} mutation: {gaps:?}"));
+            }
+        }
+        Ok(())
+    }
+
+    fn assert_yaml_parses(label: &str, text: &str) -> Result<(), String> {
+        let mut child = Command::new("python3")
+            .args(["-c", "import sys, yaml; yaml.safe_load(sys.stdin.read())"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|err| format!("python: {err}"))?;
+        let mut stdin = child.stdin.take().ok_or("python stdin missing")?;
+        stdin
+            .write_all(text.as_bytes())
+            .map_err(|err| format!("write yaml: {err}"))?;
+        drop(stdin);
+        let output = child
+            .wait_with_output()
+            .map_err(|err| format!("python: {err}"))?;
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "{label} is not valid yaml: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
+
+    fn zero_nth_hash(text: &str, hash: &str, nth: usize) -> Result<String, String> {
+        let mut from = 0usize;
+        for _ in 0..nth {
+            let found = text[from..]
+                .find(hash)
+                .ok_or_else(|| format!("hash occurrence missing: {hash}"))?;
+            from += found + hash.len();
+        }
+        let found = text[from..]
+            .find(hash)
+            .ok_or_else(|| format!("hash occurrence missing: {hash}"))?;
+        let at = from + found;
+        let mut out = text.to_owned();
+        out.replace_range(at..at + hash.len(), &"0".repeat(hash.len()));
+        Ok(out)
+    }
+
+    fn manifest_pipeline_script() -> Result<String, String> {
+        let deny = pinned_job("deny").ok_or("deny job is not pinned")?;
+        let marker = "          set -o pipefail\n";
+        let start = deny
+            .find(marker)
+            .ok_or("deny job manifest pipeline has no pipefail")?;
+        let rest = &deny[start..];
+        let message = "echo \"cargo manifests sha256 does not match\"\n";
+        let message_at = rest
+            .find(message)
+            .ok_or("deny job manifest pipeline has no message")?;
+        let after = &rest[message_at..];
+        let close = after
+            .find("\n          fi\n")
+            .ok_or("deny job manifest pipeline has no end")?;
+        Ok(rest[..message_at + close + "\n          fi".len()].to_owned())
+    }
+
+    fn toolchain_gaps_skipping_every_target(root: &Path) -> Result<Vec<String>, String> {
+        let mut paths = Vec::new();
+        collect_skipping_every_target(root, &mut paths)?;
+        paths.sort();
+        let mut gaps = Vec::new();
+        for path in paths {
+            let rel = path
+                .strip_prefix(root)
+                .map_err(|err| format!("toolchain path: {err}"))?;
+            let name = rel.file_name().and_then(|part| part.to_str()).unwrap_or("");
+            let shown = rel.to_string_lossy().replace('\\', "/");
+            if name.starts_with("rust-toolchain") && shown != "rust-toolchain.toml" {
+                gaps.push(format!(
+                    "{shown} is a toolchain override; only the root rust-toolchain.toml is allowed"
+                ));
+            }
+            let parent_is_cargo = rel
+                .parent()
+                .and_then(|parent| parent.file_name())
+                .and_then(|part| part.to_str())
+                == Some(".cargo");
+            if parent_is_cargo && name.starts_with("config") && shown != ".cargo/config.toml" {
+                gaps.push(format!(
+                    "{shown} is a nested cargo config; only the root .cargo/config.toml is allowed"
+                ));
+            }
+        }
+        gaps.sort();
+        Ok(gaps)
+    }
+
+    fn collect_skipping_every_target(dir: &Path, found: &mut Vec<PathBuf>) -> Result<(), String> {
+        let entries =
+            std::fs::read_dir(dir).map_err(|err| format!("read {}: {err}", dir.display()))?;
+        for entry in entries {
+            let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if name == ".git" || name == "target" {
+                continue;
+            }
+            let path = entry.path();
+            let file_type = entry
+                .file_type()
+                .map_err(|err| format!("read {}: {err}", path.display()))?;
+            if file_type.is_symlink() || !file_type.is_dir() {
+                found.push(path);
+                continue;
+            }
+            collect_skipping_every_target(&path, found)?;
+        }
+        Ok(())
+    }
+
     fn cached_deny_tarball() -> Result<PathBuf, String> {
         let path = std::env::temp_dir().join(format!(
             "cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
@@ -8252,6 +8773,54 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             Some(code) => Ok((code, text)),
             None => Err(format!("bash signal: {text}")),
         }
+    }
+
+    struct LoweredFloorRepo {
+        _keep: TempGit,
+        clone: PathBuf,
+        tip_a: String,
+    }
+
+    fn lowered_floor_repo() -> Result<LoweredFloorRepo, String> {
+        let root = crate::workspace_root()?;
+        let high = read(&root.join("regressions/floors.toml"))?;
+        let marker = "cucumber.kline.scenarios=12\n";
+        if !high.contains(marker) {
+            return Err("floors fixture is missing cucumber.kline.scenarios=12".to_owned());
+        }
+        let low = high.replace(marker, "cucumber.kline.scenarios=11\n");
+        let keep = TempGit::new("lowered-floor")?;
+        let origin = keep.path.join("origin");
+        std::fs::create_dir_all(origin.join("regressions"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        git_fixture(&origin, &["init", "-b", "main"])?;
+        std::fs::write(origin.join("regressions/floors.toml"), &high)
+            .map_err(|err| format!("write: {err}"))?;
+        git_fixture(&origin, &["add", "regressions/floors.toml"])?;
+        git_fixture(&origin, &["commit", "-m", "main"])?;
+        let origin_url = format!(
+            "file://{}",
+            origin.to_str().ok_or("origin path is not utf-8")?
+        );
+        git_fixture(&keep.path, &["clone", "--quiet", &origin_url, "clone"])?;
+        let clone = keep.path.join("clone");
+        git_fixture(&clone, &["checkout", "--quiet", "-b", "tip-a"])?;
+        std::fs::write(clone.join("regressions/floors.toml"), &low)
+            .map_err(|err| format!("write: {err}"))?;
+        git_fixture(&clone, &["add", "regressions/floors.toml"])?;
+        git_fixture(&clone, &["commit", "-m", "lower A"])?;
+        let tip_a = git_stdout(&clone, &["rev-parse", "HEAD"])?;
+        git_fixture(&clone, &["checkout", "--quiet", "main"])?;
+        git_fixture(&clone, &["checkout", "--quiet", "-b", "tip-b"])?;
+        std::fs::write(clone.join("regressions/floors.toml"), &low)
+            .map_err(|err| format!("write: {err}"))?;
+        git_fixture(&clone, &["add", "regressions/floors.toml"])?;
+        git_fixture(&clone, &["commit", "-m", "lower B"])?;
+        Ok(LoweredFloorRepo {
+            _keep: keep,
+            clone,
+            tip_a,
+        })
     }
 
     struct TempGit {
