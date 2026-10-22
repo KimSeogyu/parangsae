@@ -6,12 +6,18 @@
 # a feature that is not in `features`; default features turned on when this
 # file says false; a strategy `build.rs` or proc-macro.
 #
-# A crate listed here that is not in the workspace yet is planned. Its edges
-# are checked the day the package appears. A workspace package missing from
-# this file fails.
+# `[[crate]]` is checked against workspace members. A name here that is not a
+# member fails. `[[planned]]` is not checked. A planned name that is also a
+# member fails until the entry moves to `[[crate]]`. Every allowed edge is
+# listed; a path-prefix allow is not an edge.
+#
+# signals, regime, strategy crates, and research may not resolve reqwest,
+# hyper, or tokio-tungstenite through a normal dependency.
 #
 # Parquet and arrow are on parangsae-collector today because parangsae-store
-# does not exist yet. The store edges below are the destination.
+# does not exist yet. The store edges below are the destination. Research
+# reads through the store reader, so it does not depend on collector,
+# execution, or git2.
 
 [[strategy]]
 path_prefix = "crates/strategies/"
@@ -35,12 +41,24 @@ source = "crates.io"
 default_features = true
 
 [[crate.edge]]
+name = "serde_json"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
 name = "tokio"
 kind = "dev"
 source = "crates.io"
 default_features = true
 features = ["macros", "rt-multi-thread"]
 
+[[crate.edge]]
+name = "toml"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
 [[crate]]
 name = "parangsae-signals"
 
@@ -65,177 +83,157 @@ kind = "normal"
 source = "path"
 default_features = true
 
-[[crate]]
+[[planned]]
 name = "parangsae-strategy-api"
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-core"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate]]
+[[planned]]
 name = "parangsae-sim"
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-core"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-strategy-api"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate]]
+[[planned]]
 name = "parangsae-backtest"
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-core"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-strategy-api"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-sim"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate]]
+[[planned]]
 name = "parangsae-store"
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-core"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-collector"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parquet"
 kind = "normal"
 source = "crates.io"
 default_features = false
 features = ["arrow", "snap"]
 
-[[crate.edge]]
+[[planned.edge]]
 name = "arrow-array"
 kind = "normal"
 source = "crates.io"
 default_features = false
 
-[[crate.edge]]
+[[planned.edge]]
 name = "arrow-schema"
 kind = "normal"
 source = "crates.io"
 default_features = false
 
-[[crate.edge]]
+[[planned.edge]]
 name = "age"
 kind = "normal"
 source = "crates.io"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "sha2"
 kind = "normal"
 source = "crates.io"
 default_features = true
 
-[[crate]]
+[[planned]]
 name = "parangsae-research"
-# Strategy crates are path packages named parangsae-*. They are not listed one by one.
-allow_path_prefixes = ["parangsae-"]
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-core"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-strategy-api"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-signals"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-regime"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-sim"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-backtest"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "parangsae-store"
 kind = "normal"
 source = "path"
 default_features = true
 
-[[crate.edge]]
-name = "parangsae-collector"
-kind = "normal"
-source = "path"
-default_features = true
-
-[[crate.edge]]
-name = "parangsae-execution"
-kind = "normal"
-source = "path"
-default_features = true
-
-[[crate.edge]]
+[[planned.edge]]
 name = "serde"
 kind = "normal"
 source = "crates.io"
 default_features = true
 features = ["derive"]
 
-[[crate.edge]]
+[[planned.edge]]
 name = "toml"
 kind = "normal"
 source = "crates.io"
 default_features = true
 
-[[crate.edge]]
+[[planned.edge]]
 name = "sha2"
-kind = "normal"
-source = "crates.io"
-default_features = true
-
-[[crate.edge]]
-name = "git2"
 kind = "normal"
 source = "crates.io"
 default_features = true

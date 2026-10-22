@@ -60,7 +60,7 @@ There is no readiness verdict. Research code does not read live fills, balances,
 | Format and lints | `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` |
 | Workspace lints | `[workspace.lints]` forbids `unsafe_code` and denies unwrap, expect, panic, float, and lossy casts in library code, tests, and binaries; `core::fixed` denies `arithmetic_side_effects`; `crates/core/tests/workspace_lints.rs` rejects `#[allow`, `#[expect`, and `clippy.toml` allow keys outside `fixtures/lint/`; `fixtures/lint/violation` and `fixtures/lint/unsafe-forbid` fail in the `lint fixture fails` CI job |
 | Every member inherits workspace lints | `crates/core/tests/workspace_lints.rs` reads members from `cargo metadata` and rejects `fixtures/lint/missing-inheritance`; `cargo xtask depgraph` checks the same inheritance |
-| Dependency direction | `policy/deps.toml`; `cargo xtask depgraph`; `fixtures/depgraph/*.json` are rejected by `xtask` tests |
+| Dependency direction | `policy/deps.toml` lists every checked edge (`[[planned]]` is ignored until that crate is a member); `cargo xtask depgraph` rejects a stale policy crate, a planned name that is also a member, a strategy `custom-build` target, and a resolved normal edge on reqwest, hyper, or tokio-tungstenite for signals, regime, strategies, and research; `fixtures/depgraph/*.json` are rejected by `xtask` tests |
 
 ## Checks
 
