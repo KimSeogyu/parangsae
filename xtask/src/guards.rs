@@ -10,7 +10,10 @@
 //! `BOOTSTRAP_FLOORS_SHA256`, and `origin/main` does not already contain the
 //! file. The landing push is the exception: on `main`, with that base, when
 //! `origin/main` equals `HEAD`. Any other missing baseline fails.
-//! `BOOTSTRAP_BASE`, `BOOTSTRAP_FLOORS_SHA256`, and `EXPECTED_GUARD_RUNS`
+//! `BOOTSTRAP_BASE`, `BOOTSTRAP_FLOORS_SHA256`, `EXPECTED_GUARD_RUNS`,
+//! `CARGO_CONFIG_TOML`, `CARGO_CONFIG_SHA256`, `ALLOWED_ACTIONS`,
+//! `REQUIRED_JOBS`, `JOB_ENV_ALLOW`, `STEP_ENV_ALLOW`, `RUST_TOOLCHAIN_TOML`,
+//! `RUST_TOOLCHAIN_SHA256`, `DENY_TOML_SHA256`, and `CARGO_LOCK_SHA256`
 //! are Reviewer-protected. Baseline resolution never skips the other guards.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -152,7 +155,6 @@ const BOOTSTRAP_BASE: &str = "4db8a75a7bd0886f4cdeefa050a2d89e3a36118d";
 
 /// Reviewer-protected. The only `uses:` targets. Kani is installed with cargo, not an action.
 const ALLOWED_ACTIONS: &[&str] = &[
-    "Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0",
     "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
     "actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3",
     "dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0",
@@ -296,7 +298,7 @@ fn guard_reports(root: &Path, floor_base: Option<&str>, on_main: bool) -> Vec<Gu
     reports.push(guard_from_result("action-pins", action_pin_result(root)));
     reports.push(guard_from_violations(
         "cargo-workspace-dir",
-        cargo_workspace_dir_violations(),
+        cargo_workspace_dir_violations(root),
     ));
     reports
 }
@@ -368,18 +370,25 @@ fn gate_fixture_result(root: &Path) -> Result<Vec<String>, String> {
     Ok(violations)
 }
 
-fn cargo_workspace_dir_violations() -> Vec<String> {
+fn cargo_workspace_dir_violations(root: &Path) -> Vec<String> {
     let in_ci = crate::ci_is_set(
         std::env::var_os("GITHUB_ACTIONS").as_deref(),
         std::env::var_os("CI").as_deref(),
     );
-    match crate::reject_cargo_workspace_dir_in_ci(
+    let mut gaps = match crate::reject_cargo_workspace_dir_in_ci(
         in_ci,
         std::env::var_os("CARGO_WORKSPACE_DIR").as_deref(),
     ) {
         Ok(()) => Vec::new(),
         Err(err) => vec![err],
+    };
+    match read_bytes(&root.join("rust-toolchain.toml")) {
+        Ok(bytes) => gaps.extend(toolchain_bytes_gaps(&bytes)),
+        Err(err) => gaps.push(format!("rust-toolchain.toml is missing: {err}")),
     }
+    gaps.extend(sha_file_gaps(root, "deny.toml", DENY_TOML_SHA256));
+    gaps.extend(sha_file_gaps(root, "Cargo.lock", CARGO_LOCK_SHA256));
+    gaps
 }
 
 const GATE_CHECK_STEP: &str = concat!(
@@ -411,9 +420,119 @@ const ALL_ZERO_STEP: &str = concat!(
 const KANI_RUSTUP_STABLE: &str = "          RUSTUP_TOOLCHAIN: 1.98.0";
 const KANI_RUSTUP_NIGHTLY: &str = "          RUSTUP_TOOLCHAIN: nightly-2026-08-21";
 
+/// Reviewer-protected.
 const CARGO_CONFIG_TOML: &str = "[alias]\nxtask = \"run --package xtask --\"\n";
+/// Reviewer-protected.
 const CARGO_CONFIG_SHA256: &str =
     "783fdc447abb5b8f8b5652157aa9ede64da640813fa89679c29c5251c8e0cbe6";
+
+/// Reviewer-protected. Exact bytes of `rust-toolchain.toml`. No `path=` key.
+const RUST_TOOLCHAIN_TOML: &str =
+    "[toolchain]\nchannel = \"1.98.0\"\ncomponents = [\"rustfmt\", \"clippy\"]\n";
+/// Reviewer-protected.
+const RUST_TOOLCHAIN_SHA256: &str =
+    "07487db9d6b45de2f308f9fb578c9c46041381c3ee44ef782eca64150a394772";
+
+/// Reviewer-protected. sha256 of `deny.toml`, re-checked in the deny job.
+const DENY_TOML_SHA256: &str = "9a54da72f5bf1f6a00695a4348f76941bdfae24e84b86d445ccfced828e06c86";
+/// Reviewer-protected. sha256 of `Cargo.lock`, re-checked in the deny job.
+const CARGO_LOCK_SHA256: &str = "6b617ee34a33bac5754ced2bb940ea529d0ca34f409f71fb352351db72b31d04";
+
+/// Reviewer-protected. Canonical bytes and sha256 of each required job.
+const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
+    (
+        "fmt",
+        include_str!("pinned_jobs/fmt.job"),
+        "d10bca32292ea0b139dba9715c5b6d7ab936d9bb52efc0ca677f3561ab35d805",
+    ),
+    (
+        "clippy",
+        include_str!("pinned_jobs/clippy.job"),
+        "a2f3141767afe1d64f04ff28f7dbf7f43b5595591c33fabd44ea4ecd10cb3a51",
+    ),
+    (
+        "lint-fixture",
+        include_str!("pinned_jobs/lint-fixture.job"),
+        "6cd3dfb44474100ac3c4d1d6c44b31db96261c1f99ecbc74b0dcdc279c9aaf53",
+    ),
+    (
+        "depgraph",
+        include_str!("pinned_jobs/depgraph.job"),
+        "f7b305a41a10c7e9c6c21f9f74a0c90c868921ac741f7c73246ef62853082696",
+    ),
+    (
+        "test",
+        include_str!("pinned_jobs/test.job"),
+        "05d0811e99913dcb19ab2edf11748c132308428e709ab772d979721221475ca6",
+    ),
+    (
+        "cucumber",
+        include_str!("pinned_jobs/cucumber.job"),
+        "375b16a6f71b69d349a933442b57b368e8a3c56d21acd7eb1d8a5e609ccd388f",
+    ),
+    (
+        "guards",
+        include_str!("pinned_jobs/guards.job"),
+        "8137c034f0aa49a7616a3d7cef04794ee4fd87e2876938f8dc3dfad6739baf4d",
+    ),
+    (
+        "guard-fixtures",
+        include_str!("pinned_jobs/guard-fixtures.job"),
+        "a416c01e2879f63927f1eff3c1209630abd79731221c630297c883d1658352a7",
+    ),
+    (
+        "tla",
+        include_str!("pinned_jobs/tla.job"),
+        "8aa93b38ccd696187890fac5a44fdfdc24152d5ef605b72d6322b00c566d95e7",
+    ),
+    (
+        "kani",
+        include_str!("pinned_jobs/kani.job"),
+        "8f6c91cb840cbb8c36b00cacd98e97950a06f614cb01c38451b72294af7ca1a2",
+    ),
+    (
+        "deny",
+        include_str!("pinned_jobs/deny.job"),
+        "233007703a72370e5967fdf89c51867fe67694b8c0e47ceba47d194ed1752341",
+    ),
+    (
+        "gate",
+        include_str!("pinned_jobs/gate.job"),
+        "280b2f8e38a9b4e8db437ddccc58b7114804db2a857ba2f8cb04093e2bbb506a",
+    ),
+];
+
+/// Reviewer-protected. Job-level `env:` names on each required job.
+const JOB_ENV_ALLOW: &[(&str, &[&str])] = &[
+    ("fmt", &[]),
+    ("clippy", &[]),
+    ("lint-fixture", &[]),
+    ("depgraph", &[]),
+    ("test", &[]),
+    ("cucumber", &[]),
+    ("guards", &[]),
+    ("guard-fixtures", &[]),
+    ("tla", &[]),
+    ("kani", &[]),
+    ("deny", &[]),
+    ("gate", &[]),
+];
+
+/// Reviewer-protected. Step-level `env:` names on each required job.
+const STEP_ENV_ALLOW: &[(&str, &[&str])] = &[
+    ("fmt", &[]),
+    ("clippy", &[]),
+    ("lint-fixture", &[]),
+    ("depgraph", &[]),
+    ("test", &[]),
+    ("cucumber", &[]),
+    ("guards", &["PARANGSAE_FLOOR_BASE", "PARANGSAE_ON_MAIN"]),
+    ("guard-fixtures", &["PARANGSAE_FLOOR_BASE"]),
+    ("tla", &[]),
+    ("kani", &["RUSTUP_TOOLCHAIN"]),
+    ("deny", &[]),
+    ("gate", &["NEEDS"]),
+];
 
 const RUSTC_198_STEP: &str = concat!(
     "      - name: rustc is 1.98.0\n",
@@ -424,6 +543,38 @@ const RUSTC_198_STEP: &str = concat!(
     "            echo \"rustc -V was ${actual}\"\n",
     "            exit 1\n",
     "          fi\n",
+);
+
+const RUSTUP_WHICH_STEP: &str = concat!(
+    "      - name: cargo and rustc are the 1.98.0 toolchain\n",
+    "        run: |\n",
+    "          cargo_bin=\"$(rustup which cargo)\"\n",
+    "          rustc_bin=\"$(rustup which rustc)\"\n",
+    "          case \"$cargo_bin\" in\n",
+    "            \"$RUSTUP_HOME\"/toolchains/1.98.0-*/bin/cargo) ;;\n",
+    "            *) echo \"cargo is ${cargo_bin}\"; exit 1 ;;\n",
+    "          esac\n",
+    "          case \"$rustc_bin\" in\n",
+    "            \"$RUSTUP_HOME\"/toolchains/1.98.0-*/bin/rustc) ;;\n",
+    "            *) echo \"rustc is ${rustc_bin}\"; exit 1 ;;\n",
+    "          esac\n",
+);
+
+const GUARD_FIXTURE_UNREADABLE_STEP: &str = concat!(
+    "      - name: unreadable floor baseline fails closed\n",
+    "        env:\n",
+    "          PARANGSAE_FLOOR_BASE: not-a-sha\n",
+    "        run: |\n",
+    "          set +e\n",
+    "          output=$(cargo xtask guards 2>&1)\n",
+    "          status=$?\n",
+    "          set -e\n",
+    "          printf '%s\\n' \"$output\"\n",
+    "          if [ \"$status\" -eq 0 ]; then\n",
+    "            echo \"unreadable baseline was accepted\"\n",
+    "            exit 1\n",
+    "          fi\n",
+    "          printf '%s\\n' \"$output\" | grep -q 'unreadable'\n",
 );
 
 const ALLOWED_TRIGGERS: &[&str] = &["push", "pull_request", "workflow_dispatch"];
@@ -854,8 +1005,13 @@ fn line_offset(text: &str, line_idx: usize) -> usize {
 fn strip_yaml_comment(line: &str) -> &str {
     let mut quote = None;
     let mut prev_space = true;
-    for (idx, ch) in line.char_indices() {
+    let mut chars = line.char_indices().peekable();
+    while let Some((idx, ch)) = chars.next() {
         if let Some(open) = quote {
+            if yaml_escape_skips(&mut chars, open, ch) {
+                prev_space = false;
+                continue;
+            }
             if ch == open {
                 quote = None;
             }
@@ -872,6 +1028,22 @@ fn strip_yaml_comment(line: &str) -> &str {
         }
     }
     line.trim_end()
+}
+
+fn yaml_escape_skips(
+    chars: &mut std::iter::Peekable<std::str::CharIndices<'_>>,
+    open: char,
+    ch: char,
+) -> bool {
+    if open == '"' && ch == '\\' {
+        chars.next();
+        return true;
+    }
+    if open == '\'' && ch == '\'' && chars.peek().is_some_and(|(_, next)| *next == '\'') {
+        chars.next();
+        return true;
+    }
+    false
 }
 
 fn finish(violations: Result<Vec<String>, String>) -> Result<(), String> {
@@ -1565,6 +1737,7 @@ fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
     }
     violations.extend(cargo_config_gaps(root)?);
     let ci = read(&root.join(".github/workflows/ci.yml"))?;
+    violations.extend(required_job_pin_gaps(&ci));
     if !guards_fetch_depth_is_zero(&ci) {
         violations.push("guards checkout fetch-depth is not 0".to_owned());
     }
@@ -1584,14 +1757,17 @@ fn pinned_guards_steps(text: &str) -> Vec<String> {
         gaps.push("all-zero before step does not match".to_owned());
     }
     if gaps.is_empty() && !guards_steps_exact(block) {
-        gaps.push("guards job steps are not checkout, toolchain, guards, all-zero".to_owned());
+        gaps.push(
+            "guards job steps are not checkout, toolchain, rustup-which, guards, all-zero"
+                .to_owned(),
+        );
     }
     gaps
 }
 
 fn guards_job_steps() -> String {
     format!(
-        "    steps:\n      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4\n        with:\n          fetch-depth: 0\n      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0\n{GUARDS_STEP}{ALL_ZERO_STEP}"
+        "    steps:\n      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4\n        with:\n          fetch-depth: 0\n      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0\n{RUSTUP_WHICH_STEP}{GUARDS_STEP}{ALL_ZERO_STEP}"
     )
 }
 
@@ -1608,6 +1784,9 @@ fn guards_steps_exact(block: &str) -> bool {
 
 fn strip_env_allowlist(text: &str) -> String {
     let text = map_job_block(text, "guards", |block| block.replace(GUARDS_STEP, ""));
+    let text = map_job_block(&text, "guard-fixtures", |block| {
+        block.replace(GUARD_FIXTURE_UNREADABLE_STEP, "")
+    });
     map_job_block(&text, "kani", |block| {
         let mut out = String::new();
         for line in block.split_inclusive('\n') {
@@ -1675,6 +1854,7 @@ fn workflow_file_gaps(name: &str, text: &str) -> Vec<String> {
     gaps.extend(rustc_pin_gaps(name, text));
     gaps.extend(run_injection_gaps(name, text));
     gaps.extend(github_env_path_gaps(name, text));
+    gaps.extend(required_job_shape_gaps(name, text));
     if name.ends_with("vision-smoke.yml") && !text.contains("day must be YYYY-MM-DD") {
         gaps.push(format!("{name} does not validate the day"));
     }
@@ -1861,8 +2041,337 @@ fn workflow_triggers(text: &str) -> Vec<String> {
     triggers
 }
 
+fn toolchain_bytes_gaps(bytes: &[u8]) -> Vec<String> {
+    let mut gaps = Vec::new();
+    if bytes != RUST_TOOLCHAIN_TOML.as_bytes() || sha256_hex(bytes) != RUST_TOOLCHAIN_SHA256 {
+        gaps.push("rust-toolchain.toml does not match".to_owned());
+    }
+    if std::str::from_utf8(bytes).is_ok_and(toolchain_sets_path) {
+        gaps.push("rust-toolchain.toml sets path=".to_owned());
+    }
+    gaps
+}
+
+fn toolchain_sets_path(text: &str) -> bool {
+    text.lines().any(|line| {
+        let line = strip_yaml_comment(line).trim();
+        let Some((key, _)) = line.split_once('=') else {
+            return false;
+        };
+        key.trim().trim_matches(['"', '\'']) == "path"
+    })
+}
+
+fn sha_file_gaps(root: &Path, name: &str, expected: &str) -> Vec<String> {
+    match read_bytes(&root.join(name)) {
+        Ok(bytes) if sha256_hex(&bytes) == expected => Vec::new(),
+        Ok(_) => vec![format!("{name} sha256 does not match")],
+        Err(err) => vec![format!("{name} is missing: {err}")],
+    }
+}
+
+fn required_job_pin_gaps(text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    for (name, pinned, hash) in REQUIRED_JOBS {
+        if sha256_hex(pinned.as_bytes()) != *hash {
+            gaps.push(format!(
+                "required job {name} pin hash does not match its bytes"
+            ));
+        }
+        let Some(block) = job_block(text, name) else {
+            gaps.push(format!("ci.yml has no {name} job"));
+            continue;
+        };
+        if block != *pinned {
+            let mut message = format!(
+                "ci job {name} bytes do not match\npinned sha256 {hash}\nworkflow sha256 {}\n",
+                sha256_hex(block.as_bytes())
+            );
+            message.push_str(&unified_diff(name, pinned, block));
+            gaps.push(message);
+        }
+    }
+    gaps
+}
+
+fn without_pinned_jobs(text: &str) -> String {
+    let mut current = text.to_owned();
+    for (name, pinned, _) in REQUIRED_JOBS {
+        if job_block(&current, name) == Some(*pinned) {
+            current = map_job_block(&current, name, |_| String::new());
+        }
+    }
+    current
+}
+
+fn required_job_shape_gaps(name: &str, text: &str) -> Vec<String> {
+    let Ok(jobs) = ci_job_ids(text) else {
+        return Vec::new();
+    };
+    let mut gaps = Vec::new();
+    for job in jobs {
+        if !required_job(job.as_str()) {
+            continue;
+        }
+        let Some(block) = job_block(text, &job) else {
+            continue;
+        };
+        let pinned = pinned_job(&job).unwrap_or("");
+        for key in ["container", "services", "strategy", "matrix"] {
+            if job_sets_key(block, key) && !job_sets_key(pinned, key) {
+                gaps.push(format!("{name} job {job} sets {key}:"));
+            }
+        }
+        gaps.extend(job_env_allow_gaps(name, &job, block));
+        gaps.extend(step_env_allow_gaps(name, &job, block));
+    }
+    gaps
+}
+
+fn required_job(name: &str) -> bool {
+    REQUIRED_JOBS.iter().any(|(job, _, _)| *job == name)
+}
+
+fn pinned_job(name: &str) -> Option<&'static str> {
+    REQUIRED_JOBS
+        .iter()
+        .find(|(job, _, _)| *job == name)
+        .map(|(_, text, _)| *text)
+}
+
+fn job_sets_key(block: &str, key: &str) -> bool {
+    let header = format!("{key}:");
+    block.lines().any(|line| {
+        let (indent, _) = leading_indent(line);
+        let trimmed = strip_yaml_comment(line).trim();
+        indent == 4 && (trimmed == header || trimmed.starts_with(&header))
+    })
+}
+
+fn job_env_allow_gaps(name: &str, job: &str, block: &str) -> Vec<String> {
+    let allowed = named_allow(JOB_ENV_ALLOW, job);
+    env_allow_gaps(name, job, &mapping_keys(block, 4), allowed)
+}
+
+fn step_env_allow_gaps(name: &str, job: &str, block: &str) -> Vec<String> {
+    let allowed = named_allow(STEP_ENV_ALLOW, job);
+    env_allow_gaps(name, job, &step_env_keys(block), allowed)
+}
+
+fn named_allow<'a>(table: &'a [(&str, &[&str])], job: &str) -> &'a [&'a str] {
+    table
+        .iter()
+        .find(|(name, _)| *name == job)
+        .map(|(_, keys)| *keys)
+        .unwrap_or(&[])
+}
+
+fn env_allow_gaps(name: &str, job: &str, keys: &[String], allowed: &[&str]) -> Vec<String> {
+    let mut gaps = Vec::new();
+    for key in keys {
+        if !allowed.contains(&key.as_str()) || env_name_disallowed(key) {
+            gaps.push(format!("{name} job {job} env {key} is not allowlisted"));
+        }
+    }
+    for key in allowed {
+        if !keys.iter().any(|found| found == key) {
+            gaps.push(format!("{name} job {job} env is missing {key}"));
+        }
+    }
+    gaps
+}
+
+fn env_name_disallowed(key: &str) -> bool {
+    key.starts_with("CARGO")
+        || key.starts_with("RUSTC")
+        || key == "RUSTDOCFLAGS"
+        || key == "CARGO_ENCODED_RUSTFLAGS"
+        || key.starts_with("CARGO_SOURCE_")
+        || key == "BASH_ENV"
+}
+
+fn mapping_keys(block: &str, parent_indent: usize) -> Vec<String> {
+    let lines: Vec<&str> = block.lines().collect();
+    let mut keys = Vec::new();
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let (indent, _) = leading_indent(lines[idx]);
+        let trimmed = strip_yaml_comment(lines[idx]).trim();
+        if indent == parent_indent && trimmed == "env:" {
+            idx += 1;
+            while idx < lines.len() {
+                let (findent, _) = leading_indent(lines[idx]);
+                let child = strip_yaml_comment(lines[idx]).trim();
+                if child.is_empty() {
+                    idx += 1;
+                    continue;
+                }
+                if findent <= parent_indent {
+                    break;
+                }
+                if let Some((key, _)) = child.split_once(':') {
+                    let key = key.trim().trim_matches(['"', '\'']);
+                    if !key.is_empty() && !keys.iter().any(|found| found == key) {
+                        keys.push(key.to_owned());
+                    }
+                }
+                idx += 1;
+            }
+            continue;
+        }
+        idx += 1;
+    }
+    keys
+}
+
+fn step_env_keys(block: &str) -> Vec<String> {
+    let lines: Vec<&str> = block.lines().collect();
+    let mut keys = Vec::new();
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let (indent, _) = leading_indent(lines[idx]);
+        let trimmed = strip_yaml_comment(lines[idx]).trim();
+        let key = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        if indent > 4 && key == "env:" {
+            idx += 1;
+            while idx < lines.len() {
+                let (findent, _) = leading_indent(lines[idx]);
+                let child = strip_yaml_comment(lines[idx]).trim();
+                if child.is_empty() {
+                    idx += 1;
+                    continue;
+                }
+                if findent <= indent {
+                    break;
+                }
+                if let Some((env_key, _)) = child.split_once(':') {
+                    let env_key = env_key.trim().trim_matches(['"', '\'']);
+                    if !env_key.is_empty() && !keys.iter().any(|found| found == env_key) {
+                        keys.push(env_key.to_owned());
+                    }
+                }
+                idx += 1;
+            }
+            continue;
+        }
+        idx += 1;
+    }
+    keys
+}
+
+enum LineOp<'a> {
+    Same(&'a str),
+    Del(&'a str),
+    Add(&'a str),
+}
+
+fn unified_diff(job: &str, expected: &str, actual: &str) -> String {
+    let expected_lines: Vec<&str> = expected.lines().collect();
+    let actual_lines: Vec<&str> = actual.lines().collect();
+    let ops = line_ops(&expected_lines, &actual_lines);
+    let mut changed = Vec::new();
+    for (idx, op) in ops.iter().enumerate() {
+        if !matches!(op, LineOp::Same(_)) {
+            changed.push(idx);
+        }
+    }
+    let mut out = format!("--- pinned {job}\n+++ workflow {job}\n");
+    if changed.is_empty() {
+        out.push_str("texts differ past the shared lines\n");
+        return out;
+    }
+    let mut groups: Vec<(usize, usize)> = Vec::new();
+    for idx in changed {
+        if let Some(last) = groups.last_mut() {
+            if idx <= last.1 + 6 {
+                last.1 = idx;
+                continue;
+            }
+        }
+        groups.push((idx, idx));
+    }
+    for (first, last) in groups {
+        let from = first.saturating_sub(3);
+        let to = (last + 4).min(ops.len());
+        let (mut old_line, mut new_line) = (1usize, 1usize);
+        for op in ops.iter().take(from) {
+            match op {
+                LineOp::Same(_) => {
+                    old_line += 1;
+                    new_line += 1;
+                }
+                LineOp::Del(_) => old_line += 1,
+                LineOp::Add(_) => new_line += 1,
+            }
+        }
+        let (mut old_count, mut new_count) = (0usize, 0usize);
+        for op in ops.iter().take(to).skip(from) {
+            match op {
+                LineOp::Same(_) | LineOp::Del(_) => old_count += 1,
+                LineOp::Add(_) => {}
+            }
+            match op {
+                LineOp::Same(_) | LineOp::Add(_) => new_count += 1,
+                LineOp::Del(_) => {}
+            }
+        }
+        out.push_str(&format!(
+            "@@ -{old_line},{old_count} +{new_line},{new_count} @@\n"
+        ));
+        for op in ops.iter().take(to).skip(from) {
+            match op {
+                LineOp::Same(line) => out.push_str(&format!(" {line}\n")),
+                LineOp::Del(line) => out.push_str(&format!("-{line}\n")),
+                LineOp::Add(line) => out.push_str(&format!("+{line}\n")),
+            }
+        }
+    }
+    out
+}
+
+fn line_ops<'a>(expected: &[&'a str], actual: &[&'a str]) -> Vec<LineOp<'a>> {
+    let rows = expected.len();
+    let cols = actual.len();
+    let mut score = vec![0u32; (rows + 1) * (cols + 1)];
+    let at = |row: usize, col: usize| row * (cols + 1) + col;
+    for row in (0..rows).rev() {
+        for col in (0..cols).rev() {
+            score[at(row, col)] = if expected[row] == actual[col] {
+                score[at(row + 1, col + 1)] + 1
+            } else {
+                score[at(row + 1, col)].max(score[at(row, col + 1)])
+            };
+        }
+    }
+    let mut ops = Vec::new();
+    let (mut row, mut col) = (0usize, 0usize);
+    while row < rows && col < cols {
+        if expected[row] == actual[col] {
+            ops.push(LineOp::Same(expected[row]));
+            row += 1;
+            col += 1;
+        } else if score[at(row + 1, col)] >= score[at(row, col + 1)] {
+            ops.push(LineOp::Del(expected[row]));
+            row += 1;
+        } else {
+            ops.push(LineOp::Add(actual[col]));
+            col += 1;
+        }
+    }
+    while row < rows {
+        ops.push(LineOp::Del(expected[row]));
+        row += 1;
+    }
+    while col < cols {
+        ops.push(LineOp::Add(actual[col]));
+        col += 1;
+    }
+    ops
+}
+
 fn forbidden_env_gaps(name: &str, text: &str) -> Vec<String> {
-    let stripped = strip_env_allowlist(text);
+    let text = without_pinned_jobs(text);
+    let stripped = strip_env_allowlist(&text);
     let lines: Vec<&str> = stripped.lines().collect();
     let mut gaps = Vec::new();
     let mut idx = 0usize;
@@ -1959,11 +2468,15 @@ fn rustc_pin_gaps(name: &str, text: &str) -> Vec<String> {
         let Some(block) = job_block(text, &job) else {
             continue;
         };
-        if job_invokes_cargo_or_rustc(block)
-            && !block.contains(RUSTC_198_STEP)
-            && !guards_steps_exact(block)
-        {
-            gaps.push(format!("{name} job {job} does not assert rustc 1.98.0"));
+        if job_invokes_cargo_or_rustc(block) && !guards_steps_exact(block) {
+            if !block.contains(RUSTC_198_STEP) {
+                gaps.push(format!("{name} job {job} does not assert rustc 1.98.0"));
+            }
+            if !block.contains(RUSTUP_WHICH_STEP) {
+                gaps.push(format!(
+                    "{name} job {job} does not assert rustup which 1.98.0"
+                ));
+            }
         }
     }
     gaps
@@ -2102,6 +2615,12 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
             continue;
         }
         let Some((key, value)) = split_yaml_key(body) else {
+            if indented_block_scalar(body) {
+                push_gap(&mut gaps, format!("{name} uses an indented block scalar"));
+                block_parent = Some(indent);
+                open_key = None;
+                continue;
+            }
             if block_scalar_header(body) {
                 if let Some((key, at)) = open_key.clone() {
                     if indent > at && step_run(&key, parent, at) {
@@ -2160,6 +2679,12 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
                     format!("{name} uses a flow {}", flow_kind(value.starts_with('{'))),
                 );
             }
+        }
+        if indented_block_scalar(value) {
+            push_gap(&mut gaps, format!("{name} uses an indented block scalar"));
+            block_parent = Some(indent);
+            open_key = None;
+            continue;
         }
         if block_scalar_header(value) {
             if !step_run(key, parent, indent) {
@@ -2223,6 +2748,17 @@ fn structural_marks(line: &str) -> StructuralMarks {
     while idx < bytes.len() {
         let ch = bytes[idx];
         if let Some(open) = quote {
+            if open == b'"' && ch == b'\\' {
+                idx += 1;
+                if idx < bytes.len() {
+                    idx += 1;
+                }
+                continue;
+            }
+            if open == b'\'' && ch == b'\'' && bytes.get(idx + 1) == Some(&b'\'') {
+                idx += 2;
+                continue;
+            }
             if ch == open {
                 quote = None;
             }
@@ -2268,8 +2804,12 @@ fn structural_marks(line: &str) -> StructuralMarks {
 
 fn split_yaml_key(body: &str) -> Option<(&str, &str)> {
     let mut quote = None;
-    for (idx, ch) in body.char_indices() {
+    let mut chars = body.char_indices().peekable();
+    while let Some((idx, ch)) = chars.next() {
         if let Some(open) = quote {
+            if yaml_escape_skips(&mut chars, open, ch) {
+                continue;
+            }
             if ch == open {
                 quote = None;
             }
@@ -2304,13 +2844,22 @@ fn block_scalar_header(value: &str) -> bool {
     if first != '|' && first != '>' {
         return false;
     }
-    let rest: String = chars.collect();
-    if rest.len() > 2 {
+    matches!(chars.as_str(), "" | "-" | "+")
+}
+
+fn indented_block_scalar(value: &str) -> bool {
+    let mut chars = value.trim().chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if first != '|' && first != '>' {
         return false;
     }
-    let digits = rest.chars().filter(|ch| ch.is_ascii_digit()).count();
-    let chomps = rest.chars().filter(|ch| *ch == '+' || *ch == '-').count();
-    digits <= 1 && chomps <= 1 && digits + chomps == rest.chars().count()
+    let rest = chars.as_str();
+    rest.chars().any(|ch| ch.is_ascii_digit())
+        && rest
+            .chars()
+            .all(|ch| ch.is_ascii_digit() || ch == '+' || ch == '-')
 }
 
 fn step_run(key: &str, parent: Option<YamlFrame>, indent: usize) -> bool {
@@ -2403,6 +2952,7 @@ fn flow_value_role(key: &str, parent: Option<YamlFrame>, indent: usize) -> Optio
 }
 
 fn github_env_path_gaps(name: &str, text: &str) -> Vec<String> {
+    let text = without_pinned_jobs(text);
     let text = text.replace(GUARDS_STEP, "").replace(ALL_ZERO_STEP, "");
     let mut gaps = Vec::new();
     for script in run_scripts(&text) {
@@ -4158,7 +4708,10 @@ kani.min_harnesses=1
         expect_gaps(
             "cargo without rustc",
             rustc_pin_gaps("cargo-without-rustc.yml", &cargo),
-            &["cargo-without-rustc.yml job fmt does not assert rustc 1.98.0"],
+            &[
+                "cargo-without-rustc.yml job fmt does not assert rustc 1.98.0",
+                "cargo-without-rustc.yml job fmt does not assert rustup which 1.98.0",
+            ],
         )?;
         let toolchain = "\
 name: ci
@@ -4613,8 +5166,152 @@ jobs:
         expect_gaps(
             "extra step",
             pinned_guards_steps(&extra_step),
-            &["guards job steps are not checkout, toolchain, guards, all-zero"],
+            &["guards job steps are not checkout, toolchain, rustup-which, guards, all-zero"],
         )?;
+        Ok(())
+    }
+
+    #[test]
+    fn expected_guard_runs_matches_the_registry_and_the_pinned_grep() -> Result<(), String> {
+        if NON_RATCHET_GUARDS.len() + 1 != EXPECTED_GUARD_RUNS {
+            return Err(format!(
+                "registry {} is not {EXPECTED_GUARD_RUNS}",
+                NON_RATCHET_GUARDS.len() + 1
+            ));
+        }
+        let line = format!("guards ran {EXPECTED_GUARD_RUNS} passed {EXPECTED_GUARD_RUNS}");
+        if !GUARDS_STEP.contains(&line) || !ALL_ZERO_STEP.contains(&line) {
+            return Err(format!("grep literal {line} is not in the guards steps"));
+        }
+        let Some((_, guards, _)) = REQUIRED_JOBS.iter().find(|(name, _, _)| *name == "guards")
+        else {
+            return Err("guards job is not pinned".to_owned());
+        };
+        if !guards.contains(&line) {
+            return Err(format!("pinned guards job is missing {line}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn required_jobs_are_pinned_and_hostile_bytes_diff() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("required jobs", required_job_pin_gaps(&ci), &[])?;
+        expect_gaps("ci shape", required_job_shape_gaps("ci.yml", &ci), &[])?;
+        if !ci.contains(RUSTUP_WHICH_STEP) {
+            return Err("rustup which step is not in ci.yml".to_owned());
+        }
+        if !ci.contains(GUARD_FIXTURE_UNREADABLE_STEP) {
+            return Err("unreadable floor step is not in ci.yml".to_owned());
+        }
+        let deny = pinned_job("deny").ok_or("deny job is not pinned")?;
+        if !deny.contains(DENY_TOML_SHA256) || !deny.contains(CARGO_LOCK_SHA256) {
+            return Err("deny job does not re-hash deny.toml and Cargo.lock".to_owned());
+        }
+        if !deny.contains("env -i") || !deny.contains("rustup which cargo") {
+            return Err("deny job does not use env -i and rustup which cargo".to_owned());
+        }
+        expect_gaps(
+            "toolchain",
+            toolchain_bytes_gaps(&read_bytes(&root.join("rust-toolchain.toml"))?),
+            &[],
+        )?;
+        expect_gaps("workspace pins", cargo_workspace_dir_violations(&root), &[])?;
+        let planted = read(&root.join("fixtures/guards/toolchain/absolute-path.toml"))?;
+        expect_gaps(
+            "toolchain path",
+            toolchain_bytes_gaps(planted.as_bytes()),
+            &[
+                "rust-toolchain.toml does not match",
+                "rust-toolchain.toml sets path=",
+            ],
+        )?;
+        let structural = [
+            ("fixtures/guards/ci/run-printf-github-env.yml", "printf"),
+            ("fixtures/guards/ci/run-eval.yml", "eval"),
+            ("fixtures/guards/ci/run-python-c.yml", "python -c"),
+            ("fixtures/guards/ci/run-source.yml", "source"),
+        ];
+        for (path, needle) in structural {
+            let text = read(&root.join(path))?;
+            let gaps = required_job_pin_gaps(&text);
+            let Some(diff) = gaps
+                .iter()
+                .find(|gap| gap.contains("ci job fmt bytes do not match"))
+            else {
+                return Err(format!("{path} did not diff fmt: {gaps:?}"));
+            };
+            if !diff.contains("--- pinned fmt") || !diff.contains(needle) {
+                return Err(format!("{path} diff missed {needle}: {diff}"));
+            }
+            let grammar = github_env_path_gaps(path, &text);
+            if grammar.iter().any(|gap| gap.contains(needle)) {
+                return Err(format!("{path} was caught by a text denylist: {grammar:?}"));
+            }
+        }
+        let escaped = read(&root.join("fixtures/guards/ci/run-escaped-quote.yml"))?;
+        expect_gaps(
+            "escaped quote",
+            github_env_path_gaps("run-escaped-quote.yml", &escaped),
+            &["run-escaped-quote.yml references GITHUB_ENV"],
+        )?;
+        let indented = read(&root.join("fixtures/guards/ci/block-scalar-indent.yml"))?;
+        expect_gaps(
+            "indent scalar",
+            strict_yaml_gaps("block-scalar-indent.yml", &indented),
+            &["block-scalar-indent.yml uses an indented block scalar"],
+        )?;
+        let shape_cases = [
+            (
+                "fixtures/guards/ci/job-container.yml",
+                &["job-container.yml job fmt sets container:"][..],
+            ),
+            (
+                "fixtures/guards/ci/job-services.yml",
+                &["job-services.yml job fmt sets services:"],
+            ),
+            (
+                "fixtures/guards/ci/env-cargo-encoded.yml",
+                &["env-cargo-encoded.yml job fmt env CARGO_ENCODED_RUSTFLAGS is not allowlisted"],
+            ),
+        ];
+        for (path, expected) in shape_cases {
+            let name = path.rsplit('/').next().unwrap_or(path);
+            let text = read(&root.join(path))?;
+            expect_gaps(path, required_job_shape_gaps(name, &text), expected)?;
+        }
+        let strategy = ci.replacen(
+            "  fmt:\n",
+            "  fmt:\n    strategy:\n      fail-fast: false\n",
+            1,
+        );
+        let strategy_gaps = required_job_pin_gaps(&strategy);
+        let strategy_diff = strategy_gaps
+            .iter()
+            .find(|gap| gap.contains("ci job fmt bytes do not match"))
+            .ok_or_else(|| format!("strategy pin: {strategy_gaps:?}"))?;
+        if !strategy_diff.contains("\n+    strategy:\n") {
+            return Err(format!("strategy diff: {strategy_diff}"));
+        }
+        expect_gaps(
+            "strategy shape",
+            required_job_shape_gaps("ci.yml", &strategy),
+            &["ci.yml job fmt sets strategy:"],
+        )?;
+        let matrix = ci.replacen("  fmt:\n", "  fmt:\n    matrix:\n      rust: [stable]\n", 1);
+        expect_gaps(
+            "matrix shape",
+            required_job_shape_gaps("ci.yml", &matrix),
+            &["ci.yml job fmt sets matrix:"],
+        )?;
+        let matrix_gaps = required_job_pin_gaps(&matrix);
+        if !matrix_gaps
+            .iter()
+            .any(|gap| gap.contains("\n+    matrix:\n"))
+        {
+            return Err(format!("matrix diff: {matrix_gaps:?}"));
+        }
         Ok(())
     }
 

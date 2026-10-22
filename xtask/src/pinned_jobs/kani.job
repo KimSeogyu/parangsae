@@ -1,0 +1,87 @@
+  kani:
+    name: kani
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+      - name: cargo and rustc are the 1.98.0 toolchain
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          rustc_bin="$(rustup which rustc)"
+          case "$cargo_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/cargo) ;;
+            *) echo "cargo is ${cargo_bin}"; exit 1 ;;
+          esac
+          case "$rustc_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/rustc) ;;
+            *) echo "rustc is ${rustc_bin}"; exit 1 ;;
+          esac
+      # The marketplace action at v1.1 has a broken version check (`if [$?`).
+      # Install the pinned verifier directly so a failed proof fails this job.
+      - name: Install Kani 0.68.0
+        env:
+          # rust-toolchain.toml pins 1.98.0. The verifier builds with that pin.
+          RUSTUP_TOOLCHAIN: 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+          cargo install --locked kani-verifier --version 0.68.0
+          cargo kani setup
+      - name: Prove notional arithmetic
+        env:
+          # cargo kani must use the nightly it installed, not the pinned stable.
+          RUSTUP_TOOLCHAIN: nightly-2026-08-21
+        run: |
+          expected="rustc 1.100.0-nightly (8925ea358 2026-08-20)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+          set -o pipefail
+          cargo kani -p parangsae-core 2>&1 | tee "${{ runner.temp }}/kani.txt"
+      - name: Check the Kani summary
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+          cargo xtask guards kani-output --file "${{ runner.temp }}/kani.txt"
+      - name: removing the negative guard fails its proof
+        env:
+          RUSTUP_TOOLCHAIN: nightly-2026-08-21
+        run: |
+          expected="rustc 1.100.0-nightly (8925ea358 2026-08-20)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+          set +e
+          output=$(cargo kani --manifest-path fixtures/guards/unguarded-notional/Cargo.toml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "unguarded notional proof passed"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'unguarded_notional_accepts_a_negative'
+

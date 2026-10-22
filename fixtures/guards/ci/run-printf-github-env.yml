@@ -1,0 +1,10 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: f=$(printf 'GIT%s' 'HUB_ENV')

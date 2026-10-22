@@ -1,0 +1,79 @@
+  lint-fixture:
+    name: lint fixture fails
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+        with:
+          components: clippy, rustfmt
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+      - name: cargo and rustc are the 1.98.0 toolchain
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          rustc_bin="$(rustup which rustc)"
+          case "$cargo_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/cargo) ;;
+            *) echo "cargo is ${cargo_bin}"; exit 1 ;;
+          esac
+          case "$rustc_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/rustc) ;;
+            *) echo "rustc is ${rustc_bin}"; exit 1 ;;
+          esac
+      - name: format the fixtures
+        run: |
+          cargo fmt --manifest-path fixtures/lint/violation/Cargo.toml -- --check
+          cargo fmt --manifest-path fixtures/lint/unsafe-forbid/Cargo.toml -- --check
+      - name: workspace clippy lints reject the violation fixture
+        run: |
+          set +e
+          output=$(cargo clippy --manifest-path fixtures/lint/violation/Cargo.toml --all-targets -- -D warnings 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "violation fixture was accepted"
+            exit 1
+          fi
+          for lint in \
+            unwrap_used \
+            expect_used \
+            clippy::panic \
+            clippy::todo \
+            unimplemented \
+            dbg_macro \
+            wildcard_enum_match_arm \
+            cast_possible_truncation \
+            cast_possible_wrap \
+            cast_sign_loss \
+            float_arithmetic \
+            allow_attributes_without_reason \
+            print_stdout \
+            print_stderr \
+            clippy::exit \
+            arithmetic_side_effects
+          do
+            if ! printf '%s\n' "$output" | grep -q "$lint"; then
+              echo "lint fixture did not report $lint"
+              exit 1
+            fi
+          done
+      - name: unsafe_code forbid rejects the unsafe fixture
+        run: |
+          set +e
+          output=$(cargo check --manifest-path fixtures/lint/unsafe-forbid/Cargo.toml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "unsafe fixture was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'unsafe-code'
+

@@ -1,0 +1,29 @@
+  depgraph:
+    name: depgraph
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+      - name: cargo and rustc are the 1.98.0 toolchain
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          rustc_bin="$(rustup which rustc)"
+          case "$cargo_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/cargo) ;;
+            *) echo "cargo is ${cargo_bin}"; exit 1 ;;
+          esac
+          case "$rustc_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/rustc) ;;
+            *) echo "rustc is ${rustc_bin}"; exit 1 ;;
+          esac
+      - name: cargo xtask depgraph
+        run: cargo xtask depgraph
+

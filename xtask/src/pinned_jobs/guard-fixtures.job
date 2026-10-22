@@ -1,0 +1,314 @@
+  guard-fixtures:
+    name: guard-fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+      - name: cargo and rustc are the 1.98.0 toolchain
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          rustc_bin="$(rustup which rustc)"
+          case "$cargo_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/cargo) ;;
+            *) echo "cargo is ${cargo_bin}"; exit 1 ;;
+          esac
+          case "$rustc_bin" in
+            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/rustc) ;;
+            *) echo "rustc is ${rustc_bin}"; exit 1 ;;
+          esac
+      - name: unowned feature fails
+        run: |
+          set +e
+          output=$(cargo xtask guards features --root fixtures/guards/unowned 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "unowned feature was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'unowned feature'
+      - name: cfg missing an invariant fails
+        run: |
+          set +e
+          output=$(cargo xtask guards tlc-cfg \
+            --tla specs/tla/IngestSegment.tla \
+            --cfg fixtures/guards/tlc/IngestSegment-missing-invariant.cfg 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "deleted invariant was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'Contiguous'
+      - name: invariant deleted from the model and the cfg fails
+        run: |
+          set +e
+          output=$(cargo xtask guards tlc-cfg \
+            --tla fixtures/guards/tlc/deleted-both.tla \
+            --cfg fixtures/guards/tlc/deleted-both.cfg \
+            --model IngestSegment 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "invariant deleted from both files was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'Contiguous'
+      - name: unreadable floor baseline fails closed
+        env:
+          PARANGSAE_FLOOR_BASE: not-a-sha
+        run: |
+          set +e
+          output=$(cargo xtask guards 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "unreadable baseline was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'unreadable'
+      - name: direct push without a floors file fails closed
+        run: cargo test -p xtask --lib missing_or_unreadable_baseline_fails_closed -- --exact
+      - name: lowered floor fails the ratchet
+        run: |
+          set +e
+          output=$(cargo xtask guards ratchet \
+            --current fixtures/guards/floors-lowered.toml \
+            --base regressions/floors.toml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "lowered floor was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'decreased'
+      - name: kani failure summary is rejected
+        run: |
+          set +e
+          output=$(cargo xtask guards kani-output --file fixtures/guards/kani-one-failure.txt 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "kani failure summary was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'failures'
+      - name: append while gap breaks NoAppendWhileGap
+        run: |
+          set +e
+          output=$(cargo run -q -p parangsae-collector --bin segment-invariants -- fixtures/guards/segment/append_while_gap.txt 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "append while gap was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'NoAppendWhileGap'
+      - name: a job omitted from gate.needs fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/omitted-job.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "omitted gate job was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job clippy is missing from gate.needs'
+      - name: gate without if always fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/no-always.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "gate without if always was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate job is missing if: always()'
+      - name: exit 0 gate check fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/exit-zero.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "exit 0 gate check was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate check step does not match'
+      - name: replaced gate script fails the sha256 pin
+        run: |
+          set +e
+          output=$(cargo xtask guards gate-script --file fixtures/guards/ci/gate_results_exit_zero.py 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "replaced gate script was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate_results.py sha256 does not match'
+      - name: weakened gate fixture step fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/fixture-step-weakened.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "weakened gate fixture step was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate fixture step does not match'
+      - name: weakened gate fixture file fails the sha256 pin
+        run: |
+          set +e
+          output=$(cargo xtask guards gate-fixture --name fixtures/guards/ci/needs-success.json --file fixtures/guards/ci/needs-success-weakened.json 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "weakened gate fixture file was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'needs-success.json sha256 does not match'
+      - name: bom or crlf gate fixture fails the sha256 pin
+        run: |
+          set +e
+          bom=$(cargo xtask guards gate-fixture --name fixtures/guards/ci/needs-success.json --file fixtures/guards/ci/needs-success-bom.json 2>&1)
+          bom_status=$?
+          crlf=$(cargo xtask guards gate-fixture --name fixtures/guards/ci/needs-success.json --file fixtures/guards/ci/needs-success-crlf.json 2>&1)
+          crlf_status=$?
+          set -e
+          printf '%s\n' "$bom"
+          printf '%s\n' "$crlf"
+          if [ "$bom_status" -eq 0 ]; then
+            echo "bom gate fixture was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$bom" | grep -q 'needs-success.json sha256 does not match'
+          if [ "$crlf_status" -eq 0 ]; then
+            echo "crlf gate fixture was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$crlf" | grep -q 'needs-success.json sha256 does not match'
+      - name: gate continue-on-error fails
+        run: |
+          set +e
+          job=$(cargo xtask guards ci-gate --file fixtures/guards/ci/gate-continue-on-error.yml 2>&1)
+          job_status=$?
+          step=$(cargo xtask guards ci-gate --file fixtures/guards/ci/gate-step-continue-on-error.yml 2>&1)
+          step_status=$?
+          needed=$(cargo xtask guards ci-gate --file fixtures/guards/ci/needed-continue-on-error.yml 2>&1)
+          needed_status=$?
+          set -e
+          printf '%s\n' "$job"
+          printf '%s\n' "$step"
+          printf '%s\n' "$needed"
+          if [ "$job_status" -eq 0 ]; then
+            echo "gate continue-on-error was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$job" | grep -q 'gate job sets continue-on-error'
+          if [ "$step_status" -eq 0 ]; then
+            echo "gate step continue-on-error was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$step" | grep -q 'gate step sets continue-on-error'
+          if [ "$needed_status" -eq 0 ]; then
+            echo "needed job continue-on-error was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$needed" | grep -q 'ci job fmt sets continue-on-error'
+      - name: gate step if fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/gate-step-if.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "gate step if was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate step sets if:'
+      - name: required job step if fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/needed-step-if.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "required job step if was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job fmt sets step if:'
+      - name: required job if fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/job-if.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "required job if was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job fmt sets if:'
+      - name: renamed ci job fails the ratchet
+        run: |
+          set +e
+          output=$(cargo xtask guards ratchet --current fixtures/guards/floors-renamed-job.toml --base regressions/floors.toml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "renamed ci job was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job fmt deleted'
+      - name: jobs comment still sees a missing need
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/jobs-comment.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "jobs comment hid the inventory"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job clippy is missing from gate.needs'
+      - name: empty jobs map fails closed
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/jobs-empty.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "empty jobs map was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci workflow has no jobs'
+

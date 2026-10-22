@@ -1,0 +1,12 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    env:
+      CARGO_ENCODED_RUSTFLAGS: -Ctarget-cpu=native
+    steps:
+      - run: echo hi
