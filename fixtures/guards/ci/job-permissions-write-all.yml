@@ -1,0 +1,10 @@
+name: ci
+on: push
+permissions:
+  contents: read
+jobs:
+  fmt:
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt

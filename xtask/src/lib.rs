@@ -9,10 +9,10 @@ use std::process::Command;
 
 /// `CARGO_WORKSPACE_DIR` would point every check at another tree. CI must not set it.
 pub fn reject_cargo_workspace_dir_in_ci(
-    github_actions: bool,
+    in_ci: bool,
     cargo_workspace_dir: Option<&std::ffi::OsStr>,
 ) -> Result<(), String> {
-    if github_actions {
+    if in_ci {
         if let Some(dir) = cargo_workspace_dir {
             if !dir.is_empty() {
                 return Err("CARGO_WORKSPACE_DIR is set in CI".to_owned());
@@ -22,23 +22,25 @@ pub fn reject_cargo_workspace_dir_in_ci(
     Ok(())
 }
 
-fn github_actions_set() -> bool {
-    std::env::var_os("GITHUB_ACTIONS").is_some_and(|value| {
-        let value = value.to_string_lossy();
-        !value.is_empty() && value != "0"
-    })
+/// Any set value counts. `GITHUB_ACTIONS=0` and an empty `CI` are still CI.
+pub fn ci_is_set(github_actions: Option<&std::ffi::OsStr>, ci: Option<&std::ffi::OsStr>) -> bool {
+    github_actions.is_some() || ci.is_some()
+}
+
+fn running_in_ci() -> bool {
+    ci_is_set(
+        std::env::var_os("GITHUB_ACTIONS").as_deref(),
+        std::env::var_os("CI").as_deref(),
+    )
 }
 
 /// Workspace root from `CARGO_WORKSPACE_DIR` or from `cargo metadata`.
 /// Metadata walks up from the current directory, so a caller in `specs/tla`
 /// still finds this repository. In CI the environment override is refused.
 pub fn workspace_root() -> Result<PathBuf, String> {
-    let github_actions = github_actions_set();
-    reject_cargo_workspace_dir_in_ci(
-        github_actions,
-        std::env::var_os("CARGO_WORKSPACE_DIR").as_deref(),
-    )?;
-    if !github_actions {
+    let in_ci = running_in_ci();
+    reject_cargo_workspace_dir_in_ci(in_ci, std::env::var_os("CARGO_WORKSPACE_DIR").as_deref())?;
+    if !in_ci {
         if let Some(dir) = std::env::var_os("CARGO_WORKSPACE_DIR") {
             if !dir.is_empty() {
                 return Ok(PathBuf::from(dir));

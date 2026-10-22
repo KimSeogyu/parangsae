@@ -10,12 +10,12 @@ description = "Causal signals. Views come from Observation::causal_at."
 workspace = true
 
 [dependencies]
-parangsae-core = { path = "../core" }
+parangsae-core = { path = "../core", version = "0.0.0" }
 libm = { version = "=0.2.16", default-features = false, features = ["force-soft-floats"] }
 
 [dev-dependencies]
-parangsae-core = { path = "../core" }
-parangsae-sim = { path = "../sim" }
+parangsae-core = { path = "../core", version = "0.0.0" }
+parangsae-sim = { path = "../sim", version = "0.0.0" }
 cucumber = "=0.22.1"
 proptest = "1.6"
 tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }

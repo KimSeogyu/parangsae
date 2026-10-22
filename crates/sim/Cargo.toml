@@ -11,7 +11,7 @@ default = ["driver-clock"]
 driver-clock = ["parangsae-core/driver-clock"]
 
 [dependencies]
-parangsae-core = { path = "../core" }
+parangsae-core = { path = "../core", version = "0.0.0" }
 
 [dev-dependencies]
 proptest = "1.6"

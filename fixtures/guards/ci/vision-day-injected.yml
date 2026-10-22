@@ -1,0 +1,12 @@
+name: vision-smoke
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: download
+        run: |
+          cargo run --from ${{ inputs.day }}

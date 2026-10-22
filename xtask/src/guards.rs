@@ -8,8 +8,10 @@
 //! `regressions/floors.toml` is accepted only when that resolved commit is
 //! exactly `BOOTSTRAP_BASE`, the raw sha256 of the current floors file is
 //! `BOOTSTRAP_FLOORS_SHA256`, and `origin/main` does not already contain the
-//! file. Any other missing baseline fails. Those two consts are
-//! Reviewer-protected. Baseline resolution never skips the other guards.
+//! file. The landing push is the exception: on `main`, with that base, when
+//! `origin/main` equals `HEAD`. Any other missing baseline fails.
+//! `BOOTSTRAP_BASE`, `BOOTSTRAP_FLOORS_SHA256`, and `EXPECTED_GUARD_RUNS`
+//! are Reviewer-protected. Baseline resolution never skips the other guards.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
@@ -24,6 +26,7 @@ struct Floors {
     values: BTreeMap<String, u64>,
     kani_names: Vec<String>,
     invariants: BTreeMap<String, Vec<String>>,
+    ci_jobs: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -124,6 +127,7 @@ fn check_workspace(root: &Path) -> Result<(), String> {
         }
     }
     errors.extend(guard_run_gaps(&reports));
+    errors.extend(guard_inventory_gaps());
     if errors.is_empty() {
         Ok(())
     } else {
@@ -136,7 +140,10 @@ const BOOTSTRAP_BASE: &str = "4db8a75a7bd0886f4cdeefa050a2d89e3a36118d";
 
 /// Reviewer-protected. Raw sha256 of `regressions/floors.toml` on the bootstrap path.
 const BOOTSTRAP_FLOORS_SHA256: &str =
-    "0b44e3cf3df05877948066c6838f5ac92e708478d8615dbc48e06440c95edd73";
+    "e9588b557ea0b3ce615fa0e469573279235647bcca7a93e2d3b5c91a75778528";
+
+/// Reviewer-protected. Non-ratchet guards plus the ratchet.
+const EXPECTED_GUARD_RUNS: usize = 12;
 
 const NON_RATCHET_GUARDS: &[&str] = &[
     "feature-ownership",
@@ -166,8 +173,27 @@ impl GuardReport {
     }
 }
 
-fn expected_guard_runs() -> usize {
-    NON_RATCHET_GUARDS.len() + 1
+fn guard_inventory_gaps() -> Vec<String> {
+    let mut names: Vec<&str> = NON_RATCHET_GUARDS.to_vec();
+    names.push("ratchet");
+    inventory_gaps(&names)
+}
+
+fn inventory_gaps(names: &[&str]) -> Vec<String> {
+    let mut gaps = Vec::new();
+    if names.len() != EXPECTED_GUARD_RUNS {
+        gaps.push(format!(
+            "guard inventory {} is not {EXPECTED_GUARD_RUNS}",
+            names.len()
+        ));
+    }
+    let mut seen = BTreeSet::new();
+    for name in names {
+        if !seen.insert(*name) {
+            gaps.push(format!("guard {name} is duplicated"));
+        }
+    }
+    gaps
 }
 
 fn emit_guard_line(line: &str) -> Result<(), String> {
@@ -186,9 +212,10 @@ fn guard_summary(reports: &[GuardReport]) -> String {
 fn guard_run_gaps(reports: &[GuardReport]) -> Vec<String> {
     let mut gaps = Vec::new();
     let ran = reports.iter().filter(|report| report.ran).count();
-    let expected = expected_guard_runs();
-    if ran < expected {
-        gaps.push(format!("guards ran {ran} which is below {expected}"));
+    if ran < EXPECTED_GUARD_RUNS {
+        gaps.push(format!(
+            "guards ran {ran} which is below {EXPECTED_GUARD_RUNS}"
+        ));
     }
     for name in NON_RATCHET_GUARDS {
         if !reports
@@ -286,7 +313,13 @@ fn guard_failed(name: &'static str, detail: String) -> GuardReport {
 }
 
 fn ci_gate_result(root: &Path) -> Result<Vec<String>, String> {
-    ci_gate_gaps(&read(&root.join(".github/workflows/ci.yml"))?)
+    let text = read(&root.join(".github/workflows/ci.yml"))?;
+    let mut gaps = ci_gate_gaps(&text)?;
+    match load_floors(&root.join("regressions/floors.toml")) {
+        Ok(floors) => gaps.extend(ci_job_inventory_gaps(&text, &floors)),
+        Err(err) => gaps.push(err),
+    }
+    Ok(gaps)
 }
 
 fn gate_script_result(root: &Path) -> Result<Vec<String>, String> {
@@ -304,12 +337,12 @@ fn gate_fixture_result(root: &Path) -> Result<Vec<String>, String> {
 }
 
 fn cargo_workspace_dir_violations() -> Vec<String> {
-    let github_actions = std::env::var_os("GITHUB_ACTIONS").is_some_and(|value| {
-        let value = value.to_string_lossy();
-        !value.is_empty() && value != "0"
-    });
+    let in_ci = crate::ci_is_set(
+        std::env::var_os("GITHUB_ACTIONS").as_deref(),
+        std::env::var_os("CI").as_deref(),
+    );
     match crate::reject_cargo_workspace_dir_in_ci(
-        github_actions,
+        in_ci,
         std::env::var_os("CARGO_WORKSPACE_DIR").as_deref(),
     ) {
         Ok(()) => Vec::new(),
@@ -323,6 +356,32 @@ const GATE_CHECK_STEP: &str = concat!(
     "          NEEDS: ${{ toJSON(needs) }}\n",
     "        run: python3 .github/workflows/gate_results.py\n",
 );
+
+const GUARDS_STEP_ENV: &str = concat!(
+    "        env:\n",
+    "          PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}\n",
+    "          PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}\n",
+);
+
+const RUSTC_198_STEP: &str = concat!(
+    "      - name: rustc is 1.98.0\n",
+    "        run: |\n",
+    "          expected=\"rustc 1.98.0 (88d9e12ae 2026-08-18)\"\n",
+    "          actual=\"$(rustc -V)\"\n",
+    "          if [ \"$actual\" != \"$expected\" ]; then\n",
+    "            echo \"rustc -V was ${actual}\"\n",
+    "            exit 1\n",
+    "          fi\n",
+);
+
+const ALLOWED_TRIGGERS: &[&str] = &["push", "pull_request", "workflow_dispatch"];
+
+const FORBIDDEN_ENV: &[&str] = &[
+    "CARGO_WORKSPACE_DIR",
+    "GITHUB_ACTIONS",
+    "CI",
+    "PARANGSAE_FLOOR_BASE",
+];
 
 const GATE_FIXTURE_STEP: &str = include_str!("gate_fixture_step.txt");
 
@@ -439,7 +498,71 @@ fn ci_gate_gaps(text: &str) -> Result<Vec<String>, String> {
             gaps.push(format!("ci job {name} sets continue-on-error"));
         }
     }
+    gaps.extend(required_job_if_gaps(text, &needs));
     Ok(gaps)
+}
+
+fn required_job_if_gaps(text: &str, needs: &BTreeSet<String>) -> Vec<String> {
+    let mut gaps = Vec::new();
+    for name in needs {
+        let Some(block) = job_block(text, name) else {
+            continue;
+        };
+        if job_level_if(block) {
+            gaps.push(format!("ci job {name} sets if:"));
+        }
+        if step_level_if(block) {
+            gaps.push(format!("ci job {name} sets step if:"));
+        }
+    }
+    gaps
+}
+
+fn job_level_if(block: &str) -> bool {
+    block.lines().any(|line| {
+        let indent = line.len() - line.trim_start().len();
+        let key = strip_yaml_comment(line).trim();
+        indent == 4 && key.starts_with("if:")
+    })
+}
+
+fn step_level_if(block: &str) -> bool {
+    block.lines().any(|line| {
+        let indent = line.len() - line.trim_start().len();
+        let trimmed = strip_yaml_comment(line).trim();
+        let key = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        indent > 4 && key.starts_with("if:")
+    })
+}
+
+fn ci_job_inventory_gaps(text: &str, floors: &Floors) -> Vec<String> {
+    let jobs = match ci_job_ids(text) {
+        Ok(jobs) => jobs,
+        Err(err) => return vec![err],
+    };
+    let needs = match gate_job_block(text).and_then(gate_needs) {
+        Ok(needs) => needs,
+        Err(err) => return vec![err],
+    };
+    let mut gaps = Vec::new();
+    let mut listed = BTreeSet::new();
+    for name in &floors.ci_jobs {
+        if !listed.insert(name.as_str()) {
+            gaps.push(format!("duplicate ci job {name}"));
+        }
+        if !jobs.contains(name) {
+            gaps.push(format!("ci job {name} is not in the workflow"));
+        }
+        if !needs.contains(name) {
+            gaps.push(format!("ci job {name} is not required by the gate"));
+        }
+    }
+    for name in &needs {
+        if !floors.ci_jobs.iter().any(|job| job == name) {
+            gaps.push(format!("ci job {name} is missing from the floor inventory"));
+        }
+    }
+    gaps
 }
 
 fn gate_control_gaps(block: &str) -> Vec<String> {
@@ -1079,6 +1202,15 @@ fn ratchet(current: &Floors, base: &Floors) -> Vec<String> {
             violations.push(format!("kani harness {name} deleted"));
         }
     }
+    for name in &base.ci_jobs {
+        if !current
+            .ci_jobs
+            .iter()
+            .any(|current_name| current_name == name)
+        {
+            violations.push(format!("ci job {name} deleted"));
+        }
+    }
     for (model, names) in &base.invariants {
         let current_names = current.invariants.get(model);
         for name in names {
@@ -1243,6 +1375,7 @@ fn parse_floors(text: &str) -> Result<Floors, String> {
     let mut values = BTreeMap::new();
     let mut kani_names = Vec::new();
     let mut invariants: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut ci_jobs = Vec::new();
     for (index, line) in text.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
@@ -1258,6 +1391,13 @@ fn parse_floors(text: &str) -> Result<Floors, String> {
                 return Err(format!("duplicate kani harness {value}"));
             }
             kani_names.push(value.to_owned());
+            continue;
+        }
+        if key == "ci.job" {
+            if ci_jobs.iter().any(|name: &String| name == value) {
+                return Err(format!("duplicate ci job {value}"));
+            }
+            ci_jobs.push(value.to_owned());
             continue;
         }
         if let Some(model) = invariant_key(key) {
@@ -1279,6 +1419,7 @@ fn parse_floors(text: &str) -> Result<Floors, String> {
         values,
         kani_names,
         invariants,
+        ci_jobs,
     })
 }
 
@@ -1311,45 +1452,364 @@ enum BaselineChoice {
 
 fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
     let mut violations = Vec::new();
-    for name in [
-        ".github/workflows/ci.yml",
-        ".github/workflows/vision-smoke.yml",
-    ] {
-        let text = read(&root.join(name))?;
-        if !permissions_are_contents_read(&text) {
-            violations.push(format!("{name} permissions are not contents: read"));
+    for path in workflow_dir_files(root)? {
+        let name = workflow_display(root, &path);
+        let text = read(&path)?;
+        if workflow_yaml(&path) {
+            violations.extend(workflow_file_gaps(&name, &text));
+        } else {
+            violations.extend(hidden_workflow_gaps(&name, &text));
         }
     }
     let ci = read(&root.join(".github/workflows/ci.yml"))?;
     if !guards_fetch_depth_is_zero(&ci) {
         violations.push("guards checkout fetch-depth is not 0".to_owned());
     }
+    if !ci.contains(GUARDS_STEP_ENV) {
+        violations.push("guards step env does not match".to_owned());
+    }
     Ok(violations)
+}
+
+fn workflow_dir_files(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let dir = root.join(".github/workflows");
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(&dir).map_err(|err| format!("read {}: {err}", dir.display()))? {
+        let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
+        let path = entry.path();
+        if path.is_file() {
+            files.push(path);
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+fn workflow_display(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+}
+
+fn workflow_yaml(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|ext| ext.to_str()),
+        Some("yml" | "yaml")
+    )
+}
+
+fn workflow_file_gaps(name: &str, text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    if !permissions_are_contents_read(text) {
+        gaps.push(format!("{name} permissions are not contents: read"));
+    }
+    gaps.extend(job_write_permission_gaps(name, text));
+    gaps.extend(trigger_gaps(name, text));
+    gaps.extend(forbidden_env_gaps(name, text));
+    gaps.extend(rustc_pin_gaps(name, text));
+    gaps.extend(run_injection_gaps(name, text));
+    if name.ends_with("vision-smoke.yml") && !text.contains("day must be YYYY-MM-DD") {
+        gaps.push(format!("{name} does not validate the day"));
+    }
+    gaps
+}
+
+fn hidden_workflow_gaps(name: &str, text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    for line in text.lines() {
+        let code = strip_yaml_comment(line).trim();
+        if code.starts_with("uses:")
+            || code.starts_with("- uses:")
+            || code.starts_with("permissions:")
+            || code == "on:"
+            || code.starts_with("on:")
+        {
+            gaps.push(format!("{name} carries workflow keys"));
+            break;
+        }
+    }
+    gaps
 }
 
 fn permissions_are_contents_read(text: &str) -> bool {
     let lines: Vec<&str> = text.lines().collect();
+    let mut found = false;
     for (idx, line) in lines.iter().enumerate() {
         if !is_top_level(line) {
             continue;
         }
         let code = strip_yaml_comment(line).trim();
         if code == "permissions: contents: read" {
-            return true;
+            if found {
+                return false;
+            }
+            found = true;
+            continue;
         }
         if code == "permissions:" {
+            if found {
+                return false;
+            }
+            let mut keys = Vec::new();
             for follow in lines.iter().skip(idx + 1) {
                 if is_top_level(follow) {
                     break;
                 }
-                if strip_yaml_comment(follow).trim() == "contents: read" {
-                    return true;
+                let indent = follow.len() - follow.trim_start().len();
+                let child = strip_yaml_comment(follow).trim();
+                if child.is_empty() || indent != 2 {
+                    continue;
                 }
+                keys.push(child);
             }
+            if keys != ["contents: read"] {
+                return false;
+            }
+            found = true;
+            continue;
+        }
+        if code.starts_with("permissions:") {
             return false;
         }
     }
-    false
+    found
+}
+
+fn job_write_permission_gaps(name: &str, text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    let mut job: Option<String> = None;
+    let mut in_perms = false;
+    let mut perms_indent = 0usize;
+    for line in text.lines() {
+        if is_top_level(line) {
+            job = None;
+            in_perms = false;
+            continue;
+        }
+        if let Some(id) = job_id(line) {
+            job = Some(id);
+            in_perms = false;
+            continue;
+        }
+        let Some(job_name) = job.as_deref() else {
+            continue;
+        };
+        let indent = line.len() - line.trim_start().len();
+        let trimmed = strip_yaml_comment(line).trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if in_perms && indent <= perms_indent {
+            in_perms = false;
+        }
+        let key = trimmed.strip_prefix("- ").unwrap_or(trimmed);
+        if !in_perms && indent == 4 && key.starts_with("permissions:") {
+            if permission_line_grants_write(key) {
+                gaps.push(format!("{name} job {job_name} permissions grant write"));
+            }
+            if key == "permissions:" {
+                in_perms = true;
+                perms_indent = 4;
+            }
+        } else if in_perms && permission_line_grants_write(key) {
+            gaps.push(format!("{name} job {job_name} permissions grant write"));
+        }
+    }
+    gaps
+}
+
+fn permission_line_grants_write(key: &str) -> bool {
+    if key.contains("write-all") {
+        return true;
+    }
+    let Some((_, value)) = key.split_once(':') else {
+        return false;
+    };
+    let value = value.trim().trim_matches(['"', '\'']);
+    value == "write" || value == "write-all"
+}
+
+fn trigger_gaps(name: &str, text: &str) -> Vec<String> {
+    let triggers = workflow_triggers(text);
+    if triggers.is_empty() {
+        return vec![format!("{name} has no allowed trigger")];
+    }
+    let mut gaps = Vec::new();
+    for trigger in triggers {
+        if !ALLOWED_TRIGGERS.contains(&trigger.as_str()) {
+            gaps.push(format!("{name} trigger {trigger} is not allowed"));
+        }
+    }
+    gaps
+}
+
+fn workflow_triggers(text: &str) -> Vec<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut triggers = Vec::new();
+    for (idx, line) in lines.iter().enumerate() {
+        if !is_top_level(line) {
+            continue;
+        }
+        let code = strip_yaml_comment(line).trim();
+        let Some(rest) = code.strip_prefix("on:") else {
+            continue;
+        };
+        let rest = rest.trim();
+        if rest.is_empty() {
+            for follow in lines.iter().skip(idx + 1) {
+                if is_top_level(follow) {
+                    break;
+                }
+                let indent = follow.len() - follow.trim_start().len();
+                if indent != 2 {
+                    continue;
+                }
+                let child = strip_yaml_comment(follow).trim();
+                let Some(trigger) = child.strip_suffix(':') else {
+                    continue;
+                };
+                let trigger = trigger.trim();
+                if !trigger.is_empty() && !trigger.contains(' ') {
+                    triggers.push(trigger.to_owned());
+                }
+            }
+        } else if let Some(inner) = rest
+            .strip_prefix('[')
+            .and_then(|body| body.strip_suffix(']'))
+        {
+            for item in inner.split(',') {
+                let item = item.trim().trim_matches(['"', '\'']);
+                if !item.is_empty() {
+                    triggers.push(item.to_owned());
+                }
+            }
+        } else if let Some(trigger) = rest.split_whitespace().next() {
+            let trigger = trigger.trim_matches(['"', '\'', '{', '}', ',']);
+            let trigger = trigger.trim_end_matches(':');
+            if !trigger.is_empty() {
+                triggers.push(trigger.to_owned());
+            }
+        }
+    }
+    triggers
+}
+
+fn forbidden_env_gaps(name: &str, text: &str) -> Vec<String> {
+    let stripped = match text.find(GUARDS_STEP_ENV) {
+        Some(idx) => {
+            let mut out = String::with_capacity(text.len());
+            out.push_str(&text[..idx]);
+            out.push_str(&text[idx + GUARDS_STEP_ENV.len()..]);
+            out
+        }
+        None => text.to_owned(),
+    };
+    let lines: Vec<&str> = stripped.lines().collect();
+    let mut gaps = Vec::new();
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let code = strip_yaml_comment(lines[idx]).trim();
+        let key = code.strip_prefix("- ").unwrap_or(code);
+        if let Some(rest) = key.strip_prefix("env:") {
+            let indent = lines[idx].len() - lines[idx].trim_start().len();
+            let rest = rest.trim();
+            if !rest.is_empty() {
+                gaps.extend(flow_env_gaps(name, rest));
+            }
+            idx += 1;
+            while idx < lines.len() {
+                let follow = lines[idx];
+                let child = strip_yaml_comment(follow).trim();
+                if child.is_empty() {
+                    idx += 1;
+                    continue;
+                }
+                let findent = follow.len() - follow.trim_start().len();
+                if findent <= indent {
+                    break;
+                }
+                if let Some((env_key, _)) = child.split_once(':') {
+                    let env_key = env_key.trim();
+                    if FORBIDDEN_ENV.contains(&env_key) {
+                        gaps.push(format!("{name} env sets {env_key}"));
+                    }
+                }
+                idx += 1;
+            }
+            continue;
+        }
+        idx += 1;
+    }
+    gaps
+}
+
+fn flow_env_gaps(name: &str, rest: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    let inner = rest.trim().trim_matches(|ch| ch == '{' || ch == '}');
+    for item in inner.split(',') {
+        let key = item
+            .split_once(':')
+            .map(|(key, _)| key.trim())
+            .unwrap_or("");
+        if FORBIDDEN_ENV.contains(&key) {
+            gaps.push(format!("{name} env sets {key}"));
+        }
+    }
+    gaps
+}
+
+fn rustc_pin_gaps(name: &str, text: &str) -> Vec<String> {
+    let Ok(jobs) = ci_job_ids(text) else {
+        return Vec::new();
+    };
+    let mut gaps = Vec::new();
+    for job in jobs {
+        let Some(block) = job_block(text, &job) else {
+            continue;
+        };
+        if block.contains("dtolnay/rust-toolchain@") && !block.contains(RUSTC_198_STEP) {
+            gaps.push(format!("{name} job {job} does not assert rustc 1.98.0"));
+        }
+    }
+    gaps
+}
+
+fn run_injection_gaps(name: &str, text: &str) -> Vec<String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut gaps = Vec::new();
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let indent = lines[idx].len() - lines[idx].trim_start().len();
+        let trimmed = strip_yaml_comment(lines[idx]).trim();
+        let Some(rest) = trimmed.strip_prefix("run:") else {
+            idx += 1;
+            continue;
+        };
+        if rest.contains("${{ inputs.day }}") || rest.contains("${{inputs.day}}") {
+            gaps.push(format!("{name} interpolates inputs.day in run"));
+        }
+        let rest = rest.trim();
+        if rest.is_empty() || matches!(rest, "|" | ">" | "|-" | ">-") {
+            idx += 1;
+            while idx < lines.len() {
+                let child = lines[idx];
+                if !child.trim().is_empty() {
+                    let findent = child.len() - child.trim_start().len();
+                    if findent <= indent {
+                        break;
+                    }
+                }
+                if child.contains("${{ inputs.day }}") || child.contains("${{inputs.day}}") {
+                    gaps.push(format!("{name} interpolates inputs.day in run"));
+                }
+                idx += 1;
+            }
+            continue;
+        }
+        idx += 1;
+    }
+    gaps
 }
 
 fn guards_fetch_depth_is_zero(text: &str) -> bool {
@@ -1362,11 +1822,11 @@ fn guards_fetch_depth_is_zero(text: &str) -> bool {
 
 fn action_pin_result(root: &Path) -> Result<Vec<String>, String> {
     let mut violations = Vec::new();
-    for name in [
-        ".github/workflows/ci.yml",
-        ".github/workflows/vision-smoke.yml",
-    ] {
-        let text = read(&root.join(name))?;
+    for path in workflow_dir_files(root)? {
+        if !workflow_yaml(&path) {
+            continue;
+        }
+        let text = read(&path)?;
         violations.extend(action_pin_gaps(&text));
     }
     Ok(violations)
@@ -1375,27 +1835,57 @@ fn action_pin_result(root: &Path) -> Result<Vec<String>, String> {
 fn action_pin_gaps(text: &str) -> Vec<String> {
     let mut gaps = Vec::new();
     for line in text.lines() {
-        let Some(uses) = uses_value(line) else {
-            continue;
-        };
-        if !action_is_sha_pinned(uses) {
-            gaps.push(format!("action {uses} is not pinned to a sha"));
+        for uses in uses_values(line) {
+            if !action_is_sha_pinned(&uses) {
+                gaps.push(format!("action {uses} is not pinned to a sha"));
+            }
         }
     }
     gaps
 }
 
-fn uses_value(line: &str) -> Option<&str> {
-    let code = strip_yaml_comment(line).trim();
-    let rest = code
-        .strip_prefix("- uses:")
-        .or_else(|| code.strip_prefix("uses:"))?;
-    let rest = rest.trim().trim_matches(['"', '\'']);
-    if rest.is_empty() {
-        None
-    } else {
-        Some(rest)
+fn uses_values(line: &str) -> Vec<String> {
+    let code = strip_yaml_comment(line);
+    let mut found = Vec::new();
+    let mut rest = code;
+    while let Some(idx) = find_uses_key(rest) {
+        let after = &rest[idx + "uses:".len()..];
+        let value = take_uses_value(after);
+        if !value.is_empty() {
+            found.push(value);
+        }
+        rest = &rest[idx + "uses:".len()..];
     }
+    found
+}
+
+fn find_uses_key(text: &str) -> Option<usize> {
+    let mut start = 0usize;
+    while let Some(rel) = text[start..].find("uses:") {
+        let idx = start + rel;
+        let ok = match text[..idx].chars().next_back() {
+            None => true,
+            Some(ch) if ch.is_whitespace() || matches!(ch, '{' | ',' | '-') => true,
+            Some(_) => false,
+        };
+        if ok {
+            return Some(idx);
+        }
+        start = idx + "uses:".len();
+    }
+    None
+}
+
+fn take_uses_value(after: &str) -> String {
+    let after = after.trim_start().trim_start_matches(['"', '\'']);
+    let mut end = after.len();
+    for (idx, ch) in after.char_indices() {
+        if ch == ',' || ch == '}' || ch == '#' || ch.is_whitespace() {
+            end = idx;
+            break;
+        }
+    }
+    after[..end].trim().trim_matches(['"', '\'']).to_owned()
 }
 
 fn action_is_sha_pinned(uses: &str) -> bool {
@@ -1426,7 +1916,7 @@ fn ratchet_report(
             Err(err) => guard_failed("ratchet", err.clone()),
         },
         ResolvedBaseline::Missing { sha } if sha == BOOTSTRAP_BASE => {
-            bootstrap_report(root, floors)
+            bootstrap_report(root, floors, on_main, &sha)
         }
         ResolvedBaseline::Missing { sha } => guard_failed(
             "ratchet",
@@ -1436,19 +1926,28 @@ fn ratchet_report(
     }
 }
 
-fn bootstrap_report(root: &Path, floors: &Result<Floors, String>) -> GuardReport {
+fn bootstrap_report(
+    root: &Path,
+    floors: &Result<Floors, String>,
+    on_main: bool,
+    base: &str,
+) -> GuardReport {
     if let Err(err) = floors {
         return guard_failed("ratchet", err.clone());
     }
-    match origin_main_has_floors(root) {
-        Ok(true) => {
-            return guard_failed(
-                "ratchet",
-                "bootstrap path is closed: origin/main contains regressions/floors.toml".to_owned(),
-            );
-        }
-        Ok(false) => {}
+    let origin = match origin_main(root) {
+        Ok(origin) => origin,
         Err(err) => return guard_failed("ratchet", err),
+    };
+    let landing = match bootstrap_landing(root, on_main, base, &origin.sha) {
+        Ok(landing) => landing,
+        Err(err) => return guard_failed("ratchet", err),
+    };
+    if origin.has_floors && !landing {
+        return guard_failed(
+            "ratchet",
+            "bootstrap path is closed: origin/main contains regressions/floors.toml".to_owned(),
+        );
     }
     match read_bytes(&root.join("regressions/floors.toml")) {
         Ok(bytes) if sha256_hex(&bytes) == BOOTSTRAP_FLOORS_SHA256 => {
@@ -1462,7 +1961,12 @@ fn bootstrap_report(root: &Path, floors: &Result<Floors, String>) -> GuardReport
     }
 }
 
-fn origin_main_has_floors(root: &Path) -> Result<bool, String> {
+struct OriginMain {
+    sha: String,
+    has_floors: bool,
+}
+
+fn origin_main(root: &Path) -> Result<OriginMain, String> {
     git(
         root,
         &[
@@ -1472,6 +1976,7 @@ fn origin_main_has_floors(root: &Path) -> Result<bool, String> {
             "main:refs/remotes/origin/main",
         ],
     )?;
+    let sha = git(root, &["rev-parse", "refs/remotes/origin/main"])?;
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
@@ -1483,7 +1988,23 @@ fn origin_main_has_floors(root: &Path) -> Result<bool, String> {
         .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .map_err(|err| format!("git: {err}"))?;
-    Ok(output.status.success())
+    Ok(OriginMain {
+        sha,
+        has_floors: output.status.success(),
+    })
+}
+
+fn bootstrap_landing(
+    root: &Path,
+    on_main: bool,
+    base: &str,
+    origin_sha: &str,
+) -> Result<bool, String> {
+    if !on_main || base != BOOTSTRAP_BASE {
+        return Ok(false);
+    }
+    let head = git(root, &["rev-parse", "HEAD"])?;
+    Ok(origin_sha == head)
 }
 
 fn resolve_floor_base(root: &Path, floor_base: Option<&str>, on_main: bool) -> ResolvedBaseline {
@@ -2104,7 +2625,7 @@ kani.min_harnesses=1
             return Err("guard ratchet did not run".to_owned());
         }
         let ran = reports.iter().filter(|report| report.ran).count();
-        if ran < expected_guard_runs() {
+        if ran < EXPECTED_GUARD_RUNS {
             return Err(format!("guards ran {ran}"));
         }
         Ok(())
@@ -2183,7 +2704,10 @@ kani.min_harnesses=1
                 .collect::<Vec<_>>()
                 .join("\n"));
         }
-        let bootstrap = guard_reports(&root, Some(BOOTSTRAP_BASE), false);
+        let bootstrap_repo = shared_workspace("bootstrap-open")?;
+        overlay_workspace_checks(&root, &bootstrap_repo.path)?;
+        point_origin_at_main_without_floors(&bootstrap_repo.path)?;
+        let bootstrap = guard_reports(&bootstrap_repo.path, Some(BOOTSTRAP_BASE), false);
         assert_non_ratchet_ran(&bootstrap)?;
         if bootstrap.iter().any(|report| !report.passed) {
             return Err(format!(
@@ -2230,16 +2754,7 @@ kani.min_harnesses=1
     fn bootstrap_fails_on_a_mutated_gate_pin_or_a_closed_origin_main() -> Result<(), String> {
         let source = crate::workspace_root()?;
         let mutated = shared_workspace("mutated-pin")?;
-        std::fs::copy(
-            source.join(".github/workflows/ci.yml"),
-            mutated.path.join(".github/workflows/ci.yml"),
-        )
-        .map_err(|err| format!("copy ci.yml: {err}"))?;
-        std::fs::copy(
-            source.join(".github/workflows/vision-smoke.yml"),
-            mutated.path.join(".github/workflows/vision-smoke.yml"),
-        )
-        .map_err(|err| format!("copy vision-smoke: {err}"))?;
+        overlay_workspace_checks(&source, &mutated.path)?;
         std::fs::write(
             mutated.path.join(".github/workflows/gate_results.py"),
             "import sys\nsys.exit(0)\n",
@@ -2257,16 +2772,7 @@ kani.min_harnesses=1
         }
 
         let closed = shared_workspace("closed-main")?;
-        std::fs::copy(
-            source.join(".github/workflows/ci.yml"),
-            closed.path.join(".github/workflows/ci.yml"),
-        )
-        .map_err(|err| format!("copy ci.yml: {err}"))?;
-        std::fs::copy(
-            source.join(".github/workflows/vision-smoke.yml"),
-            closed.path.join(".github/workflows/vision-smoke.yml"),
-        )
-        .map_err(|err| format!("copy vision-smoke: {err}"))?;
+        overlay_workspace_checks(&source, &closed.path)?;
         let remote = closed.path.join("remote-main");
         std::fs::create_dir_all(&remote).map_err(|err| format!("mkdir: {err}"))?;
         git_fixture(&remote, &["init", "-b", "main"])?;
@@ -2298,16 +2804,7 @@ kani.min_harnesses=1
     fn a_bootstrap_floors_sha_mismatch_fails() -> Result<(), String> {
         let source = crate::workspace_root()?;
         let cloned = shared_workspace("floors-sha")?;
-        std::fs::copy(
-            source.join(".github/workflows/ci.yml"),
-            cloned.path.join(".github/workflows/ci.yml"),
-        )
-        .map_err(|err| format!("copy ci.yml: {err}"))?;
-        std::fs::copy(
-            source.join(".github/workflows/vision-smoke.yml"),
-            cloned.path.join(".github/workflows/vision-smoke.yml"),
-        )
-        .map_err(|err| format!("copy vision-smoke: {err}"))?;
+        overlay_workspace_checks(&source, &cloned.path)?;
         let mut floors = read_bytes(&source.join("regressions/floors.toml"))?;
         floors.push(b'\n');
         std::fs::write(cloned.path.join("regressions/floors.toml"), floors)
@@ -2382,6 +2879,132 @@ kani.min_harnesses=1
         if crate::reject_cargo_workspace_dir_in_ci(false, Some(set)).is_err() {
             return Err("local override was rejected".to_owned());
         }
+        let zero = std::ffi::OsStr::new("0");
+        let truth = std::ffi::OsStr::new("true");
+        if !crate::ci_is_set(Some(empty), None) {
+            return Err("empty GITHUB_ACTIONS was not CI".to_owned());
+        }
+        if !crate::ci_is_set(Some(zero), None) {
+            return Err("GITHUB_ACTIONS=0 was not CI".to_owned());
+        }
+        if !crate::ci_is_set(None, Some(truth)) {
+            return Err("CI was not CI".to_owned());
+        }
+        if crate::ci_is_set(None, None) {
+            return Err("unset environment was CI".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn workflow_guards_reject_each_bypass() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let extra = read(&root.join("fixtures/guards/ci/permissions-extra.yml"))?;
+        if permissions_are_contents_read(&extra) {
+            return Err("extra permission was accepted".to_owned());
+        }
+        let write = read(&root.join("fixtures/guards/ci/job-permissions-write.yml"))?;
+        let write_gaps = job_write_permission_gaps("job-permissions-write.yml", &write);
+        if write_gaps != ["job-permissions-write.yml job fmt permissions grant write".to_owned()] {
+            return Err(format!("write: {write_gaps:?}"));
+        }
+        let write_all = read(&root.join("fixtures/guards/ci/job-permissions-write-all.yml"))?;
+        let write_all_gaps = job_write_permission_gaps("job-permissions-write-all.yml", &write_all);
+        if write_all_gaps
+            != ["job-permissions-write-all.yml job fmt permissions grant write".to_owned()]
+        {
+            return Err(format!("write-all: {write_all_gaps:?}"));
+        }
+        let flow = read(&root.join("fixtures/guards/ci/flow-uses.yml"))?;
+        let flow_gaps = action_pin_gaps(&flow);
+        if flow_gaps != ["action actions/checkout@v4 is not pinned to a sha".to_owned()] {
+            return Err(format!("flow uses: {flow_gaps:?}"));
+        }
+        let target = read(&root.join("fixtures/guards/ci/pull-request-target.yml"))?;
+        let target_gaps = trigger_gaps("pull-request-target.yml", &target);
+        if target_gaps
+            != ["pull-request-target.yml trigger pull_request_target is not allowed".to_owned()]
+        {
+            return Err(format!("pull_request_target: {target_gaps:?}"));
+        }
+        let workflow_run = read(&root.join("fixtures/guards/ci/workflow-run.yml"))?;
+        let run_gaps = trigger_gaps("workflow-run.yml", &workflow_run);
+        if run_gaps != ["workflow-run.yml trigger workflow_run is not allowed".to_owned()] {
+            return Err(format!("workflow_run: {run_gaps:?}"));
+        }
+        let env_text = read(&root.join("fixtures/guards/ci/env-overrides.yml"))?;
+        let env_gaps = forbidden_env_gaps("env-overrides.yml", &env_text);
+        let expected_env = [
+            "env-overrides.yml env sets CARGO_WORKSPACE_DIR".to_owned(),
+            "env-overrides.yml env sets GITHUB_ACTIONS".to_owned(),
+            "env-overrides.yml env sets CI".to_owned(),
+            "env-overrides.yml env sets PARANGSAE_FLOOR_BASE".to_owned(),
+        ];
+        if env_gaps != expected_env {
+            return Err(format!("env: {env_gaps:?}"));
+        }
+        let day = read(&root.join("fixtures/guards/ci/vision-day-injected.yml"))?;
+        let day_gaps = run_injection_gaps("vision-day-injected.yml", &day);
+        if day_gaps != ["vision-day-injected.yml interpolates inputs.day in run".to_owned()] {
+            return Err(format!("day: {day_gaps:?}"));
+        }
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        if !ci.contains(GUARDS_STEP_ENV) {
+            return Err("guards step env pin".to_owned());
+        }
+        if !ci.contains(RUSTC_198_STEP) {
+            return Err("rustc step pin".to_owned());
+        }
+        let smoke = read(&root.join(".github/workflows/vision-smoke.yml"))?;
+        let smoke_gaps = workflow_file_gaps(".github/workflows/vision-smoke.yml", &smoke);
+        if !smoke_gaps.is_empty() {
+            return Err(format!("vision-smoke: {smoke_gaps:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn the_landing_push_keeps_bootstrap_and_a_later_branch_does_not() -> Result<(), String> {
+        let source = crate::workspace_root()?;
+        let landing = shared_workspace("landing-push")?;
+        overlay_workspace_checks(&source, &landing.path)?;
+        point_origin_at_head(&landing.path)?;
+        let reports = guard_reports(&landing.path, Some(BOOTSTRAP_BASE), true);
+        assert_non_ratchet_ran(&reports)?;
+        if reports.iter().any(|report| !report.passed) {
+            return Err(reports
+                .iter()
+                .filter(|report| !report.passed)
+                .map(|report| format!("{}: {}", report.name, report.detail))
+                .collect::<Vec<_>>()
+                .join("\n"));
+        }
+        let later = shared_workspace("later-branch")?;
+        overlay_workspace_checks(&source, &later.path)?;
+        let remote = later.path.join("remote-main");
+        std::fs::create_dir_all(&remote).map_err(|err| format!("mkdir: {err}"))?;
+        git_fixture(&remote, &["init", "-b", "main"])?;
+        std::fs::create_dir_all(remote.join("regressions"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::copy(
+            source.join("regressions/floors.toml"),
+            remote.join("regressions/floors.toml"),
+        )
+        .map_err(|err| format!("copy floors: {err}"))?;
+        git_fixture(&remote, &["add", "regressions/floors.toml"])?;
+        git_fixture(&remote, &["commit", "-m", "floors"])?;
+        let remote_url = format!(
+            "file://{}",
+            remote.to_str().ok_or("remote path is not utf-8")?
+        );
+        git_fixture(&later.path, &["remote", "set-url", "origin", &remote_url])?;
+        clear_origin_main(&later.path)?;
+        let reports = guard_reports(&later.path, Some(BOOTSTRAP_BASE), false);
+        assert_non_ratchet_ran(&reports)?;
+        let ratchet = report_named(&reports, "ratchet")?;
+        if ratchet.passed || !ratchet.detail.contains("origin/main contains") {
+            return Err(format!("later branch: {}", ratchet.detail));
+        }
         Ok(())
     }
 
@@ -2420,6 +3043,48 @@ kani.min_harnesses=1
         );
         git_fixture(repo, &["remote", "set-url", "origin", &url])?;
         clear_origin_main(repo)?;
+        Ok(())
+    }
+
+    fn point_origin_at_head(repo: &Path) -> Result<(), String> {
+        let parent = repo.parent().ok_or("clone has no parent")?;
+        let remote = parent.join("head-main.git");
+        git_fixture(
+            parent,
+            &["init", "--bare", "--quiet", "-b", "main", "head-main.git"],
+        )?;
+        let url = format!(
+            "file://{}",
+            remote.to_str().ok_or("remote path is not utf-8")?
+        );
+        git_fixture(repo, &["remote", "set-url", "origin", &url])?;
+        clear_origin_main(repo)?;
+        git_fixture(repo, &["push", "--quiet", "origin", "HEAD:refs/heads/main"])?;
+        Ok(())
+    }
+
+    fn overlay_workspace_checks(source: &Path, dest: &Path) -> Result<(), String> {
+        let from = source.join(".github/workflows");
+        let to = dest.join(".github/workflows");
+        std::fs::create_dir_all(&to).map_err(|err| format!("mkdir: {err}"))?;
+        for entry in std::fs::read_dir(&from).map_err(|err| format!("read workflows: {err}"))? {
+            let entry = entry.map_err(|err| format!("read workflows: {err}"))?;
+            if !entry
+                .file_type()
+                .map_err(|err| format!("stat workflow: {err}"))?
+                .is_file()
+            {
+                continue;
+            }
+            std::fs::copy(entry.path(), to.join(entry.file_name()))
+                .map_err(|err| format!("copy workflow: {err}"))?;
+        }
+        std::fs::create_dir_all(dest.join("regressions")).map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::copy(
+            source.join("regressions/floors.toml"),
+            dest.join("regressions/floors.toml"),
+        )
+        .map_err(|err| format!("copy floors: {err}"))?;
         Ok(())
     }
 
@@ -2788,6 +3453,77 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         let gaps = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/gate-step-if.yml"))?)?;
         if gaps != ["gate step sets if:".to_owned()] {
             return Err(format!("{gaps:?}"));
+        }
+        let forced = read(&root.join("fixtures/guards/ci/gate-step-if.yml"))?
+            .replace("if: success()", "if: false");
+        let forced_gaps = ci_gate_gaps(&forced)?;
+        if forced_gaps != ["gate step sets if:".to_owned()] {
+            return Err(format!("if false: {forced_gaps:?}"));
+        }
+        let needed = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/needed-step-if.yml"))?)?;
+        if needed != ["ci job fmt sets step if:".to_owned()] {
+            return Err(format!("needed step if: {needed:?}"));
+        }
+        let job = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/job-if.yml"))?)?;
+        if job != ["ci job fmt sets if:".to_owned()] {
+            return Err(format!("job if: {job:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn renaming_a_required_job_fails_the_ratchet() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let base = load_floors(&root.join("regressions/floors.toml"))?;
+        let renamed = load_floors(&root.join("fixtures/guards/floors-renamed-job.toml"))?;
+        let violations = ratchet(&renamed, &base);
+        if violations != ["ci job fmt deleted".to_owned()] {
+            return Err(format!("{violations:?}"));
+        }
+        let inventory =
+            ci_job_inventory_gaps(&read(&root.join(".github/workflows/ci.yml"))?, &renamed);
+        if !inventory
+            .iter()
+            .any(|gap| gap.contains("fmt") && gap.contains("missing"))
+        {
+            return Err(format!("inventory: {inventory:?}"));
+        }
+        if !inventory
+            .iter()
+            .any(|gap| gap.contains("format") && gap.contains("not required"))
+        {
+            return Err(format!("added name: {inventory:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_guard_that_did_not_run_fails_the_count() -> Result<(), String> {
+        let mut reports = Vec::new();
+        for name in NON_RATCHET_GUARDS {
+            reports.push(GuardReport {
+                name,
+                ran: true,
+                passed: true,
+                detail: String::new(),
+            });
+        }
+        reports.push(GuardReport {
+            name: "ratchet",
+            ran: false,
+            passed: false,
+            detail: String::new(),
+        });
+        let gaps = guard_run_gaps(&reports);
+        if !gaps.iter().any(|gap| gap.contains("below 12")) {
+            return Err(format!("{gaps:?}"));
+        }
+        let duplicated = inventory_gaps(&["feature-ownership", "feature-ownership", "ratchet"]);
+        if duplicated.len() != 2 {
+            return Err(format!("{duplicated:?}"));
+        }
+        if !guard_inventory_gaps().is_empty() {
+            return Err(format!("{:?}", guard_inventory_gaps()));
         }
         Ok(())
     }

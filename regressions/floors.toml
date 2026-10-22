@@ -52,3 +52,16 @@ lint.suppressions=0
 proptest.count=5
 tests.count=114
 agents.rule_rows=14
+
+# Required CI jobs. A rename is a deletion: a name present at the base
+# and missing at HEAD fails, even when a new name is added.
+ci.job=fmt
+ci.job=clippy
+ci.job=lint-fixture
+ci.job=depgraph
+ci.job=test
+ci.job=cucumber
+ci.job=guards
+ci.job=tla
+ci.job=kani
+ci.job=deny

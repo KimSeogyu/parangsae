@@ -15,9 +15,11 @@
 # hyper, or tokio-tungstenite through a normal dependency.
 #
 # Parquet and arrow are on parangsae-collector today because parangsae-store
-# does not exist yet. The store edges below are the destination. Research
-# reads through the store reader, so it does not depend on collector,
-# execution, or git2.
+# does not exist yet. The collector names arrow-array, arrow-schema, and
+# parquet directly; the intermediate arrow crates are not edges of this
+# workspace. The store edges below are the destination and are not checked
+# until that crate is a member. Research reads through the store reader, so
+# it does not depend on collector, execution, or git2.
 
 [[strategy]]
 path_prefix = "crates/strategies/"
@@ -331,12 +333,14 @@ default_features = true
 [[crate]]
 name = "parangsae-collector"
 
+# Direct types the collector constructs. Not an edge of any other member.
 [[crate.edge]]
 name = "arrow-array"
 kind = "normal"
 source = "crates.io"
 default_features = false
 
+# Direct types the collector constructs. Not an edge of any other member.
 [[crate.edge]]
 name = "arrow-schema"
 kind = "normal"
@@ -362,6 +366,7 @@ kind = "normal"
 source = "path"
 default_features = true
 
+# Collector writes the vision archive until parangsae-store exists.
 [[crate.edge]]
 name = "parquet"
 kind = "normal"

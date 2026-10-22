@@ -1,0 +1,63 @@
+# Ratchet floors for cargo xtask guards.
+# A later commit may raise a minimum. Lowering one, raising a ceiling,
+# or deleting a kani harness name or an invariant name fails.
+# max_skipped and lint.suppressions are ceilings.
+
+cucumber.kline.scenarios=12
+cucumber.kline.steps=41
+cucumber.kline.max_skipped=0
+
+cucumber.vision.scenarios=28
+cucumber.vision.steps=97
+cucumber.vision.max_skipped=0
+
+cucumber.instrument_rules.scenarios=3
+cucumber.instrument_rules.steps=8
+cucumber.instrument_rules.max_skipped=0
+
+# TLC "N distinct states found", one worker.
+# IngestSegment at Max=4 is 21.
+# ManifestWrite with Values={v1,v2,v3} is 10. `committed` stays equal to `stored`.
+tlc.IngestSegment.distinct_states=21
+tlc.ManifestWrite.distinct_states=10
+
+tlc.IngestSegment.invariant=TypeOK
+tlc.IngestSegment.invariant=Contiguous
+tlc.IngestSegment.invariant=NoRepeatedId
+tlc.IngestSegment.invariant=GapHoldsSnapshot
+tlc.IngestSegment.invariant=NoAppendWhileGap
+
+tlc.ManifestWrite.invariant=TypeOK
+tlc.ManifestWrite.invariant=ConflictKeepsStored
+tlc.ManifestWrite.invariant=StoredStable
+
+kani.min_harnesses=10
+kani.name=widening_mul_fits_in_i128
+kani.name=notional_production_widening
+kani.name=notional_matches_below_one_million
+kani.name=notional_overflow_does_not_wrap
+kani.name=notional_uneven_boundary
+kani.name=notional_rejects_negative
+kani.name=boundary_region_does_not_panic
+kani.name=lookup_on_two_row_bracket_does_not_panic
+kani.name=conservative_market_max_inside_bracket_is_the_smaller_cap
+kani.name=conservative_taker_fee_inside_bracket_is_the_higher_fee
+
+# B2. Suppressions are a ceiling. The other three are minimums.
+lint.suppressions=0
+proptest.count=5
+tests.count=114
+agents.rule_rows=14
+
+# Required CI jobs. A rename is a deletion: a name present at the base
+# and missing at HEAD fails, even when a new name is added.
+ci.job=format
+ci.job=clippy
+ci.job=lint-fixture
+ci.job=depgraph
+ci.job=test
+ci.job=cucumber
+ci.job=guards
+ci.job=tla
+ci.job=kani
+ci.job=deny

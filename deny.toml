@@ -1,8 +1,8 @@
 # cargo-deny. Sources are crates.io. Git dependencies are rejected.
-# reqwest, hyper, and tokio-tungstenite are allowed only as dependencies of
-# parangsae-collector. Parquet and arrow are allowed only through
-# parangsae-collector, parangsae-backtest, or parangsae-store
-# (the store crate is not a member yet).
+# reqwest, hyper, and tokio-tungstenite are allowed only as direct parents
+# that already sit on the path to parangsae-collector. Parquet and arrow are
+# allowed only through the direct parents in this tree. parangsae-backtest is
+# one of those parents. parangsae-store is not a member, so it is not a wrapper.
 
 [advisories]
 yanked = "deny"
@@ -27,49 +27,53 @@ allow = [
 private = { ignore = true }
 
 [bans]
-multiple-versions = "allow"
-wildcards = "allow"
-allow-wildcard-paths = true
+multiple-versions = "deny"
+wildcards = "deny"
+allow-wildcard-paths = false
 highlight = "all"
+skip = [
+    { crate = "base64@0.22.1", reason = "reqwest 0.12.28 still depends on base64 0.22; hyper-util 0.1 and parquet 60 depend on 0.23" },
+    { crate = "getrandom@0.2.17", reason = "ring 0.17 and ahash 0.8 via const-random still depend on getrandom 0.2; ahash 0.8 also pulls 0.3" },
+    { crate = "syn@2.0.119", reason = "cucumber-codegen 0.22 and the icu/serde derive stack are on syn 2; clap_derive 4.6 is on syn 3" },
+    { crate = "windows-sys@0.52.0", reason = "ring 0.17 depends on windows-sys 0.52; clap, tokio, and rustix depend on 0.61" },
+]
 
 [[bans.deny]]
 name = "reqwest"
 wrappers = ["parangsae-collector"]
 
-# cargo-deny matches the direct parent. The workspace crates are the allowed
-# roots. The other names are the crates that sit between those roots and the
-# banned crate in this tree. A new direct edge from another crate still fails.
+# cargo-deny matches the direct parent only. These are the parents in this lockfile.
 [[bans.deny]]
 name = "hyper"
 wrappers = [
-    "parangsae-collector",
     "reqwest",
     "hyper-rustls",
     "hyper-util",
 ]
 
+# Not in the lockfile. The only allowed direct parent, once it is used, is the collector.
 [[bans.deny]]
 name = "tokio-tungstenite"
 wrappers = ["parangsae-collector"]
 
+# Direct parents of arrow-array in this lockfile. parangsae-store is not a member.
 [[bans.deny]]
 name = "arrow-array"
 wrappers = [
     "parangsae-collector",
     "parangsae-backtest",
-    "parangsae-store",
     "parquet",
     "arrow-select",
     "arrow-ipc",
     "arrow-cmp",
 ]
 
+# Direct parents of arrow-schema in this lockfile.
 [[bans.deny]]
 name = "arrow-schema"
 wrappers = [
     "parangsae-collector",
     "parangsae-backtest",
-    "parangsae-store",
     "parquet",
     "arrow-array",
     "arrow-select",
@@ -78,9 +82,10 @@ wrappers = [
     "arrow-cmp",
 ]
 
+# Direct parents of parquet: the collector and the backtest engine.
 [[bans.deny]]
 name = "parquet"
-wrappers = ["parangsae-collector", "parangsae-backtest", "parangsae-store"]
+wrappers = ["parangsae-collector", "parangsae-backtest"]
 
 [sources]
 unknown-registry = "deny"
