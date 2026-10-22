@@ -1,0 +1,15 @@
+---
+description: Live trading, API keys, and mainnet order paths stop for a human. This scaffold has no order client.
+globs: "crates/execution/**,.env,.env.*,**/*secret*,**/*credential*"
+alwaysApply: false
+---
+
+# Live gate
+
+`crates/execution` is paper-only. Do not add a socket, an HTTP client, a signed Binance request, a mainnet or testnet order URL, or an API key.
+
+Do not put a real key in `.env` or in any file matching `*secret*` or `*credential*`. `.env.example` stays empty.
+
+A change that enables live submission, touches required CI checks, changes branch protection, force-pushes, or deletes stored market data needs a human's explicit approval. Do not auto-merge it.
+
+`tests/no_live_client.rs` fails if execution sources gain a transport. Do not weaken that test to make a client compile.

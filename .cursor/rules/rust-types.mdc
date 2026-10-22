@@ -1,0 +1,17 @@
+---
+description: Price, quantity, and timestamps stay newtypes. Domain matches stay exhaustive.
+globs: "**/*.rs"
+alwaysApply: false
+---
+
+# Rust types
+
+`Price`, `Qty`, and `Notional` come from `parangsae_core`. They are `i64` ticks at scale `10^8`. Do not store a price, a quantity, or a notional in `f32` or `f64`.
+
+Timestamps in public APIs are `UtcMicros` or the `EventTs` / `AvailableTs` / `ReceivedTs` newtypes, not a bare `i64`.
+
+`match` on a domain enum is exhaustive. Do not use `_` for it.
+
+Library code returns `Result` for overflow, a bad unit, or a bad symbol. It does not `unwrap` those cases. `#![forbid(unsafe_code)]` stays on every crate.
+
+`notional` truncates toward zero and returns `FixedError::Overflow` instead of wrapping. Kani locks three pieces: `widening_mul_fits_in_i128` (every non-negative i64 pair), `notional_matches_below_one_million` (exact quotient on `0..=1_000_000`), and `notional_overflow_does_not_wrap` (a family of products that do not fit). Do not delete those harnesses or switch the function to a wrapping multiply. A symbolic division over the full i64×i64 domain did not finish, so that quantifier is not claimed.

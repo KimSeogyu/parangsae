@@ -1,0 +1,9 @@
+[package]
+name = "parangsae-regime"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Regime permission skeleton. Not an alpha claim."
+
+[dependencies]

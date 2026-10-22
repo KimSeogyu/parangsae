@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/core",
+    "crates/collector",
+    "crates/signals",
+    "crates/regime",
+    "crates/execution",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+publish = false
+rust-version = "1.88"
+
+# Checked arithmetic stays checked in release builds. A wrapping notional is a bug.
+[profile.release]
+overflow-checks = true

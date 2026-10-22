@@ -19,3 +19,7 @@ debug/
 .vscode/
 *.swp
 *~
+
+# TLC state directory if a local run forgets -metadir
+specs/tla/states/
+specs/tla/tla2tools.jar

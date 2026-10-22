@@ -1,0 +1,98 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: cargo fmt --check
+        run: cargo fmt --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo test (unit, proptest, cucumber, execution lock)
+        run: cargo test --workspace
+
+  cucumber:
+    name: cucumber
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: kline integrity features
+        run: cargo test -p parangsae-core --test kline_integrity
+
+  tla:
+    name: tla
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Fetch TLC 2.19 (TLA+ 1.7.4)
+        working-directory: specs/tla
+        run: |
+          curl -fsSL -o tla2tools.jar -L \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+          echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  tla2tools.jar" | sha256sum -c -
+      - name: Model-check IngestSegment
+        working-directory: specs/tla
+        # One worker: TLC 2.19 can miss a liveness counterexample with several workers.
+        # A violated invariant or property makes TLC exit non-zero.
+        run: |
+          java -XX:+UseParallelGC -Xmx512m -cp tla2tools.jar tlc2.TLC \
+            -workers 1 \
+            -metadir "${{ runner.temp }}/tlc-ingest" \
+            -config IngestSegment.cfg \
+            IngestSegment.tla
+
+  kani:
+    name: kani
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      # The marketplace action at v1.1 has a broken version check (`if [$?`).
+      # Install the pinned verifier directly so a failed proof fails this job.
+      - name: Install Kani 0.68.0
+        run: |
+          cargo install --locked kani-verifier --version 0.68.0
+          cargo kani setup
+      - name: Prove notional arithmetic
+        run: cargo kani -p parangsae-core

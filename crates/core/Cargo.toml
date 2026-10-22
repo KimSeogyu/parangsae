@@ -1,0 +1,21 @@
+[package]
+name = "parangsae-core"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Domain types for parangsae. No I/O."
+
+[dependencies]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
+
+[dev-dependencies]
+cucumber = "=0.22.1"
+proptest = "1.6"
+tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
+
+[[test]]
+name = "kline_integrity"
+harness = false

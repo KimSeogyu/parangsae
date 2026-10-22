@@ -1,0 +1,22 @@
+//! Domain types shared by the collector, signals, regime, and execution crates.
+//!
+//! This crate does no I/O. Binance payloads are parsed at the collector boundary
+//! into these types. Signal code reads a [`Causal`] view, which exists only for
+//! rows whose `available_ts` is at or before the decision time.
+
+#![forbid(unsafe_code)]
+
+pub mod causal;
+pub mod fixed;
+pub mod symbol;
+pub mod time;
+pub mod timestamps;
+
+pub use causal::{Causal, DecisionTime, Observation};
+pub use fixed::{notional, FixedError, Notional, Price, Qty, SCALE};
+pub use symbol::{Symbol, SymbolError};
+pub use time::{
+    expected_close, require_declared_unit, require_regular_grid, validate_close_time, Interval,
+    KlineSpan, TimeError, TimeUnit, UnitError, UtcMicros, MICROS_PER_MILLIS,
+};
+pub use timestamps::{AvailableTs, EventTs, ReceivedTs, Timestamps};

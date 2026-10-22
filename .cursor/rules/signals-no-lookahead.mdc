@@ -1,0 +1,13 @@
+---
+description: Signal code may read only a Causal view, where available_ts is at or before the decision time.
+globs: "crates/signals/**/*.rs"
+alwaysApply: false
+---
+
+# No lookahead
+
+A signal function takes `parangsae_core::Causal<T>`. It does not take a raw slice, an `Observation`, or a bool that skips the gate.
+
+`Causal` is built only by `Observation::causal_at`. Do not add a second constructor. The comparison is `available_ts <= decision`. `event_ts` and `received_ts` do not decide visibility.
+
+A new signal entry point needs a proptest that mutates rows with `available_ts` after the decision and shows the output unchanged. Do not weaken `crates/core/tests/causal_gate.rs` to fit a signal.

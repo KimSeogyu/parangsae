@@ -1,0 +1,10 @@
+[package]
+name = "parangsae-collector"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Market-data collector boundaries. No client in this scaffold."
+
+[dependencies]
+parangsae-core = { path = "../core" }
