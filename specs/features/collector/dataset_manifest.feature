@@ -25,3 +25,28 @@ Feature: Dataset version manifest
     And a gap cache that says missing_file for that day
     When the day is published
     Then publish fails with "StaleGapCache"
+
+  Scenario: an altered row fails load
+    Given a published um-kline version of "um_kline_2021-06-01_headerless.csv"
+    When the snapshot volume tick is increased
+    Then load fails with "PartitionHashMismatch"
+
+  Scenario: a version alias is refused
+    When the version id "binance-vision.um.um-kline.BTCUSDT@latest" is parsed
+    Then the version id error is "Alias"
+
+  Scenario: a holdout range is refused
+    Given a published um-kline version of "um_kline_2021-06-01_headerless.csv"
+    When the version is loaded on 2025-10-01
+    Then load fails with "HoldoutRefused"
+
+  Scenario: a cache hit re-checks the file
+    Given a published um-kline version of "um_kline_2021-06-01_headerless.csv"
+    When the version is loaded
+    And the snapshot volume tick is increased
+    Then load fails with "PartitionHashMismatch"
+
+  Scenario: an unlisted conflict fails load
+    Given a published um-kline version of "um_kline_2021-06-01_headerless.csv"
+    When a value conflict is appended for an in-range key
+    Then load fails with "UnlistedConflict"

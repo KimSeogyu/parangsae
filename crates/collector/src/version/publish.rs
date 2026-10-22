@@ -17,8 +17,8 @@ use crate::run::{self, Provenance, RunCommand};
 use crate::store::{self, fact_path};
 use crate::version::encode::{
     self, canonical_manifest, conflicts_digest, gaps_digest, kline_content_hash, leaf_hash,
-    merkle_tree_head, schema_hash, sources_digest, ConflictInput, LeafInput, ManifestDoc,
-    PartitionDoc, SourceInput, UM_KLINE_COLUMNS,
+    merkle_tree_head, schema_hash, sha256, sources_digest, ConflictDoc, ConflictInput, LeafInput,
+    ManifestDoc, PartitionDoc, SourceInput, WindowDoc, UM_KLINE_COLUMNS,
 };
 use crate::version::id::{DatasetId, ManifestDigest, VersionRoot};
 use crate::vision::{
@@ -127,6 +127,9 @@ pub fn publish(request: &PublishRequest<'_>) -> Result<Published, PublishError> 
             available_max_us: day.available_max_us,
             content_hash: &day.content,
             gaps: &day.gaps,
+            sources: &day.sources,
+            conflicts: &day.conflict_docs,
+            excluded_windows: &day.windows,
             leaf_hash: &day.leaf,
             gaps_digest: &day.gap_hash,
             conflicts_digest: &day.conflict_hash,
@@ -186,6 +189,9 @@ struct BuiltDay {
     available_max_us: i64,
     content: [u8; 32],
     gaps: Vec<Gap>,
+    sources: Vec<SourceInput>,
+    conflict_docs: Vec<ConflictDoc>,
+    windows: Vec<WindowDoc>,
     gap_hash: [u8; 32],
     conflict_hash: [u8; 32],
     source_hash: [u8; 32],
@@ -223,6 +229,8 @@ fn build_day(
     let gap_hash = gaps_digest(&gaps).map_err(failed)?;
     let conflicts = day_conflicts(request, dataset_name, day)?;
     let sources = day_sources(request, dataset_name, day)?;
+    let conflict_docs = hash_conflicts(&conflicts);
+    let windows = encode::kline_excluded_windows(&conflict_docs);
     let conflict_hash = conflicts_digest(&conflicts).map_err(failed)?;
     let source_hash = sources_digest(&sources).map_err(failed)?;
     let (pk_min, pk_max, available_min, available_max) = bounds(&rows, day);
@@ -258,6 +266,9 @@ fn build_day(
         available_max_us: available_max,
         content,
         gaps,
+        sources,
+        conflict_docs,
+        windows,
         gap_hash,
         conflict_hash,
         source_hash,
@@ -423,7 +434,28 @@ fn day_conflicts(
     Ok(out)
 }
 
-fn conflict_class(stored: &str, rejected: &str) -> &'static str {
+fn hash_conflicts(conflicts: &[ConflictInput]) -> Vec<ConflictDoc> {
+    let mut docs: Vec<ConflictDoc> = conflicts
+        .iter()
+        .map(|conflict| ConflictDoc {
+            pk: conflict.pk.clone(),
+            class: conflict.class.clone(),
+            stored_sha256: sha256(conflict.stored.as_bytes()),
+            rejected_sha256: sha256(conflict.rejected.as_bytes()),
+        })
+        .collect();
+    docs.sort_by(|left, right| {
+        left.pk
+            .cmp(&right.pk)
+            .then(left.class.cmp(&right.class))
+            .then(left.stored_sha256.cmp(&right.stored_sha256))
+            .then(left.rejected_sha256.cmp(&right.rejected_sha256))
+    });
+    docs.dedup();
+    docs
+}
+
+pub(crate) fn conflict_class(stored: &str, rejected: &str) -> &'static str {
     let left: Vec<&str> = stored
         .split(' ')
         .filter(|token| !token.starts_with("schema="))

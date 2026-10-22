@@ -621,7 +621,7 @@ fn decode_receipts(batches: &[RecordBatch]) -> Result<Vec<Receipt>, Error> {
     Ok(out)
 }
 
-pub(crate) fn write_klines(path: &Path, dataset: &str, rows: &[KlineFact]) -> Result<(), Error> {
+pub fn write_klines(path: &Path, dataset: &str, rows: &[KlineFact]) -> Result<(), Error> {
     write_klines_compressed(path, dataset, rows, Compression::SNAPPY)
 }
 

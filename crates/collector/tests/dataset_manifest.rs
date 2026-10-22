@@ -1,18 +1,20 @@
 //! Cucumber runner for `specs/features/collector/dataset_manifest.feature`.
 
-use std::path::PathBuf;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
 
 use cucumber::{given, then, when, World as _};
 use parangsae_collector::civil::{CivilDay, DayRange, YearMonth};
 use parangsae_collector::run::Provenance;
 use parangsae_collector::store::{self, fact_path};
 use parangsae_collector::version::{
-    directory_digest, migrate_receipts, publish, DatasetId, PublishRequest,
+    directory_digest, migrate_receipts, parse_version_id, publish, DatasetId, ManifestDigest,
+    PublishRequest, VersionIdError, VersionRoot, VersionStore,
 };
 use parangsae_collector::vision::{
     funding_window, missing_coverage, parse_funding, parse_klines, FundingFact, TickDomain,
 };
-use parangsae_core::{AvailableTs, Receipt, RunId, Symbol, UtcMicros};
+use parangsae_core::{AvailableTs, Qty, Receipt, RunId, Symbol, UtcMicros};
 
 #[derive(Debug, Default, cucumber::World)]
 struct ManifestWorld {
@@ -24,6 +26,10 @@ struct ManifestWorld {
     rejected: bool,
     digest: Option<String>,
     publish_error: Option<String>,
+    version_root: Option<String>,
+    manifest_digest: Option<String>,
+    load_error: Option<String>,
+    version_error: Option<String>,
 }
 
 fn symbol() -> Symbol {
@@ -219,6 +225,152 @@ fn when_published(world: &mut ManifestWorld) {
 #[then(regex = r#"^publish fails with "([^"]+)""#)]
 fn then_publish_fails(world: &mut ManifestWorld, name: String) {
     assert_eq!(world.publish_error.as_deref(), Some(name.as_str()));
+}
+
+#[given(regex = r#"^a published um-kline version of "([^"]+)""#)]
+fn given_published(world: &mut ManifestWorld, name: String) {
+    let run = RunId::from_bytes([1; 16]);
+    let parsed = parse_klines(
+        &fixture(&name),
+        &symbol(),
+        parangsae_collector::normalize::UM_KLINE_CLOCK,
+        TickDomain::Price,
+        Receipt::Archive {
+            fetched_at_run: run,
+        },
+        true,
+    )
+    .expect("parse");
+    let day = parangsae_collector::civil::day_of(parsed.rows[0].open_time).expect("day");
+    let dir = tempfile::tempdir().expect("temp").keep();
+    store::upsert_klines(&dir, "um-kline", parsed.rows).expect("upsert");
+    let dataset = DatasetId::parse("binance-vision.um.um-kline.BTCUSDT").expect("dataset id");
+    let range = DayRange::new(day, day).expect("range");
+    let provenance = Provenance {
+        git_sha: "0123456789abcdef0123456789abcdef01234567".to_owned(),
+        dirty: false,
+    };
+    let published = publish(&PublishRequest {
+        data_dir: &dir,
+        dataset: &dataset,
+        range,
+        provenance: &provenance,
+        run: RunId::from_bytes([4; 16]),
+        built_at: UtcMicros::from_micros(1),
+    })
+    .expect("publish");
+    world.version_root = Some(published.root.to_hex());
+    world.manifest_digest = Some(published.manifest_digest.to_hex());
+    world.dir = Some(dir);
+    world.day = Some(day);
+    world.dataset = Some("um-kline".to_owned());
+}
+
+#[when("the snapshot volume tick is increased")]
+fn when_volume_increased(world: &mut ManifestWorld) {
+    let dir = world.dir.clone().expect("dir");
+    let day = world.day.expect("day");
+    let path = snapshot_file(&dir);
+    let mut permissions = std::fs::metadata(&path).expect("meta").permissions();
+    permissions.set_mode(0o644);
+    std::fs::set_permissions(&path, permissions).expect("chmod");
+    let mut rows = store::load_klines(&dir, "um-kline", "BTCUSDT", day).expect("rows");
+    let bumped = rows[0].volume.ticks().saturating_add(1);
+    rows[0].volume = Qty::from_ticks(bumped).expect("qty");
+    store::write_klines(&path, "um-kline", &rows).expect("rewrite snapshot");
+    world.load_error = load_published(world).err().map(|err| err.name().to_owned());
+}
+
+#[when("the version is loaded")]
+fn when_version_loaded(world: &mut ManifestWorld) {
+    world.load_error = load_published(world).err().map(|err| err.name().to_owned());
+}
+
+#[when(regex = r#"^the version id "([^"]+)" is parsed$"#)]
+fn when_version_parsed(world: &mut ManifestWorld, text: String) {
+    world.version_error = match parse_version_id(&text) {
+        Ok(_) => None,
+        Err(VersionIdError::Alias) => Some("Alias".to_owned()),
+        Err(VersionIdError::Malformed) => Some("Malformed".to_owned()),
+    };
+}
+
+#[when(regex = r#"^the version is loaded on (\d{4}-\d{2}-\d{2})$"#)]
+fn when_loaded_on(world: &mut ManifestWorld, date: String) {
+    let mut parts = date.split('-');
+    let year: i32 = parts.next().expect("year").parse().expect("year");
+    let month: u8 = parts.next().expect("month").parse().expect("month");
+    let day: u8 = parts.next().expect("day").parse().expect("day");
+    let day = CivilDay::new(year, month, day).expect("day");
+    world.load_error = load_on(world, day).err().map(|err| err.name().to_owned());
+}
+
+#[when("a value conflict is appended for an in-range key")]
+fn when_unlisted(world: &mut ManifestWorld) {
+    let dir = world.dir.as_ref().expect("dir");
+    let day = world.day.expect("day");
+    let rows = store::load_klines(dir, "um-kline", "BTCUSDT", day).expect("rows");
+    let key = rows[0].open_time.micros();
+    let path = dir.join("conflicts").join("um-kline.jsonl");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("conflicts dir");
+    }
+    let line = format!(
+        "{{\"dataset\":\"um-kline\",\"key\":\"{key}\",\"rejected\":\"open=2\",\"stored\":\"open=1\",\"symbol\":\"BTCUSDT\"}}\n"
+    );
+    std::fs::write(&path, line).expect("conflict");
+    world.load_error = load_published(world).err().map(|err| err.name().to_owned());
+}
+
+#[then(regex = r#"^load fails with "([^"]+)""#)]
+fn then_load_fails(world: &mut ManifestWorld, name: String) {
+    assert_eq!(world.load_error.as_deref(), Some(name.as_str()));
+}
+
+#[then(regex = r#"^the version id error is "([^"]+)""#)]
+fn then_version_error(world: &mut ManifestWorld, name: String) {
+    assert_eq!(world.version_error.as_deref(), Some(name.as_str()));
+}
+
+fn snapshot_file(dir: &Path) -> PathBuf {
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(dir.join("snapshots"))
+        .expect("snapshots")
+        .flatten()
+    {
+        let path = entry.path().join("part.parquet");
+        if path.is_file() {
+            files.push(path);
+        }
+    }
+    assert_eq!(files.len(), 1);
+    files.remove(0)
+}
+
+fn load_published(
+    world: &ManifestWorld,
+) -> Result<
+    parangsae_collector::version::Verified<parangsae_collector::version::Table>,
+    parangsae_collector::version::LoadError,
+> {
+    let day = world.day.expect("day");
+    load_on(world, day)
+}
+
+fn load_on(
+    world: &ManifestWorld,
+    day: CivilDay,
+) -> Result<
+    parangsae_collector::version::Verified<parangsae_collector::version::Table>,
+    parangsae_collector::version::LoadError,
+> {
+    let dir = world.dir.as_ref().expect("dir");
+    let dataset = DatasetId::parse("binance-vision.um.um-kline.BTCUSDT").expect("dataset id");
+    let root = VersionRoot::parse_hex(world.version_root.as_deref().expect("root")).expect("root");
+    let digest = ManifestDigest::parse_hex(world.manifest_digest.as_deref().expect("digest"))
+        .expect("digest");
+    let range = DayRange::new(day, day).expect("range");
+    VersionStore::open(dir)?.load(&dataset, root, digest, range)
 }
 
 fn stored(world: &ManifestWorld) -> Vec<parangsae_collector::vision::KlineFact> {

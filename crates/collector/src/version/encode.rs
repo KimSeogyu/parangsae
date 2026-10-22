@@ -152,6 +152,21 @@ pub struct LeafInput<'a> {
     pub sources_digest: &'a [u8; 32],
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConflictDoc {
+    pub pk: Vec<i64>,
+    pub class: String,
+    pub stored_sha256: [u8; 32],
+    pub rejected_sha256: [u8; 32],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WindowDoc {
+    pub start_us: i64,
+    pub end_us: i64,
+    pub reason: &'static str,
+}
+
 pub struct PartitionDoc<'a> {
     pub date: &'a str,
     pub path: &'a str,
@@ -162,6 +177,9 @@ pub struct PartitionDoc<'a> {
     pub available_max_us: i64,
     pub content_hash: &'a [u8; 32],
     pub gaps: &'a [Gap],
+    pub sources: &'a [SourceInput],
+    pub conflicts: &'a [ConflictDoc],
+    pub excluded_windows: &'a [WindowDoc],
     pub leaf_hash: &'a [u8; 32],
     pub gaps_digest: &'a [u8; 32],
     pub conflicts_digest: &'a [u8; 32],
@@ -496,12 +514,18 @@ fn partition_json(part: &PartitionDoc<'_>) -> Result<serde_json::Value, EncodeEr
         json_i64(part.available_max_us),
     );
     object.insert("content_hash".to_owned(), json_hex(part.content_hash));
-    object.insert("sources".to_owned(), serde_json::Value::Array(Vec::new()));
+    object.insert(
+        "sources".to_owned(),
+        serde_json::Value::Array(source_json(part.sources)),
+    );
     object.insert("open_gaps".to_owned(), serde_json::Value::Array(gaps));
-    object.insert("conflicts".to_owned(), serde_json::Value::Array(Vec::new()));
+    object.insert(
+        "conflicts".to_owned(),
+        serde_json::Value::Array(conflict_json(part.conflicts)),
+    );
     object.insert(
         "excluded_windows".to_owned(),
-        serde_json::Value::Array(Vec::new()),
+        serde_json::Value::Array(window_json(part.excluded_windows)),
     );
     object.insert("gaps_digest".to_owned(), json_hex(part.gaps_digest));
     object.insert(
@@ -511,6 +535,116 @@ fn partition_json(part: &PartitionDoc<'_>) -> Result<serde_json::Value, EncodeEr
     object.insert("sources_digest".to_owned(), json_hex(part.sources_digest));
     object.insert("leaf_hash".to_owned(), json_hex(part.leaf_hash));
     Ok(serde_json::Value::Object(object))
+}
+
+fn source_json(sources: &[SourceInput]) -> Vec<serde_json::Value> {
+    let mut items = sources.to_vec();
+    items.sort_by(|left, right| {
+        left.url
+            .as_bytes()
+            .cmp(right.url.as_bytes())
+            .then(left.sha256.cmp(&right.sha256))
+    });
+    items.dedup();
+    items
+        .into_iter()
+        .map(|source| {
+            let mut object = serde_json::Map::new();
+            object.insert(
+                "url".to_owned(),
+                serde_json::Value::String(source.url.clone()),
+            );
+            object.insert(
+                "sha256".to_owned(),
+                serde_json::Value::String(hex::encode(source.sha256)),
+            );
+            object.insert(
+                "checksum_url".to_owned(),
+                serde_json::Value::String(format!("{}.CHECKSUM", source.url)),
+            );
+            serde_json::Value::Object(object)
+        })
+        .collect()
+}
+
+fn conflict_json(conflicts: &[ConflictDoc]) -> Vec<serde_json::Value> {
+    let mut items = conflicts.to_vec();
+    items.sort_by(|left, right| {
+        left.pk
+            .cmp(&right.pk)
+            .then(left.class.cmp(&right.class))
+            .then(left.stored_sha256.cmp(&right.stored_sha256))
+            .then(left.rejected_sha256.cmp(&right.rejected_sha256))
+    });
+    items.dedup();
+    items
+        .into_iter()
+        .map(|conflict| {
+            let mut object = serde_json::Map::new();
+            object.insert(
+                "pk".to_owned(),
+                serde_json::Value::Array(conflict.pk.iter().copied().map(json_i64).collect()),
+            );
+            object.insert(
+                "class".to_owned(),
+                serde_json::Value::String(conflict.class),
+            );
+            object.insert(
+                "stored_sha256".to_owned(),
+                serde_json::Value::String(hex::encode(conflict.stored_sha256)),
+            );
+            object.insert(
+                "rejected_sha256".to_owned(),
+                serde_json::Value::String(hex::encode(conflict.rejected_sha256)),
+            );
+            serde_json::Value::Object(object)
+        })
+        .collect()
+}
+
+/// Maximal runs of `value_by_log` kline keys on the one-minute grid.
+pub(crate) fn kline_excluded_windows(conflicts: &[ConflictDoc]) -> Vec<WindowDoc> {
+    const STEP_US: i64 = 60_000_000;
+    let mut pks: Vec<i64> = conflicts
+        .iter()
+        .filter(|conflict| conflict.class == "value_by_log" && conflict.pk.len() == 1)
+        .map(|conflict| conflict.pk[0])
+        .collect();
+    pks.sort();
+    pks.dedup();
+    let mut windows = Vec::new();
+    let mut index = 0;
+    while index < pks.len() {
+        let start = pks[index];
+        let mut last = start;
+        index += 1;
+        while index < pks.len() && pks[index] == last.saturating_add(STEP_US) {
+            last = pks[index];
+            index += 1;
+        }
+        windows.push(WindowDoc {
+            start_us: start,
+            end_us: last.saturating_add(STEP_US),
+            reason: "value_by_log",
+        });
+    }
+    windows
+}
+
+fn window_json(windows: &[WindowDoc]) -> Vec<serde_json::Value> {
+    windows
+        .iter()
+        .map(|window| {
+            let mut object = serde_json::Map::new();
+            object.insert("start_us".to_owned(), json_i64(window.start_us));
+            object.insert("end_us".to_owned(), json_i64(window.end_us));
+            object.insert(
+                "reason".to_owned(),
+                serde_json::Value::String(window.reason.to_owned()),
+            );
+            serde_json::Value::Object(object)
+        })
+        .collect()
 }
 
 fn enc_kline(buf: &mut Vec<u8>, row: &KlineFact, name: &str) -> Result<(), EncodeError> {
@@ -1058,6 +1192,9 @@ mod tests {
             available_max_us: available_max,
             content_hash: args.content,
             gaps: args.gaps,
+            sources: &[],
+            conflicts: &[],
+            excluded_windows: &[],
             leaf_hash: args.leaf,
             gaps_digest: args.gap_hash,
             conflicts_digest: args.conflicts,
