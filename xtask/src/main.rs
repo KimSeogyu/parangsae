@@ -1,18 +1,14 @@
 //! `cargo xtask depgraph` checks `policy/deps.toml` against `cargo metadata`.
 
-#![allow(
-    clippy::print_stderr,
-    reason = "xtask prints dependency and lint violations for the operator"
-)]
-
+use std::io::{self, Write};
 use std::process::ExitCode;
 
-fn main() -> ExitCode {
+fn main() -> io::Result<ExitCode> {
     match run() {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(()) => Ok(ExitCode::SUCCESS),
         Err(err) => {
-            eprintln!("{err}");
-            ExitCode::from(1)
+            writeln!(io::stderr().lock(), "{err}")?;
+            Ok(ExitCode::from(1))
         }
     }
 }

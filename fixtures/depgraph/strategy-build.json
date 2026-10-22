@@ -1,11 +1,11 @@
 {
-  "workspace_root": "WORKSPACE_ROOT",
+  "workspace_root": "/ws",
   "workspace_members": ["peek"],
   "packages": [
     {
       "name": "parangsae-strategy-peek",
       "id": "peek",
-      "manifest_path": "WORKSPACE_ROOT/crates/strategies/peek/Cargo.toml",
+      "manifest_path": "/ws/crates/strategies/peek/Cargo.toml",
       "source": null,
       "dependencies": [
         {
@@ -18,7 +18,10 @@
           "target": null
         }
       ],
-      "targets": [{ "kind": ["proc-macro"], "crate_types": ["proc-macro"] }]
+      "targets": [
+        { "kind": ["proc-macro"], "crate_types": ["proc-macro"] },
+        { "kind": ["custom-build"], "crate_types": ["bin"] }
+      ]
     }
   ]
 }

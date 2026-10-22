@@ -1,6 +1,6 @@
 //! Allowed-edge check over `cargo metadata --locked --format-version 1`.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -10,8 +10,17 @@ use serde::Deserialize;
 struct Policy {
     #[serde(rename = "crate", default)]
     crates: Vec<CratePolicy>,
+    /// Crates that are not workspace members yet. Edges here are not checked.
+    /// A planned name that is also a member is a collision.
+    #[serde(default)]
+    planned: Vec<PlannedCrate>,
     #[serde(default)]
     strategy: Vec<StrategyRule>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PlannedCrate {
+    name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -19,10 +28,6 @@ struct CratePolicy {
     name: String,
     #[serde(default, rename = "edge")]
     edges: Vec<EdgePolicy>,
-    /// Path dependencies whose package name starts with one of these are
-    /// allowed. Research uses this for strategy crates that do not exist yet.
-    #[serde(default)]
-    allow_path_prefixes: BTreeSet<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,6 +53,34 @@ struct Meta {
     packages: Vec<Pkg>,
     workspace_members: Vec<String>,
     workspace_root: PathBuf,
+    #[serde(default)]
+    resolve: Resolve,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct Resolve {
+    #[serde(default)]
+    nodes: Vec<Node>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Node {
+    id: String,
+    #[serde(default)]
+    deps: Vec<ResolvedDep>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResolvedDep {
+    pkg: String,
+    #[serde(default)]
+    dep_kinds: Vec<DepKind>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DepKind {
+    #[serde(default)]
+    kind: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,7 +153,9 @@ fn load_metadata(root: &Path) -> Result<Meta, String> {
 
 fn check(meta: &Meta, policy: &Policy) -> Vec<String> {
     let members: BTreeSet<&str> = meta.workspace_members.iter().map(String::as_str).collect();
+    let member_names = member_names(meta, &members);
     let mut violations = Vec::new();
+    violations.extend(policy_membership(policy, &member_names));
     for pkg in &meta.packages {
         violations.extend(source_violation(pkg, &members));
         if !members.contains(pkg.id.as_str()) {
@@ -131,6 +166,36 @@ fn check(meta: &Meta, policy: &Policy) -> Vec<String> {
             violations.extend(strategy_violations(pkg, rule, &rel));
         } else {
             violations.extend(crate_violations(pkg, policy));
+        }
+    }
+    violations.extend(transitive_bans(meta, &members));
+    violations
+}
+
+fn member_names<'a>(meta: &'a Meta, members: &BTreeSet<&str>) -> BTreeSet<&'a str> {
+    meta.packages
+        .iter()
+        .filter(|pkg| members.contains(pkg.id.as_str()))
+        .map(|pkg| pkg.name.as_str())
+        .collect()
+}
+
+fn policy_membership(policy: &Policy, member_names: &BTreeSet<&str>) -> Vec<String> {
+    let mut violations = Vec::new();
+    for item in &policy.crates {
+        if !member_names.contains(item.name.as_str()) {
+            violations.push(format!(
+                "policy lists {} but it is not a workspace member",
+                item.name
+            ));
+        }
+    }
+    for item in &policy.planned {
+        if member_names.contains(item.name.as_str()) {
+            violations.push(format!(
+                "{} is listed as planned and is a workspace member",
+                item.name
+            ));
         }
     }
     violations
@@ -172,7 +237,7 @@ fn strategy_rule<'a>(policy: &'a Policy, rel: Option<&str>) -> Option<&'a Strate
 fn strategy_violations(pkg: &Pkg, rule: &StrategyRule, rel: &Option<String>) -> Vec<String> {
     let mut violations = Vec::new();
     let where_ = rel.as_deref().unwrap_or(pkg.name.as_str());
-    if rule.forbid_build_script && pkg.manifest_path.with_file_name("build.rs").is_file() {
+    if rule.forbid_build_script && has_build_script(pkg) {
         violations.push(format!(
             "{where_} has a build.rs, which strategy crates cannot"
         ));
@@ -228,16 +293,6 @@ fn crate_violations(pkg: &Pkg, policy: &Policy) -> Vec<String> {
             ));
             continue;
         }
-        let prefixed = source == "path"
-            && kind == "normal"
-            && dep.features.is_empty()
-            && rules
-                .allow_path_prefixes
-                .iter()
-                .any(|prefix| dep.name.starts_with(prefix));
-        if prefixed {
-            continue;
-        }
         let Some(edge) = rules
             .edges
             .iter()
@@ -285,6 +340,78 @@ fn classify_dep(dep: &Dep) -> Result<&'static str, String> {
 
 fn kind_name(kind: Option<&str>) -> String {
     kind.unwrap_or("normal").to_owned()
+}
+
+fn has_build_script(pkg: &Pkg) -> bool {
+    pkg.targets
+        .iter()
+        .any(|target| target.kind.iter().any(|kind| kind == "custom-build"))
+}
+
+const GUARDED: &[&str] = &[
+    "parangsae-signals",
+    "parangsae-regime",
+    "parangsae-research",
+];
+const BANNED_TRANSITIVE: &[&str] = &["reqwest", "hyper", "tokio-tungstenite"];
+
+fn transitive_bans(meta: &Meta, members: &BTreeSet<&str>) -> Vec<String> {
+    let packages: BTreeMap<&str, &Pkg> = meta
+        .packages
+        .iter()
+        .map(|pkg| (pkg.id.as_str(), pkg))
+        .collect();
+    let nodes: BTreeMap<&str, &Node> = meta
+        .resolve
+        .nodes
+        .iter()
+        .map(|node| (node.id.as_str(), node))
+        .collect();
+    let mut violations = Vec::new();
+    for pkg in &meta.packages {
+        if !members.contains(pkg.id.as_str()) || !is_guarded(meta, pkg) {
+            continue;
+        }
+        let mut stack = vec![pkg.id.as_str()];
+        let mut seen = BTreeSet::new();
+        while let Some(id) = stack.pop() {
+            if !seen.insert(id) {
+                continue;
+            }
+            let Some(node) = nodes.get(id) else {
+                continue;
+            };
+            for dep in &node.deps {
+                if !dep.dep_kinds.iter().any(is_normal_kind) {
+                    continue;
+                }
+                let Some(target) = packages.get(dep.pkg.as_str()) else {
+                    continue;
+                };
+                if BANNED_TRANSITIVE.contains(&target.name.as_str()) {
+                    violations.push(format!(
+                        "{} transitively depends on {}",
+                        pkg.name, target.name
+                    ));
+                }
+                stack.push(dep.pkg.as_str());
+            }
+        }
+    }
+    violations
+}
+
+fn is_guarded(meta: &Meta, pkg: &Pkg) -> bool {
+    if GUARDED.contains(&pkg.name.as_str()) {
+        return true;
+    }
+    relative_manifest(&meta.workspace_root, &pkg.manifest_path)
+        .map(|path| path.starts_with("crates/strategies/"))
+        .unwrap_or(false)
+}
+
+fn is_normal_kind(kind: &DepKind) -> bool {
+    kind.kind.is_none()
 }
 
 fn is_proc_macro(pkg: &Pkg) -> bool {
@@ -379,18 +506,9 @@ mod tests {
 
     #[test]
     fn a_strategy_build_script_and_forbidden_edge_are_rejected() -> Result<(), String> {
-        let dir =
-            std::env::temp_dir().join(format!("parangsae-strategy-bad-{}", std::process::id()));
-        let manifest_dir = dir.join("crates/strategies/peek");
-        std::fs::create_dir_all(&manifest_dir).map_err(|err| err.to_string())?;
-        let manifest = manifest_dir.join("Cargo.toml");
-        std::fs::write(&manifest, "").map_err(|err| err.to_string())?;
-        std::fs::write(manifest_dir.join("build.rs"), "// bad\n").map_err(|err| err.to_string())?;
         let raw = include_str!("../../fixtures/depgraph/strategy-build.json");
-        let meta_text = raw.replace("WORKSPACE_ROOT", &dir.display().to_string());
-        let meta: Meta = serde_json::from_str(&meta_text).map_err(|err| err.to_string())?;
+        let meta: Meta = serde_json::from_str(raw).map_err(|err| err.to_string())?;
         let violations = check(&meta, &policy()?);
-        let _ = std::fs::remove_dir_all(&dir);
         assert!(
             violations.iter().any(|item| item.contains("build.rs")),
             "{violations:?}"
@@ -401,6 +519,100 @@ mod tests {
         );
         assert!(
             violations.iter().any(|item| item.contains("proc-macro")),
+            "{violations:?}"
+        );
+        let without_build = raw.replace("\"custom-build\"", "\"lib\"");
+        let meta: Meta = serde_json::from_str(&without_build).map_err(|err| err.to_string())?;
+        let violations = check(&meta, &policy()?);
+        assert!(
+            violations.iter().all(|item| !item.contains("build.rs")),
+            "{violations:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn an_unlisted_parangsae_foo_edge_into_research_is_rejected() -> Result<(), String> {
+        let policy_text = r#"
+            [[crate]]
+            name = "parangsae-research"
+            allow_path_prefixes = ["parangsae-"]
+
+            [[crate.edge]]
+            name = "parangsae-core"
+            kind = "normal"
+            source = "path"
+            default_features = true
+        "#;
+        let rules: Policy = toml::from_str(policy_text).map_err(|err| err.to_string())?;
+        let meta: Meta = serde_json::from_str(include_str!(
+            "../../fixtures/depgraph/research-unlisted-foo.json"
+        ))
+        .map_err(|err| err.to_string())?;
+        let violations = check(&meta, &rules);
+        assert!(
+            violations.iter().any(|item| {
+                item.contains("parangsae-research -> parangsae-foo")
+                    && item.contains("not an allowed edge")
+            }),
+            "{violations:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_planned_name_that_is_a_member_and_a_stale_policy_crate_are_rejected() -> Result<(), String>
+    {
+        let policy_text = r#"
+            [[crate]]
+            name = "parangsae-ghost"
+
+            [[planned]]
+            name = "parangsae-signals"
+        "#;
+        let rules: Policy = toml::from_str(policy_text).map_err(|err| err.to_string())?;
+        let meta: Meta = serde_json::from_str(include_str!(
+            "../../fixtures/depgraph/signals-on-collector.json"
+        ))
+        .map_err(|err| err.to_string())?;
+        let violations = check(&meta, &rules);
+        assert!(
+            violations
+                .iter()
+                .any(|item| item.contains("parangsae-ghost")
+                    && item.contains("not a workspace member")),
+            "{violations:?}"
+        );
+        assert!(
+            violations
+                .iter()
+                .any(|item| item.contains("parangsae-signals") && item.contains("planned")),
+            "{violations:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_resolved_hyper_edge_into_signals_is_rejected() -> Result<(), String> {
+        let raw = include_str!("../../fixtures/depgraph/signals-transitive-hyper.json");
+        let meta: Meta = serde_json::from_str(raw).map_err(|err| err.to_string())?;
+        let violations = check(&meta, &policy()?);
+        assert!(
+            violations
+                .iter()
+                .any(|item| item.contains("parangsae-signals transitively depends on hyper")),
+            "{violations:?}"
+        );
+        let dev_only = raw.replace(
+            "\"pkg\": \"hyper\", \"dep_kinds\": [{ \"kind\": null }]",
+            "\"pkg\": \"hyper\", \"dep_kinds\": [{ \"kind\": \"dev\" }]",
+        );
+        let meta: Meta = serde_json::from_str(&dev_only).map_err(|err| err.to_string())?;
+        let violations = check(&meta, &policy()?);
+        assert!(
+            violations
+                .iter()
+                .all(|item| !item.contains("transitively depends on hyper")),
             "{violations:?}"
         );
         Ok(())
