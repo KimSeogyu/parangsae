@@ -144,17 +144,39 @@ pub enum LoadError {
     ManifestDigestMismatch,
     ManifestRootMismatch,
     ManifestOrder,
-    PartitionMissing { date: CivilDay },
-    PartitionHashMismatch { date: CivilDay },
-    SchemaMismatch { date: CivilDay },
-    PkOrder { date: CivilDay },
-    AvailableTsRule { date: CivilDay },
-    RowInvariant { date: CivilDay, check: &'static str },
-    PartitionStatsMismatch { date: CivilDay },
+    PartitionMissing {
+        date: CivilDay,
+    },
+    PartitionHashMismatch {
+        date: CivilDay,
+    },
+    SchemaMismatch {
+        date: CivilDay,
+    },
+    PkOrder {
+        date: CivilDay,
+    },
+    AvailableTsRule {
+        date: CivilDay,
+    },
+    RowInvariant {
+        date: CivilDay,
+        check: &'static str,
+    },
+    PartitionStatsMismatch {
+        date: CivilDay,
+    },
     RangeOutsideVersion,
     HoldoutRefused,
-    UnlistedConflict { key: String },
-    LegacyObjectLine { url: String },
+    UnlistedConflict {
+        key: String,
+    },
+    LegacyObjectLine {
+        url: String,
+    },
+    /// Dataset/spec pair is not the spec-version table: a mismatch, an unknown
+    /// version string, or a dataset that is not in the table.
+    SpecVersionMismatch,
     Io(String),
 }
 
@@ -176,6 +198,7 @@ impl LoadError {
             Self::HoldoutRefused => "HoldoutRefused",
             Self::UnlistedConflict { .. } => "UnlistedConflict",
             Self::LegacyObjectLine { .. } => "LegacyObjectLine",
+            Self::SpecVersionMismatch => "SpecVersionMismatch",
             Self::Io(_) => "Io",
         }
     }
@@ -633,13 +656,24 @@ fn write_cache(path: &Path, sha: &[u8; 32]) -> Result<(), LoadError> {
     fs::write(path, hex::encode(sha)).map_err(|err| LoadError::Io(err.to_string()))
 }
 
+fn require_manifest_spec(dataset_id: &str, spec: &str) -> Result<(), LoadError> {
+    let id = DatasetId::parse(dataset_id).map_err(|_| LoadError::SpecVersionMismatch)?;
+    match encode::manifest_spec(id.dataset()) {
+        Some(expected) if spec == expected => Ok(()),
+        _ => Err(LoadError::SpecVersionMismatch),
+    }
+}
+
 fn parse_manifest(bytes: &[u8]) -> Result<ParsedManifest, LoadError> {
     let value: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|err| LoadError::Io(err.to_string()))?;
     let root = value.as_object().ok_or(LoadError::ManifestOrder)?;
-    if text(root, "spec")? != encode::MANIFEST_SPEC {
-        return Err(LoadError::ManifestOrder);
-    }
+    let dataset_id = text(root, "dataset_id")?;
+    let spec = root
+        .get("spec")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    require_manifest_spec(&dataset_id, spec)?;
     let schema = root
         .get("schema")
         .and_then(|item| item.as_object())
@@ -710,7 +744,7 @@ fn parse_manifest(bytes: &[u8]) -> Result<ParsedManifest, LoadError> {
         parts.push(parse_part(part)?);
     }
     Ok(ParsedManifest {
-        dataset_id: text(root, "dataset_id")?,
+        dataset_id,
         version_root: VersionRoot::from_bytes(parse_hash(&text(root, "version_root")?)?),
         schema_hash: parse_hash(&text(schema, "schema_hash")?)?,
         first,
@@ -1437,6 +1471,161 @@ mod tests {
         let err =
             load_range(dir.path(), &published, range, VerifyMode::Full).expect_err("unlisted");
         assert!(matches!(err, LoadError::UnlistedConflict { .. }), "{err}");
+        Ok(())
+    }
+
+    const SPEC_V2_1: &str = "parangsae/dataset-manifest/v2.1";
+    const SPEC_V2_2: &str = "parangsae/dataset-manifest/v2.2";
+
+    fn dataset_id(market: &str, dataset: &str) -> String {
+        format!("binance-vision.{market}.{dataset}.BTCUSDT")
+    }
+
+    fn canonical_spec(dataset_id: &str) -> Result<Vec<u8>, String> {
+        let zeros = [0u8; 32];
+        encode::canonical_manifest(&encode::ManifestDoc {
+            dataset_id,
+            columns: UM_KLINE_COLUMNS,
+            schema_hash: &zeros,
+            version_root: &zeros,
+            first_date: "2021-06-01",
+            last_date: "2021-06-01",
+            partitions: &[],
+            rows: 0,
+        })
+        .map_err(show)
+    }
+
+    fn with_spec(bytes: &[u8], dataset_id: &str, spec: &str) -> Result<Vec<u8>, String> {
+        let mut value: serde_json::Value = serde_json::from_slice(bytes).map_err(show)?;
+        let object = value.as_object_mut().ok_or("manifest object")?;
+        object.insert(
+            "dataset_id".to_owned(),
+            serde_json::Value::String(dataset_id.to_owned()),
+        );
+        object.insert(
+            "spec".to_owned(),
+            serde_json::Value::String(spec.to_owned()),
+        );
+        serde_json::to_vec(&value).map_err(show)
+    }
+
+    fn refused(bytes: &[u8], label: &str) -> Result<LoadError, String> {
+        match parse_manifest(bytes) {
+            Err(err) => Ok(err),
+            Ok(_) => Err(format!("{label} was accepted")),
+        }
+    }
+
+    fn spec_of(bytes: &[u8]) -> Result<String, String> {
+        let value: serde_json::Value = serde_json::from_slice(bytes).map_err(show)?;
+        value
+            .get("spec")
+            .and_then(|item| item.as_str())
+            .map(str::to_owned)
+            .ok_or_else(|| "spec".to_owned())
+    }
+
+    #[test]
+    fn spec_version_index_price_premium_index_and_spot_kline_load_on_v2_1() -> Result<(), String> {
+        let listed = [
+            ("um", "um-kline"),
+            ("um", "mark-price-kline"),
+            ("um", "index-price-kline"),
+            ("um", "premium-index-kline"),
+            ("spot", "spot-kline"),
+            ("um", "funding-rate"),
+            ("um", "book-depth"),
+        ];
+        for (market, dataset) in listed {
+            let id = dataset_id(market, dataset);
+            let bytes = canonical_spec(&id)?;
+            if spec_of(&bytes)? != SPEC_V2_1 {
+                return Err(format!("{dataset} was not stamped v2.1"));
+            }
+            let parsed = parse_manifest(&bytes).map_err(|err| format!("{dataset} load: {err}"))?;
+            if parsed.dataset_id != id {
+                return Err(format!("{dataset} dataset id"));
+            }
+        }
+        let metrics = dataset_id("um", "metrics");
+        let bytes = canonical_spec(&metrics)?;
+        if spec_of(&bytes)? != SPEC_V2_2 {
+            return Err("metrics was not stamped v2.2".into());
+        }
+        let parsed = parse_manifest(&bytes).map_err(|err| format!("metrics load: {err}"))?;
+        if parsed.dataset_id != metrics {
+            return Err("metrics dataset id".into());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn spec_version_mismatched_pairs_are_refused() -> Result<(), String> {
+        let base = canonical_spec(&dataset_id("um", "um-kline"))?;
+        let v2_1 = [
+            ("um", "um-kline"),
+            ("um", "mark-price-kline"),
+            ("um", "index-price-kline"),
+            ("um", "premium-index-kline"),
+            ("spot", "spot-kline"),
+            ("um", "funding-rate"),
+            ("um", "book-depth"),
+        ];
+        for (market, dataset) in v2_1 {
+            let id = dataset_id(market, dataset);
+            let bytes = with_spec(&base, &id, SPEC_V2_2)?;
+            let err = refused(&bytes, dataset)?;
+            if err != LoadError::SpecVersionMismatch {
+                return Err(format!("{dataset} on v2.2: {err}"));
+            }
+        }
+        let metrics = with_spec(&base, &dataset_id("um", "metrics"), SPEC_V2_1)?;
+        let err = refused(&metrics, "metrics on v2.1")?;
+        if err != LoadError::SpecVersionMismatch {
+            return Err(format!("metrics on v2.1: {err}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn spec_version_unknown_version_is_refused() -> Result<(), String> {
+        let base = canonical_spec(&dataset_id("um", "um-kline"))?;
+        for spec in [
+            "parangsae/dataset-manifest/v2.0",
+            "parangsae/dataset-manifest/v2.2b",
+            "parangsae/dataset-manifest/v9",
+            "",
+        ] {
+            let bytes = with_spec(&base, &dataset_id("um", "um-kline"), spec)?;
+            let err = refused(&bytes, spec)?;
+            if err != LoadError::SpecVersionMismatch {
+                return Err(format!("{spec:?}: {err}"));
+            }
+            let metrics = with_spec(&base, &dataset_id("um", "metrics"), spec)?;
+            let err = refused(&metrics, spec)?;
+            if err != LoadError::SpecVersionMismatch {
+                return Err(format!("metrics {spec:?}: {err}"));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn spec_version_unlisted_dataset_is_refused() -> Result<(), String> {
+        let id = dataset_id("um", "aggTrades");
+        let err = canonical_spec(&id).expect_err("publish");
+        if err != encode::EncodeError::SpecVersionMismatch.to_string() {
+            return Err(format!("publish {id}: {err}"));
+        }
+        let base = canonical_spec(&dataset_id("um", "um-kline"))?;
+        for spec in [SPEC_V2_1, SPEC_V2_2] {
+            let bytes = with_spec(&base, &id, spec)?;
+            let err = refused(&bytes, spec)?;
+            if err != LoadError::SpecVersionMismatch {
+                return Err(format!("{id} on {spec}: {err}"));
+            }
+        }
         Ok(())
     }
 

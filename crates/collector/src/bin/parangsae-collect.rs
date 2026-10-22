@@ -372,6 +372,7 @@ fn load_status(err: &LoadError) -> ExitCode {
         | LoadError::HoldoutRefused
         | LoadError::UnlistedConflict { .. }
         | LoadError::LegacyObjectLine { .. }
+        | LoadError::SpecVersionMismatch
         | LoadError::Io(_) => ExitCode::from(1),
     }
 }
@@ -471,6 +472,7 @@ mod tests {
             LoadError::LegacyObjectLine {
                 url: "https://example.invalid/a".to_owned(),
             },
+            LoadError::SpecVersionMismatch,
             LoadError::Io("io".to_owned()),
         ];
         for err in &errors {

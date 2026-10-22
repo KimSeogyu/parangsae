@@ -3,6 +3,7 @@
 
 use sha2::{Digest, Sha256};
 
+use super::id::DatasetId;
 use crate::vision::{Gap, KlineFact};
 use parangsae_core::Receipt;
 
@@ -11,7 +12,28 @@ pub const AVAILABLE_TS_RULES_VERSION: &str = "available_ts_rules/v0.2";
 pub const GAP_RULES_VERSION: &str = "gap_rules/v1";
 pub const CONFLICT_RULES_VERSION: &str = "conflict_rules/v2";
 pub const CONTRACT_VERSION: &str = "data-contract v0.2";
-pub const MANIFEST_SPEC: &str = "parangsae/dataset-manifest/v2.1";
+pub const MANIFEST_SPEC_V2_1: &str = "parangsae/dataset-manifest/v2.1";
+pub const MANIFEST_SPEC_V2_2: &str = "parangsae/dataset-manifest/v2.2";
+/// Kline, funding, and book manifests. Metrics uses [`MANIFEST_SPEC_V2_2`].
+pub const MANIFEST_SPEC: &str = MANIFEST_SPEC_V2_1;
+
+/// Spec string for one dataset name (`um-kline`, `metrics`, …).
+///
+/// Every dataset main collects except `metrics` is v2.1. An unlisted name is
+/// `None`; the loader and `canonical_manifest` fail closed on that.
+pub fn manifest_spec(dataset: &str) -> Option<&'static str> {
+    match dataset {
+        "um-kline"
+        | "mark-price-kline"
+        | "index-price-kline"
+        | "premium-index-kline"
+        | "spot-kline"
+        | "funding-rate"
+        | "book-depth" => Some(MANIFEST_SPEC_V2_1),
+        "metrics" => Some(MANIFEST_SPEC_V2_2),
+        _ => None,
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Column {
@@ -105,6 +127,7 @@ pub enum EncodeError {
     DuplicateConflict,
     Length,
     Column(&'static str),
+    SpecVersionMismatch,
 }
 
 impl std::fmt::Display for EncodeError {
@@ -115,6 +138,7 @@ impl std::fmt::Display for EncodeError {
             Self::DuplicateConflict => write!(f, "duplicate conflict"),
             Self::Length => write!(f, "length does not fit"),
             Self::Column(name) => write!(f, "column {name}"),
+            Self::SpecVersionMismatch => write!(f, "spec version is not the one for this dataset"),
         }
     }
 }
@@ -387,6 +411,11 @@ pub fn bundle_hash(entries: &[(&str, [u8; 32], [u8; 32])]) -> Result<[u8; 32], B
     Ok(sha256(&buf))
 }
 
+fn manifest_spec_of(dataset_id: &str) -> Result<&'static str, EncodeError> {
+    let id = DatasetId::parse(dataset_id).map_err(|_| EncodeError::SpecVersionMismatch)?;
+    manifest_spec(id.dataset()).ok_or(EncodeError::SpecVersionMismatch)
+}
+
 pub fn canonical_manifest(doc: &ManifestDoc<'_>) -> Result<Vec<u8>, EncodeError> {
     let columns = doc
         .columns
@@ -458,10 +487,11 @@ pub fn canonical_manifest(doc: &ManifestDoc<'_>) -> Result<Vec<u8>, EncodeError>
         "rows".to_owned(),
         serde_json::Value::String(doc.rows.to_string()),
     );
+    let spec = manifest_spec_of(doc.dataset_id)?;
     let mut root = serde_json::Map::new();
     root.insert(
         "spec".to_owned(),
-        serde_json::Value::String(MANIFEST_SPEC.to_owned()),
+        serde_json::Value::String(spec.to_owned()),
     );
     root.insert(
         "dataset_id".to_owned(),
