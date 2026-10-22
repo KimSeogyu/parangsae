@@ -621,7 +621,7 @@ fn decode_receipts(batches: &[RecordBatch]) -> Result<Vec<Receipt>, Error> {
     Ok(out)
 }
 
-fn write_klines(path: &Path, dataset: &str, rows: &[KlineFact]) -> Result<(), Error> {
+pub(crate) fn write_klines(path: &Path, dataset: &str, rows: &[KlineFact]) -> Result<(), Error> {
     let flat = records_flat(dataset);
     if !flat && rows.iter().any(|row| row.zero_volume_flat) {
         return Err(Error::check(
@@ -776,7 +776,7 @@ pub fn write_v1_klines(
     write_batch(path, batch)
 }
 
-fn write_funding(path: &Path, rows: &[FundingFact]) -> Result<(), Error> {
+pub(crate) fn write_funding(path: &Path, rows: &[FundingFact]) -> Result<(), Error> {
     let schema = fact_schema(funding_layout());
     let mut columns: Vec<Arc<dyn Array>> = vec![
         strings(rows.iter().map(|row| row.symbol.as_str())),
@@ -822,7 +822,7 @@ fn read_funding_at(path: &Path) -> Result<Vec<FundingFact>, Error> {
     Ok(rows)
 }
 
-fn write_metrics(path: &Path, rows: &[MetricsFact]) -> Result<(), Error> {
+pub(crate) fn write_metrics(path: &Path, rows: &[MetricsFact]) -> Result<(), Error> {
     let schema = fact_schema(metrics_layout());
     let mut columns: Vec<Arc<dyn Array>> = vec![
         strings(rows.iter().map(|row| row.symbol.as_str())),
@@ -894,7 +894,7 @@ fn read_metrics_at(path: &Path) -> Result<Vec<MetricsFact>, Error> {
     Ok(rows)
 }
 
-fn write_book(path: &Path, rows: &[BookFact]) -> Result<(), Error> {
+pub(crate) fn write_book(path: &Path, rows: &[BookFact]) -> Result<(), Error> {
     let schema = fact_schema(book_layout());
     let mut columns: Vec<Arc<dyn Array>> = vec![
         strings(rows.iter().map(|row| row.symbol.as_str())),
@@ -944,31 +944,31 @@ fn read_book_at(path: &Path) -> Result<Vec<BookFact>, Error> {
     Ok(rows)
 }
 
-fn strings<'a>(values: impl Iterator<Item = &'a str>) -> std::sync::Arc<dyn Array> {
+pub(crate) fn strings<'a>(values: impl Iterator<Item = &'a str>) -> std::sync::Arc<dyn Array> {
     Arc::new(StringArray::from(
         values.map(str::to_owned).collect::<Vec<_>>(),
     ))
 }
 
-fn i64s(values: impl Iterator<Item = i64>) -> std::sync::Arc<dyn Array> {
+pub(crate) fn i64s(values: impl Iterator<Item = i64>) -> std::sync::Arc<dyn Array> {
     Arc::new(Int64Array::from(values.collect::<Vec<_>>()))
 }
 
-fn u32s(values: impl Iterator<Item = u32>) -> std::sync::Arc<dyn Array> {
+pub(crate) fn u32s(values: impl Iterator<Item = u32>) -> std::sync::Arc<dyn Array> {
     Arc::new(UInt32Array::from(values.collect::<Vec<_>>()))
 }
 
-fn field(name: &str, data_type: DataType) -> Field {
+pub(crate) fn field(name: &str, data_type: DataType) -> Field {
     Field::new(name, data_type, false)
 }
 
-fn scale_schema(fields: Vec<Field>) -> Arc<Schema> {
+pub(crate) fn scale_schema(fields: Vec<Field>) -> Arc<Schema> {
     let mut metadata = std::collections::HashMap::new();
     metadata.insert("parangsae.scale".to_owned(), "100000000".to_owned());
     Arc::new(Schema::new_with_metadata(fields, metadata))
 }
 
-fn write_batch(path: &Path, batch: RecordBatch) -> Result<(), Error> {
+pub(crate) fn write_batch(path: &Path, batch: RecordBatch) -> Result<(), Error> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|source| Error::Io {
             path: parent.display().to_string(),
@@ -998,7 +998,7 @@ fn write_batch(path: &Path, batch: RecordBatch) -> Result<(), Error> {
     Ok(())
 }
 
-fn read_batches(path: &Path) -> Result<Vec<RecordBatch>, Error> {
+pub(crate) fn read_batches(path: &Path) -> Result<Vec<RecordBatch>, Error> {
     let file = File::open(path).map_err(|source| Error::Io {
         path: path.display().to_string(),
         source,
@@ -1024,7 +1024,7 @@ fn require_scale(schema: &Schema) -> Result<(), Error> {
     }
 }
 
-fn collect_i64(batches: &[RecordBatch], name: &str) -> Result<Vec<i64>, Error> {
+pub(crate) fn collect_i64(batches: &[RecordBatch], name: &str) -> Result<Vec<i64>, Error> {
     let mut out = Vec::new();
     for batch in batches {
         let array = batch
@@ -1043,7 +1043,7 @@ fn collect_i64(batches: &[RecordBatch], name: &str) -> Result<Vec<i64>, Error> {
     Ok(out)
 }
 
-fn collect_u32(batches: &[RecordBatch], name: &str) -> Result<Vec<u32>, Error> {
+pub(crate) fn collect_u32(batches: &[RecordBatch], name: &str) -> Result<Vec<u32>, Error> {
     let mut out = Vec::new();
     for batch in batches {
         let array = batch
@@ -1062,7 +1062,7 @@ fn collect_u32(batches: &[RecordBatch], name: &str) -> Result<Vec<u32>, Error> {
     Ok(out)
 }
 
-fn collect_string(batches: &[RecordBatch], name: &str) -> Result<Vec<String>, Error> {
+pub(crate) fn collect_string(batches: &[RecordBatch], name: &str) -> Result<Vec<String>, Error> {
     let mut out = Vec::new();
     for batch in batches {
         let array = batch
@@ -1194,7 +1194,7 @@ fn collect_i64_opt(batches: &[RecordBatch], name: &str) -> Result<Vec<Option<i64
     Ok(out)
 }
 
-fn collect_bool(batches: &[RecordBatch], name: &str) -> Result<Vec<bool>, Error> {
+pub(crate) fn collect_bool(batches: &[RecordBatch], name: &str) -> Result<Vec<bool>, Error> {
     let mut out = Vec::new();
     for batch in batches {
         let array = batch

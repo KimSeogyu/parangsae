@@ -7,7 +7,8 @@ use std::time::Duration;
 use clap::{Parser, Subcommand};
 use parangsae_collector::civil::{parse_day, DayRange};
 use parangsae_collector::fetch::HttpGet;
-use parangsae_collector::run::{self, RunRequest, VerifyFilter};
+use parangsae_collector::run::{self, Provenance, RunRequest, VerifyFilter};
+use parangsae_collector::version::migrate_receipts;
 use parangsae_collector::vision::VisionDataset;
 use parangsae_core::Symbol;
 
@@ -24,6 +25,8 @@ enum Command {
     Vision(VisionArgs),
     /// Re-check local checksums, parquet rows, and invariants. Does not use the network.
     Verify(VerifyArgs),
+    /// Map rows/v1 `received_ts_us` values onto archive runs. Default is a dry run.
+    MigrateReceipts(MigrateArgs),
 }
 
 #[derive(Parser)]
@@ -62,10 +65,20 @@ struct VerifyArgs {
     to: Option<String>,
 }
 
+#[derive(Parser)]
+struct MigrateArgs {
+    #[arg(long, default_value = "./data")]
+    data_dir: PathBuf,
+    /// Rewrite v1 partitions. Omit for a dry run, which writes nothing.
+    #[arg(long, default_value_t = false)]
+    apply: bool,
+}
+
 fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Vision(args) => vision(args),
         Command::Verify(args) => verify(args),
+        Command::MigrateReceipts(args) => migrate(args),
     }
 }
 
@@ -166,6 +179,25 @@ fn verify(args: VerifyArgs) -> ExitCode {
         Err(err) => {
             eprintln!("{err}");
             ExitCode::from(2)
+        }
+    }
+}
+
+fn migrate(args: MigrateArgs) -> ExitCode {
+    let provenance = Provenance::from_build();
+    match migrate_receipts(&args.data_dir, args.apply, &provenance) {
+        Ok(report) => {
+            let mode = if args.apply { "apply" } else { "dry-run" };
+            print!("migrate-receipts {mode} {report}");
+            ExitCode::SUCCESS
+        }
+        Err(err) => {
+            eprintln!("{err}");
+            if err.check_name().is_some() {
+                ExitCode::from(1)
+            } else {
+                ExitCode::from(2)
+            }
         }
     }
 }

@@ -4,7 +4,9 @@ use std::path::PathBuf;
 
 use cucumber::{given, then, when, World as _};
 use parangsae_collector::civil::{CivilDay, YearMonth};
+use parangsae_collector::run::Provenance;
 use parangsae_collector::store::{self, fact_path};
+use parangsae_collector::version::{directory_digest, migrate_receipts};
 use parangsae_collector::vision::{
     funding_window, parse_funding, parse_klines, FundingFact, TickDomain,
 };
@@ -18,6 +20,7 @@ struct ManifestWorld {
     check: Option<String>,
     funding: Option<FundingFact>,
     rejected: bool,
+    digest: Option<String>,
 }
 
 fn symbol() -> Symbol {
@@ -90,9 +93,27 @@ fn given_v1(world: &mut ManifestWorld, dataset: String) {
     let path = fact_path(&dir, &dataset, "BTCUSDT", day);
     let received = vec![1_i64; parsed.rows.len()];
     store::write_v1_klines(&path, &parsed.rows, &received).expect("v1");
+    world.digest = Some(directory_digest(&dir).expect("digest"));
     world.dir = Some(dir);
     world.day = Some(day);
     world.dataset = Some(dataset);
+}
+
+#[when("receipts are migrated without --apply")]
+fn when_dry_run(world: &mut ManifestWorld) {
+    let dir = world.dir.as_ref().expect("dir");
+    let provenance = Provenance {
+        git_sha: "0123456789abcdef0123456789abcdef01234567".to_owned(),
+        dirty: false,
+    };
+    migrate_receipts(dir, false, &provenance).expect("dry run");
+}
+
+#[then("the data directory is unchanged")]
+fn then_unchanged(world: &mut ManifestWorld) {
+    let dir = world.dir.as_ref().expect("dir");
+    let now = directory_digest(dir).expect("digest");
+    assert_eq!(world.digest.as_deref(), Some(now.as_str()));
 }
 
 #[when("the partition is loaded")]

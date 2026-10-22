@@ -24,7 +24,7 @@ const BOOK_HEADER: &str = "timestamp,percentage,depth,notional";
 
 const ONE_MINUTE_US: i64 = 60_000_000;
 /// Placeholder publication lag (`available_ts_rules/v0.2`). Not a clamp.
-const FUNDING_AVAILABLE_LAG_US: i64 = 60_000_000;
+pub const FUNDING_AVAILABLE_LAG_US: i64 = 60_000_000;
 const FIVE_MINUTES_US: i64 = 300_000_000;
 const EIGHT_HOURS_US: i64 = 8 * 3_600_000_000;
 const SNAP_TOLERANCE_US: i64 = 1_000_000;

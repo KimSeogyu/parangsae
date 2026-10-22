@@ -20,6 +20,7 @@ pub mod run;
 pub mod scale;
 pub mod segment;
 pub mod store;
+pub mod version;
 pub mod vision;
 pub mod ws;
 

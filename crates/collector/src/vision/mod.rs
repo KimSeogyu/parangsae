@@ -22,7 +22,9 @@ pub use check::{
 pub use checksum::{parse_checksum, require_sha256, sha256_bytes};
 pub use listxml::{list_page, ListPage, ListedObject};
 pub use name::{basename, classify, ArchiveName, Cadence, Classified};
-pub use parse::{parse_book, parse_funding, parse_klines, parse_metrics, unzip_csv};
+pub use parse::{
+    parse_book, parse_funding, parse_klines, parse_metrics, unzip_csv, FUNDING_AVAILABLE_LAG_US,
+};
 pub use rows::{zero_volume_flat, BookFact, FundingFact, KlineFact, MetricsFact, TickDomain};
 
 /// Column-schema versions recorded on the manifest. Book level sets are a

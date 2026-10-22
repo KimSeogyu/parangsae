@@ -14,3 +14,8 @@ Feature: Dataset version manifest
     Given a funding row from "funding_2026-09-01.csv" with available_ts before its event_ts
     Then the funding archive is rejected with fault "available_before_event"
     And the row available_ts is left before its event_ts
+
+  Scenario: a dry-run migration writes nothing
+    Given a v1 parquet partition for dataset "um-kline"
+    When receipts are migrated without --apply
+    Then the data directory is unchanged

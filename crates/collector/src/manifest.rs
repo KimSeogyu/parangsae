@@ -361,7 +361,10 @@ fn load_active(path: &Path) -> Result<Vec<ObjectManifest>, super::Error> {
 
 /// `manifest/legacy-run-map.jsonl`: `fetched_at_us` string to `run_id`.
 /// Absence is `Ok(None)`. A bad line is an error. This does not invent a `RunId`.
-fn lookup_legacy_run(data_dir: &Path, fetched_at_us: i64) -> Result<Option<RunId>, super::Error> {
+pub(crate) fn lookup_legacy_run(
+    data_dir: &Path,
+    fetched_at_us: i64,
+) -> Result<Option<RunId>, super::Error> {
     let path = data_dir.join("manifest").join("legacy-run-map.jsonl");
     if !path.exists() {
         return Ok(None);
