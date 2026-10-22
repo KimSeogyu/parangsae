@@ -1,11 +1,6 @@
 //! Binance Vision backfill. Public archives only. No API key and no order route.
 
-#![allow(
-    clippy::print_stdout,
-    clippy::print_stderr,
-    reason = "the collector binary reports run status to the operator"
-)]
-
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
@@ -68,62 +63,46 @@ struct VerifyArgs {
     to: Option<String>,
 }
 
-fn main() -> ExitCode {
+fn main() -> Result<ExitCode, io::Error> {
     match Cli::parse().command {
         Command::Vision(args) => vision(args),
         Command::Verify(args) => verify(args),
     }
 }
 
-fn vision(args: VisionArgs) -> ExitCode {
+fn fail(err: impl std::fmt::Display) -> Result<ExitCode, io::Error> {
+    writeln!(io::stderr().lock(), "{err}")?;
+    Ok(ExitCode::from(2))
+}
+
+fn vision(args: VisionArgs) -> Result<ExitCode, io::Error> {
     let datasets = match datasets(&args.dataset) {
         Ok(datasets) => datasets,
-        Err(err) => {
-            eprintln!("{err}");
-            return ExitCode::from(2);
-        }
+        Err(err) => return fail(err),
     };
     let symbol = match Symbol::new(&args.symbol) {
         Ok(symbol) => symbol,
-        Err(err) => {
-            eprintln!("{err}");
-            return ExitCode::from(2);
-        }
+        Err(err) => return fail(err),
     };
     let from = match parse_day(&args.from) {
         Ok(day) => day,
-        Err(err) => {
-            eprintln!("{err}");
-            return ExitCode::from(2);
-        }
+        Err(err) => return fail(err),
     };
     let to = match parse_day(&args.to) {
         Ok(day) => day,
-        Err(err) => {
-            eprintln!("{err}");
-            return ExitCode::from(2);
-        }
+        Err(err) => return fail(err),
     };
     let range = match DayRange::new(from, to) {
         Ok(range) => range,
-        Err(err) => {
-            eprintln!("{err}");
-            return ExitCode::from(2);
-        }
+        Err(err) => return fail(err),
     };
     let fetched_at = match run::received_now() {
         Ok(ts) => ts,
-        Err(err) => {
-            eprintln!("{err}");
-            return ExitCode::from(2);
-        }
+        Err(err) => return fail(err),
     };
     let client = match HttpGet::new() {
         Ok(client) => client,
-        Err(err) => {
-            eprintln!("{err}");
-            return ExitCode::from(2);
-        }
+        Err(err) => return fail(err),
     };
     let request = RunRequest {
         datasets,
@@ -136,50 +115,42 @@ fn vision(args: VisionArgs) -> ExitCode {
     };
     match run::run_vision(&request, &client) {
         Ok(rows) => print_rows(&rows),
-        Err(err) => {
-            eprintln!("{err}");
-            ExitCode::from(2)
-        }
+        Err(err) => fail(err),
     }
 }
 
-fn verify(args: VerifyArgs) -> ExitCode {
+fn verify(args: VerifyArgs) -> Result<ExitCode, io::Error> {
     let filter = match VerifyFilter::parse(&args.dataset, args.from.as_deref(), args.to.as_deref())
     {
         Ok(filter) => filter,
-        Err(err) => {
-            eprintln!("{err}");
-            return ExitCode::from(2);
-        }
+        Err(err) => return fail(err),
     };
     match run::verify(&args.data_dir, &filter) {
         Ok(report) => {
-            println!("verify {report}");
+            writeln!(io::stdout().lock(), "verify {report}")?;
             if report.ok() {
-                ExitCode::SUCCESS
+                Ok(ExitCode::SUCCESS)
             } else {
-                ExitCode::from(1)
+                Ok(ExitCode::from(1))
             }
         }
-        Err(err) => {
-            eprintln!("{err}");
-            ExitCode::from(2)
-        }
+        Err(err) => fail(err),
     }
 }
 
-fn print_rows(rows: &[(VisionDataset, run::RunSummary)]) -> ExitCode {
+fn print_rows(rows: &[(VisionDataset, run::RunSummary)]) -> Result<ExitCode, io::Error> {
     let mut failed = false;
+    let mut stdout = io::stdout().lock();
     for (dataset, summary) in rows {
-        println!("{dataset} {summary}");
+        writeln!(stdout, "{dataset} {summary}")?;
         if !summary.ok() {
             failed = true;
         }
     }
     if failed {
-        ExitCode::from(1)
+        Ok(ExitCode::from(1))
     } else {
-        ExitCode::SUCCESS
+        Ok(ExitCode::SUCCESS)
     }
 }
 

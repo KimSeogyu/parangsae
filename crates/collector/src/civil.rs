@@ -302,22 +302,26 @@ fn parse_hms(text: &str, max: i64, full: &str) -> Result<i64, super::Error> {
 mod tests {
     use super::*;
 
-    fn day(y: i32, m: u8, d: u8) -> CivilDay {
-        CivilDay::new(y, m, d).expect("fixture date")
+    fn day(y: i32, m: u8, d: u8) -> Result<CivilDay, String> {
+        CivilDay::new(y, m, d).ok_or_else(|| "fixture date".to_string())
     }
 
     #[test]
-    fn known_epoch_days() {
-        assert_eq!(day(1970, 1, 1).epoch_days(), 0);
-        assert_eq!(day(1970, 1, 1).start_us().micros(), 0);
-        assert_eq!(day(2020, 1, 1).start_us().micros(), 1_577_836_800_000_000);
-        assert_eq!(day(2025, 1, 1).start_us().micros(), 1_735_689_600_000_000);
-        assert_eq!(day(2026, 9, 1).start_us().micros(), 1_788_220_800_000_000);
-        assert_eq!(day(2026, 10, 20).start_us().micros(), 1_792_454_400_000_000);
+    fn known_epoch_days() -> Result<(), String> {
+        assert_eq!(day(1970, 1, 1)?.epoch_days(), 0);
+        assert_eq!(day(1970, 1, 1)?.start_us().micros(), 0);
+        assert_eq!(day(2020, 1, 1)?.start_us().micros(), 1_577_836_800_000_000);
+        assert_eq!(day(2025, 1, 1)?.start_us().micros(), 1_735_689_600_000_000);
+        assert_eq!(day(2026, 9, 1)?.start_us().micros(), 1_788_220_800_000_000);
+        assert_eq!(
+            day(2026, 10, 20)?.start_us().micros(),
+            1_792_454_400_000_000
+        );
+        Ok(())
     }
 
     #[test]
-    fn round_trip_known_days() {
+    fn round_trip_known_days() -> Result<(), String> {
         for (y, m, d) in [
             (1970, 1, 1),
             (2020, 2, 29),
@@ -327,9 +331,13 @@ mod tests {
             (2026, 9, 30),
             (2099, 12, 31),
         ] {
-            let civil = day(y, m, d);
-            assert_eq!(day_of(civil.start_us()).unwrap(), civil);
+            let civil = day(y, m, d)?;
+            assert_eq!(
+                day_of(civil.start_us()).map_err(|err| err.to_string())?,
+                civil
+            );
         }
+        Ok(())
     }
 
     #[test]
@@ -339,10 +347,11 @@ mod tests {
     }
 
     #[test]
-    fn datetime_is_utc_and_rejects_a_bad_clock() {
-        let ts = parse_utc_datetime("2026-09-01 00:00:00").unwrap();
-        assert_eq!(ts.micros(), day(2026, 9, 1).start_us().micros());
+    fn datetime_is_utc_and_rejects_a_bad_clock() -> Result<(), String> {
+        let ts = parse_utc_datetime("2026-09-01 00:00:00").map_err(|err| err.to_string())?;
+        assert_eq!(ts.micros(), day(2026, 9, 1)?.start_us().micros());
         assert!(parse_utc_datetime("2026-09-01 24:00:00").is_err());
         assert!(parse_utc_datetime("2026-09-01T00:00:00Z").is_err());
+        Ok(())
     }
 }

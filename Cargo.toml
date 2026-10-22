@@ -28,7 +28,7 @@ overflow-checks = true
 unsafe_code = "forbid"
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
 
-# Library code returns Result. Tests may unwrap; see clippy.toml.
+# Library code, tests, and binaries share this deny list. fixtures/lint is the only tree that may violate it.
 [workspace.lints.clippy]
 unwrap_used = "deny"
 expect_used = "deny"

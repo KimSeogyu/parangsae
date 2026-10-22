@@ -384,75 +384,79 @@ mod tests {
     use crate::scale::format_ticks;
     use proptest::prelude::*;
 
-    fn symbol() -> Symbol {
-        Symbol::new("BTCUSDT").expect("symbol")
+    fn symbol() -> Result<Symbol, String> {
+        Symbol::new("BTCUSDT").map_err(|_| "symbol".to_string())
     }
 
     fn received() -> ReceivedTs {
         ReceivedTs::from_micros(UtcMicros::from_micros(1))
     }
 
-    fn fixture(name: &str) -> String {
+    fn fixture(name: &str) -> Result<String, String> {
         let path = format!(
             "{}/../../fixtures/vision/{name}",
             env!("CARGO_MANIFEST_DIR")
         );
-        std::fs::read_to_string(path).expect("fixture")
+        std::fs::read_to_string(path).map_err(|_| "fixture".to_string())
     }
 
     #[test]
-    fn headerless_um_and_headed_um_parse() {
+    fn headerless_um_and_headed_um_parse() -> Result<(), String> {
         let headerless = parse_klines(
-            &fixture("um_kline_2021-06-01_headerless.csv"),
-            &symbol(),
+            &fixture("um_kline_2021-06-01_headerless.csv")?,
+            &symbol()?,
             UM_KLINE_CLOCK,
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert_eq!(headerless.schema_version, SCHEMA_KLINE_HEADERLESS);
         assert_eq!(headerless.rows.len(), 3);
         assert_eq!(headerless.rows[0].open_ticks, 3_724_436_000_000);
         let headed = parse_klines(
-            &fixture("um_kline_2026-10-20_header.csv"),
-            &symbol(),
+            &fixture("um_kline_2026-10-20_header.csv")?,
+            &symbol()?,
             UM_KLINE_CLOCK,
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert_eq!(headed.schema_version, SCHEMA_KLINE_HEADER);
         assert_eq!(headed.rows[0].open_ticks, 8_190_330_000_000);
+        Ok(())
     }
 
     #[test]
-    fn spot_micros_parse_and_millis_declaration_fails() {
-        let csv = fixture("spot_kline_2025-01-01_us.csv");
-        let day = CivilDay::new(2025, 1, 1).unwrap();
+    fn spot_micros_parse_and_millis_declaration_fails() -> Result<(), String> {
+        let csv = fixture("spot_kline_2025-01-01_us.csv")?;
+        let day = CivilDay::new(2025, 1, 1).ok_or_else(|| "missing".to_string())?;
         let parsed = parse_klines(
             &csv,
-            &symbol(),
+            &symbol()?,
             spot_kline_clock(day),
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert_eq!(parsed.rows[0].open_time.micros(), 1_735_689_600_000_000);
-        let err = parse_klines(
+        let err = match parse_klines(
             &csv,
-            &symbol(),
+            &symbol()?,
             UM_KLINE_CLOCK,
             TickDomain::Price,
             received(),
-        )
-        .unwrap_err();
+        ) {
+            Err(err) => err,
+            Ok(_) => return Err("expected a timestamp unit error".to_string()),
+        };
         assert_eq!(err.check_name(), Some("timestamp_unit"));
+        Ok(())
     }
 
     #[test]
-    fn funding_snap_keeps_the_raw_calc_time() {
-        let parsed =
-            parse_funding(&fixture("funding_2026-09-01.csv"), &symbol(), received()).unwrap();
+    fn funding_snap_keeps_the_raw_calc_time() -> Result<(), String> {
+        let parsed = parse_funding(&fixture("funding_2026-09-01.csv")?, &symbol()?, received())
+            .map_err(|err| err.to_string())?;
         assert_eq!(parsed.rows[0].raw_calc_time.micros(), 1_788_220_800_005_000);
         assert_eq!(parsed.rows[0].funding_time.micros(), 1_788_220_800_000_000);
         assert_eq!(
@@ -463,24 +467,28 @@ mod tests {
             parsed.rows[0].event_ts.micros().micros(),
             1_788_220_800_005_000
         );
-        let err =
-            parse_funding(&fixture("funding_off_slot.csv"), &symbol(), received()).unwrap_err();
+        let err = match parse_funding(&fixture("funding_off_slot.csv")?, &symbol()?, received()) {
+            Err(err) => err,
+            Ok(_) => return Err("expected a funding snap error".to_string()),
+        };
         assert_eq!(err.check_name(), Some("funding_snap"));
+        Ok(())
     }
 
     #[test]
-    fn slice_zip_round_trips_through_unzip() {
+    fn slice_zip_round_trips_through_unzip() -> Result<(), String> {
         let bytes = include_bytes!("../../../../fixtures/vision/um_kline_slice.zip");
-        let csv = unzip_csv(bytes).unwrap();
+        let csv = unzip_csv(bytes).map_err(|err| err.to_string())?;
         let parsed = parse_klines(
             &csv,
-            &symbol(),
+            &symbol()?,
             UM_KLINE_CLOCK,
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert_eq!(parsed.rows.len(), 3);
+        Ok(())
     }
 
     proptest! {
@@ -499,7 +507,8 @@ mod tests {
                 format_ticks(volume),
                 format_ticks(volume),
             );
-            let parsed = parse_klines(&line, &symbol(), UM_KLINE_CLOCK, TickDomain::Price, received()).unwrap();
+            let sym = symbol().map_err(proptest::test_runner::TestCaseError::fail)?;
+            let parsed = parse_klines(&line, &sym, UM_KLINE_CLOCK, TickDomain::Price, received()).map_err(|err| proptest::test_runner::TestCaseError::fail(err.to_string()))?;
             prop_assert_eq!(parsed.rows.len(), 1);
             prop_assert_eq!(parsed.rows[0].open_ticks, price);
             prop_assert_eq!(parsed.rows[0].volume.ticks(), volume);

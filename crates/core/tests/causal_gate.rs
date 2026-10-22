@@ -24,12 +24,16 @@ fn visible(rows: &[Observation<i64>], decision: DecisionTime) -> Vec<i64> {
 }
 
 #[test]
-fn decision_instant_is_inclusive() {
+fn decision_instant_is_inclusive() -> Result<(), String> {
     let decision = DecisionTime::from_micros(UtcMicros::from_micros(10));
     let at = observation(1, 10, 12, 7);
     let after = observation(1, 11, 12, 9);
-    assert_eq!(at.causal_at(decision).unwrap().value(), &7);
+    let sample = at
+        .causal_at(decision)
+        .ok_or("row available at the decision is visible")?;
+    assert_eq!(sample.value(), &7);
     assert!(after.causal_at(decision).is_none());
+    Ok(())
 }
 
 proptest! {

@@ -50,8 +50,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn btcusdt_is_accepted_and_lowercase_is_not() {
-        assert_eq!(Symbol::new("BTCUSDT").unwrap().as_str(), "BTCUSDT");
+    fn btcusdt_is_accepted_and_lowercase_is_not() -> Result<(), String> {
+        assert_eq!(
+            Symbol::new("BTCUSDT")
+                .map_err(|err| err.to_string())?
+                .as_str(),
+            "BTCUSDT"
+        );
         assert_eq!(Symbol::new("btcusdt"), Err(SymbolError::Charset));
+        Ok(())
     }
 }
