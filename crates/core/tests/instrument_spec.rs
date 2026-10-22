@@ -376,7 +376,10 @@ fn tick_rules() -> Result<(InstrumentRule, InstrumentRule), String> {
         match rule.value {
             RuleValue::Value(decimal) if decimal.ticks() == TICK_0_01 => found.0 = Some(*rule),
             RuleValue::Value(decimal) if decimal.ticks() == TICK_0_10 => found.1 = Some(*rule),
-            _ => {}
+            RuleValue::Value(_)
+            | RuleValue::Absent
+            | RuleValue::Token(_)
+            | RuleValue::EpochMillis(_) => {}
         }
     }
     match found {
@@ -1081,7 +1084,12 @@ fn tick_is_not_derived_from_price_precision() -> Result<(), String> {
     match precision.value {
         RuleValue::Value(decimal)
             if decimal.whole_units() == Some(2) && decimal.ticks() == PRECISION_2 => {}
-        other => return Err(format!("price precision {other:?}")),
+        RuleValue::Value(decimal) => {
+            return Err(format!("price precision {decimal:?}"));
+        }
+        RuleValue::Absent => return Err("price precision absent".to_owned()),
+        RuleValue::Token(token) => return Err(format!("price precision {token}")),
+        RuleValue::EpochMillis(millis) => return Err(format!("price precision {millis}")),
     }
     if tick == TICK_0_01 {
         return Err("tick matched 10^(-pricePrecision) after the tick change".to_owned());

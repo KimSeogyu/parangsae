@@ -520,28 +520,22 @@ mod tests {
     #[test]
     fn kline_scientific_notation_stays_rejected() -> Result<(), Error> {
         let csv = "1577836800000,1e-3,1,1,1,0,1577836859999,0,0,0,0,0\n";
-        let err = parse_klines(
-            csv,
-            &symbol(),
-            UM_KLINE_CLOCK,
-            TickDomain::Price,
-            received(),
-        )
-        .err()
-        .ok_or_else(|| Error::Usage("kline exponent was accepted".into()))?;
-        match err {
-            Error::Scale(crate::error::ScaleError::Charset) => Ok(()),
-            other => Err(other),
+        let sym = symbol().map_err(Error::Usage)?;
+        let err = parse_klines(csv, &sym, UM_KLINE_CLOCK, TickDomain::Price, received())
+            .err()
+            .ok_or_else(|| Error::Usage("kline exponent was accepted".into()))?;
+        if matches!(err, Error::Scale(crate::error::ScaleError::Charset)) {
+            Ok(())
+        } else {
+            Err(err)
         }
     }
 
     #[test]
     fn metrics_open_interest_exact_exponent_is_zero() -> Result<(), Error> {
-        let parsed = parse_metrics(
-            &fixture("metrics_open_interest_exponent.csv"),
-            &symbol(),
-            received(),
-        )?;
+        let csv = fixture("metrics_open_interest_exponent.csv").map_err(Error::Usage)?;
+        let sym = symbol().map_err(Error::Usage)?;
+        let parsed = parse_metrics(&csv, &sym, received())?;
         let row = parsed
             .rows
             .first()
@@ -562,12 +556,14 @@ mod tests {
     #[test]
     fn metrics_ratio_exponent_stays_on_the_plain_parser() -> Result<(), Error> {
         let csv = "create_time,symbol,sum_open_interest,sum_open_interest_value,count_toptrader_long_short_ratio,sum_toptrader_long_short_ratio,count_long_short_ratio,sum_taker_long_short_vol_ratio\n2020-09-01 00:00:00,BTCUSDT,1,1,0E-8,1,1,1\n";
-        let err = parse_metrics(csv, &symbol(), received())
+        let sym = symbol().map_err(Error::Usage)?;
+        let err = parse_metrics(csv, &sym, received())
             .err()
             .ok_or_else(|| Error::Usage("metrics ratio exponent was accepted".into()))?;
-        match err {
-            Error::Scale(crate::error::ScaleError::Charset) => Ok(()),
-            other => Err(other),
+        if matches!(err, Error::Scale(crate::error::ScaleError::Charset)) {
+            Ok(())
+        } else {
+            Err(err)
         }
     }
 }

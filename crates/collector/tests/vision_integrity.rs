@@ -317,25 +317,33 @@ fn funding_slots(world: &mut VisionWorld) -> Result<(), String> {
 }
 
 #[then(regex = r"^the funding row at calc_time (\d+) has (-?\d+) rate ticks$")]
-fn funding_rate_ticks(world: &mut VisionWorld, calc_ms: i64, ticks: i64) {
+fn funding_rate_ticks(world: &mut VisionWorld, calc_ms: i64, ticks: i64) -> Result<(), String> {
     let Loaded::Funding(rows) = &world.loaded else {
-        panic!("funding parse failed: {:?}", world.check);
+        return Err(format!("funding parse failed: {:?}", world.check));
     };
-    let calc_us = calc_ms.checked_mul(1_000).expect("calc_time fits");
+    let calc_us = calc_ms
+        .checked_mul(1_000)
+        .ok_or_else(|| "calc_time fits".to_string())?;
     let found = rows
         .iter()
         .find(|row| row.raw_calc_time.micros() == calc_us)
         .map(|row| row.rate.ticks());
     assert_eq!(found, Some(ticks));
+    Ok(())
 }
 
 #[then("January 2020 has no funding_slot gap")]
-fn january_2020_funding_has_no_gap(world: &mut VisionWorld) {
+fn january_2020_funding_has_no_gap(world: &mut VisionWorld) -> Result<(), String> {
     let Loaded::Funding(rows) = &world.loaded else {
-        panic!("funding parse failed: {:?}", world.check);
+        return Err(format!("funding parse failed: {:?}", world.check));
     };
-    let gaps = funding_window(rows, YearMonth::new(2020, 1).expect("month")).expect("slots");
+    let gaps = funding_window(
+        rows,
+        YearMonth::new(2020, 1).ok_or_else(|| "month".to_string())?,
+    )
+    .map_err(|err| format!("{err:?}"))?;
     assert!(gaps.is_empty(), "{gaps:?}");
+    Ok(())
 }
 
 #[then(regex = r"^a funding gap covers (\d+) plus 8 hours$")]
