@@ -164,7 +164,7 @@ fn check_workspace(root: &Path) -> Result<(), String> {
 }
 
 /// Reviewer-protected. Bootstrap applies only when the resolved base equals this commit.
-const BOOTSTRAP_BASE: &str = "4db8a75a7bd0886f4cdeefa050a2d89e3a36118d";
+const BOOTSTRAP_BASE: &str = "35d34ae25a782bbaf5182ae951c936b8bbbcceea";
 
 /// Reviewer-protected. The only `uses:` targets. Kani is installed with cargo, not an action.
 const ALLOWED_ACTIONS: &[&str] = &[
