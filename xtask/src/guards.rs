@@ -5961,7 +5961,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "xtask",
         "lib",
         "unittests src/lib.rs (target/debug/deps/xtask-",
-        98,
+        99,
     ),
     (
         (
@@ -8208,7 +8208,8 @@ struct LogSection {
 }
 
 fn log_sections(log: &str) -> Vec<LogSection> {
-    let lines: Vec<&str> = log.lines().collect();
+    let plain = strip_ansi(log);
+    let lines: Vec<&str> = plain.lines().collect();
     let mut starts = Vec::new();
     for (index, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
@@ -13883,6 +13884,36 @@ Running tests
             &["test not-in-the-table: libtest invocation has no binary rows"],
         )?;
         Ok(())
+    }
+
+    #[test]
+    fn item13_colored_running_lines_match_binary_rows() {
+        let log = "\u{1b}[1m\u{1b}[92m     Running\u{1b}[0m unittests src/lib.rs (target/debug/deps/parangsae_core-hash)\n\nrunning 19 tests\n\n\u{1b}[1m\u{1b}[92m   Doc-tests\u{1b}[0m parangsae_core\n\nrunning 0 tests\n";
+        let rows = [
+            BinaryRow {
+                job: "test",
+                step: "cargo test (unit, proptest, cucumber, execution lock)",
+                package: "parangsae-core",
+                kind: "lib",
+                target: "unittests src/lib.rs (target/debug/deps/parangsae_core-",
+                count: 19,
+            },
+            BinaryRow {
+                job: "test",
+                step: "cargo test (unit, proptest, cucumber, execution lock)",
+                package: "parangsae-core",
+                kind: "doctest",
+                target: "Doc-tests parangsae_core",
+                count: 0,
+            },
+        ];
+        let gaps = test_binary_table_with(
+            log,
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+            &rows,
+        );
+        assert!(gaps.is_empty(), "{gaps:?}");
     }
 
     #[test]
