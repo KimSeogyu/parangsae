@@ -1,0 +1,9 @@
+name: ci
+on:
+  push:
+jobs:
+  gate:
+    needs: [fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, guard-fixtures, tla, kani, deny, phantom]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo gate
