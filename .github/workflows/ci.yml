@@ -149,11 +149,7 @@ jobs:
         env:
           PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
-        run: |
-          if printf '%s' "$PARANGSAE_FLOOR_BASE" | grep -Eqv '^0{40}$' && [ -n "$PARANGSAE_FLOOR_BASE" ]; then
-            git fetch --depth=1 origin "$PARANGSAE_FLOOR_BASE"
-          fi
-          cargo xtask guards
+        run: cargo xtask guards
       - name: unowned feature fails
         run: |
           set +e

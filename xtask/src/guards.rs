@@ -5,9 +5,10 @@
 //! The baseline commit comes from `PARANGSAE_FLOOR_BASE`. A missing file,
 //! an unreadable sha, or a direct push to main with no floors file fails.
 //! GitHub's all-zero `before` on a branch's first push is not a skip: the
-//! comparison fetches `refs/remotes/origin/main` and uses `merge-base` with
-//! that ref. A failed fetch, a failed merge-base, or a missing file still
-//! fails. There is no fallback to the branch tip or to no baseline.
+//! comparison unshallows a depth-1 checkout, fetches
+//! `refs/remotes/origin/main`, and uses `merge-base` with that ref. A failed
+//! fetch, a failed merge-base, or a missing file still fails. There is no
+//! fallback to the branch tip or to no baseline.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -1013,6 +1014,9 @@ fn env_flag(name: &str) -> bool {
 }
 
 fn merge_base_origin_main(root: &Path) -> Result<String, String> {
+    if git(root, &["rev-parse", "--is-shallow-repository"])? == "true" {
+        git(root, &["fetch", "--no-tags", "--unshallow", "origin"])?;
+    }
     git(
         root,
         &[
@@ -1554,18 +1558,28 @@ kani.min_harnesses=1
         std::fs::write(origin.join("file"), "feature\n").map_err(|err| format!("write: {err}"))?;
         git_fixture(&origin, &["add", "file"])?;
         git_fixture(&origin, &["commit", "-m", "feature"])?;
+        let origin_url = format!(
+            "file://{}",
+            origin.to_str().ok_or("origin path is not utf-8")?
+        );
         git_fixture(
             &root.path,
             &[
                 "clone",
+                "--depth",
+                "1",
                 "--single-branch",
                 "--branch",
                 "feature",
-                origin.to_str().ok_or("origin path is not utf-8")?,
+                &origin_url,
                 "clone",
             ],
         )?;
         let clone = root.path.join("clone");
+        let shallow = git_stdout(&clone, &["rev-parse", "--is-shallow-repository"])?;
+        if shallow != "true" {
+            return Err(format!("branch clone was not depth 1: {shallow}"));
+        }
         let missing = Command::new("git")
             .arg("-C")
             .arg(&clone)
