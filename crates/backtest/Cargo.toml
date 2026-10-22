@@ -12,6 +12,9 @@ arrow-schema = { version = "60", default-features = false }
 parquet = { version = "60.0.0", default-features = false, features = ["arrow", "snap"] }
 parangsae-core = { path = "../core" }
 parangsae-sim = { path = "../sim" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
 
 [dev-dependencies]
 arrow-array = { version = "60", default-features = false }
@@ -19,6 +22,7 @@ arrow-schema = { version = "60", default-features = false }
 cucumber = "=0.22.1"
 parquet = { version = "60.0.0", default-features = false, features = ["arrow", "snap"] }
 proptest = "1.6"
+serde_json = "1.0.154"
 tempfile = "3.27.0"
 tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
 
