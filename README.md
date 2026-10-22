@@ -17,10 +17,6 @@ uv run quantctl kill-switch disable
 uv run quantctl forward-paper-run --lookback-bars 240 --funding-source none
 ```
 
-## Quant loop engineering
-
-Research and strategy improvements should follow the repo-local constitution in `AGENTS.md`: pre-register one hypothesis, make a minimal change, run harsh validation, preserve failures, and promote only on net OOS evidence.
-
 ## Live safety contract
 
 Real order submission requires all gates:
