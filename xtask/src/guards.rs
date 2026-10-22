@@ -93,12 +93,12 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
         }
         "gate-script" => {
             let file = required_path(args, "--file")?;
-            finish(Ok(gate_results_pin(&read(&file)?)))
+            finish(Ok(gate_results_pin(&read_bytes(&file)?)))
         }
         "gate-fixture" => {
             let name = required_value(args, "--name")?;
             let file = required_path(args, "--file")?;
-            finish(Ok(gate_fixture_pin(&name, &read(&file)?)))
+            finish(Ok(gate_fixture_pin(&name, &read_bytes(&file)?)))
         }
         other => Err(format!("unknown guards command {other}")),
     }
@@ -116,11 +116,11 @@ fn check_workspace(root: &Path) -> Result<(), String> {
     violations.extend(ci_gate_gaps(&read(
         &root.join(".github/workflows/ci.yml"),
     )?)?);
-    violations.extend(gate_results_pin(&read(
+    violations.extend(gate_results_pin(&read_bytes(
         &root.join(".github/workflows/gate_results.py"),
     )?));
     for (name, _) in GATE_FIXTURE_SHA256 {
-        violations.extend(gate_fixture_pin(name, &read(&root.join(name))?));
+        violations.extend(gate_fixture_pin(name, &read_bytes(&root.join(name))?));
     }
     finish(Ok(violations))
 }
@@ -176,8 +176,8 @@ const GATE_FIXTURE_SHA256: &[(&str, &str)] = &[
     ),
 ];
 
-fn sha256_hex(text: &str) -> String {
-    let digest = Sha256::digest(text.as_bytes());
+fn sha256_hex(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
     let mut hex = String::with_capacity(64);
     for byte in digest {
         hex.push_str(&format!("{byte:02x}"));
@@ -185,19 +185,19 @@ fn sha256_hex(text: &str) -> String {
     hex
 }
 
-fn gate_results_pin(text: &str) -> Vec<String> {
-    if sha256_hex(text) == GATE_RESULTS_SHA256 {
+fn gate_results_pin(bytes: &[u8]) -> Vec<String> {
+    if sha256_hex(bytes) == GATE_RESULTS_SHA256 {
         Vec::new()
     } else {
         vec!["gate_results.py sha256 does not match".to_owned()]
     }
 }
 
-fn gate_fixture_pin(name: &str, text: &str) -> Vec<String> {
+fn gate_fixture_pin(name: &str, bytes: &[u8]) -> Vec<String> {
     let Some((_, expected)) = GATE_FIXTURE_SHA256.iter().find(|(path, _)| *path == name) else {
         return vec![format!("gate fixture {name} is not pinned")];
     };
-    if sha256_hex(text) == *expected {
+    if sha256_hex(bytes) == *expected {
         Vec::new()
     } else {
         vec![format!("gate fixture {name} sha256 does not match")]
@@ -1324,6 +1324,10 @@ fn read(path: &Path) -> Result<String, String> {
     std::fs::read_to_string(path).map_err(|err| format!("read {}: {err}", path.display()))
 }
 
+fn read_bytes(path: &Path) -> Result<Vec<u8>, String> {
+    std::fs::read(path).map_err(|err| format!("read {}: {err}", path.display()))
+}
+
 fn required_path(args: &[String], flag: &str) -> Result<PathBuf, String> {
     Ok(PathBuf::from(required_value(args, flag)?))
 }
@@ -1918,12 +1922,14 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         if !gaps.is_empty() {
             return Err(gaps.join("\n"));
         }
-        let pin = gate_results_pin(&read(&root.join(".github/workflows/gate_results.py"))?);
+        let pin = gate_results_pin(&read_bytes(
+            &root.join(".github/workflows/gate_results.py"),
+        )?);
         if !pin.is_empty() {
             return Err(pin.join("\n"));
         }
         for (name, _) in GATE_FIXTURE_SHA256 {
-            let pin = gate_fixture_pin(name, &read(&root.join(name))?);
+            let pin = gate_fixture_pin(name, &read_bytes(&root.join(name))?);
             if !pin.is_empty() {
                 return Err(pin.join("\n"));
             }
@@ -2047,11 +2053,13 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
     #[test]
     fn a_replaced_gate_script_fails_the_sha256_pin() -> Result<(), String> {
         let root = crate::workspace_root()?;
-        let pinned = gate_results_pin(&read(&root.join(".github/workflows/gate_results.py"))?);
+        let pinned = gate_results_pin(&read_bytes(
+            &root.join(".github/workflows/gate_results.py"),
+        )?);
         if !pinned.is_empty() {
             return Err(format!("real script: {pinned:?}"));
         }
-        let replaced = gate_results_pin(&read(
+        let replaced = gate_results_pin(&read_bytes(
             &root.join("fixtures/guards/ci/gate_results_exit_zero.py"),
         )?);
         if replaced != ["gate_results.py sha256 does not match".to_owned()] {
@@ -2096,14 +2104,14 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
     fn a_weakened_gate_fixture_file_fails_the_sha256_pin() -> Result<(), String> {
         let root = crate::workspace_root()?;
         for (name, _) in GATE_FIXTURE_SHA256 {
-            let pin = gate_fixture_pin(name, &read(&root.join(name))?);
+            let pin = gate_fixture_pin(name, &read_bytes(&root.join(name))?);
             if !pin.is_empty() {
                 return Err(format!("{name}: {pin:?}"));
             }
         }
         let weakened = gate_fixture_pin(
             "fixtures/guards/ci/needs-success.json",
-            &read(&root.join("fixtures/guards/ci/needs-success-weakened.json"))?,
+            &read_bytes(&root.join("fixtures/guards/ci/needs-success-weakened.json"))?,
         );
         if weakened
             != [
@@ -2112,6 +2120,48 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             ]
         {
             return Err(format!("{weakened:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_bom_or_crlf_change_fails_the_sha256_pin() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let original = std::fs::read(root.join("fixtures/guards/ci/needs-success.json"))
+            .map_err(|err| format!("read original: {err}"))?;
+        let bom = std::fs::read(root.join("fixtures/guards/ci/needs-success-bom.json"))
+            .map_err(|err| format!("read bom: {err}"))?;
+        let crlf = std::fs::read(root.join("fixtures/guards/ci/needs-success-crlf.json"))
+            .map_err(|err| format!("read crlf: {err}"))?;
+        let mut expected_bom = vec![0xEF, 0xBB, 0xBF];
+        expected_bom.extend_from_slice(&original);
+        if bom != expected_bom {
+            return Err("bom fixture is not the pinned bytes with a utf-8 bom".to_owned());
+        }
+        let mut expected_crlf = Vec::with_capacity(original.len());
+        for byte in &original {
+            if *byte == b'\n' {
+                expected_crlf.push(b'\r');
+            }
+            expected_crlf.push(*byte);
+        }
+        if crlf != expected_crlf {
+            return Err("crlf fixture is not the pinned bytes with crlf".to_owned());
+        }
+        for (label, bytes) in [("bom", bom.as_slice()), ("crlf", crlf.as_slice())] {
+            let pin = gate_fixture_pin("fixtures/guards/ci/needs-success.json", bytes);
+            if pin
+                != [
+                    "gate fixture fixtures/guards/ci/needs-success.json sha256 does not match"
+                        .to_owned(),
+                ]
+            {
+                return Err(format!("{label}: {pin:?}"));
+            }
+        }
+        let pinned = gate_fixture_pin("fixtures/guards/ci/needs-success.json", &original);
+        if !pinned.is_empty() {
+            return Err(format!("original bytes: {pinned:?}"));
         }
         Ok(())
     }
