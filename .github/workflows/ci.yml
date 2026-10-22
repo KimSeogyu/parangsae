@@ -283,6 +283,54 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'ci job clippy is missing from gate.needs'
+      - name: gate without if always fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/no-always.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "gate without if always was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate job is missing if: always()'
+      - name: exit 0 gate check fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/exit-zero.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "exit 0 gate check was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate check step does not match'
+      - name: jobs comment still sees a missing need
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/jobs-comment.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "jobs comment hid the inventory"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job clippy is missing from gate.needs'
+      - name: empty jobs map fails closed
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/jobs-empty.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "empty jobs map was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci workflow has no jobs'
 
   tla:
     name: tla
@@ -396,18 +444,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: skipped and cancelled results fail and success passes
+      - name: skipped, cancelled, null, and empty needs fail and success passes
         run: |
           set +e
           skipped=$(NEEDS="$(cat fixtures/guards/ci/needs-skipped.json)" python3 .github/workflows/gate_results.py 2>&1)
           skipped_status=$?
           cancelled=$(NEEDS="$(cat fixtures/guards/ci/needs-cancelled.json)" python3 .github/workflows/gate_results.py 2>&1)
           cancelled_status=$?
+          null_result=$(NEEDS="$(cat fixtures/guards/ci/needs-null.json)" python3 .github/workflows/gate_results.py 2>&1)
+          null_status=$?
+          empty=$(NEEDS="$(cat fixtures/guards/ci/needs-empty.json)" python3 .github/workflows/gate_results.py 2>&1)
+          empty_status=$?
           success=$(NEEDS="$(cat fixtures/guards/ci/needs-success.json)" python3 .github/workflows/gate_results.py 2>&1)
           success_status=$?
           set -e
           printf '%s\n' "$skipped"
           printf '%s\n' "$cancelled"
+          printf '%s\n' "$null_result"
+          printf '%s\n' "$empty"
           printf '%s\n' "$success"
           if [ "$skipped_status" -eq 0 ]; then
             echo "skipped result was accepted"
@@ -419,6 +473,16 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$cancelled" | grep -q 'cancelled'
+          if [ "$null_status" -eq 0 ]; then
+            echo "null result was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$null_result" | grep -q 'null'
+          if [ "$empty_status" -eq 0 ]; then
+            echo "empty needs was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$empty" | grep -q 'gate has no needed jobs'
           if [ "$success_status" -ne 0 ]; then
             echo "all-success needs was rejected"
             exit 1

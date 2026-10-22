@@ -108,20 +108,43 @@ fn check_workspace(root: &Path) -> Result<(), String> {
     finish(Ok(violations))
 }
 
+const GATE_CHECK_STEP: &str = concat!(
+    "      - name: fail unless every needed job succeeded\n",
+    "        env:\n",
+    "          NEEDS: ${{ toJSON(needs) }}\n",
+    "        run: python3 .github/workflows/gate_results.py\n",
+);
+
 fn ci_gate_gaps(text: &str) -> Result<Vec<String>, String> {
     let jobs = ci_job_ids(text)?;
-    let needs = match gate_needs(text) {
-        Ok(needs) => needs,
+    let block = match gate_job_block(text) {
+        Ok(block) => block,
         Err(err) => return Ok(vec![err]),
     };
     let mut gaps = Vec::new();
-    for job in &jobs {
-        if job == "gate" {
-            continue;
+    if !block
+        .lines()
+        .any(|line| strip_yaml_comment(line).trim() == "if: always()")
+    {
+        gaps.push("gate job is missing if: always()".to_owned());
+    }
+    if gate_check_step(block) != GATE_CHECK_STEP {
+        gaps.push("gate check step does not match".to_owned());
+    }
+    let needs = match gate_needs(block) {
+        Ok(needs) => needs,
+        Err(err) => {
+            gaps.push(err);
+            return Ok(gaps);
         }
-        if !needs.contains(job) {
-            gaps.push(format!("ci job {job} is missing from gate.needs"));
-        }
+    };
+    let mut inventory = jobs;
+    inventory.remove("gate");
+    for name in inventory.difference(&needs) {
+        gaps.push(format!("ci job {name} is missing from gate.needs"));
+    }
+    for name in needs.difference(&inventory) {
+        gaps.push(format!("gate.needs lists {name} which is not a ci job"));
     }
     Ok(gaps)
 }
@@ -131,27 +154,18 @@ fn ci_job_ids(text: &str) -> Result<BTreeSet<String>, String> {
     let mut jobs = BTreeSet::new();
     for line in text.lines() {
         if !in_jobs {
-            if line == "jobs:" {
+            if !line.starts_with(' ') && strip_yaml_comment(line).trim() == "jobs:" {
                 in_jobs = true;
             }
             continue;
         }
-        if !line.is_empty() && !line.starts_with(' ') && !line.starts_with('#') {
+        if is_top_level(line) {
             break;
         }
-        let Some(rest) = line.strip_prefix("  ") else {
+        let Some(id) = job_id(line) else {
             continue;
         };
-        if rest.is_empty() || rest.starts_with(' ') || rest.starts_with('#') {
-            continue;
-        }
-        let Some(id) = rest.strip_suffix(':') else {
-            continue;
-        };
-        if id.is_empty() || id.contains([' ', ':']) {
-            continue;
-        }
-        jobs.insert(id.to_owned());
+        jobs.insert(id);
     }
     if !in_jobs || jobs.is_empty() {
         return Err("ci workflow has no jobs".to_owned());
@@ -159,26 +173,41 @@ fn ci_job_ids(text: &str) -> Result<BTreeSet<String>, String> {
     Ok(jobs)
 }
 
-fn gate_needs(text: &str) -> Result<BTreeSet<String>, String> {
+fn gate_job_block(text: &str) -> Result<&str, String> {
     let lines: Vec<&str> = text.lines().collect();
     let start = lines
         .iter()
-        .position(|line| *line == "  gate:")
+        .position(|line| job_id(line).as_deref() == Some("gate"))
         .ok_or_else(|| "ci.yml has no gate job".to_owned())?;
-    let mut needs_at = None;
-    for (offset, line) in lines.iter().enumerate().skip(start + 1) {
-        if line.starts_with("  ") && !line.starts_with("   ") && line.ends_with(':') {
-            break;
-        }
-        if line.trim_start().starts_with("needs:") {
-            needs_at = Some(offset);
+    let mut end = lines.len();
+    for (idx, line) in lines.iter().enumerate().skip(start + 1) {
+        if job_id(line).is_some() || is_top_level(line) {
+            end = idx;
             break;
         }
     }
-    let Some(idx) = needs_at else {
+    Ok(&text[line_offset(text, start)..line_offset(text, end)])
+}
+
+fn gate_check_step(block: &str) -> &str {
+    let header = "      - name: fail unless every needed job succeeded\n";
+    let Some(start) = block.find(header) else {
+        return "";
+    };
+    let rest = &block[start..];
+    let end = rest.find("\n      - ").map_or(rest.len(), |idx| idx + 1);
+    &rest[..end]
+}
+
+fn gate_needs(block: &str) -> Result<BTreeSet<String>, String> {
+    let lines: Vec<&str> = block.lines().collect();
+    let Some(idx) = lines
+        .iter()
+        .position(|line| strip_yaml_comment(line).trim().starts_with("needs:"))
+    else {
         return Err("gate job has no needs".to_owned());
     };
-    let rest = lines[idx]
+    let rest = strip_yaml_comment(lines[idx])
         .trim()
         .strip_prefix("needs:")
         .ok_or_else(|| "gate job has no needs".to_owned())?
@@ -186,11 +215,11 @@ fn gate_needs(text: &str) -> Result<BTreeSet<String>, String> {
     if rest.is_empty() {
         let mut names = BTreeSet::new();
         for line in lines.iter().skip(idx + 1) {
-            let item = line.trim();
+            let item = strip_yaml_comment(line).trim();
             let Some(name) = item.strip_prefix("- ") else {
                 break;
             };
-            let name = name.trim().trim_matches(|c| c == '"' || c == '\'');
+            let name = name.trim().trim_matches(|ch| ch == '"' || ch == '\'');
             if name.is_empty() {
                 return Err("gate job has no needs".to_owned());
             }
@@ -207,11 +236,65 @@ fn gate_needs(text: &str) -> Result<BTreeSet<String>, String> {
     let inner = &rest[1..rest.len() - 1];
     let names = inner
         .split(',')
-        .map(|item| item.trim().trim_matches(|c| c == '"' || c == '\''))
+        .map(|item| item.trim().trim_matches(|ch| ch == '"' || ch == '\''))
         .filter(|item| !item.is_empty())
         .map(str::to_owned)
         .collect();
     Ok(names)
+}
+
+fn job_id(line: &str) -> Option<String> {
+    if !line.starts_with("  ") || line.starts_with("   ") {
+        return None;
+    }
+    let id = strip_yaml_comment(line).trim().strip_suffix(':')?;
+    if id.is_empty() || id.contains([' ', ':']) {
+        None
+    } else {
+        Some(id.to_owned())
+    }
+}
+
+fn is_top_level(line: &str) -> bool {
+    let code = strip_yaml_comment(line);
+    !code.trim().is_empty() && !line.starts_with(' ') && !line.starts_with('#')
+}
+
+fn line_offset(text: &str, line_idx: usize) -> usize {
+    let mut offset = 0;
+    for (idx, line) in text.lines().enumerate() {
+        if idx == line_idx {
+            return offset;
+        }
+        offset += line.len();
+        if text.as_bytes().get(offset) == Some(&b'\n') {
+            offset += 1;
+        }
+    }
+    text.len()
+}
+
+fn strip_yaml_comment(line: &str) -> &str {
+    let mut quote = None;
+    let mut prev_space = true;
+    for (idx, ch) in line.char_indices() {
+        if let Some(open) = quote {
+            if ch == open {
+                quote = None;
+            }
+            prev_space = false;
+            continue;
+        }
+        match ch {
+            '"' | '\'' => {
+                quote = Some(ch);
+                prev_space = false;
+            }
+            '#' if prev_space => return line[..idx].trim_end(),
+            _ => prev_space = ch.is_whitespace(),
+        }
+    }
+    line.trim_end()
 }
 
 fn finish(violations: Result<Vec<String>, String>) -> Result<(), String> {
@@ -1672,6 +1755,80 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             .any(|line| line == "ci job clippy is missing from gate.needs")
         {
             return Err(format!("{omitted:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_trailing_comment_on_jobs_does_not_hide_the_inventory() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let text = read(&root.join("fixtures/guards/ci/jobs-comment.yml"))?;
+        let jobs = ci_job_ids(&text)?;
+        let expected = BTreeSet::from(["clippy".to_owned(), "fmt".to_owned(), "gate".to_owned()]);
+        if jobs != expected {
+            return Err(format!("job inventory {jobs:?}"));
+        }
+        let gaps = ci_gate_gaps(&text)?;
+        if gaps != ["ci job clippy is missing from gate.needs".to_owned()] {
+            return Err(format!("{gaps:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn an_empty_job_set_fails_closed() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let text = read(&root.join("fixtures/guards/ci/jobs-empty.yml"))?;
+        match ci_gate_gaps(&text) {
+            Ok(gaps) => Err(format!("empty jobs passed: {gaps:?}")),
+            Err(err) if err.contains("no jobs") => Ok(()),
+            Err(err) => Err(format!("empty jobs: {err}")),
+        }
+    }
+
+    #[test]
+    fn gate_without_if_always_fails() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let gaps = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/no-always.yml"))?)?;
+        if gaps != ["gate job is missing if: always()".to_owned()] {
+            return Err(format!("{gaps:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn an_exit_zero_gate_check_fails() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let gaps = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/exit-zero.yml"))?)?;
+        if gaps != ["gate check step does not match".to_owned()] {
+            return Err(format!("{gaps:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn an_extra_gate_need_is_not_the_inventory() -> Result<(), String> {
+        let text = "\
+name: ci
+on: push
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt
+  gate:
+    if: always()
+    needs: [fmt, phantom]
+    runs-on: ubuntu-latest
+    steps:
+      - name: fail unless every needed job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 .github/workflows/gate_results.py
+";
+        let gaps = ci_gate_gaps(text)?;
+        if gaps != ["gate.needs lists phantom which is not a ci job".to_owned()] {
+            return Err(format!("{gaps:?}"));
         }
         Ok(())
     }

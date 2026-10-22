@@ -1,0 +1,20 @@
+name: ci
+on: push
+jobs: # trailing comment
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo clippy
+  gate:
+    if: always()
+    needs: [fmt]
+    runs-on: ubuntu-latest
+    steps:
+      - name: fail unless every needed job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: python3 .github/workflows/gate_results.py
