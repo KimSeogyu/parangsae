@@ -5,8 +5,9 @@
 //! The baseline commit comes from `PARANGSAE_FLOOR_BASE`. A missing file,
 //! an unreadable sha, or a direct push to main with no floors file fails.
 //! GitHub's all-zero `before` on a branch's first push is not a skip: the
-//! comparison uses `merge-base` with `origin/main`, and a missing file there
-//! still fails.
+//! comparison fetches `refs/remotes/origin/main` and uses `merge-base` with
+//! that ref. A failed fetch, a failed merge-base, or a missing file still
+//! fails. There is no fallback to the branch tip or to no baseline.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -881,7 +882,7 @@ fn resolve_baseline(root: &Path) -> Result<Floors, String> {
             return Err("direct push has no floor baseline".to_owned());
         }
         BaselineChoice::Unreadable => return Err("floor baseline is unreadable".to_owned()),
-        BaselineChoice::MergeBase => git(root, &["merge-base", "HEAD", "origin/main"])?,
+        BaselineChoice::MergeBase => merge_base_origin_main(root)?,
         BaselineChoice::Sha(sha) => sha,
     };
     if baseline_sha_unreadable(&sha) {
@@ -928,18 +929,55 @@ fn env_flag(name: &str) -> bool {
     }
 }
 
+fn merge_base_origin_main(root: &Path) -> Result<String, String> {
+    git(
+        root,
+        &[
+            "fetch",
+            "--no-tags",
+            "origin",
+            "main:refs/remotes/origin/main",
+        ],
+    )?;
+    let sha = git(root, &["merge-base", "HEAD", "refs/remotes/origin/main"])?;
+    if sha.is_empty() || baseline_sha_unreadable(&sha) {
+        return Err("git merge-base HEAD origin/main failed: no baseline commit".to_owned());
+    }
+    Ok(sha)
+}
+
+fn command_failure_detail(stderr: &str, stdout: &str, code: Option<i32>) -> String {
+    let stderr = stderr.trim();
+    let stdout = stdout.trim();
+    if !stderr.is_empty() {
+        stderr.to_owned()
+    } else if !stdout.is_empty() {
+        stdout.to_owned()
+    } else {
+        match code {
+            Some(code) => format!("exit {code}"),
+            None => "exit signal".to_owned(),
+        }
+    }
+}
+
 fn git(root: &Path, args: &[&str]) -> Result<String, String> {
     let output = Command::new("git")
         .arg("-C")
         .arg(root)
         .args(args)
+        .env("GIT_TERMINAL_PROMPT", "0")
         .output()
         .map_err(|err| format!("git: {err}"))?;
     if !output.status.success() {
         return Err(format!(
             "git {} failed: {}",
             args.join(" "),
-            String::from_utf8_lossy(&output.stderr).trim()
+            command_failure_detail(
+                &String::from_utf8_lossy(&output.stderr),
+                &String::from_utf8_lossy(&output.stdout),
+                output.status.code(),
+            )
         ));
     }
     String::from_utf8(output.stdout)
@@ -1404,6 +1442,92 @@ kani.min_harnesses=1
     }
 
     #[test]
+    fn git_failure_detail_is_never_blank() -> Result<(), String> {
+        if command_failure_detail("", "", Some(128)) != "exit 128" {
+            return Err("blank git failure".to_owned());
+        }
+        if command_failure_detail("fatal: Not a valid object name origin/main", "", Some(128))
+            != "fatal: Not a valid object name origin/main"
+        {
+            return Err("stderr dropped".to_owned());
+        }
+        if command_failure_detail("", "stdout only", Some(1)) != "stdout only" {
+            return Err("stdout dropped".to_owned());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn branch_only_clone_fetches_origin_main_before_merge_base() -> Result<(), String> {
+        let root = TempGit::new("branch-only")?;
+        let origin = root.path.join("origin");
+        std::fs::create_dir_all(&origin).map_err(|err| format!("mkdir: {err}"))?;
+        git_fixture(&origin, &["init", "-b", "main"])?;
+        std::fs::write(origin.join("file"), "main\n").map_err(|err| format!("write: {err}"))?;
+        git_fixture(&origin, &["add", "file"])?;
+        git_fixture(&origin, &["commit", "-m", "main"])?;
+        let main_sha = git_stdout(&origin, &["rev-parse", "HEAD"])?;
+        git_fixture(&origin, &["checkout", "-b", "feature"])?;
+        std::fs::write(origin.join("file"), "feature\n").map_err(|err| format!("write: {err}"))?;
+        git_fixture(&origin, &["add", "file"])?;
+        git_fixture(&origin, &["commit", "-m", "feature"])?;
+        git_fixture(
+            &root.path,
+            &[
+                "clone",
+                "--single-branch",
+                "--branch",
+                "feature",
+                origin.to_str().ok_or("origin path is not utf-8")?,
+                "clone",
+            ],
+        )?;
+        let clone = root.path.join("clone");
+        let missing = Command::new("git")
+            .arg("-C")
+            .arg(&clone)
+            .args(["rev-parse", "--verify", "refs/remotes/origin/main"])
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
+            .map_err(|err| format!("git: {err}"))?;
+        if missing.status.success() {
+            return Err("branch-only clone already had origin/main".to_owned());
+        }
+        let base = merge_base_origin_main(&clone)?;
+        if base != main_sha {
+            return Err(format!("merge-base {base} != main {main_sha}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn merge_base_without_main_fails_closed() -> Result<(), String> {
+        let root = TempGit::new("no-main")?;
+        let origin = root.path.join("origin");
+        std::fs::create_dir_all(&origin).map_err(|err| format!("mkdir: {err}"))?;
+        git_fixture(&origin, &["init", "-b", "feature"])?;
+        std::fs::write(origin.join("file"), "feature\n").map_err(|err| format!("write: {err}"))?;
+        git_fixture(&origin, &["add", "file"])?;
+        git_fixture(&origin, &["commit", "-m", "feature"])?;
+        git_fixture(
+            &root.path,
+            &[
+                "clone",
+                "--single-branch",
+                "--branch",
+                "feature",
+                origin.to_str().ok_or("origin path is not utf-8")?,
+                "clone",
+            ],
+        )?;
+        match merge_base_origin_main(&root.path.join("clone")) {
+            Ok(sha) => Err(format!("missing main returned a baseline {sha}")),
+            Err(err) if err.contains("failed") && !err.is_empty() => Ok(()),
+            Err(err) => Err(format!("missing main: {err}")),
+        }
+    }
+
+    #[test]
     fn tlc_count_below_the_floor_fails_and_a_missing_success_line_fails() -> Result<(), String> {
         let output = "\
 Model checking completed. No error has been found.
@@ -1550,5 +1674,77 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             return Err(format!("{omitted:?}"));
         }
         Ok(())
+    }
+
+    struct TempGit {
+        path: PathBuf,
+    }
+
+    impl TempGit {
+        fn new(label: &str) -> Result<Self, String> {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|duration| duration.as_nanos())
+                .unwrap_or(0);
+            let path = std::env::temp_dir()
+                .join(format!("parangsae-{label}-{}-{nanos}", std::process::id()));
+            std::fs::create_dir_all(&path).map_err(|err| format!("mkdir: {err}"))?;
+            Ok(Self { path })
+        }
+    }
+
+    impl Drop for TempGit {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn git_fixture(dir: &Path, args: &[&str]) -> Result<(), String> {
+        let output = git_command(dir, args)?;
+        if output.status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "git {} failed: {}",
+                args.join(" "),
+                command_failure_detail(
+                    &String::from_utf8_lossy(&output.stderr),
+                    &String::from_utf8_lossy(&output.stdout),
+                    output.status.code(),
+                )
+            ))
+        }
+    }
+
+    fn git_stdout(dir: &Path, args: &[&str]) -> Result<String, String> {
+        let output = git_command(dir, args)?;
+        if !output.status.success() {
+            return Err(format!(
+                "git {} failed: {}",
+                args.join(" "),
+                command_failure_detail(
+                    &String::from_utf8_lossy(&output.stderr),
+                    &String::from_utf8_lossy(&output.stdout),
+                    output.status.code(),
+                )
+            ));
+        }
+        String::from_utf8(output.stdout)
+            .map(|text| text.trim().to_owned())
+            .map_err(|err| format!("git output: {err}"))
+    }
+
+    fn git_command(dir: &Path, args: &[&str]) -> Result<std::process::Output, String> {
+        Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .env("GIT_AUTHOR_NAME", "parangsae")
+            .env("GIT_AUTHOR_EMAIL", "parangsae@example.com")
+            .env("GIT_COMMITTER_NAME", "parangsae")
+            .env("GIT_COMMITTER_EMAIL", "parangsae@example.com")
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
+            .map_err(|err| format!("git: {err}"))
     }
 }
