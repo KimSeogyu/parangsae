@@ -5,7 +5,7 @@ import sys
 
 def shown(info):
     if not isinstance(info, dict):
-        return "null"
+        return "not-object"
     result = info.get("result")
     if result is None:
         return "null"
