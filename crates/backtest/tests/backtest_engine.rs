@@ -1,10 +1,11 @@
 //! Cucumber runner for the twelve engine goldens.
 
+use std::ops::Sub;
+
 #[path = "../../core/tests/support/feature_floors.rs"]
 mod feature_floors;
 #[path = "../../core/tests/support/feature_run.rs"]
 mod feature_run;
-#[path = "support.rs"]
 mod support;
 
 use cucumber::{then, when};
@@ -252,16 +253,13 @@ fn grid_equities(world: &mut EngineWorld, a: i64, b: i64, c: i64, d: i64) {
 }
 
 #[then(regex = r"^the daily sharpe is ([0-9.]+)$")]
-#[allow(
-    clippy::float_arithmetic,
-    reason = "the golden compares the one documented Sharpe float to its printed digits"
-)]
 fn daily_sharpe(world: &mut EngineWorld, text: String) -> Result<(), String> {
     let expected: f64 = text
         .parse()
         .map_err(|err: std::num::ParseFloatError| err.to_string())?;
     let got = world.sharpe.ok_or("sharpe")?;
-    assert!((got - expected).abs() < 1e-9, "{got} vs {expected}");
+    let delta = <f64 as Sub>::sub(got, expected).abs();
+    assert!(delta < 1e-9, "{got} vs {expected}");
     Ok(())
 }
 

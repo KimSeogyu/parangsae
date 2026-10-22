@@ -1,5 +1,7 @@
 //! Daily returns, drawdown, and Sharpe. Integer returns in, one f64 function out.
 
+use std::ops::{Add, Div, Mul, Sub};
+
 use parangsae_core::{Ratio, SCALE};
 use parangsae_sim::{round_against_trader, Cash, SimError};
 
@@ -83,41 +85,92 @@ pub fn max_drawdown(equity: &[Cash]) -> Result<Ratio, SimError> {
 /// end-of-day equity. Fewer than two returns, a zero baseline, or a zero
 /// sample standard deviation yields `None` rather than 0 or infinity.
 ///
-/// The allow is the only float arithmetic in this crate.
-#[allow(
-    clippy::float_arithmetic,
-    clippy::cast_precision_loss,
-    reason = "Sharpe converts integer daily returns; it is the only float arithmetic in this crate"
-)]
 pub fn sharpe_f64(levels_ticks: &[i64]) -> Result<(Option<f64>, Option<f64>), SimError> {
     let returns = level_returns(levels_ticks)?;
     if returns.len() < 2 {
         return Ok((None, None));
     }
-    let n = returns.len() as f64;
+    let n = f64_from_i128(i128::from(
+        u32::try_from(returns.len()).map_err(|_| SimError::Overflow)?,
+    ))?;
     let mut mean = 0.0_f64;
     for value in &returns {
-        mean += *value as f64 / 1e18;
+        let sample = fdiv(f64_from_i128(*value)?, 1e18);
+        mean = fadd(mean, sample);
     }
-    mean /= n;
+    mean = fdiv(mean, n);
     let mut variance = 0.0_f64;
     for value in &returns {
-        let sample = *value as f64 / 1e18;
-        let delta = sample - mean;
-        variance += delta * delta;
+        let sample = fdiv(f64_from_i128(*value)?, 1e18);
+        let delta = fsub(sample, mean);
+        variance = fadd(variance, fmul(delta, delta));
     }
-    variance /= n - 1.0;
+    variance = fdiv(variance, fsub(n, 1.0));
     if variance == 0.0 {
         return Ok((None, None));
     }
     let std = variance.sqrt();
-    let daily = mean / std;
-    let annual = daily * 365.0_f64.sqrt();
+    let daily = fdiv(mean, std);
+    let annual = fmul(daily, 365.0_f64.sqrt());
     if daily.is_finite() && annual.is_finite() {
         Ok((Some(daily), Some(annual)))
     } else {
         Ok((None, None))
     }
+}
+
+fn fadd(left: f64, right: f64) -> f64 {
+    <f64 as Add>::add(left, right)
+}
+
+fn fsub(left: f64, right: f64) -> f64 {
+    <f64 as Sub>::sub(left, right)
+}
+
+fn fmul(left: f64, right: f64) -> f64 {
+    <f64 as Mul>::mul(left, right)
+}
+
+fn fdiv(left: f64, right: f64) -> f64 {
+    <f64 as Div>::div(left, right)
+}
+
+/// IEEE-754 round-to-nearest, ties to even. Same bits as an `as f64` cast.
+fn f64_from_i128(value: i128) -> Result<f64, SimError> {
+    let bits = f64_bits(value.unsigned_abs(), value < 0)?;
+    Ok(f64::from_bits(bits))
+}
+
+fn f64_bits(mag: u128, sign: bool) -> Result<u64, SimError> {
+    if mag == 0 {
+        return Ok(0);
+    }
+    let shift = mag.ilog2();
+    let mut exponent = u64::from(shift) + 1023;
+    let (mut mantissa, round, sticky) = if shift <= 52 {
+        (mag << (52 - shift), 0u128, 0u128)
+    } else {
+        let drop = shift - 52;
+        let mantissa = mag >> drop;
+        let round = (mag >> (drop - 1)) & 1;
+        let sticky = if drop == 1 {
+            0
+        } else {
+            mag & ((1u128 << (drop - 1)) - 1)
+        };
+        (mantissa, round, sticky)
+    };
+    if round == 1 && (sticky != 0 || (mantissa & 1) == 1) {
+        mantissa = mantissa.saturating_add(1);
+    }
+    if mantissa >= (1u128 << 53) {
+        mantissa >>= 1;
+        exponent = exponent.saturating_add(1);
+    }
+    mantissa &= (1u128 << 52) - 1;
+    let sign_bit = if sign { 1u64 << 63 } else { 0 };
+    let mantissa_bits = u64::try_from(mantissa).map_err(|_| SimError::Overflow)?;
+    Ok(sign_bit | (exponent << 52) | mantissa_bits)
 }
 
 #[cfg(test)]

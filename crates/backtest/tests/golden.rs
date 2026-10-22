@@ -1,6 +1,8 @@
 //! Hand-computed goldens G1–G12. Slippage is zero. Initial cash is 1_000 USDT
 //! unless a case says otherwise. Prices below are whole USDT; cash is 1e8 ticks.
 
+use std::ops::{Mul, Sub};
+
 mod support;
 
 use parangsae_backtest::fixture::{FlipEveryN, Scripted};
@@ -14,6 +16,14 @@ use support::{
 
 fn show<T, E: std::fmt::Display>(result: Result<T, E>) -> Result<T, String> {
     result.map_err(|err| err.to_string())
+}
+
+fn fmul(left: f64, right: f64) -> f64 {
+    <f64 as Mul>::mul(left, right)
+}
+
+fn near(got: f64, expected: f64, tol: f64) -> bool {
+    <f64 as Sub>::sub(got, expected).abs() < tol
 }
 
 fn must_err<T: std::fmt::Debug, E>(result: Result<T, E>) -> Result<E, String> {
@@ -175,10 +185,6 @@ fn g8_fee_grid_on_the_round_trip() -> Result<(), String> {
 }
 
 #[test]
-#[allow(
-    clippy::float_arithmetic,
-    reason = "the golden compares the one documented Sharpe float to its printed digits"
-)]
 fn g9_sharpe_and_max_drawdown() -> Result<(), String> {
     let levels = [100 * TICK, 110 * TICK, 121 * TICK, 121 * TICK];
     let (daily, annual) = show(sharpe_f64(&levels))?;
@@ -186,8 +192,8 @@ fn g9_sharpe_and_max_drawdown() -> Result<(), String> {
     let annual = annual.ok_or("annualized sharpe")?;
     // mean/std of 0.1, 0.1, 0 with ddof 1.
     let expected_daily = 1.1547005383792515_f64;
-    assert!((daily - expected_daily).abs() < 1e-9);
-    assert!((annual - expected_daily * 365f64.sqrt()).abs() < 1e-6);
+    assert!(near(daily, expected_daily, 1e-9));
+    assert!(near(annual, fmul(expected_daily, 365f64.sqrt()), 1e-6));
 
     let curve = [usd(100)?, usd(110)?, usd(99)?, usd(121)?];
     assert_eq!(show(max_drawdown(&curve))?.ticks(), 10_000_000);

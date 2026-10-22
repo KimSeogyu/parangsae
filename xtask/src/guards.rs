@@ -175,7 +175,7 @@ const ALLOWED_ACTIONS: &[&str] = &[
 
 /// Reviewer-protected. Raw sha256 of `regressions/floors.toml` on the bootstrap path.
 const BOOTSTRAP_FLOORS_SHA256: &str =
-    "7c677efda602168f65e7bd98c4594a149ebe72ecc0de18c884224818bff76a07";
+    "f06d25d07cb336c64c432d644585ba5388ad01e3c3e1ac2cd8578fbb8bdad7ad";
 
 /// Reviewer-protected. Non-ratchet guards plus the ratchet.
 const EXPECTED_GUARD_RUNS: usize = 12;

@@ -1,5 +1,6 @@
 //! P7 prefix invariance and P8 cost monotonicity. 100 cases each.
 
+#[path = "support/tape.rs"]
 mod support;
 
 use parangsae_backtest::fixture::{FlipEveryN, Recorder};
