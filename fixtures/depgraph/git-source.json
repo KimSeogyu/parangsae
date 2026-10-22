@@ -1,0 +1,22 @@
+{
+  "workspace_root": "/ws",
+  "workspace_members": ["core"],
+  "packages": [
+    {
+      "name": "parangsae-core",
+      "id": "core",
+      "manifest_path": "/ws/crates/core/Cargo.toml",
+      "source": null,
+      "dependencies": [],
+      "targets": [{ "kind": ["lib"], "crate_types": ["lib"] }]
+    },
+    {
+      "name": "reqwest",
+      "id": "reqwest-git",
+      "manifest_path": "/git/reqwest/Cargo.toml",
+      "source": "git+https://example.com/reqwest",
+      "dependencies": [],
+      "targets": [{ "kind": ["lib"], "crate_types": ["lib"] }]
+    }
+  ]
+}

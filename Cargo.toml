@@ -8,6 +8,7 @@ members = [
     "crates/execution",
     "crates/sim",
     "crates/backtest",
+    "xtask",
 ]
 # Lint fixtures are separate workspace roots. They are expected to fail.
 exclude = [

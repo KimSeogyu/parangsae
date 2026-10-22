@@ -1,0 +1,24 @@
+{
+  "workspace_root": "/ws",
+  "workspace_members": ["signals"],
+  "packages": [
+    {
+      "name": "parangsae-signals",
+      "id": "signals",
+      "manifest_path": "/ws/crates/signals/Cargo.toml",
+      "source": null,
+      "dependencies": [
+        {
+          "name": "parangsae-collector",
+          "source": null,
+          "kind": null,
+          "rename": null,
+          "uses_default_features": true,
+          "features": [],
+          "target": null
+        }
+      ],
+      "targets": [{ "kind": ["lib"], "crate_types": ["lib"] }]
+    }
+  ]
+}

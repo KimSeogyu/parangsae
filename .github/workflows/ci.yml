@@ -173,6 +173,16 @@ jobs:
           fi
           printf '%s\n' "$output" | grep -q 'unsafe-code'
 
+  depgraph:
+    name: depgraph
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo xtask depgraph
+        run: cargo xtask depgraph
+
   test:
     name: test
     runs-on: [self-hosted, linux, x64, parangsae]

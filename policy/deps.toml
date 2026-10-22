@@ -1,0 +1,401 @@
+# Allowed dependency edges.
+#
+# `cargo xtask depgraph` reads `cargo metadata --locked --format-version 1` and
+# rejects an edge that is not listed here: normal, dev, and build; renamed
+# dependencies (the package name is what is checked); path and git replacements;
+# a feature that is not in `features`; default features turned on when this
+# file says false; a strategy `build.rs` or proc-macro.
+#
+# A crate listed here that is not in the workspace yet is planned. Its edges
+# are checked the day the package appears. A workspace package missing from
+# this file fails.
+#
+# Parquet and arrow are on parangsae-collector today because parangsae-store
+# does not exist yet. The store edges below are the destination.
+
+[[strategy]]
+path_prefix = "crates/strategies/"
+internal = ["parangsae-core", "parangsae-strategy-api", "parangsae-signals", "parangsae-regime"]
+forbid_build_script = true
+forbid_proc_macro = true
+
+[[crate]]
+name = "parangsae-core"
+
+[[crate.edge]]
+name = "cucumber"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "proptest"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "tokio"
+kind = "dev"
+source = "crates.io"
+default_features = true
+features = ["macros", "rt-multi-thread"]
+
+[[crate]]
+name = "parangsae-signals"
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate]]
+name = "parangsae-regime"
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-signals"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate]]
+name = "parangsae-strategy-api"
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate]]
+name = "parangsae-sim"
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-strategy-api"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate]]
+name = "parangsae-backtest"
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-strategy-api"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-sim"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate]]
+name = "parangsae-store"
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-collector"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parquet"
+kind = "normal"
+source = "crates.io"
+default_features = false
+features = ["arrow", "snap"]
+
+[[crate.edge]]
+name = "arrow-array"
+kind = "normal"
+source = "crates.io"
+default_features = false
+
+[[crate.edge]]
+name = "arrow-schema"
+kind = "normal"
+source = "crates.io"
+default_features = false
+
+[[crate.edge]]
+name = "age"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "sha2"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate]]
+name = "parangsae-research"
+# Strategy crates are path packages named parangsae-*. They are not listed one by one.
+allow_path_prefixes = ["parangsae-"]
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-strategy-api"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-signals"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-regime"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-sim"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-backtest"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-store"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-collector"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-execution"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "serde"
+kind = "normal"
+source = "crates.io"
+default_features = true
+features = ["derive"]
+
+[[crate.edge]]
+name = "toml"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "sha2"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "git2"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate]]
+name = "parangsae-execution"
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-strategy-api"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-sim"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate]]
+name = "parangsae-collector"
+
+[[crate.edge]]
+name = "arrow-array"
+kind = "normal"
+source = "crates.io"
+default_features = false
+
+[[crate.edge]]
+name = "arrow-schema"
+kind = "normal"
+source = "crates.io"
+default_features = false
+
+[[crate.edge]]
+name = "clap"
+kind = "normal"
+source = "crates.io"
+default_features = true
+features = ["derive"]
+
+[[crate.edge]]
+name = "hex"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "parangsae-core"
+kind = "normal"
+source = "path"
+default_features = true
+
+[[crate.edge]]
+name = "parquet"
+kind = "normal"
+source = "crates.io"
+default_features = false
+features = ["arrow", "snap"]
+
+[[crate.edge]]
+name = "quick-xml"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "regex"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "reqwest"
+kind = "normal"
+source = "crates.io"
+default_features = false
+features = ["blocking", "rustls-tls"]
+
+[[crate.edge]]
+name = "serde"
+kind = "normal"
+source = "crates.io"
+default_features = true
+features = ["derive"]
+
+[[crate.edge]]
+name = "serde_json"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "sha2"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "url"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "zip"
+kind = "normal"
+source = "crates.io"
+default_features = false
+features = ["deflate"]
+
+[[crate.edge]]
+name = "cucumber"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "proptest"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "tempfile"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "tokio"
+kind = "dev"
+source = "crates.io"
+default_features = true
+features = ["macros", "rt-multi-thread"]
+
+[[crate]]
+name = "xtask"
+
+[[crate.edge]]
+name = "serde"
+kind = "normal"
+source = "crates.io"
+default_features = true
+features = ["derive"]
+
+[[crate.edge]]
+name = "serde_json"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "toml"
+kind = "normal"
+source = "crates.io"
+default_features = true
