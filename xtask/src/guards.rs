@@ -524,7 +524,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "guard-fixtures",
         include_str!("pinned_jobs/guard-fixtures.job"),
-        "56059a3dd6cfa4c2d4024b6c2669a32ad7c580e6bb71faae905d36a71583040a",
+        "6b5e0a3e5d70ca0522663e3e3cca1fae0b4a1fe140e12b10f685700c1a06d377",
     ),
     (
         "tla",
@@ -5233,6 +5233,7 @@ fn glob_matches(glob: &str, rel: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
 
     use super::*;
@@ -8551,26 +8552,212 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         Ok(())
     }
 
-    fn clean_byte_check(text: &str) -> Result<String, String> {
-        let marker = "          case \"$clean\" in\n";
+    const E13: &str = concat!(
+        "          env -i \\\n",
+        "            HOME=/home/runner \\\n",
+        "            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \\\n",
+        "            CARGO_HOME=/home/runner/.cargo \\\n",
+        "            RUSTUP_HOME=/home/runner/.rustup \\\n",
+        "            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \\\n",
+        "            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \\\n",
+        "            /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files",
+    );
+
+    fn e13_uses(root: &std::path::Path) -> Result<Vec<(String, usize)>, String> {
+        let mut found = Vec::new();
+        for dir in [
+            ".github/workflows",
+            "fixtures/guards/ci",
+            "xtask/src/pinned_jobs",
+        ] {
+            let mut paths = Vec::new();
+            for entry in
+                std::fs::read_dir(root.join(dir)).map_err(|err| format!("read {dir}: {err}"))?
+            {
+                let entry = entry.map_err(|err| format!("read {dir}: {err}"))?;
+                paths.push(entry.path());
+            }
+            paths.sort();
+            for path in paths {
+                let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                    continue;
+                };
+                if !name.ends_with(".yml") && !name.ends_with(".job") {
+                    continue;
+                }
+                let count = read(&path)?.matches(E13).count();
+                if count > 0 {
+                    found.push((format!("{dir}/{name}"), count));
+                }
+            }
+        }
+        found.sort();
+        Ok(found)
+    }
+
+    fn plant_e13(command: &str, planted: &str) -> Result<String, String> {
+        if command.matches(E13).count() != 2 {
+            return Err(format!(
+                "deny job has {} E13 walks",
+                command.matches(E13).count()
+            ));
+        }
+        Ok(command.replacen(E13, planted, 1))
+    }
+
+    #[test]
+    fn toolchain_walk_env_i_rejects_unpinned_tool_literals() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        let deny = job_block(&ci, "deny").ok_or("ci.yml has no deny job")?;
+        let uses = e13_uses(&root)?;
+        let expected = [
+            (".github/workflows/ci.yml", 2usize),
+            ("fixtures/guards/ci/deny-extensionless-config.yml", 2),
+            ("fixtures/guards/ci/deny-job-cargo-env.yml", 2),
+            ("fixtures/guards/ci/deny-no-bin-sha.yml", 2),
+            ("fixtures/guards/ci/deny-path-shim.yml", 2),
+            ("fixtures/guards/ci/deny-step-cargo-env.yml", 2),
+            ("fixtures/guards/ci/deny-swapped-bin.yml", 2),
+            ("xtask/src/pinned_jobs/deny.job", 2),
+        ];
+        if uses.len() != expected.len()
+            || uses.iter().zip(expected.iter()).any(
+                |((path, count), (expected_path, expected_count))| {
+                    path != expected_path || count != expected_count
+                },
+            )
+        {
+            return Err(format!("E13 uses: {uses:?}"));
+        }
+        expect_gaps("live E13", deny_env_i_literal_gaps(deny), &[])?;
+        let home = deny.replacen("CARGO_HOME=/home/runner/.cargo", "CARGO_HOME=/tmp", 1);
+        expect_gaps(
+            "CARGO_HOME is not CARGO",
+            deny_env_i_literal_gaps(&home),
+            &[],
+        )?;
+        let cargo =
+            "CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo";
+        let rustc =
+            "RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc";
+        let assigned = E13
+            .replace(cargo, "CARGO=/tmp/fake")
+            .replace(rustc, "RUSTC=/tmp/rustc")
+            .replace(
+                "RUSTC=/tmp/rustc \\\n",
+                "RUSTC=/tmp/rustc \\\n            RUSTFLAGS=-Awarnings \\\n",
+            );
+        if !assigned.contains("RUSTFLAGS=-Awarnings") {
+            return Err("E13 assignment plant missed RUSTFLAGS".to_owned());
+        }
+        let literals = [
+            "deny job sets CARGO=/tmp/fake in env -i",
+            "deny job sets RUSTC=/tmp/rustc in env -i",
+            "deny job sets RUSTFLAGS=-Awarnings in env -i",
+        ];
+        expect_gaps(
+            "E13 assignment literals",
+            deny_env_i_literal_gaps(&plant_e13(deny, &assigned)?),
+            &literals,
+        )?;
+        let last = "            /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files";
+        let inline = E13.replacen(
+            last,
+            "            CARGO=/tmp/fake RUSTC=/tmp/rustc RUSTFLAGS=-Awarnings /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files",
+            1,
+        );
+        if inline == E13 {
+            return Err("E13 command line did not take literal args".to_owned());
+        }
+        expect_gaps(
+            "E13 inline literals",
+            deny_env_i_literal_gaps(&plant_e13(deny, &inline)?),
+            &literals,
+        )?;
+        Ok(())
+    }
+
+    fn byte_check_between(text: &str, marker: &str, end: &str) -> Result<String, String> {
         let start = text
             .find(marker)
-            .ok_or("clean byte check is not a case on $clean")?;
+            .ok_or_else(|| format!("byte check is missing {marker}"))?;
         let rest = &text[start..];
-        let end = rest
-            .find("          esac\n")
-            .ok_or("clean byte check has no esac")?;
-        Ok(rest[..end + "          esac\n".len()].to_owned())
+        let end_at = rest
+            .find(end)
+            .ok_or_else(|| format!("byte check has no end {end}"))?;
+        Ok(rest[..end_at + 1].to_owned())
+    }
+
+    fn assert_file_grep(label: &str, check: &str, rc_name: &str) -> Result<(), String> {
+        if check.contains("<<<")
+            || check.contains("case ")
+            || check.contains("esac")
+            || check.contains('|')
+        {
+            return Err(format!("{label} is not a file grep: {check}"));
+        }
+        let error_branch = format!("if [ \"${rc_name}\" -gt 1 ]; then");
+        if !check.contains("grep -qF -- 'ci job fmt bytes do not match' \"$f\"")
+            || !check.contains("write_rc=$?")
+            || !check.contains("if [ \"$write_rc\" -ne 0 ]; then")
+            || !check.contains(&error_branch)
+        {
+            return Err(format!("{label} does not classify grep rc: {check}"));
+        }
+        Ok(())
+    }
+
+    fn guard_byte_script(
+        check: &str,
+        copy: &Path,
+        data: &Path,
+        path_prefix: &str,
+    ) -> Result<String, String> {
+        Ok(format!(
+            "{path_prefix}set -euo pipefail\nclean=$(cat {data})\noutput=\"$clean\"\ncopy={copy}\n{check}echo reached-end\n",
+            data = shell_quote(data)?,
+            copy = shell_quote(copy)?,
+        ))
+    }
+
+    fn require_outcome(
+        label: &str,
+        code: i32,
+        output: &str,
+        want_code: i32,
+        present: &str,
+        absent: &[&str],
+    ) -> Result<(), String> {
+        if code != want_code || !output.contains(present) {
+            return Err(format!(
+                "{label}: code {code}, wanted {want_code} and {present}: {output}"
+            ));
+        }
+        for needle in absent {
+            if output.contains(needle) {
+                return Err(format!("{label} contained {needle}: {output}"));
+            }
+        }
+        Ok(())
     }
 
     #[test]
     fn clean_byte_check_matches_a_large_output() -> Result<(), String> {
         let root = crate::workspace_root()?;
         let ci = read(&root.join(".github/workflows/ci.yml"))?;
-        let check = clean_byte_check(&ci)?;
-        if check.contains("<<<") || check.contains("grep") {
-            return Err(format!("clean byte check is not a pipe-free case: {check}"));
-        }
+        let clean = byte_check_between(
+            &ci,
+            "          f=\"$copy/unmutated-guards.txt\"\n",
+            "\n          python3 - \"$copy\" <<'PY'\n",
+        )?;
+        let mutated = byte_check_between(
+            &ci,
+            "          f=\"$copy/mutated-guards.txt\"\n",
+            "\n  tla:\n",
+        )?;
+        assert_file_grep("clean", &clean, "clean_rc")?;
+        assert_file_grep("mutated", &mutated, "match_rc")?;
         let dir = TempGit::new("large-clean")?;
         let mut matched = b"ci job fmt bytes do not match\n".to_vec();
         matched.extend(std::iter::repeat_n(b'x', 200_000));
@@ -8579,17 +8766,21 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         }
         let matched_path = dir.path.join("matched.txt");
         std::fs::write(&matched_path, &matched).map_err(|err| format!("write matched: {err}"))?;
-        let quoted = shell_quote(&matched_path)?;
-        let hit = format!("set -o pipefail\nclean=$(cat {quoted})\n{check}echo reached-end\n");
+        let copy = dir.path.join("copy");
+        std::fs::create_dir(&copy).map_err(|err| format!("mkdir copy: {err}"))?;
+        let hit = guard_byte_script(&clean, &copy, &matched_path, "")?;
         let (code, output) = run_shell(&hit)?;
-        if code == 0
-            || !output.contains("unmutated copy reported a byte mismatch")
-            || output.contains("reached-end")
-        {
-            return Err(format!("large match was missed: code {code}: {output}"));
-        }
+        require_outcome(
+            "large match",
+            code,
+            &output,
+            1,
+            "unmutated copy reported a byte mismatch",
+            &["reached-end", "unmutated guards grep failed"],
+        )?;
         let pipe = format!(
-            "set -o pipefail\nclean=$(cat {quoted})\nif printf '%s\\n' \"$clean\" | grep -q 'ci job fmt bytes do not match'; then echo pipe-hit; else echo pipe-miss; fi\n"
+            "set -o pipefail\nclean=$(cat {quoted})\nif printf '%s\\n' \"$clean\" | grep -q 'ci job fmt bytes do not match'; then echo pipe-hit; else echo pipe-miss; fi\n",
+            quoted = shell_quote(&matched_path)?,
         );
         let (pipe_code, pipe_output) = run_shell(&pipe)?;
         if pipe_code != 0 || !pipe_output.contains("pipe-miss") || pipe_output.contains("pipe-hit")
@@ -8601,16 +8792,335 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         let absent_path = dir.path.join("absent.txt");
         std::fs::write(&absent_path, vec![b'x'; 200_000])
             .map_err(|err| format!("write absent: {err}"))?;
-        let absent = shell_quote(&absent_path)?;
-        let miss = format!("set -o pipefail\nclean=$(cat {absent})\n{check}echo reached-end\n");
+        let miss = guard_byte_script(&clean, &copy, &absent_path, "")?;
         let (miss_code, miss_output) = run_shell(&miss)?;
-        if miss_code != 0
-            || miss_output.contains("unmutated copy reported a byte mismatch")
-            || !miss_output.contains("reached-end")
+        require_outcome(
+            "large miss",
+            miss_code,
+            &miss_output,
+            0,
+            "reached-end",
+            &[
+                "unmutated copy reported a byte mismatch",
+                "unmutated guards grep failed",
+            ],
+        )?;
+        let found = guard_byte_script(&mutated, &copy, &matched_path, "")?;
+        let (found_code, found_output) = run_shell(&found)?;
+        require_outcome(
+            "mutated large match",
+            found_code,
+            &found_output,
+            0,
+            "reached-end",
+            &[
+                "mutated copy missed the byte mismatch",
+                "mutated guards grep failed",
+            ],
+        )?;
+        let missed = guard_byte_script(&mutated, &copy, &absent_path, "")?;
+        let (missed_code, missed_output) = run_shell(&missed)?;
+        require_outcome(
+            "mutated large miss",
+            missed_code,
+            &missed_output,
+            1,
+            "mutated copy missed the byte mismatch",
+            &["reached-end", "mutated guards grep failed"],
+        )?;
+        let blocked = dir.path.join("not-a-directory");
+        std::fs::write(&blocked, b"file\n").map_err(|err| format!("write blocked: {err}"))?;
+        let unwritten = guard_byte_script(&clean, &blocked, &absent_path, "")?;
+        let (write_code, write_output) = run_shell(&unwritten)?;
+        require_outcome(
+            "write failure",
+            write_code,
+            &write_output,
+            1,
+            "unmutated guards output was not written",
+            &["reached-end", "unmutated copy reported a byte mismatch"],
+        )?;
+        let as_dir = dir.path.join("grep-target");
+        std::fs::create_dir(&as_dir).map_err(|err| format!("mkdir grep target: {err}"))?;
+        let bin = dir.path.join("bin");
+        std::fs::create_dir(&bin).map_err(|err| format!("mkdir bin: {err}"))?;
+        let wrapper = bin.join("grep");
+        let grep_dir = shell_quote(&as_dir)?;
+        std::fs::write(
+            &wrapper,
+            format!(
+                "#!/bin/sh\nexec /usr/bin/grep -qF -- 'ci job fmt bytes do not match' {grep_dir}\n"
+            ),
+        )
+        .map_err(|err| format!("write grep: {err}"))?;
+        std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755))
+            .map_err(|err| format!("chmod grep: {err}"))?;
+        let prefix = format!("export PATH={}:\"$PATH\"\n", shell_quote(&bin)?);
+        let errored = guard_byte_script(&clean, &copy, &absent_path, &prefix)?;
+        let (error_code, error_output) = run_shell(&errored)?;
+        require_outcome(
+            "grep on a directory",
+            error_code,
+            &error_output,
+            2,
+            "unmutated guards grep failed",
+            &["reached-end", "unmutated copy reported a byte mismatch"],
+        )?;
+        let mutated_error = guard_byte_script(&mutated, &copy, &matched_path, &prefix)?;
+        let (mut_error_code, mut_error_output) = run_shell(&mutated_error)?;
+        require_outcome(
+            "mutated grep on a directory",
+            mut_error_code,
+            &mut_error_output,
+            2,
+            "mutated guards grep failed",
+            &["reached-end", "mutated copy missed the byte mismatch"],
+        )?;
+        Ok(())
+    }
+
+    fn split_outside_quotes(line: &str, pipe: bool) -> Vec<String> {
+        let mut parts = Vec::new();
+        let mut cur = String::new();
+        let mut chars = line.chars().peekable();
+        let mut quote = None;
+        while let Some(ch) = chars.next() {
+            if let Some(open) = quote {
+                cur.push(ch);
+                if ch == open {
+                    quote = None;
+                }
+                continue;
+            }
+            if ch == '\'' || ch == '"' {
+                quote = Some(ch);
+                cur.push(ch);
+                continue;
+            }
+            if ch == '|' {
+                if chars.peek() == Some(&'|') {
+                    cur.push('|');
+                    cur.push('|');
+                    chars.next();
+                    continue;
+                }
+                if pipe {
+                    if chars.peek() == Some(&'&') {
+                        chars.next();
+                    }
+                    parts.push(std::mem::take(&mut cur));
+                    continue;
+                }
+            }
+            if !pipe && (ch == ';' || ch == '\n' || (ch == '&' && chars.peek() == Some(&'&'))) {
+                if ch == '&' {
+                    chars.next();
+                }
+                parts.push(std::mem::take(&mut cur));
+                continue;
+            }
+            cur.push(ch);
+        }
+        parts.push(cur);
+        if pipe {
+            parts.retain(|part| !part.trim().is_empty());
+        }
+        parts
+    }
+
+    fn updates_pipefail(part: &str) -> Option<bool> {
+        let words: Vec<&str> = part.split_whitespace().collect();
+        if words.first().copied() != Some("set") {
+            return None;
+        }
+        let mut idx = 1usize;
+        let mut result = None;
+        while idx < words.len() {
+            let word = words[idx];
+            if word == "-o" || word == "+o" {
+                if words.get(idx + 1) == Some(&"pipefail") {
+                    result = Some(word == "-o");
+                }
+                idx += 2;
+                continue;
+            }
+            let disable = word.starts_with('+');
+            let flags = word.strip_prefix(['-', '+']).unwrap_or("");
+            if !flags.is_empty() && flags.contains('o') {
+                if words.get(idx + 1) == Some(&"pipefail") {
+                    result = Some(!disable);
+                }
+                idx += 2;
+                continue;
+            }
+            idx += 1;
+        }
+        result
+    }
+
+    fn command_exits_early(stage: &str) -> bool {
+        let words = shell_words(stage);
+        let mut idx = 0usize;
+        while idx < words.len() {
+            let bare =
+                words[idx].trim_matches(|ch: char| matches!(ch, '"' | '\'' | '(' | ')' | '`'));
+            if matches!(bare, "env" | "-i" | "command" | "exec" | "\\")
+                || assignment_name(bare).is_some()
+            {
+                idx += 1;
+                continue;
+            }
+            break;
+        }
+        let Some(cmd) = words.get(idx) else {
+            return false;
+        };
+        let cmd = cmd.trim_matches(|ch: char| matches!(ch, '"' | '\'' | '(' | ')' | '`'));
+        let name = cmd.rsplit('/').next().unwrap_or(cmd);
+        if name == "head" {
+            return true;
+        }
+        if name != "grep" {
+            return false;
+        }
+        for arg in words.iter().skip(idx + 1) {
+            let arg = arg.trim_matches(|ch: char| matches!(ch, '"' | '\'' | '(' | ')' | '`'));
+            if arg == "--" {
+                break;
+            }
+            if let Some(long) = arg.strip_prefix("--") {
+                if long == "quiet" || long == "max-count" || long.starts_with("max-count=") {
+                    return true;
+                }
+                continue;
+            }
+            if let Some(short) = arg.strip_prefix('-') {
+                if !short.is_empty() && (short.contains('q') || short.contains('m')) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn pipeline_ends_early(part: &str) -> bool {
+        let stages = split_outside_quotes(part, true);
+        stages.len() >= 2
+            && stages
+                .last()
+                .is_some_and(|stage| command_exits_early(stage))
+    }
+
+    fn script_early_exits(script: &str) -> Vec<String> {
+        let mut pipefail = false;
+        let mut hits = Vec::new();
+        let mut current = String::new();
+        for line in script.lines() {
+            if !current.is_empty() {
+                current.push('\n');
+            }
+            current.push_str(line);
+            if line.trim_end().ends_with('\\') {
+                continue;
+            }
+            let logical = std::mem::take(&mut current);
+            for part in split_outside_quotes(&logical, false) {
+                if let Some(enabled) = updates_pipefail(&part) {
+                    pipefail = enabled;
+                }
+                if pipefail && pipeline_ends_early(&part) {
+                    hits.push(part);
+                }
+            }
+        }
+        hits
+    }
+
+    fn run_scripts(text: &str) -> Vec<String> {
+        let lines: Vec<&str> = text.lines().collect();
+        let mut scripts = Vec::new();
+        let mut idx = 0usize;
+        while idx < lines.len() {
+            if lines[idx].trim() != "run: |" {
+                idx += 1;
+                continue;
+            }
+            let run_indent = lines[idx].chars().take_while(|ch| *ch == ' ').count();
+            idx += 1;
+            let mut body = Vec::new();
+            while idx < lines.len() {
+                let line = lines[idx];
+                if !line.trim().is_empty()
+                    && line.chars().take_while(|ch| *ch == ' ').count() <= run_indent
+                {
+                    break;
+                }
+                body.push(line);
+                idx += 1;
+            }
+            scripts.push(body.join("\n"));
+        }
+        scripts
+    }
+
+    #[test]
+    fn pipefail_scripts_do_not_end_in_grep_or_head() -> Result<(), String> {
+        if !pipeline_ends_early("printf '%s\\n' \"$v\" | grep -qF -- 'lit'") {
+            return Err("detector missed grep -qF".to_owned());
+        }
+        if !pipeline_ends_early("printf '%s\\n' \"$v\" | grep -m 1 lit") {
+            return Err("detector missed grep -m".to_owned());
+        }
+        if !pipeline_ends_early("printf '%s\\n' \"$v\" | head -n 1") {
+            return Err("detector missed head".to_owned());
+        }
+        if pipeline_ends_early("grep -qF -- 'lit' file")
+            || pipeline_ends_early("cargo test | tee out")
         {
-            return Err(format!(
-                "absent large output was treated as a match: code {miss_code}: {miss_output}"
-            ));
+            return Err("detector flagged a file grep or tee".to_owned());
+        }
+        let sample = "        run: |\n          set -euo pipefail\n          printf '%s\\n' \"$v\" | grep -q hit\n        run: |\n          printf '%s\\n' \"$v\" | head -n 1\n        run: |\n          set -o pipefail\n          cargo xtask guards | tee out\n          grep -qx 'guards ran 12 passed 12' out\n";
+        let sample_hits = run_scripts(sample)
+            .into_iter()
+            .flat_map(|script| script_early_exits(&script))
+            .collect::<Vec<_>>();
+        if sample_hits.len() != 1 || !sample_hits[0].contains("grep -q hit") {
+            return Err(format!("sample hits: {sample_hits:?}"));
+        }
+        let root = crate::workspace_root()?;
+        for dir in [".github/workflows", "fixtures"] {
+            let mut paths = Vec::new();
+            collect_yml(&root.join(dir), &mut paths)?;
+            for path in paths {
+                let text = read(&path)?;
+                let hits = run_scripts(&text)
+                    .iter()
+                    .flat_map(|script| script_early_exits(script))
+                    .collect::<Vec<_>>();
+                if !hits.is_empty() {
+                    return Err(format!("{}: {hits:?}", path.display()));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn collect_yml(dir: &Path, paths: &mut Vec<std::path::PathBuf>) -> Result<(), String> {
+        if !dir.is_dir() {
+            return Ok(());
+        }
+        for entry in
+            std::fs::read_dir(dir).map_err(|err| format!("read {}: {err}", dir.display()))?
+        {
+            let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
+            let path = entry.path();
+            if path.is_dir() {
+                collect_yml(&path, paths)?;
+                continue;
+            }
+            if path.extension().and_then(|ext| ext.to_str()) == Some("yml") {
+                paths.push(path);
+            }
         }
         Ok(())
     }
