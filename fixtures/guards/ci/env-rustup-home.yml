@@ -1,0 +1,12 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RUSTUP_HOME: /tmp/rustup
+        run: echo fmt

@@ -1,0 +1,8 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  call:
+    uses: KimSeogyu/parangsae/.github/workflows/ci.yml@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

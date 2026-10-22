@@ -150,6 +150,14 @@ fn check_workspace(root: &Path) -> Result<(), String> {
 /// Reviewer-protected. Bootstrap applies only when the resolved base equals this commit.
 const BOOTSTRAP_BASE: &str = "4db8a75a7bd0886f4cdeefa050a2d89e3a36118d";
 
+/// Reviewer-protected. The only `uses:` targets. Kani is installed with cargo, not an action.
+const ALLOWED_ACTIONS: &[&str] = &[
+    "Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0",
+    "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+    "actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3",
+    "dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0",
+];
+
 /// Reviewer-protected. Raw sha256 of `regressions/floors.toml` on the bootstrap path.
 const BOOTSTRAP_FLOORS_SHA256: &str =
     "7c677efda602168f65e7bd98c4594a149ebe72ecc0de18c884224818bff76a07";
@@ -1550,7 +1558,7 @@ fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
         let name = workflow_display(root, &path);
         let text = read(&path)?;
         if workflow_yaml(&path) {
-            violations.extend(workflow_file_gaps(&name, &text, root));
+            violations.extend(workflow_file_gaps(&name, &text));
         } else {
             violations.extend(hidden_workflow_gaps(&name, &text));
         }
@@ -1656,7 +1664,7 @@ fn workflow_yaml(path: &Path) -> bool {
     )
 }
 
-fn workflow_file_gaps(name: &str, text: &str, root: &Path) -> Vec<String> {
+fn workflow_file_gaps(name: &str, text: &str) -> Vec<String> {
     let mut gaps = strict_yaml_gaps(name, text);
     if !permissions_are_contents_read(text) {
         gaps.push(format!("{name} permissions are not contents: read"));
@@ -1666,7 +1674,7 @@ fn workflow_file_gaps(name: &str, text: &str, root: &Path) -> Vec<String> {
     gaps.extend(forbidden_env_gaps(name, text));
     gaps.extend(rustc_pin_gaps(name, text));
     gaps.extend(run_injection_gaps(name, text));
-    gaps.extend(github_env_path_gaps(name, text, root));
+    gaps.extend(github_env_path_gaps(name, text));
     if name.ends_with("vision-smoke.yml") && !text.contains("day must be YYYY-MM-DD") {
         gaps.push(format!("{name} does not validate the day"));
     }
@@ -1911,9 +1919,19 @@ fn env_key_forbidden(key: &str) -> bool {
     {
         return true;
     }
+    if key.starts_with("LD_") || key.starts_with("DYLD_") {
+        return true;
+    }
     matches!(
         key,
-        "RUSTC_WRAPPER" | "RUSTC_WORKSPACE_WRAPPER" | "CARGO_HOME" | "RUSTFLAGS"
+        "RUSTC_WRAPPER"
+            | "RUSTC_WORKSPACE_WRAPPER"
+            | "CARGO_HOME"
+            | "RUSTFLAGS"
+            | "PATH"
+            | "RUSTUP_HOME"
+            | "BASH_ENV"
+            | "ENV"
     )
 }
 
@@ -2384,10 +2402,17 @@ fn flow_value_role(key: &str, parent: Option<YamlFrame>, indent: usize) -> Optio
     }
 }
 
-fn github_env_path_gaps(name: &str, text: &str, root: &Path) -> Vec<String> {
+fn github_env_path_gaps(name: &str, text: &str) -> Vec<String> {
+    let text = text.replace(GUARDS_STEP, "").replace(ALL_ZERO_STEP, "");
     let mut gaps = Vec::new();
-    for script in run_scripts(text) {
-        gaps.extend(script_github_gaps(name, &script, root));
+    for script in run_scripts(&text) {
+        if script.contains("GITHUB_ENV") {
+            push_gap(&mut gaps, format!("{name} references GITHUB_ENV"));
+        }
+        if script.contains("GITHUB_PATH") {
+            push_gap(&mut gaps, format!("{name} references GITHUB_PATH"));
+        }
+        gaps.extend(run_assignment_gaps(name, &script));
     }
     gaps
 }
@@ -2399,12 +2424,12 @@ fn run_scripts(text: &str) -> Vec<String> {
     while idx < lines.len() {
         let indent = lines[idx].len() - lines[idx].trim_start().len();
         let trimmed = strip_yaml_comment(lines[idx]).trim();
-        let Some(rest) = trimmed.strip_prefix("run:") else {
+        let Some(rest) = run_prefix(trimmed) else {
             idx += 1;
             continue;
         };
         let rest = rest.trim();
-        if rest.is_empty() || matches!(rest, "|" | ">" | "|-" | ">-" | "|+" | ">+") {
+        if rest.is_empty() || block_scalar_header(rest) {
             let mut script = String::new();
             idx += 1;
             while idx < lines.len() {
@@ -2428,106 +2453,171 @@ fn run_scripts(text: &str) -> Vec<String> {
     scripts
 }
 
-fn script_github_gaps(name: &str, script: &str, root: &Path) -> Vec<String> {
-    let lines: Vec<&str> = script.lines().collect();
+fn run_prefix(trimmed: &str) -> Option<&str> {
+    trimmed
+        .strip_prefix("- ")
+        .unwrap_or(trimmed)
+        .strip_prefix("run:")
+}
+
+fn run_assignment_gaps(name: &str, script: &str) -> Vec<String> {
     let mut gaps = Vec::new();
-    let mut idx = 0usize;
-    while idx < lines.len() {
-        let line = lines[idx];
-        if writes_token(line, "GITHUB_PATH") {
-            push_gap(&mut gaps, format!("{name} writes GITHUB_PATH"));
-        }
-        if writes_token(line, "GITHUB_ENV") {
-            if let Some(delim) = heredoc_delim(line) {
-                idx += 1;
-                while idx < lines.len() && lines[idx].trim() != delim {
-                    gaps.extend(github_env_assignment_gaps(name, lines[idx]));
-                    idx += 1;
-                }
-                idx += 1;
+    for line in script.lines() {
+        let words = shell_words(line);
+        let mut exported = Vec::new();
+        for (idx, word) in words.iter().enumerate() {
+            if *word != "export" {
                 continue;
             }
-            if let Some(path) = cat_source(line) {
-                gaps.extend(cat_env_gaps(name, root, &path));
-            } else {
-                gaps.extend(github_env_assignment_gaps(name, line));
+            let mut cursor = idx + 1;
+            while words
+                .get(cursor)
+                .is_some_and(|flag| flag.starts_with('-') && assignment_name(flag).is_none())
+            {
+                cursor += 1;
             }
+            let Some(operand) = words.get(cursor) else {
+                continue;
+            };
+            let Some(key) = export_name(operand) else {
+                continue;
+            };
+            if env_key_forbidden(key) {
+                push_gap(&mut gaps, format!("{name} exports {key}"));
+            }
+            exported.push(cursor);
         }
-        idx += 1;
+        for key in assignment_keys(line) {
+            if exported.iter().any(|idx| {
+                words
+                    .get(*idx)
+                    .and_then(|word| export_name(word))
+                    .is_some_and(|exported| exported == key)
+            }) {
+                continue;
+            }
+            push_gap(&mut gaps, format!("{name} assigns {key}"));
+        }
     }
     gaps
 }
 
-fn writes_token(line: &str, token: &str) -> bool {
-    let Some(idx) = line.find(token) else {
-        return false;
-    };
-    line[..idx].contains('>') || line.contains("tee")
-}
-
-fn heredoc_delim(line: &str) -> Option<String> {
-    let after = line.split("<<").nth(1)?.trim();
-    let after = after.strip_prefix('-').unwrap_or(after).trim();
-    let delim = after.trim_matches(['\'', '"']).trim();
-    if delim.is_empty() || delim.contains(' ') {
-        None
-    } else {
-        Some(delim.to_owned())
-    }
-}
-
-fn cat_source(line: &str) -> Option<String> {
-    let rest = line.trim().strip_prefix("cat ")?;
-    let path = rest.split(">>").next()?.trim().trim_matches(['"', '\'']);
-    if path.is_empty() || path.starts_with('-') || path.contains('*') {
-        None
-    } else {
-        Some(path.to_owned())
-    }
-}
-
-fn github_env_assignment_gaps(name: &str, text: &str) -> Vec<String> {
-    forbidden_assigned_keys(text)
-        .into_iter()
-        .map(|key| format!("{name} github env sets {key}"))
-        .collect()
-}
-
-fn forbidden_assigned_keys(text: &str) -> Vec<String> {
-    let bytes = text.as_bytes();
+fn assignment_keys(line: &str) -> Vec<String> {
+    let bytes = line.as_bytes();
     let mut keys = Vec::new();
-    for (idx, byte) in bytes.iter().enumerate() {
-        if *byte != b'=' || idx == 0 {
+    let mut idx = 0usize;
+    let mut quote = None;
+    while idx < bytes.len() {
+        let byte = bytes[idx];
+        if let Some(open) = quote {
+            if byte == open {
+                quote = None;
+            }
+            idx += 1;
             continue;
         }
-        let mut start = idx;
-        while start > 0 && is_env_char(bytes[start - 1]) {
-            start -= 1;
-        }
-        if start == idx {
+        if byte == b'\'' || byte == b'"' {
+            quote = Some(byte);
+            idx += 1;
             continue;
         }
-        let key = &text[start..idx];
-        if env_key_forbidden(key) && !keys.iter().any(|found| found == key) {
-            keys.push(key.to_owned());
+        let boundary = idx == 0 || is_assign_boundary(bytes[idx - 1]);
+        if boundary && is_env_start(byte) {
+            let start = idx;
+            idx += 1;
+            while idx < bytes.len() && is_env_continue(bytes[idx]) {
+                idx += 1;
+            }
+            if bytes.get(idx) == Some(&b'=') {
+                let key = line[start..idx].to_owned();
+                if env_key_forbidden(&key) && !keys.contains(&key) {
+                    keys.push(key);
+                }
+                idx += 1;
+                continue;
+            }
+            continue;
         }
+        idx += 1;
     }
     keys
 }
 
-fn is_env_char(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
+fn is_assign_boundary(byte: u8) -> bool {
+    byte.is_ascii_whitespace() || matches!(byte, b'(' | b';' | b'|' | b'&' | b'`')
 }
 
-fn cat_env_gaps(name: &str, root: &Path, path: &str) -> Vec<String> {
-    if path.starts_with('/') || path.split(['/', '\\']).any(|part| part == "..") {
-        return vec![format!("{name} github env reads {path}")];
+fn shell_words(line: &str) -> Vec<&str> {
+    let bytes = line.as_bytes();
+    let mut words = Vec::new();
+    let mut idx = 0usize;
+    while idx < bytes.len() {
+        while idx < bytes.len() && bytes[idx].is_ascii_whitespace() {
+            idx += 1;
+        }
+        if idx >= bytes.len() || bytes[idx] == b'#' {
+            break;
+        }
+        let start = idx;
+        let mut quote = None;
+        while idx < bytes.len() {
+            let byte = bytes[idx];
+            if let Some(open) = quote {
+                if byte == open {
+                    quote = None;
+                }
+                idx += 1;
+                continue;
+            }
+            match byte {
+                b'"' | b'\'' => {
+                    quote = Some(byte);
+                    idx += 1;
+                }
+                byte if byte.is_ascii_whitespace() => break,
+                _ => idx += 1,
+            }
+        }
+        if start < idx {
+            words.push(&line[start..idx]);
+        }
     }
-    let full = root.join(path);
-    match read(&full) {
-        Ok(text) => github_env_assignment_gaps(name, &text),
-        Err(_) => vec![format!("{name} github env reads {path}")],
+    words
+}
+
+fn assignment_name(word: &str) -> Option<&str> {
+    let bytes = word.as_bytes();
+    if bytes.first().is_none_or(|byte| !is_env_start(*byte)) {
+        return None;
     }
+    let mut idx = 1usize;
+    while idx < bytes.len() && is_env_continue(bytes[idx]) {
+        idx += 1;
+    }
+    if bytes.get(idx) == Some(&b'=') {
+        Some(&word[..idx])
+    } else {
+        None
+    }
+}
+
+fn export_name(word: &str) -> Option<&str> {
+    if let Some(name) = assignment_name(word) {
+        return Some(name);
+    }
+    if !word.is_empty() && is_env_start(word.as_bytes()[0]) && word.bytes().all(is_env_continue) {
+        Some(word)
+    } else {
+        None
+    }
+}
+
+fn is_env_start(byte: u8) -> bool {
+    byte.is_ascii_alphabetic() || byte == b'_'
+}
+
+fn is_env_continue(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_'
 }
 
 fn cargo_config_gaps(root: &Path) -> Result<Vec<String>, String> {
@@ -2659,7 +2749,7 @@ fn run_injection_gaps(name: &str, text: &str) -> Vec<String> {
     while idx < lines.len() {
         let indent = lines[idx].len() - lines[idx].trim_start().len();
         let trimmed = strip_yaml_comment(lines[idx]).trim();
-        let Some(rest) = trimmed.strip_prefix("run:") else {
+        let Some(rest) = run_prefix(trimmed) else {
             idx += 1;
             continue;
         };
@@ -2712,7 +2802,19 @@ fn action_pin_result(root: &Path) -> Result<Vec<String>, String> {
 fn action_pin_gaps(text: &str) -> Vec<String> {
     let mut gaps = Vec::new();
     for line in text.lines() {
+        let code = strip_yaml_comment(line);
+        let indent = line.len() - line.trim_start().len();
+        let job_uses = indent == 4 && code.trim().starts_with("uses:");
         for uses in uses_values(line) {
+            if job_uses {
+                push_gap(
+                    &mut gaps,
+                    format!("reusable workflow {uses} is not allowed"),
+                );
+            }
+            if !ALLOWED_ACTIONS.contains(&uses.as_str()) {
+                gaps.push(format!("action {uses} is not allowlisted"));
+            }
             if !action_is_sha_pinned(&uses) {
                 gaps.push(format!("action {uses} is not pinned to a sha"));
             }
@@ -3730,7 +3832,12 @@ kani.min_harnesses=1
         }
         let unpinned = read(&root.join("fixtures/guards/ci/unpinned-action.yml"))?;
         let gaps = action_pin_gaps(&unpinned);
-        if gaps != ["action actions/checkout@v4 is not pinned to a sha".to_owned()] {
+        if gaps
+            != [
+                "action actions/checkout@v4 is not allowlisted".to_owned(),
+                "action actions/checkout@v4 is not pinned to a sha".to_owned(),
+            ]
+        {
             return Err(format!("{gaps:?}"));
         }
         if !permissions_are_contents_read(&read(&root.join(".github/workflows/ci.yml"))?) {
@@ -3819,7 +3926,12 @@ kani.min_harnesses=1
         }
         let flow = read(&root.join("fixtures/guards/ci/flow-uses.yml"))?;
         let flow_gaps = action_pin_gaps(&flow);
-        if flow_gaps != ["action actions/checkout@v4 is not pinned to a sha".to_owned()] {
+        if flow_gaps
+            != [
+                "action actions/checkout@v4 is not allowlisted".to_owned(),
+                "action actions/checkout@v4 is not pinned to a sha".to_owned(),
+            ]
+        {
             return Err(format!("flow uses: {flow_gaps:?}"));
         }
         let target = read(&root.join("fixtures/guards/ci/pull-request-target.yml"))?;
@@ -3864,7 +3976,7 @@ kani.min_harnesses=1
             return Err("rustc step pin".to_owned());
         }
         let smoke = read(&root.join(".github/workflows/vision-smoke.yml"))?;
-        let smoke_gaps = workflow_file_gaps(".github/workflows/vision-smoke.yml", &smoke, &root);
+        let smoke_gaps = workflow_file_gaps(".github/workflows/vision-smoke.yml", &smoke);
         if !smoke_gaps.is_empty() {
             return Err(format!("vision-smoke: {smoke_gaps:?}"));
         }
@@ -4039,7 +4151,7 @@ kani.min_harnesses=1
         )?;
         expect_gaps(
             "b6 trigger",
-            workflow_file_gaps("b6-block-pull-request-target.yml", &block, &root),
+            workflow_file_gaps("b6-block-pull-request-target.yml", &block),
             &["b6-block-pull-request-target.yml trigger pull_request_target is not allowed"],
         )?;
         let cargo = read(&root.join("fixtures/guards/ci/cargo-without-rustc.yml"))?;
@@ -4221,7 +4333,7 @@ jobs:
         expect_gaps("repo cargo config", cargo_config_gaps(&root)?, &[])?;
         let ci = read(&root.join(".github/workflows/ci.yml"))?;
         expect_gaps("guards steps", pinned_guards_steps(&ci), &[])?;
-        expect_gaps("ci github", github_env_path_gaps("ci.yml", &ci, &root), &[])?;
+        expect_gaps("ci github", github_env_path_gaps("ci.yml", &ci), &[])?;
         let needs = gate_needs(gate_job_block(&ci)?)?;
         expect_gaps(
             "ci directives",
@@ -4311,6 +4423,34 @@ jobs:
                 "fixtures/guards/ci/rustflags.yml",
                 &["rustflags.yml env sets RUSTFLAGS"][..],
             ),
+            (
+                "fixtures/guards/ci/env-path.yml",
+                &[
+                    "env-path.yml env sets PATH",
+                    "env-path.yml env sets PATH",
+                    "env-path.yml env sets PATH",
+                ][..],
+            ),
+            (
+                "fixtures/guards/ci/env-ld.yml",
+                &["env-ld.yml env sets LD_PRELOAD"][..],
+            ),
+            (
+                "fixtures/guards/ci/env-dyld.yml",
+                &["env-dyld.yml env sets DYLD_INSERT_LIBRARIES"][..],
+            ),
+            (
+                "fixtures/guards/ci/env-rustup-home.yml",
+                &["env-rustup-home.yml env sets RUSTUP_HOME"][..],
+            ),
+            (
+                "fixtures/guards/ci/env-bash-env.yml",
+                &["env-bash-env.yml env sets BASH_ENV"][..],
+            ),
+            (
+                "fixtures/guards/ci/env-env.yml",
+                &["env-env.yml env sets ENV"][..],
+            ),
         ];
         for (path, expected) in env_cases {
             let name = path.rsplit('/').next().unwrap_or(path);
@@ -4320,25 +4460,60 @@ jobs:
         let github_cases = [
             (
                 "fixtures/guards/ci/github-env-alias.yml",
-                &["github-env-alias.yml github env sets CARGO_ALIAS_XTASK"][..],
+                &["github-env-alias.yml references GITHUB_ENV"][..],
             ),
             (
                 "fixtures/guards/ci/github-env-heredoc.yml",
-                &["github-env-heredoc.yml github env sets CARGO_HOME"][..],
+                &[
+                    "github-env-heredoc.yml references GITHUB_ENV",
+                    "github-env-heredoc.yml assigns CARGO_HOME",
+                ][..],
             ),
             (
                 "fixtures/guards/ci/github-env-file.yml",
-                &["github-env-file.yml github env sets RUSTFLAGS"][..],
+                &["github-env-file.yml references GITHUB_ENV"][..],
             ),
             (
                 "fixtures/guards/ci/github-path.yml",
-                &["github-path.yml writes GITHUB_PATH"][..],
+                &["github-path.yml references GITHUB_PATH"][..],
+            ),
+            (
+                "fixtures/guards/ci/run-compact-github-env.yml",
+                &["run-compact-github-env.yml references GITHUB_ENV"][..],
+            ),
+            (
+                "fixtures/guards/ci/run-indirect-github-env.yml",
+                &["run-indirect-github-env.yml references GITHUB_ENV"][..],
+            ),
+            (
+                "fixtures/guards/ci/run-python-github-path.yml",
+                &["run-python-github-path.yml references GITHUB_PATH"][..],
+            ),
+            (
+                "fixtures/guards/ci/run-export-path.yml",
+                &["run-export-path.yml exports PATH"][..],
+            ),
+            (
+                "fixtures/guards/ci/run-inline-path.yml",
+                &["run-inline-path.yml assigns PATH"][..],
+            ),
+            (
+                "fixtures/guards/ci/run-inline-rustflags.yml",
+                &["run-inline-rustflags.yml assigns RUSTFLAGS"][..],
+            ),
+            (
+                "fixtures/guards/ci/run-export-bash-env.yml",
+                &["run-export-bash-env.yml exports BASH_ENV"][..],
+            ),
+            (
+                "fixtures/guards/ci/run-inline-ld.yml",
+                &["run-inline-ld.yml assigns LD_PRELOAD"][..],
             ),
         ];
         for (path, expected) in github_cases {
             let name = path.rsplit('/').next().unwrap_or(path);
             let text = read(&root.join(path))?;
-            expect_gaps(path, github_env_path_gaps(name, &text, &root), expected)?;
+            expect_gaps(path, github_env_path_gaps(name, &text), expected)?;
         }
         let shell = read(&root.join("fixtures/guards/ci/step-shell.yml"))?;
         let shell_needs = gate_needs(gate_job_block(&shell)?)?;
@@ -4389,6 +4564,51 @@ jobs:
             strict_yaml_gaps("nul-workflow.yml", &nul),
             &["nul-workflow.yml contains NUL"],
         )?;
+        let uses_cases = [
+            (
+                "fixtures/guards/ci/uses-cache.yml",
+                &["action actions/cache@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa is not allowlisted"]
+                    [..],
+            ),
+            (
+                "fixtures/guards/ci/uses-upload-artifact.yml",
+                &["action actions/upload-artifact@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa is not allowlisted"]
+                    [..],
+            ),
+            (
+                "fixtures/guards/ci/uses-download-artifact.yml",
+                &["action actions/download-artifact@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa is not allowlisted"]
+                    [..],
+            ),
+            (
+                "fixtures/guards/ci/uses-local.yml",
+                &[
+                    "action ./.github/actions/plant is not allowlisted",
+                    "action ./.github/actions/plant is not pinned to a sha",
+                ][..],
+            ),
+            (
+                "fixtures/guards/ci/uses-docker.yml",
+                &[
+                    "action docker://alpine:3.20 is not allowlisted",
+                    "action docker://alpine:3.20 is not pinned to a sha",
+                ][..],
+            ),
+            (
+                "fixtures/guards/ci/uses-reusable.yml",
+                &[
+                    "reusable workflow KimSeogyu/parangsae/.github/workflows/ci.yml@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa is not allowed",
+                    "action KimSeogyu/parangsae/.github/workflows/ci.yml@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa is not allowlisted",
+                ][..],
+            ),
+        ];
+        for (path, expected) in uses_cases {
+            let text = read(&root.join(path))?;
+            expect_gaps(path, action_pin_gaps(&text), expected)?;
+        }
+        let smoke = read(&root.join(".github/workflows/vision-smoke.yml"))?;
+        expect_gaps("smoke actions", action_pin_gaps(&smoke), &[])?;
+        expect_gaps("ci actions", action_pin_gaps(&ci), &[])?;
         let extra_step = read(&root.join("fixtures/guards/ci/guards-extra-step.yml"))?;
         expect_gaps(
             "extra step",

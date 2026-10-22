@@ -1,0 +1,12 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          ENV: /tmp/evil.sh
+        run: echo fmt

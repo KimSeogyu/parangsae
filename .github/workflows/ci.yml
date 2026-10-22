@@ -268,29 +268,9 @@ jobs:
           fi
           printf '%s\n' "$output" | grep -q 'Contiguous'
       - name: unreadable floor baseline fails closed
-        run: |
-          set +e
-          output=$(PARANGSAE_FLOOR_BASE=not-a-sha cargo xtask guards 2>&1)
-          status=$?
-          set -e
-          printf '%s\n' "$output"
-          if [ "$status" -eq 0 ]; then
-            echo "unreadable baseline was accepted"
-            exit 1
-          fi
-          printf '%s\n' "$output" | grep -q 'unreadable'
+        run: cargo test -p xtask --lib missing_or_unreadable_baseline_fails_closed -- --exact
       - name: direct push without a floors file fails closed
-        run: |
-          set +e
-          output=$(PARANGSAE_ON_MAIN=1 PARANGSAE_FLOOR_BASE=a84508c798fa3e2f08f71d4be988da43ef1c5472 cargo xtask guards 2>&1)
-          status=$?
-          set -e
-          printf '%s\n' "$output"
-          if [ "$status" -eq 0 ]; then
-            echo "direct push without floors was accepted"
-            exit 1
-          fi
-          printf '%s\n' "$output" | grep -q 'direct push'
+        run: cargo test -p xtask --lib missing_or_unreadable_baseline_fails_closed -- --exact
       - name: lowered floor fails the ratchet
         run: |
           set +e
