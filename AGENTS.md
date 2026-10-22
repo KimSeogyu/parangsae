@@ -58,8 +58,8 @@ There is no readiness verdict. Research code does not read live fills, balances,
 | Gap rejects rows until resync; duplicate id is a no-op | `specs/tla/IngestSegment.tla`, TLC, one worker |
 | Vision fact write keeps the stored payload | `specs/tla/ManifestWrite.tla`, TLC, one worker; `merge_fact` |
 | Format and lints | `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` |
-| Workspace lints | `[workspace.lints]` forbids `unsafe_code` and denies unwrap, expect, panic, float, and lossy casts in library code; `clippy.toml` allows those only in tests; `core::fixed` denies `arithmetic_side_effects`; `fixtures/lint/violation` and `fixtures/lint/unsafe-forbid` fail in the `lint fixture fails` CI job |
-| Every member inherits workspace lints | `crates/core/tests/workspace_lints.rs` rejects `fixtures/lint/missing-inheritance` |
+| Workspace lints | `[workspace.lints]` forbids `unsafe_code` and denies unwrap, expect, panic, float, and lossy casts in library code, tests, and binaries; `core::fixed` denies `arithmetic_side_effects`; `crates/core/tests/workspace_lints.rs` rejects `#[allow`, `#[expect`, and `clippy.toml` allow keys outside `fixtures/lint/`; `fixtures/lint/violation` and `fixtures/lint/unsafe-forbid` fail in the `lint fixture fails` CI job |
+| Every member inherits workspace lints | `crates/core/tests/workspace_lints.rs` reads members from `cargo metadata` and rejects `fixtures/lint/missing-inheritance` |
 | no f64 in money path | `deny(clippy::float_arithmetic)` in sim/backtest |
 | costs explicit | `Costs` has no `Default` |
 | fills at next open | G2 + P7 |

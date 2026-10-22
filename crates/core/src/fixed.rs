@@ -124,10 +124,6 @@ fn notional_ticks(price_ticks: i64, qty_lots: i64) -> Result<i64, FixedError> {
 }
 
 #[cfg(kani)]
-#[allow(
-    clippy::arithmetic_side_effects,
-    reason = "these proofs state the exact product the checked path must match"
-)]
 mod proofs {
     use super::*;
 
@@ -139,11 +135,9 @@ mod proofs {
         let qty_lots: i64 = kani::any();
         kani::assume(price_ticks >= 0);
         kani::assume(qty_lots >= 0);
+        let widened = i128::from(price_ticks).wrapping_mul(i128::from(qty_lots));
         let product = i128::from(price_ticks).checked_mul(i128::from(qty_lots));
-        assert!(product.is_some());
-        if let Some(value) = product {
-            assert_eq!(value, i128::from(price_ticks) * i128::from(qty_lots));
-        }
+        assert_eq!(product, Some(widened));
     }
 
     /// End-to-end quotient for every pair in `0..=1_000_000` ticks.
@@ -155,7 +149,9 @@ mod proofs {
         let qty_lots: i64 = kani::any();
         kani::assume(price_ticks >= 0 && price_ticks <= 1_000_000);
         kani::assume(qty_lots >= 0 && qty_lots <= 1_000_000);
-        let expected = (i128::from(price_ticks) * i128::from(qty_lots)) / SCALE;
+        let expected = i128::from(price_ticks)
+            .wrapping_mul(i128::from(qty_lots))
+            .wrapping_div(SCALE);
         let ticks = notional_ticks(price_ticks, qty_lots);
         assert!(ticks.is_ok());
         if let Ok(ticks) = ticks {
@@ -168,8 +164,12 @@ mod proofs {
     fn notional_overflow_does_not_wrap() {
         let bump: u8 = kani::any();
         kani::assume(bump > 0);
-        let ticks = 1_000_000_000_000_000 + i64::from(bump);
-        assert_eq!(notional_ticks(ticks, ticks), Err(FixedError::Overflow));
+        let base: i64 = 1_000_000_000_000_000;
+        let ticks = base.checked_add(i64::from(bump));
+        assert!(ticks.is_some());
+        if let Some(ticks) = ticks {
+            assert_eq!(notional_ticks(ticks, ticks), Err(FixedError::Overflow));
+        }
     }
 }
 
@@ -178,27 +178,33 @@ mod tests {
     use super::*;
 
     #[test]
-    fn one_whole_unit_times_one_whole_unit() {
-        let scale = i64::try_from(SCALE).unwrap();
-        let price = Price::from_ticks(scale).unwrap();
-        let qty = Qty::from_ticks(scale).unwrap();
-        assert_eq!(notional(price, qty).unwrap().ticks(), scale);
+    fn one_whole_unit_times_one_whole_unit() -> Result<(), String> {
+        let scale = i64::try_from(SCALE).map_err(|err| err.to_string())?;
+        let price = Price::from_ticks(scale).map_err(|err| err.to_string())?;
+        let qty = Qty::from_ticks(scale).map_err(|err| err.to_string())?;
+        let got = notional(price, qty).map_err(|err| err.to_string())?;
+        assert_eq!(got.ticks(), scale);
+        Ok(())
     }
 
     #[test]
-    fn product_below_one_minor_unit_truncates_toward_zero() {
-        let scale = i64::try_from(SCALE).unwrap();
-        let price = Price::from_ticks(1).unwrap();
-        let qty = Qty::from_ticks(scale.checked_sub(1).unwrap()).unwrap();
-        assert_eq!(notional(price, qty).unwrap().ticks(), 0);
+    fn product_below_one_minor_unit_truncates_toward_zero() -> Result<(), String> {
+        let scale = i64::try_from(SCALE).map_err(|err| err.to_string())?;
+        let price = Price::from_ticks(1).map_err(|err| err.to_string())?;
+        let below = scale.checked_sub(1).ok_or("scale does not fit")?;
+        let qty = Qty::from_ticks(below).map_err(|err| err.to_string())?;
+        let got = notional(price, qty).map_err(|err| err.to_string())?;
+        assert_eq!(got.ticks(), 0);
+        Ok(())
     }
 
     #[test]
-    fn extreme_product_returns_overflow() {
+    fn extreme_product_returns_overflow() -> Result<(), String> {
         let ticks = 1_000_000_000_000_000;
-        let price = Price::from_ticks(ticks).unwrap();
-        let qty = Qty::from_ticks(ticks).unwrap();
+        let price = Price::from_ticks(ticks).map_err(|err| err.to_string())?;
+        let qty = Qty::from_ticks(ticks).map_err(|err| err.to_string())?;
         assert_eq!(notional(price, qty), Err(FixedError::Overflow));
+        Ok(())
     }
 
     #[test]

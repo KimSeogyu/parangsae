@@ -574,19 +574,23 @@ fn ingest_one(
             dataset,
             item,
             &csv,
-            object,
-            fetched.previous,
-            manifest,
-            summary,
+            IngestWrite {
+                object,
+                previous: fetched.previous,
+                manifest,
+                summary,
+            },
         )?,
         VisionDataset::FundingRate => ingest_funding(
             request,
             item,
             &csv,
-            object,
-            fetched.previous,
-            manifest,
-            summary,
+            IngestWrite {
+                object,
+                previous: fetched.previous,
+                manifest,
+                summary,
+            },
             funding_gaps,
         )?,
         VisionDataset::Metrics => {
@@ -599,20 +603,26 @@ fn ingest_one(
     Ok(accepted)
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    reason = "ingest threads the request, object, manifest, and summary as separate arguments"
-)]
+struct IngestWrite<'a> {
+    object: ObjectManifest,
+    previous: Option<[u8; 32]>,
+    manifest: &'a mut ManifestLog,
+    summary: &'a mut RunSummary,
+}
+
 fn ingest_klines(
     request: &RunRequest,
     dataset: VisionDataset,
     item: &Planned,
     csv: &str,
-    mut object: ObjectManifest,
-    previous: Option<[u8; 32]>,
-    manifest: &mut ManifestLog,
-    summary: &mut RunSummary,
+    write: IngestWrite<'_>,
 ) -> Result<bool, Error> {
+    let IngestWrite {
+        mut object,
+        previous,
+        manifest,
+        summary,
+    } = write;
     let day = archive_clock_day(&item.name);
     let clock = dataset
         .clock(day)
@@ -666,20 +676,19 @@ fn ingest_klines(
     Ok(true)
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    reason = "ingest threads the request, object, manifest, and summary as separate arguments"
-)]
 fn ingest_funding(
     request: &RunRequest,
     item: &Planned,
     csv: &str,
-    mut object: ObjectManifest,
-    previous: Option<[u8; 32]>,
-    manifest: &mut ManifestLog,
-    summary: &mut RunSummary,
+    write: IngestWrite<'_>,
     funding_gaps: &mut BTreeMap<crate::civil::CivilDay, Vec<Gap>>,
 ) -> Result<bool, Error> {
+    let IngestWrite {
+        mut object,
+        previous,
+        manifest,
+        summary,
+    } = write;
     let parsed = match parse_funding(csv, &request.symbol, request.fetched_at) {
         Ok(parsed) => parsed,
         Err(err) => {

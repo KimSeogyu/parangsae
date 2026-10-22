@@ -344,7 +344,7 @@ mod tests {
     }
 
     #[test]
-    fn same_payload_keeps_the_original_received_time() {
+    fn same_payload_keeps_the_original_received_time() -> Result<(), String> {
         let mut slot = Slot::Absent;
         assert_eq!(merge_fact(&mut slot, "bar", at(1)), WriteEffect::Inserted);
         assert_eq!(merge_fact(&mut slot, "bar", at(2)), WriteEffect::Unchanged);
@@ -354,13 +354,14 @@ mod tests {
                 assert_eq!(stored.received, at(1));
             }
             other @ (Slot::Absent | Slot::Conflict { .. }) => {
-                panic!("expected present, got {other:?}")
+                return Err(format!("expected present, got {other:?}"))
             }
         }
+        Ok(())
     }
 
     #[test]
-    fn a_different_payload_does_not_replace_the_stored_value() {
+    fn a_different_payload_does_not_replace_the_stored_value() -> Result<(), String> {
         let mut slot = Slot::Absent;
         merge_fact(&mut slot, 1, at(1));
         assert_eq!(merge_fact(&mut slot, 2, at(2)), WriteEffect::Conflict);
@@ -370,11 +371,12 @@ mod tests {
                 assert_eq!(rejected.value, 2);
             }
             other @ (Slot::Absent | Slot::Present(_)) => {
-                panic!("expected conflict, got {other:?}")
+                return Err(format!("expected conflict, got {other:?}"))
             }
         }
         assert_eq!(merge_fact(&mut slot, 1, at(3)), WriteEffect::Unchanged);
-        assert_eq!(slot.stored().unwrap().value, 1);
+        assert_eq!(slot.stored().ok_or_else(|| "missing".to_string())?.value, 1);
+        Ok(())
     }
 
     proptest! {
@@ -383,9 +385,9 @@ mod tests {
             let mut slot = Slot::<u8>::Absent;
             let first = writes[0];
             for (index, value) in writes.into_iter().enumerate() {
-                merge_fact(&mut slot, value, at(i64::try_from(index).unwrap()));
+                merge_fact(&mut slot, value, at(i64::try_from(index).map_err(|err| proptest::test_runner::TestCaseError::fail(err.to_string()))?));
             }
-            let stored = slot.stored().expect("a write happened");
+            let stored = slot.stored().ok_or_else(|| proptest::test_runner::TestCaseError::fail("a write happened"))?;
             prop_assert_eq!(stored.value, first);
         }
     }

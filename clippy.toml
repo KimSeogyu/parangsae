@@ -1,6 +1,2 @@
-# `#[test]` and `#[cfg(test)]` may unwrap. A library function may not.
-allow-unwrap-in-tests = true
-allow-expect-in-tests = true
-allow-panic-in-tests = true
-allow-dbg-in-tests = true
-allow-print-in-tests = true
+# Tests, binaries, and library code share the workspace deny list.
+# fixtures/lint is the only tree allowed to violate it.

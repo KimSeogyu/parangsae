@@ -57,13 +57,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_flipped_digest_fails_and_names_the_check() {
+    fn a_flipped_digest_fails_and_names_the_check() -> Result<(), String> {
         let bytes = b"abc";
         let good = sha256_bytes(bytes);
-        require_sha256(bytes, good).unwrap();
+        require_sha256(bytes, good).map_err(|err| err.to_string())?;
         let mut bad = good;
         bad[0] ^= 0xff;
-        let err = require_sha256(bytes, bad).unwrap_err();
+        let err = match require_sha256(bytes, bad) {
+            Err(err) => err,
+            Ok(()) => return Err("expected a checksum error".to_string()),
+        };
         assert_eq!(err.check_name(), Some("checksum"));
+        Ok(())
     }
 }

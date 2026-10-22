@@ -122,8 +122,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn part_files_are_quarantined_and_daily_names_are_not() {
-        let part = classify(VisionDataset::UmKline, "BTCUSDT", "part-00000-c000.zip").unwrap();
+    fn part_files_are_quarantined_and_daily_names_are_not() -> Result<(), String> {
+        let part = classify(VisionDataset::UmKline, "BTCUSDT", "part-00000-c000.zip")
+            .map_err(|err| err.to_string())?;
         assert!(matches!(
             part,
             Classified::Quarantine { reason: "filename" }
@@ -133,30 +134,32 @@ mod tests {
             "BTCUSDT",
             "BTCUSDT-1m-2021-06-01.zip",
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert!(matches!(daily, Classified::Archive(_)));
         let checksum = classify(
             VisionDataset::UmKline,
             "BTCUSDT",
             "BTCUSDT-1m-2021-06-01.zip.CHECKSUM",
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert!(matches!(checksum, Classified::Checksum { .. }));
+        Ok(())
     }
 
     #[test]
-    fn february_31_is_quarantined() {
+    fn february_31_is_quarantined() -> Result<(), String> {
         let classified = classify(
             VisionDataset::Metrics,
             "BTCUSDT",
             "BTCUSDT-metrics-2026-02-31.zip",
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert!(matches!(
             classified,
             Classified::Quarantine {
                 reason: "invalid_date"
             }
         ));
+        Ok(())
     }
 }

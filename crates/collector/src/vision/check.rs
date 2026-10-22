@@ -546,123 +546,125 @@ mod tests {
     use crate::vision::{KlineFact, MetricsFact, TickDomain};
     use parangsae_core::{ReceivedTs, Symbol, TimeUnit};
 
-    fn symbol() -> Symbol {
-        Symbol::new("BTCUSDT").unwrap()
+    fn symbol() -> Result<Symbol, String> {
+        Symbol::new("BTCUSDT").map_err(|err| err.to_string())
     }
 
     fn received() -> ReceivedTs {
         ReceivedTs::from_micros(UtcMicros::from_micros(1))
     }
 
-    fn fixture(name: &str) -> String {
+    fn fixture(name: &str) -> Result<String, String> {
         std::fs::read_to_string(format!(
             "{}/../../fixtures/vision/{name}",
             env!("CARGO_MANIFEST_DIR")
         ))
-        .unwrap()
+        .map_err(|err| err.to_string())
     }
 
     #[test]
-    fn um_fixtures_pass_row_checks_and_bad_rows_name_the_check() {
+    fn um_fixtures_pass_row_checks_and_bad_rows_name_the_check() -> Result<(), String> {
         let ok = parse_klines(
-            &fixture("um_kline_2021-06-01_headerless.csv"),
-            &symbol(),
+            &fixture("um_kline_2021-06-01_headerless.csv")?,
+            &symbol()?,
             UM_KLINE_CLOCK,
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert!(kline_row_faults(&ok.rows, TimeUnit::Millis).is_empty());
         let bad_close = parse_klines(
-            &fixture("um_kline_bad_close.csv"),
-            &symbol(),
+            &fixture("um_kline_bad_close.csv")?,
+            &symbol()?,
             UM_KLINE_CLOCK,
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert_eq!(
             kline_row_faults(&bad_close.rows, TimeUnit::Millis)[0].name,
             "close_time"
         );
         let bad_ohlc = parse_klines(
-            &fixture("um_kline_bad_ohlc.csv"),
-            &symbol(),
+            &fixture("um_kline_bad_ohlc.csv")?,
+            &symbol()?,
             UM_KLINE_CLOCK,
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert_eq!(
             kline_row_faults(&bad_ohlc.rows, TimeUnit::Millis)[0].name,
             "ohlc"
         );
         let bad_taker = parse_klines(
-            &fixture("um_kline_bad_taker.csv"),
-            &symbol(),
+            &fixture("um_kline_bad_taker.csv")?,
+            &symbol()?,
             UM_KLINE_CLOCK,
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert_eq!(
             kline_row_faults(&bad_taker.rows, TimeUnit::Millis)[0].name,
             "taker_buy"
         );
         let bad_quote = parse_klines(
-            &fixture("um_kline_bad_taker_quote.csv"),
-            &symbol(),
+            &fixture("um_kline_bad_taker_quote.csv")?,
+            &symbol()?,
             UM_KLINE_CLOCK,
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert_eq!(
             kline_row_faults(&bad_quote.rows, TimeUnit::Millis)[0].name,
             "taker_buy_quote"
         );
+        Ok(())
     }
 
     #[test]
-    fn spot_close_uses_the_declared_source_tick() {
-        let day = CivilDay::new(2025, 1, 1).unwrap();
+    fn spot_close_uses_the_declared_source_tick() -> Result<(), String> {
+        let day = CivilDay::new(2025, 1, 1).ok_or_else(|| "missing".to_string())?;
         let parsed = parse_klines(
-            &fixture("spot_kline_2025-01-01_us.csv"),
-            &symbol(),
+            &fixture("spot_kline_2025-01-01_us.csv")?,
+            &symbol()?,
             spot_kline_clock(day),
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert!(kline_row_faults(&parsed.rows, TimeUnit::Micros).is_empty());
         assert_eq!(
             kline_row_faults(&parsed.rows, TimeUnit::Millis)[0].name,
             "close_time"
         );
-        let earlier = CivilDay::new(2024, 12, 31).unwrap();
+        let earlier = CivilDay::new(2024, 12, 31).ok_or_else(|| "missing".to_string())?;
         let millis = parse_klines(
-            &fixture("spot_kline_2024-12-31_ms.csv"),
-            &symbol(),
+            &fixture("spot_kline_2024-12-31_ms.csv")?,
+            &symbol()?,
             spot_kline_clock(earlier),
             TickDomain::Price,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert!(kline_row_faults(&millis.rows, TimeUnit::Millis).is_empty());
         assert_eq!(
             kline_row_faults(&millis.rows, TimeUnit::Micros)[0].name,
             "close_time"
         );
+        Ok(())
     }
 
     #[test]
-    fn a_complete_generated_day_has_no_kline_or_metrics_gap() {
-        let day = CivilDay::new(2026, 9, 1).unwrap();
+    fn a_complete_generated_day_has_no_kline_or_metrics_gap() -> Result<(), String> {
+        let day = CivilDay::new(2026, 9, 1).ok_or_else(|| "missing".to_string())?;
         let mut klines = Vec::new();
         for index in 0..MINUTES_PER_DAY {
             let open = day.start_us().micros() + index * ONE_MINUTE_US;
             let close = open + ONE_MINUTE_US - 1_000;
-            klines.push(synthetic_kline(open, close));
+            klines.push(synthetic_kline(open, close)?);
         }
         assert!(kline_day_gaps(&klines, day).is_empty());
         klines.pop();
@@ -671,18 +673,19 @@ mod tests {
         let mut metrics = Vec::new();
         for index in 0..METRICS_PER_DAY {
             let create = day.start_us().micros() + index * FIVE_MINUTES_US;
-            metrics.push(synthetic_metric(create));
+            metrics.push(synthetic_metric(create)?);
         }
         assert!(metrics_row_faults(&metrics).is_empty());
         assert!(metrics_day_gaps(&metrics, day).is_empty());
         assert!(!metrics[0].available_lag_verified);
+        Ok(())
     }
 
-    fn synthetic_kline(open: i64, close: i64) -> KlineFact {
+    fn synthetic_kline(open: i64, close: i64) -> Result<KlineFact, String> {
         let open_time = UtcMicros::from_micros(open);
         let close_time = UtcMicros::from_micros(close);
-        KlineFact {
-            symbol: symbol(),
+        Ok(KlineFact {
+            symbol: symbol()?,
             interval_us: ONE_MINUTE_US,
             open_time,
             close_time,
@@ -690,29 +693,33 @@ mod tests {
             high_ticks: 1,
             low_ticks: 1,
             close_ticks: 1,
-            volume: parangsae_core::Qty::from_ticks(0).unwrap(),
-            quote_volume: parangsae_core::Amount::from_ticks(0).unwrap(),
+            volume: parangsae_core::Qty::from_ticks(0).map_err(|err| err.to_string())?,
+            quote_volume: parangsae_core::Amount::from_ticks(0).map_err(|err| err.to_string())?,
             count: 0,
-            taker_buy_volume: parangsae_core::Qty::from_ticks(0).unwrap(),
-            taker_buy_quote_volume: parangsae_core::Amount::from_ticks(0).unwrap(),
+            taker_buy_volume: parangsae_core::Qty::from_ticks(0).map_err(|err| err.to_string())?,
+            taker_buy_quote_volume: parangsae_core::Amount::from_ticks(0)
+                .map_err(|err| err.to_string())?,
             event_ts: parangsae_core::EventTs::from_micros(open_time),
             available_ts: parangsae_core::AvailableTs::from_micros(
-                close_time.checked_add_micros(1_000).unwrap(),
+                close_time
+                    .checked_add_micros(1_000)
+                    .ok_or_else(|| "missing".to_string())?,
             ),
             received_ts: received(),
             schema_version: 1,
             tick_domain: TickDomain::Price,
-        }
+        })
     }
 
-    fn synthetic_metric(create: i64) -> MetricsFact {
+    fn synthetic_metric(create: i64) -> Result<MetricsFact, String> {
         let create_time = UtcMicros::from_micros(create);
         let ratio = parangsae_core::Ratio::from_ticks(1);
-        MetricsFact {
-            symbol: symbol(),
+        Ok(MetricsFact {
+            symbol: symbol()?,
             create_time,
-            sum_open_interest: parangsae_core::Qty::from_ticks(1).unwrap(),
-            sum_open_interest_value: parangsae_core::Amount::from_ticks(1).unwrap(),
+            sum_open_interest: parangsae_core::Qty::from_ticks(1).map_err(|err| err.to_string())?,
+            sum_open_interest_value: parangsae_core::Amount::from_ticks(1)
+                .map_err(|err| err.to_string())?,
             count_toptrader_long_short_ratio: ratio,
             sum_toptrader_long_short_ratio: ratio,
             count_long_short_ratio: ratio,
@@ -724,102 +731,132 @@ mod tests {
             received_ts: received(),
             available_lag_verified: false,
             schema_version: 4,
-        }
+        })
     }
 
     #[test]
-    fn funding_month_lengths_and_the_missing_slot_fixture() {
-        let september = YearMonth::new(2026, 9).unwrap();
+    fn funding_month_lengths_and_the_missing_slot_fixture() -> Result<(), String> {
+        let september = YearMonth::new(2026, 9).ok_or_else(|| "missing".to_string())?;
         let slots = expected_funding_slots(september);
         assert_eq!(slots.len(), 90);
         assert_eq!(
             slots[0].micros(),
-            CivilDay::new(2026, 9, 1).unwrap().start_us().micros()
+            CivilDay::new(2026, 9, 1)
+                .ok_or_else(|| "missing".to_string())?
+                .start_us()
+                .micros()
         );
         assert_eq!(
             slots[slots.len() - 1].micros(),
-            CivilDay::new(2026, 9, 30).unwrap().start_us().micros() + 16 * 3_600_000_000
+            CivilDay::new(2026, 9, 30)
+                .ok_or_else(|| "missing".to_string())?
+                .start_us()
+                .micros()
+                + 16 * 3_600_000_000
         );
         assert_eq!(
-            expected_funding_slots(YearMonth::new(2020, 1).unwrap()).len(),
+            expected_funding_slots(YearMonth::new(2020, 1).ok_or_else(|| "missing".to_string())?)
+                .len(),
             93
         );
-        let parsed =
-            parse_funding(&fixture("funding_missing_slot.csv"), &symbol(), received()).unwrap();
-        let gaps = funding_window(&parsed.rows, september).unwrap();
+        let parsed = parse_funding(
+            &fixture("funding_missing_slot.csv")?,
+            &symbol()?,
+            received(),
+        )
+        .map_err(|err| err.to_string())?;
+        let gaps = funding_window(&parsed.rows, september).map_err(|err| format!("{err:?}"))?;
         assert!(gaps
             .iter()
             .any(|gap| gap.start.micros() == slots[1].micros()));
+        Ok(())
     }
 
     #[test]
-    fn book_schemas_monotonic_notional_and_gap() {
+    fn book_schemas_monotonic_notional_and_gap() -> Result<(), String> {
         let mut v2 = parse_book(
-            &fixture("book_2026-10-20_one_ts.csv"),
-            &symbol(),
+            &fixture("book_2026-10-20_one_ts.csv")?,
+            &symbol()?,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert!(book_row_faults(&mut v2.rows).is_empty());
         assert!(v2.rows.iter().all(|row| row.level_schema == 2));
         let mut v1 = parse_book(
-            &fixture("book_2023-01-01_one_ts.csv"),
-            &symbol(),
+            &fixture("book_2023-01-01_one_ts.csv")?,
+            &symbol()?,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert!(book_row_faults(&mut v1.rows).is_empty());
         assert!(v1.rows.iter().all(|row| row.level_schema == 1));
-        let mut bad_levels =
-            parse_book(&fixture("book_bad_levels.csv"), &symbol(), received()).unwrap();
+        let mut bad_levels = parse_book(&fixture("book_bad_levels.csv")?, &symbol()?, received())
+            .map_err(|err| err.to_string())?;
         assert_eq!(book_row_faults(&mut bad_levels.rows)[0].name, "level_set");
-        let mut bad_mono =
-            parse_book(&fixture("book_bad_monotonic.csv"), &symbol(), received()).unwrap();
+        let mut bad_mono = parse_book(&fixture("book_bad_monotonic.csv")?, &symbol()?, received())
+            .map_err(|err| err.to_string())?;
         assert_eq!(book_row_faults(&mut bad_mono.rows)[0].name, "monotonic");
         let mut bad_notional =
-            parse_book(&fixture("book_bad_notional.csv"), &symbol(), received()).unwrap();
+            parse_book(&fixture("book_bad_notional.csv")?, &symbol()?, received())
+                .map_err(|err| err.to_string())?;
         let notional_faults = book_row_faults(&mut bad_notional.rows);
         assert!(notional_faults.iter().any(|fault| fault.name == "notional"));
-        let mut gap_rows =
-            parse_book(&fixture("book_gap_real_span.csv"), &symbol(), received()).unwrap();
+        let mut gap_rows = parse_book(&fixture("book_gap_real_span.csv")?, &symbol()?, received())
+            .map_err(|err| err.to_string())?;
         assert!(book_row_faults(&mut gap_rows.rows).is_empty());
-        let day = CivilDay::new(2026, 10, 20).unwrap();
+        let day = CivilDay::new(2026, 10, 20).ok_or_else(|| "missing".to_string())?;
         let gaps = book_day_gaps(&gap_rows.rows, day);
         assert!(gaps.iter().any(|gap| {
             gap.kind == GapKind::BookSpan
                 && gap.end.micros() - gap.start.micros() > BOOK_GAP_LIMIT_US
         }));
+        Ok(())
     }
 
     #[test]
-    fn allowlist_is_only_the_four_known_days() {
-        assert!(book_allowlisted(CivilDay::new(2023, 2, 8).unwrap()));
-        assert!(book_allowlisted(CivilDay::new(2026, 10, 8).unwrap()));
-        assert!(!book_allowlisted(CivilDay::new(2026, 10, 7).unwrap()));
-        let gap = missing_coverage(CivilDay::new(2023, 2, 9).unwrap(), true);
+    fn allowlist_is_only_the_four_known_days() -> Result<(), String> {
+        assert!(book_allowlisted(
+            CivilDay::new(2023, 2, 8).ok_or_else(|| "missing".to_string())?
+        ));
+        assert!(book_allowlisted(
+            CivilDay::new(2026, 10, 8).ok_or_else(|| "missing".to_string())?
+        ));
+        assert!(!book_allowlisted(
+            CivilDay::new(2026, 10, 7).ok_or_else(|| "missing".to_string())?
+        ));
+        let gap = missing_coverage(
+            CivilDay::new(2023, 2, 9).ok_or_else(|| "missing".to_string())?,
+            true,
+        );
         assert!(!gap.kind.fails_command());
-        let missing = missing_coverage(CivilDay::new(2026, 9, 1).unwrap(), true);
+        let missing = missing_coverage(
+            CivilDay::new(2026, 9, 1).ok_or_else(|| "missing".to_string())?,
+            true,
+        );
         assert!(missing.kind.fails_command());
+        Ok(())
     }
 
     #[test]
-    fn identical_metrics_rows_collapse_and_disagreement_does_not() {
+    fn identical_metrics_rows_collapse_and_disagreement_does_not() -> Result<(), String> {
         let parsed = parse_metrics(
-            &fixture("metrics_2020-09-01_duplicate.csv"),
-            &symbol(),
+            &fixture("metrics_2020-09-01_duplicate.csv")?,
+            &symbol()?,
             received(),
         )
-        .unwrap();
-        let collapsed = collapse_by(parsed.rows, |row| row.create_time.micros()).unwrap();
+        .map_err(|err| err.to_string())?;
+        let collapsed = collapse_by(parsed.rows, |row| row.create_time.micros())
+            .map_err(|err| format!("{err:?}"))?;
         assert_eq!(collapsed.len(), 1);
         let unsorted = parse_metrics(
-            &fixture("metrics_2026-10-20_unsorted.csv"),
-            &symbol(),
+            &fixture("metrics_2026-10-20_unsorted.csv")?,
+            &symbol()?,
             received(),
         )
-        .unwrap();
+        .map_err(|err| err.to_string())?;
         assert!(metrics_row_faults(&unsorted.rows).is_empty());
-        let sorted = collapse_by(unsorted.rows, |row| row.create_time.micros()).unwrap();
+        let sorted = collapse_by(unsorted.rows, |row| row.create_time.micros())
+            .map_err(|err| format!("{err:?}"))?;
         assert!(sorted
             .windows(2)
             .all(|pair| pair[0].create_time < pair[1].create_time));
@@ -828,5 +865,6 @@ mod tests {
             sorted[0].available_ts.micros().micros(),
             sorted[0].create_time.micros() + FIVE_MINUTES_US
         );
+        Ok(())
     }
 }

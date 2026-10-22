@@ -109,12 +109,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn fixture_listing_keeps_size_and_the_part_file() {
+    fn fixture_listing_keeps_size_and_the_part_file() -> Result<(), String> {
         let xml = include_str!("../../../../fixtures/vision/listing_with_part.xml");
-        let page = list_page(xml).unwrap();
+        let page = list_page(xml).map_err(|err| err.to_string())?;
         assert!(!page.truncated);
         assert_eq!(page.objects.len(), 3);
         assert_eq!(page.objects[0].size, 67872);
         assert!(page.objects[2].key.contains("part-00000"));
+        Ok(())
     }
 }

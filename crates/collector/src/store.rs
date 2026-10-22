@@ -44,12 +44,14 @@ pub fn upsert_klines(
         data_dir,
         dataset,
         rows,
-        |row| day_of(row.open_time),
-        |row| row.open_time.micros(),
-        read_klines_at,
-        write_klines,
-        kline_key,
-        kline_payload,
+        DayMerge {
+            day_of_row: |row: &KlineFact| day_of(row.open_time),
+            key_of: |row: &KlineFact| row.open_time.micros(),
+            read: read_klines_at,
+            write: write_klines,
+            key_text: kline_key,
+            payload: kline_payload,
+        },
     )
 }
 
@@ -62,12 +64,14 @@ pub fn upsert_funding(
         data_dir,
         dataset,
         rows,
-        |row| day_of(row.funding_time),
-        |row| row.funding_time.micros(),
-        read_funding_at,
-        write_funding,
-        funding_key,
-        funding_payload,
+        DayMerge {
+            day_of_row: |row: &FundingFact| day_of(row.funding_time),
+            key_of: |row: &FundingFact| row.funding_time.micros(),
+            read: read_funding_at,
+            write: write_funding,
+            key_text: funding_key,
+            payload: funding_payload,
+        },
     )
 }
 
@@ -80,12 +84,14 @@ pub fn upsert_metrics(
         data_dir,
         dataset,
         rows,
-        |row| day_of(row.create_time),
-        |row| row.create_time.micros(),
-        read_metrics_at,
-        write_metrics,
-        metrics_key,
-        metrics_payload,
+        DayMerge {
+            day_of_row: |row: &MetricsFact| day_of(row.create_time),
+            key_of: |row: &MetricsFact| row.create_time.micros(),
+            read: read_metrics_at,
+            write: write_metrics,
+            key_text: metrics_key,
+            payload: metrics_payload,
+        },
     )
 }
 
@@ -98,29 +104,31 @@ pub fn upsert_book(
         data_dir,
         dataset,
         rows,
-        |row| day_of(row.timestamp),
-        |row| (row.timestamp.micros(), row.percentage.ticks()),
-        read_book_at,
-        write_book,
-        book_key,
-        book_payload,
+        DayMerge {
+            day_of_row: |row: &BookFact| day_of(row.timestamp),
+            key_of: |row: &BookFact| (row.timestamp.micros(), row.percentage.ticks()),
+            read: read_book_at,
+            write: write_book,
+            key_text: book_key,
+            payload: book_payload,
+        },
     )
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    reason = "one day-merge keeps the conflict rule from drifting per dataset"
-)]
-fn upsert_by_day<T, K, DayOf, KeyOf, Read, Write, KeyText, Payload>(
-    data_dir: &Path,
-    dataset: &str,
-    rows: Vec<T>,
+struct DayMerge<DayOf, KeyOf, Read, Write, KeyText, Payload> {
     day_of_row: DayOf,
     key_of: KeyOf,
     read: Read,
     write: Write,
     key_text: KeyText,
     payload: Payload,
+}
+
+fn upsert_by_day<T, K, DayOf, KeyOf, Read, Write, KeyText, Payload>(
+    data_dir: &Path,
+    dataset: &str,
+    rows: Vec<T>,
+    merge: DayMerge<DayOf, KeyOf, Read, Write, KeyText, Payload>,
 ) -> Result<WriteCounts, Error>
 where
     T: Clone + PartialEq + SymbolField,
@@ -132,6 +140,14 @@ where
     KeyText: Fn(&T) -> String,
     Payload: Fn(&T) -> String,
 {
+    let DayMerge {
+        day_of_row,
+        key_of,
+        read,
+        write,
+        key_text,
+        payload,
+    } = merge;
     let mut grouped: std::collections::BTreeMap<CivilDay, Vec<T>> =
         std::collections::BTreeMap::new();
     let mut symbol = String::new();
@@ -155,31 +171,57 @@ where
         };
         let merged = merge_rows(existing, incoming, &key_of);
         total.add(commit_merge(
-            data_dir, dataset, &symbol, &path, merged, &write, &key_text, &payload,
+            Partition {
+                data_dir,
+                dataset,
+                symbol: &symbol,
+                path: &path,
+            },
+            merged,
+            CommitFns {
+                write: &write,
+                key_text: &key_text,
+                payload: &payload,
+            },
         )?);
     }
     Ok(total)
 }
 
-#[allow(
-    clippy::too_many_arguments,
-    reason = "commit writes the merged partition and the conflict log together"
-)]
-fn commit_merge<T, Write, KeyText, Payload>(
-    data_dir: &Path,
-    dataset: &str,
-    symbol: &str,
-    path: &Path,
-    merged: MergeOutcome<T>,
+struct Partition<'a> {
+    data_dir: &'a Path,
+    dataset: &'a str,
+    symbol: &'a str,
+    path: &'a Path,
+}
+
+struct CommitFns<Write, KeyText, Payload> {
     write: Write,
     key_text: KeyText,
     payload: Payload,
+}
+
+fn commit_merge<T, Write, KeyText, Payload>(
+    place: Partition<'_>,
+    merged: MergeOutcome<T>,
+    fns: CommitFns<Write, KeyText, Payload>,
 ) -> Result<WriteCounts, Error>
 where
     Write: Fn(&Path, &[T]) -> Result<(), Error>,
     KeyText: Fn(&T) -> String,
     Payload: Fn(&T) -> String,
 {
+    let Partition {
+        data_dir,
+        dataset,
+        symbol,
+        path,
+    } = place;
+    let CommitFns {
+        write,
+        key_text,
+        payload,
+    } = fns;
     if !merged.committed {
         for (stored, rejected) in &merged.conflicts {
             append_conflict(
