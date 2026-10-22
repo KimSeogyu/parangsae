@@ -4,14 +4,6 @@
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -24,12 +16,27 @@
             echo "rustc is ${rustc_bin}"
             exit 1
           fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - name: Install cargo-deny 0.20.2
         run: |
           tarball=/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+          extract=/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl
+          for p in "$tarball" "$extract"; do
+            if [ -e "$p" ] || [ -L "$p" ]; then
+              echo "$p pre-exists"
+              exit 1
+            fi
+          done
           env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/curl --fail --location --silent --show-error \
@@ -37,7 +44,7 @@
             https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
           tarball_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum "$tarball")"
@@ -48,13 +55,13 @@
           fi
           env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/tar -xzf "$tarball" -C /tmp
           bin_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny)"
@@ -67,7 +74,7 @@
         run: |
           deny_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum deny.toml)"
@@ -78,7 +85,7 @@
           fi
           lock_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum Cargo.lock)"
@@ -89,7 +96,7 @@
           fi
           toolchain_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum rust-toolchain.toml)"
@@ -100,7 +107,7 @@
           fi
           manifest_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum \
@@ -114,7 +121,7 @@
             xtask/Cargo.toml \
             | env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum)"
@@ -125,18 +132,22 @@
           fi
           env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
             /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny check
       - name: reqwest outside the collector wrapper fails
         run: |
           set +e
           output=$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
             /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny --manifest-path fixtures/deny/banned-reqwest/Cargo.toml --config deny.toml check bans 2>&1)
           status=$?
           set -e

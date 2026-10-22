@@ -23,14 +23,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
         with:
           components: rustfmt
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -41,6 +33,14 @@ jobs:
           fi
           if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
             echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
             exit 1
           fi
       - name: cargo fmt --check
@@ -54,14 +54,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
         with:
           components: clippy
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -72,6 +64,14 @@ jobs:
           fi
           if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
             echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
             exit 1
           fi
       - name: clippy -D warnings
@@ -85,14 +85,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
         with:
           components: clippy, rustfmt
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -103,6 +95,14 @@ jobs:
           fi
           if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
             echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
             exit 1
           fi
       - name: format the fixtures
@@ -162,14 +162,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -180,6 +172,14 @@ jobs:
           fi
           if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
             echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
             exit 1
           fi
       - name: cargo xtask depgraph
@@ -193,14 +193,6 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -211,6 +203,14 @@ jobs:
           fi
           if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
             echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
             exit 1
           fi
       - name: cargo test (unit, proptest, cucumber, execution lock)
@@ -228,14 +228,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -246,6 +238,14 @@ jobs:
           fi
           if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
             echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
             exit 1
           fi
       - name: kline integrity features
@@ -297,14 +297,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -315,6 +307,14 @@ jobs:
           fi
           if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
             echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
             exit 1
           fi
       - name: unowned feature fails
@@ -611,14 +611,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -629,6 +621,14 @@ jobs:
           fi
           if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
             echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
             exit 1
           fi
       - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
@@ -652,6 +652,9 @@ jobs:
             -metadir "${{ runner.temp }}/tlc-ingest" \
             -config IngestSegment.cfg \
             IngestSegment.tla | tee "${{ runner.temp }}/tlc-ingest.txt"
+      - name: Check IngestSegment TLC output
+        run: |
+          cd "$GITHUB_WORKSPACE"
           cargo xtask guards tlc-output --model IngestSegment --file "${{ runner.temp }}/tlc-ingest.txt"
       - name: Model-check ManifestWrite
         run: |
@@ -662,6 +665,9 @@ jobs:
             -metadir "${{ runner.temp }}/tlc-manifest" \
             -config ManifestWrite.cfg \
             ManifestWrite.tla | tee "${{ runner.temp }}/tlc-manifest.txt"
+      - name: Check ManifestWrite TLC output
+        run: |
+          cd "$GITHUB_WORKSPACE"
           cargo xtask guards tlc-output --model ManifestWrite --file "${{ runner.temp }}/tlc-manifest.txt"
 
   kani:
@@ -671,14 +677,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -689,6 +687,14 @@ jobs:
           fi
           if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
             echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
             exit 1
           fi
       # The marketplace action at v1.1 has a broken version check (`if [$?`).
@@ -757,14 +763,6 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
-      - name: rustc is 1.98.0
-        run: |
-          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
-          actual="$(rustc -V)"
-          if [ "$actual" != "$expected" ]; then
-            echo "rustc -V was ${actual}"
-            exit 1
-          fi
       - name: cargo and rustc are the 1.98.0 toolchain
         run: |
           cargo_bin="$(rustup which cargo)"
@@ -777,12 +775,27 @@ jobs:
             echo "rustc is ${rustc_bin}"
             exit 1
           fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
       - name: Install cargo-deny 0.20.2
         run: |
           tarball=/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+          extract=/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl
+          for p in "$tarball" "$extract"; do
+            if [ -e "$p" ] || [ -L "$p" ]; then
+              echo "$p pre-exists"
+              exit 1
+            fi
+          done
           env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/curl --fail --location --silent --show-error \
@@ -790,7 +803,7 @@ jobs:
             https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
           tarball_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum "$tarball")"
@@ -801,13 +814,13 @@ jobs:
           fi
           env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/tar -xzf "$tarball" -C /tmp
           bin_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny)"
@@ -820,7 +833,7 @@ jobs:
         run: |
           deny_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum deny.toml)"
@@ -831,7 +844,7 @@ jobs:
           fi
           lock_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum Cargo.lock)"
@@ -842,7 +855,7 @@ jobs:
           fi
           toolchain_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum rust-toolchain.toml)"
@@ -853,7 +866,7 @@ jobs:
           fi
           manifest_line="$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum \
@@ -867,7 +880,7 @@ jobs:
             xtask/Cargo.toml \
             | env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum)"
@@ -878,18 +891,22 @@ jobs:
           fi
           env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
             /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny check
       - name: reqwest outside the collector wrapper fails
         run: |
           set +e
           output=$(env -i \
             HOME=/home/runner \
-            PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
             CARGO_HOME=/home/runner/.cargo \
             RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
             /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny --manifest-path fixtures/deny/banned-reqwest/Cargo.toml --config deny.toml check bans 2>&1)
           status=$?
           set -e

