@@ -4,6 +4,9 @@
 //! names, B2 measurements, and the ratchet in `regressions/floors.toml`.
 //! The baseline commit comes from `PARANGSAE_FLOOR_BASE`. A missing file,
 //! an unreadable sha, or a direct push to main with no floors file fails.
+//! GitHub's all-zero `before` on a branch's first push is not a skip: the
+//! comparison uses `merge-base` with `origin/main`, and a missing file there
+//! still fails.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -81,6 +84,10 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
             let base = load_floors(&required_path(args, "--base")?)?;
             finish(Ok(ratchet(&current, &base)))
         }
+        "ci-gate" => {
+            let file = required_path(args, "--file")?;
+            finish(Ok(ci_gate_gaps(&read(&file)?)?))
+        }
         other => Err(format!("unknown guards command {other}")),
     }
 }
@@ -94,7 +101,116 @@ fn check_workspace(root: &Path) -> Result<(), String> {
     violations.extend(ratchet(&floors, &base));
     violations.extend(b2_violations(root, &floors)?);
     violations.extend(cucumber_count_violations(root, &floors)?);
+    violations.extend(ci_gate_gaps(&read(
+        &root.join(".github/workflows/ci.yml"),
+    )?)?);
     finish(Ok(violations))
+}
+
+fn ci_gate_gaps(text: &str) -> Result<Vec<String>, String> {
+    let jobs = ci_job_ids(text)?;
+    let needs = match gate_needs(text) {
+        Ok(needs) => needs,
+        Err(err) => return Ok(vec![err]),
+    };
+    let mut gaps = Vec::new();
+    for job in &jobs {
+        if job == "gate" {
+            continue;
+        }
+        if !needs.contains(job) {
+            gaps.push(format!("ci job {job} is missing from gate.needs"));
+        }
+    }
+    Ok(gaps)
+}
+
+fn ci_job_ids(text: &str) -> Result<BTreeSet<String>, String> {
+    let mut in_jobs = false;
+    let mut jobs = BTreeSet::new();
+    for line in text.lines() {
+        if !in_jobs {
+            if line == "jobs:" {
+                in_jobs = true;
+            }
+            continue;
+        }
+        if !line.is_empty() && !line.starts_with(' ') && !line.starts_with('#') {
+            break;
+        }
+        let Some(rest) = line.strip_prefix("  ") else {
+            continue;
+        };
+        if rest.is_empty() || rest.starts_with(' ') || rest.starts_with('#') {
+            continue;
+        }
+        let Some(id) = rest.strip_suffix(':') else {
+            continue;
+        };
+        if id.is_empty() || id.contains([' ', ':']) {
+            continue;
+        }
+        jobs.insert(id.to_owned());
+    }
+    if !in_jobs || jobs.is_empty() {
+        return Err("ci workflow has no jobs".to_owned());
+    }
+    Ok(jobs)
+}
+
+fn gate_needs(text: &str) -> Result<BTreeSet<String>, String> {
+    let lines: Vec<&str> = text.lines().collect();
+    let start = lines
+        .iter()
+        .position(|line| *line == "  gate:")
+        .ok_or_else(|| "ci.yml has no gate job".to_owned())?;
+    let mut needs_at = None;
+    for (offset, line) in lines.iter().enumerate().skip(start + 1) {
+        if line.starts_with("  ") && !line.starts_with("   ") && line.ends_with(':') {
+            break;
+        }
+        if line.trim_start().starts_with("needs:") {
+            needs_at = Some(offset);
+            break;
+        }
+    }
+    let Some(idx) = needs_at else {
+        return Err("gate job has no needs".to_owned());
+    };
+    let rest = lines[idx]
+        .trim()
+        .strip_prefix("needs:")
+        .ok_or_else(|| "gate job has no needs".to_owned())?
+        .trim();
+    if rest.is_empty() {
+        let mut names = BTreeSet::new();
+        for line in lines.iter().skip(idx + 1) {
+            let item = line.trim();
+            let Some(name) = item.strip_prefix("- ") else {
+                break;
+            };
+            let name = name.trim().trim_matches(|c| c == '"' || c == '\'');
+            if name.is_empty() {
+                return Err("gate job has no needs".to_owned());
+            }
+            names.insert(name.to_owned());
+        }
+        if names.is_empty() {
+            return Err("gate job has no needs".to_owned());
+        }
+        return Ok(names);
+    }
+    if !rest.starts_with('[') || !rest.ends_with(']') {
+        return Err("gate needs must be a list".to_owned());
+    }
+    let inner = &rest[1..rest.len() - 1];
+    let names = inner
+        .split(',')
+        .map(|item| item.trim().trim_matches(|c| c == '"' || c == '\''))
+        .filter(|item| !item.is_empty())
+        .map(str::to_owned)
+        .collect();
+    Ok(names)
 }
 
 fn finish(violations: Result<Vec<String>, String>) -> Result<(), String> {
@@ -749,14 +865,25 @@ impl Floors {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum BaselineChoice {
+    Unreadable,
+    DirectPush,
+    MergeBase,
+    Sha(String),
+}
+
 fn resolve_baseline(root: &Path) -> Result<Floors, String> {
     let on_main = env_flag("PARANGSAE_ON_MAIN");
-    let sha = match std::env::var("PARANGSAE_FLOOR_BASE") {
-        Ok(sha) => sha,
-        Err(_) if on_main => return Err("direct push has no floor baseline".to_owned()),
-        Err(_) => git(root, &["merge-base", "HEAD", "origin/main"])?,
+    let env_sha = std::env::var("PARANGSAE_FLOOR_BASE").ok();
+    let sha = match choose_baseline(env_sha.as_deref(), on_main) {
+        BaselineChoice::DirectPush => {
+            return Err("direct push has no floor baseline".to_owned());
+        }
+        BaselineChoice::Unreadable => return Err("floor baseline is unreadable".to_owned()),
+        BaselineChoice::MergeBase => git(root, &["merge-base", "HEAD", "origin/main"])?,
+        BaselineChoice::Sha(sha) => sha,
     };
-    let sha = sha.trim().to_owned();
     if baseline_sha_unreadable(&sha) {
         return Err("floor baseline is unreadable".to_owned());
     }
@@ -764,10 +891,24 @@ fn resolve_baseline(root: &Path) -> Result<Floors, String> {
     baseline_from_show(on_main, &sha, text.as_deref())
 }
 
+fn choose_baseline(env_sha: Option<&str>, on_main: bool) -> BaselineChoice {
+    match env_sha.map(str::trim) {
+        None if on_main => BaselineChoice::DirectPush,
+        None => BaselineChoice::MergeBase,
+        Some(sha) if first_push_sentinel(sha) => BaselineChoice::MergeBase,
+        Some(sha) if baseline_sha_unreadable(sha) => BaselineChoice::Unreadable,
+        Some(sha) => BaselineChoice::Sha(sha.to_owned()),
+    }
+}
+
+fn first_push_sentinel(sha: &str) -> bool {
+    sha.len() == 40 && sha.bytes().all(|byte| byte == b'0')
+}
+
 fn baseline_sha_unreadable(sha: &str) -> bool {
     sha.is_empty()
-        || sha.chars().all(|ch| ch == '0')
         || !sha.chars().all(|ch| ch.is_ascii_hexdigit())
+        || (sha.bytes().all(|byte| byte == b'0') && !first_push_sentinel(sha))
 }
 
 fn baseline_from_show(on_main: bool, sha: &str, text: Option<&str>) -> Result<Floors, String> {
@@ -1219,11 +1360,34 @@ kani.min_harnesses=1
 
     #[test]
     fn missing_or_unreadable_baseline_fails_closed() -> Result<(), String> {
-        if !baseline_sha_unreadable("0000000000000000000000000000000000000000") {
-            return Err("all-zero sha was readable".to_owned());
-        }
         if !baseline_sha_unreadable("") {
             return Err("empty sha was readable".to_owned());
+        }
+        if !baseline_sha_unreadable("not-a-sha") {
+            return Err("non-hex sha was readable".to_owned());
+        }
+        if !baseline_sha_unreadable("0000") {
+            return Err("short zero sha was readable".to_owned());
+        }
+        let zeros = "0000000000000000000000000000000000000000";
+        if choose_baseline(Some(zeros), false) != BaselineChoice::MergeBase {
+            return Err("all-zero before did not use merge-base".to_owned());
+        }
+        if choose_baseline(Some(zeros), true) != BaselineChoice::MergeBase {
+            return Err("all-zero before on main did not use merge-base".to_owned());
+        }
+        if choose_baseline(None, false) != BaselineChoice::MergeBase {
+            return Err("missing base did not use merge-base".to_owned());
+        }
+        if choose_baseline(None, true) != BaselineChoice::DirectPush {
+            return Err("direct push was not fail-closed".to_owned());
+        }
+        if choose_baseline(Some("not-a-sha"), false) != BaselineChoice::Unreadable {
+            return Err("non-hex sha was accepted".to_owned());
+        }
+        match baseline_from_show(false, "4db8a75a7bd0886f4cdeefa050a2d89e3a36118d", None) {
+            Err(err) if err.contains("baseline floors.toml is missing") => {}
+            other => return Err(format!("merge-base without floors: {other:?}")),
         }
         let sha = "a84508c798fa3e2f08f71d4be988da43ef1c5472";
         let missing = baseline_from_show(false, sha, None);
@@ -1367,6 +1531,23 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         let counts = cucumber_count_violations(&root, &floors)?;
         if !counts.is_empty() {
             return Err(counts.join("\n"));
+        }
+        let gaps = ci_gate_gaps(&read(&root.join(".github/workflows/ci.yml"))?)?;
+        if !gaps.is_empty() {
+            return Err(gaps.join("\n"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_job_omitted_from_gate_needs_fails() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let omitted = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/omitted-job.yml"))?)?;
+        if !omitted
+            .iter()
+            .any(|line| line == "ci job clippy is missing from gate.needs")
+        {
+            return Err(format!("{omitted:?}"));
         }
         Ok(())
     }

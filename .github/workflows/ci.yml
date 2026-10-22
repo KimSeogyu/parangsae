@@ -150,7 +150,9 @@ jobs:
           PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
         run: |
-          if [ -n "$PARANGSAE_FLOOR_BASE" ] && ! printf '%s' "$PARANGSAE_FLOOR_BASE" | grep -Eq '^0+$'; then
+          if printf '%s' "$PARANGSAE_FLOOR_BASE" | grep -Eq '^0{40}$'; then
+            git fetch --depth=1 origin main
+          elif [ -n "$PARANGSAE_FLOOR_BASE" ]; then
             git fetch --depth=1 origin "$PARANGSAE_FLOOR_BASE"
           fi
           cargo xtask guards
@@ -198,7 +200,7 @@ jobs:
       - name: unreadable floor baseline fails closed
         run: |
           set +e
-          output=$(PARANGSAE_FLOOR_BASE=0000000000000000000000000000000000000000 cargo xtask guards 2>&1)
+          output=$(PARANGSAE_FLOOR_BASE=not-a-sha cargo xtask guards 2>&1)
           status=$?
           set -e
           printf '%s\n' "$output"
@@ -207,6 +209,21 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'unreadable'
+      - name: all-zero before compares with merge-base and does not skip
+        run: |
+          git fetch --depth=1 origin main
+          set +e
+          output=$(PARANGSAE_FLOOR_BASE=0000000000000000000000000000000000000000 cargo xtask guards 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if printf '%s\n' "$output" | grep -q 'unreadable'; then
+            echo "all-zero before was treated as unreadable"
+            exit 1
+          fi
+          if [ "$status" -ne 0 ]; then
+            printf '%s\n' "$output" | grep -q 'baseline floors.toml is missing'
+          fi
       - name: direct push without a floors file fails closed
         run: |
           set +e
@@ -257,6 +274,18 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'NoAppendWhileGap'
+      - name: a job omitted from gate.needs fails
+        run: |
+          set +e
+          output=$(cargo xtask guards ci-gate --file fixtures/guards/ci/omitted-job.yml 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "omitted gate job was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job clippy is missing from gate.needs'
 
   tla:
     name: tla
@@ -321,7 +350,10 @@ jobs:
         run: |
           set -o pipefail
           cargo kani -p parangsae-core 2>&1 | tee "${{ runner.temp }}/kani.txt"
-          cargo xtask guards kani-output --file "${{ runner.temp }}/kani.txt"
+      - name: Check the Kani summary
+        env:
+          RUSTUP_TOOLCHAIN: 1.98.0
+        run: cargo xtask guards kani-output --file "${{ runner.temp }}/kani.txt"
       - name: removing the negative guard fails its proof
         env:
           RUSTUP_TOOLCHAIN: nightly-2026-08-21
@@ -359,3 +391,27 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'reqwest'
+
+  gate:
+    name: gate
+    needs: [fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, tla, kani, deny]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: fail unless every needed job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          needs = json.loads(os.environ["NEEDS"])
+          bad = [
+              f"{name}={info.get('result')}"
+              for name, info in sorted(needs.items())
+              if info.get("result") != "success"
+          ]
+          if not needs:
+              sys.exit("gate has no needed jobs")
+          if bad:
+              sys.exit("gate required success: " + ", ".join(bad))
+          PY
