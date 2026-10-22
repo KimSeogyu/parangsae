@@ -145,7 +145,14 @@ jobs:
             echo ".cargo/config.toml sha256 does not match"
             exit 1
           fi
-          /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
+          env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
+            /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
           tree_status=$?
           if [ "$tree_status" -ne 0 ]; then
             exit "$tree_status"
@@ -194,7 +201,14 @@ jobs:
             echo ".cargo/config.toml sha256 does not match"
             exit 1
           fi
-          /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
+          env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
+            /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files
           tree_status=$?
           if [ "$tree_status" -ne 0 ]; then
             exit "$tree_status"

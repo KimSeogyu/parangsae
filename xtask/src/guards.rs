@@ -524,7 +524,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "guard-fixtures",
         include_str!("pinned_jobs/guard-fixtures.job"),
-        "7e0c16b4320771c54eda98f4aa9d9921374d4d41593afb251684811404832791",
+        "56059a3dd6cfa4c2d4024b6c2669a32ad7c580e6bb71faae905d36a71583040a",
     ),
     (
         "tla",
@@ -539,7 +539,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "eaec4130ebf51df6027dbab593bf1eb45cd17d09ab9f5dddb3fcd015638f1282",
+        "f6e877870ac5e1f75a5ce126742bbf725c4d22fcb64093283c204c7c252e1a78",
     ),
     (
         "gate",
@@ -3039,7 +3039,70 @@ fn deny_release_pin_gaps(text: &str) -> Vec<String> {
     }
     gaps.extend(deny_path_shim_gaps(block));
     gaps.extend(deny_cargo_env_gaps(block));
+    gaps.extend(deny_toolchain_walk_gaps(block));
     gaps
+}
+
+fn deny_toolchain_walk_gaps(block: &str) -> Vec<String> {
+    const WALK: &str = "cargo xtask guards toolchain-files";
+    let total = block.matches(WALK).count();
+    if total == 0 {
+        return Vec::new();
+    }
+    let lines: Vec<&str> = block.lines().collect();
+    let mut covered = 0usize;
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        if line_after_env_i(lines[idx]).is_none() {
+            idx += 1;
+            continue;
+        }
+        let start = idx;
+        while idx + 1 < lines.len() && lines[idx].trim_end().ends_with('\\') {
+            idx += 1;
+        }
+        let command = lines[start..=idx].join("\n");
+        if command.contains(WALK) {
+            covered += 1;
+            if !pinned_walk_command(&command) {
+                return vec!["deny job toolchain walk can auto-install through rustup".to_owned()];
+            }
+        }
+        idx += 1;
+    }
+    if covered != total {
+        vec!["deny job toolchain walk can auto-install through rustup".to_owned()]
+    } else {
+        Vec::new()
+    }
+}
+
+fn pinned_walk_command(command: &str) -> bool {
+    let cargo = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo";
+    let rustc = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc";
+    let toolchain = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin";
+    let cargo_set = format!("CARGO={cargo}");
+    let rustc_set = format!("RUSTC={rustc}");
+    let tokens: Vec<&str> = command.split_whitespace().collect();
+    if !tokens.iter().any(|token| *token == cargo_set)
+        || !tokens.iter().any(|token| *token == rustc_set)
+    {
+        return false;
+    }
+    let Some(path) = tokens.iter().find_map(|token| token.strip_prefix("PATH=")) else {
+        return false;
+    };
+    if path.split(':').next() != Some(toolchain) {
+        return false;
+    }
+    let words: Vec<&str> = tokens
+        .iter()
+        .copied()
+        .filter(|token| {
+            *token != "env" && *token != "-i" && *token != "\\" && assignment_name(token).is_none()
+        })
+        .collect();
+    words.as_slice() == [cargo, "xtask", "guards", "toolchain-files"]
 }
 
 fn deny_path_shim_gaps(block: &str) -> Vec<String> {
@@ -6529,10 +6592,10 @@ jobs:
         {
             return Err("toolchain check reads RUSTUP_HOME or CARGO_HOME".to_owned());
         }
-        if deny.matches(&format!("CARGO={cargo_bin}")).count() != 2
-            || deny.matches(&format!("RUSTC={rustc_bin}")).count() != 2
+        if deny.matches(&format!("CARGO={cargo_bin}")).count() != 4
+            || deny.matches(&format!("RUSTC={rustc_bin}")).count() != 4
         {
-            return Err("cargo-deny lines do not set absolute CARGO and RUSTC".to_owned());
+            return Err("deny execs do not set absolute CARGO and RUSTC".to_owned());
         }
         if deny.contains("cargo install") || deny.contains("cargo deny") {
             return Err("deny job still invokes cargo install or cargo deny".to_owned());
@@ -7082,6 +7145,22 @@ jobs:
     }
 
     #[test]
+    fn toolchain_walk_outside_env_i_can_auto_install() -> Result<(), String> {
+        let bare = "          /home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo xtask guards toolchain-files\n";
+        expect_gaps(
+            "bare walk",
+            deny_toolchain_walk_gaps(bare),
+            &["deny job toolchain walk can auto-install through rustup"],
+        )?;
+        let root = crate::workspace_root()?;
+        let missing = read(&root.join("fixtures/guards/ci/deny-no-tree-walk.yml"))?;
+        expect_gaps("absent walk", deny_toolchain_walk_gaps(&missing), &[])?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        expect_gaps("live walk", deny_toolchain_walk_gaps(&ci), &[])?;
+        Ok(())
+    }
+
+    #[test]
     fn swapped_deny_binary_fails_the_recheck() -> Result<(), String> {
         let dir = TempGit::new("deny-bin")?;
         let tarball = cached_deny_tarball()?;
@@ -7249,6 +7328,32 @@ jobs:
         Ok(())
     }
 
+    fn job_key_findings(name: &str, text: &str) -> Vec<String> {
+        let mut gaps = strict_yaml_gaps(name, text);
+        match ci_job_ids(text) {
+            Ok(ids) => {
+                for id in ids {
+                    gaps.push(format!("{name} job {id}"));
+                }
+            }
+            Err(err) => gaps.push(format!("{name} {err}")),
+        }
+        if let Some(fmt) = job_block(text, "fmt") {
+            if fmt.contains("echo clippy-job") || fmt.contains("\n  clippy:\n") {
+                gaps.push(format!("{name} job fmt includes clippy"));
+            } else if fmt.contains("echo still-fmt") {
+                gaps.push(format!("{name} job fmt keeps echo still-fmt"));
+            }
+            if job_steps(fmt)
+                .iter()
+                .any(|step| step.contains("\n  clippy:\n"))
+            {
+                gaps.push(format!("{name} step includes clippy"));
+            }
+        }
+        gaps
+    }
+
     #[test]
     fn job_block_fixtures_are_not_jobs() -> Result<(), String> {
         let root = crate::workspace_root()?;
@@ -7260,32 +7365,38 @@ jobs:
         if job_block(&header, "push").is_some() {
             return Err("header id push was extracted as a job".to_owned());
         }
-        for (path, content) in [
-            ("fixtures/guards/ci/job-id-run-block.yml", "echo kept"),
-            ("fixtures/guards/ci/job-id-empty-block.yml", ""),
-            (
-                "fixtures/guards/ci/job-id-block-boundary.yml",
-                "echo still-fmt",
-            ),
-        ] {
-            let text = read(&root.join(path))?;
-            assert_yaml_parses(path, &text)?;
-            let clippy = job_block(&text, "clippy").ok_or_else(|| format!("{path} hid clippy"))?;
-            if !clippy.contains("echo clippy-job") {
-                return Err(format!("{path} clippy job:\n{clippy}"));
-            }
-            let fmt = job_block(&text, "fmt").ok_or_else(|| format!("{path} has no fmt job"))?;
-            if fmt.contains("echo clippy-job") || fmt.contains("\n  clippy:\n") {
-                return Err(format!("{path} fmt job swallowed clippy:\n{fmt}"));
-            }
-            if !content.is_empty() && !fmt.contains(content) {
-                return Err(format!("{path} fmt job dropped {content}:\n{fmt}"));
-            }
-            let steps = job_steps(fmt);
-            if steps.iter().any(|step| step.contains("\n  clippy:\n")) {
-                return Err(format!("{path} run step swallowed clippy"));
-            }
-        }
+        let run_block = read(&root.join("fixtures/guards/ci/job-id-run-block.yml"))?;
+        assert_yaml_parses("fixtures/guards/ci/job-id-run-block.yml", &run_block)?;
+        expect_gaps(
+            "run block",
+            job_key_findings("job-id-run-block.yml", &run_block),
+            &[
+                "job-id-run-block.yml uses an indented block scalar",
+                "job-id-run-block.yml job clippy",
+                "job-id-run-block.yml job fmt",
+            ],
+        )?;
+        let empty = read(&root.join("fixtures/guards/ci/job-id-empty-block.yml"))?;
+        assert_yaml_parses("fixtures/guards/ci/job-id-empty-block.yml", &empty)?;
+        expect_gaps(
+            "empty block",
+            job_key_findings("job-id-empty-block.yml", &empty),
+            &[
+                "job-id-empty-block.yml job clippy",
+                "job-id-empty-block.yml job fmt",
+            ],
+        )?;
+        let boundary = read(&root.join("fixtures/guards/ci/job-id-block-boundary.yml"))?;
+        assert_yaml_parses("fixtures/guards/ci/job-id-block-boundary.yml", &boundary)?;
+        expect_gaps(
+            "block boundary",
+            job_key_findings("job-id-block-boundary.yml", &boundary),
+            &[
+                "job-id-block-boundary.yml job clippy",
+                "job-id-block-boundary.yml job fmt",
+                "job-id-block-boundary.yml job fmt keeps echo still-fmt",
+            ],
+        )?;
         for indicator in ["|2-", "|-2"] {
             let text = format!(
                 "\
@@ -8438,6 +8549,78 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             ],
         )?;
         Ok(())
+    }
+
+    fn clean_byte_check(text: &str) -> Result<String, String> {
+        let marker = "          case \"$clean\" in\n";
+        let start = text
+            .find(marker)
+            .ok_or("clean byte check is not a case on $clean")?;
+        let rest = &text[start..];
+        let end = rest
+            .find("          esac\n")
+            .ok_or("clean byte check has no esac")?;
+        Ok(rest[..end + "          esac\n".len()].to_owned())
+    }
+
+    #[test]
+    fn clean_byte_check_matches_a_large_output() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        let check = clean_byte_check(&ci)?;
+        if check.contains("<<<") || check.contains("grep") {
+            return Err(format!("clean byte check is not a pipe-free case: {check}"));
+        }
+        let dir = TempGit::new("large-clean")?;
+        let mut matched = b"ci job fmt bytes do not match\n".to_vec();
+        matched.extend(std::iter::repeat_n(b'x', 200_000));
+        if matched.len() < 200_000 {
+            return Err(format!("large output is {} bytes", matched.len()));
+        }
+        let matched_path = dir.path.join("matched.txt");
+        std::fs::write(&matched_path, &matched).map_err(|err| format!("write matched: {err}"))?;
+        let quoted = shell_quote(&matched_path)?;
+        let hit = format!("set -o pipefail\nclean=$(cat {quoted})\n{check}echo reached-end\n");
+        let (code, output) = run_shell(&hit)?;
+        if code == 0
+            || !output.contains("unmutated copy reported a byte mismatch")
+            || output.contains("reached-end")
+        {
+            return Err(format!("large match was missed: code {code}: {output}"));
+        }
+        let pipe = format!(
+            "set -o pipefail\nclean=$(cat {quoted})\nif printf '%s\\n' \"$clean\" | grep -q 'ci job fmt bytes do not match'; then echo pipe-hit; else echo pipe-miss; fi\n"
+        );
+        let (pipe_code, pipe_output) = run_shell(&pipe)?;
+        if pipe_code != 0 || !pipe_output.contains("pipe-miss") || pipe_output.contains("pipe-hit")
+        {
+            return Err(format!(
+                "200 KB pipe no longer misses, so this positive would not catch the bug: code {pipe_code}: {pipe_output}"
+            ));
+        }
+        let absent_path = dir.path.join("absent.txt");
+        std::fs::write(&absent_path, vec![b'x'; 200_000])
+            .map_err(|err| format!("write absent: {err}"))?;
+        let absent = shell_quote(&absent_path)?;
+        let miss = format!("set -o pipefail\nclean=$(cat {absent})\n{check}echo reached-end\n");
+        let (miss_code, miss_output) = run_shell(&miss)?;
+        if miss_code != 0
+            || miss_output.contains("unmutated copy reported a byte mismatch")
+            || !miss_output.contains("reached-end")
+        {
+            return Err(format!(
+                "absent large output was treated as a match: code {miss_code}: {miss_output}"
+            ));
+        }
+        Ok(())
+    }
+
+    fn shell_quote(path: &Path) -> Result<String, String> {
+        let text = path.to_str().ok_or("path is not utf-8")?;
+        if text.contains('\'') {
+            return Err("path contains a single quote".to_owned());
+        }
+        Ok(format!("'{text}'"))
     }
 
     #[test]
