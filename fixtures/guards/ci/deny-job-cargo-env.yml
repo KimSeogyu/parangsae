@@ -149,6 +149,10 @@ jobs:
             echo ".cargo/config.toml sha256 does not match"
             exit 1
           fi
+          if [ -e .cargo/config ] || [ -L .cargo/config ]; then
+            echo ".cargo/config must be absent"
+            exit 1
+          fi
           bin_line="$(env -i \
             HOME=/home/runner \
             PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
@@ -180,6 +184,10 @@ jobs:
           config_got="${config_line%% *}"
           if [ "$config_got" != "783fdc447abb5b8f8b5652157aa9ede64da640813fa89679c29c5251c8e0cbe6" ]; then
             echo ".cargo/config.toml sha256 does not match"
+            exit 1
+          fi
+          if [ -e .cargo/config ] || [ -L .cargo/config ]; then
+            echo ".cargo/config must be absent"
             exit 1
           fi
           bin_line="$(env -i \

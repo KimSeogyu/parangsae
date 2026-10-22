@@ -1,0 +1,11 @@
+name: ci
+on:
+  push:
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: direct push without a floors file fails closed
+        run: |
+          output=$(cargo test -p xtask --lib missing_or_unreadable_baseline_fails_closed -- --exact)
+          printf '%s\n' "$output" | grep -q 'test result: ok. 0 passed'

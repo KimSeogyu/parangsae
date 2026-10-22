@@ -1,0 +1,18 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: compile
+        run: |
+          CARGO=/tmp/fake cargo test
+          export RUSTC=/tmp/rustc
+          RUSTFLAGS=-Awarnings cargo test
+  note:
+    runs-on: ubuntu-latest
+    steps:
+      - run: CARGO=/tmp/fake echo kept
