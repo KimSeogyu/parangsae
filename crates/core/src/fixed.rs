@@ -52,6 +52,42 @@ impl Notional {
     }
 }
 
+/// Signed scale-`10^8` value. Premium ratios, funding rates, and book
+/// percentages are not prices: [`Price`] rejects negatives, and these do not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Ratio(i64);
+
+impl Ratio {
+    pub const fn from_ticks(ticks: i64) -> Self {
+        Self(ticks)
+    }
+
+    pub const fn ticks(self) -> i64 {
+        self.0
+    }
+}
+
+/// Non-negative scale-`10^8` amount the exchange stated.
+///
+/// Quote volume, open-interest value, and book notional are not the product
+/// [`notional`] computes, and they are not base-asset quantities.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Amount(i64);
+
+impl Amount {
+    pub fn from_ticks(ticks: i64) -> Result<Self, FixedError> {
+        if ticks < 0 {
+            Err(FixedError::Negative)
+        } else {
+            Ok(Self(ticks))
+        }
+    }
+
+    pub const fn ticks(self) -> i64 {
+        self.0
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FixedError {
     Negative,
@@ -161,5 +197,7 @@ mod tests {
     fn negative_ticks_are_rejected() {
         assert_eq!(Price::from_ticks(-1), Err(FixedError::Negative));
         assert_eq!(Qty::from_ticks(-1), Err(FixedError::Negative));
+        assert_eq!(Amount::from_ticks(-1), Err(FixedError::Negative));
+        assert_eq!(Ratio::from_ticks(-42_342).ticks(), -42_342);
     }
 }

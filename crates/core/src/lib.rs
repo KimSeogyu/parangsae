@@ -13,7 +13,7 @@ pub mod time;
 pub mod timestamps;
 
 pub use causal::{Causal, DecisionTime, Observation};
-pub use fixed::{notional, FixedError, Notional, Price, Qty, SCALE};
+pub use fixed::{notional, Amount, FixedError, Notional, Price, Qty, Ratio, SCALE};
 pub use symbol::{Symbol, SymbolError};
 pub use time::{
     expected_close, require_declared_unit, require_regular_grid, validate_close_time, Interval,

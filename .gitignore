@@ -23,3 +23,6 @@ debug/
 # TLC state directory if a local run forgets -metadir
 specs/tla/states/
 specs/tla/tla2tools.jar
+
+# Vision backfill output. The collector default is ./data.
+/data/

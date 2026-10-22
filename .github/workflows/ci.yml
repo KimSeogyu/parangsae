@@ -54,6 +54,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: kline integrity features
         run: cargo test -p parangsae-core --test kline_integrity
+      - name: vision integrity features
+        run: cargo test -p parangsae-collector --test vision_integrity
 
   tla:
     name: tla
@@ -80,6 +82,14 @@ jobs:
             -metadir "${{ runner.temp }}/tlc-ingest" \
             -config IngestSegment.cfg \
             IngestSegment.tla
+      - name: Model-check ManifestWrite
+        working-directory: specs/tla
+        run: |
+          java -XX:+UseParallelGC -Xmx512m -cp tla2tools.jar tlc2.TLC \
+            -workers 1 \
+            -metadir "${{ runner.temp }}/tlc-manifest" \
+            -config ManifestWrite.cfg \
+            ManifestWrite.tla
 
   kani:
     name: kani

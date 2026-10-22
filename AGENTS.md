@@ -56,6 +56,7 @@ There is no readiness verdict. Research code does not read live fills, balances,
 | Fixed-point, no silent wrap | `notional` returns `Overflow`; release overflow checks; Kani `widening_mul_fits_in_i128`, `notional_matches_below_one_million`, `notional_overflow_does_not_wrap`; `.cursor/rules/rust-types.mdc` |
 | Kline grid and declared unit | `specs/features/kline_integrity.feature`, cucumber-rs |
 | Gap rejects rows until resync; duplicate id is a no-op | `specs/tla/IngestSegment.tla`, TLC, one worker |
+| Vision fact write keeps the stored payload | `specs/tla/ManifestWrite.tla`, TLC, one worker; `merge_fact` |
 | Format and lints | `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` |
 
 ## Checks

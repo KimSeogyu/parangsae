@@ -1,0 +1,27 @@
+name: vision-smoke
+
+# Optional. Not part of the required push checks. Downloads one public Vision day.
+on:
+  workflow_dispatch:
+    inputs:
+      day:
+        description: UTC day (YYYY-MM-DD)
+        default: "2026-09-01"
+        required: true
+
+jobs:
+  smoke:
+    name: one UM kline day
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: download and ingest one day
+        run: >
+          cargo run -p parangsae-collector --release --
+          vision
+          --dataset um-kline
+          --from ${{ inputs.day }}
+          --to ${{ inputs.day }}
+          --data-dir /tmp/vision-smoke

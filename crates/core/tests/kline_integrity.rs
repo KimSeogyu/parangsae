@@ -124,6 +124,7 @@ fn span_rejects(world: &mut KlineWorld) {
 
 #[tokio::main]
 async fn main() {
-    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs/features");
+    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../specs/features/kline_integrity.feature");
     KlineWorld::cucumber().run_and_exit(features).await;
 }

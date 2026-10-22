@@ -33,6 +33,11 @@ Feature: Kline time integrity
     And closing at 1609459260000000 microseconds
     Then the span does not match the interval
 
+  Scenario: a spot close one microsecond before the next open is not the millisecond rule
+    Given a 1m span opening at 1735689600000000 microseconds
+    And closing at 1735689659999999 microseconds
+    Then the span does not match the interval
+
   Scenario: a continuous one-minute grid is accepted
     Given 1m open times in microseconds
       | open_us          |
