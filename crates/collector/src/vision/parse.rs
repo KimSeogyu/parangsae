@@ -14,7 +14,7 @@ use super::{
 };
 use crate::civil::parse_utc_datetime;
 use crate::normalize::{SourceClock, FUNDING_CLOCK};
-use crate::scale::parse_ticks;
+use crate::scale::{parse_ticks, parse_ticks_exact, TICK_PLACES};
 use crate::Error;
 
 const KLINE_HEADER: &str =
@@ -198,7 +198,7 @@ pub fn parse_funding(
                 format!("line {line_no} funding_interval_hours is {interval_hours}, declared 8"),
             ));
         }
-        let rate = Ratio::from_ticks(parse_ticks(fields[2])?);
+        let rate = Ratio::from_ticks(parse_ticks_exact(fields[2], TICK_PLACES)?);
         let funding_time = snap_funding_time(raw_calc).map_err(|err| {
             Error::check(
                 "funding_snap",
@@ -276,8 +276,11 @@ pub fn parse_metrics(
         rows.push(MetricsFact {
             symbol: symbol.clone(),
             create_time,
-            sum_open_interest: Qty::from_ticks(parse_ticks(fields[2])?)?,
-            sum_open_interest_value: Amount::from_ticks(parse_ticks(fields[3])?)?,
+            sum_open_interest: Qty::from_ticks(parse_ticks_exact(fields[2], TICK_PLACES)?)?,
+            sum_open_interest_value: Amount::from_ticks(parse_ticks_exact(
+                fields[3],
+                TICK_PLACES,
+            )?)?,
             count_toptrader_long_short_ratio: Ratio::from_ticks(parse_ticks(fields[4])?),
             sum_toptrader_long_short_ratio: Ratio::from_ticks(parse_ticks(fields[5])?),
             count_long_short_ratio: Ratio::from_ticks(parse_ticks(fields[6])?),
@@ -502,6 +505,60 @@ mod tests {
             prop_assert_eq!(parsed.rows[0].volume.ticks(), volume);
             prop_assert_eq!(parsed.rows[0].open_time.micros(), open_ms * 1_000);
             prop_assert_eq!(parsed.rows[0].close_time.micros(), close_ms * 1_000);
+        }
+    }
+
+    #[test]
+    fn kline_scientific_notation_stays_rejected() -> Result<(), Error> {
+        let csv = "1577836800000,1e-3,1,1,1,0,1577836859999,0,0,0,0,0\n";
+        let err = parse_klines(
+            csv,
+            &symbol(),
+            UM_KLINE_CLOCK,
+            TickDomain::Price,
+            received(),
+        )
+        .err()
+        .ok_or_else(|| Error::Usage("kline exponent was accepted".into()))?;
+        match err {
+            Error::Scale(crate::error::ScaleError::Charset) => Ok(()),
+            other => Err(other),
+        }
+    }
+
+    #[test]
+    fn metrics_open_interest_exact_exponent_is_zero() -> Result<(), Error> {
+        let parsed = parse_metrics(
+            &fixture("metrics_open_interest_exponent.csv"),
+            &symbol(),
+            received(),
+        )?;
+        let row = parsed
+            .rows
+            .first()
+            .ok_or_else(|| Error::Usage("metrics fixture has no row".into()))?;
+        if row.sum_open_interest.ticks() != 0 || row.sum_open_interest_value.ticks() != 0 {
+            return Err(Error::check(
+                "scale",
+                format!(
+                    "open interest ticks {} value {}",
+                    row.sum_open_interest.ticks(),
+                    row.sum_open_interest_value.ticks()
+                ),
+            ));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn metrics_ratio_exponent_stays_on_the_plain_parser() -> Result<(), Error> {
+        let csv = "create_time,symbol,sum_open_interest,sum_open_interest_value,count_toptrader_long_short_ratio,sum_toptrader_long_short_ratio,count_long_short_ratio,sum_taker_long_short_vol_ratio\n2020-09-01 00:00:00,BTCUSDT,1,1,0E-8,1,1,1\n";
+        let err = parse_metrics(csv, &symbol(), received())
+            .err()
+            .ok_or_else(|| Error::Usage("metrics ratio exponent was accepted".into()))?;
+        match err {
+            Error::Scale(crate::error::ScaleError::Charset) => Ok(()),
+            other => Err(other),
         }
     }
 }

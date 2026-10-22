@@ -84,6 +84,16 @@ Feature: Vision archive integrity
     When the September 2026 funding slots are checked
     Then a funding gap covers 1788220800000000 plus 8 hours
 
+  Scenario: January 2020 funding rates in scientific notation are exact ticks and the month has no gap
+    Given the funding fixture "BTCUSDT-fundingRate-2020-01.csv"
+    Then the funding row at calc_time 1577836800000 has -35 rate ticks
+    And the funding row at calc_time 1577865600000 has -1 rate ticks
+    And the funding row at calc_time 1577894400000 has -10 rate ticks
+    And the funding row at calc_time 1577923200000 has 6 rate ticks
+    And the funding row at calc_time 1577952000000 has 0 rate ticks
+    And the funding row at calc_time 1578124800000 has 84 rate ticks
+    And January 2020 has no funding_slot gap
+
   Scenario: metrics are ordered by create_time and the publication lag is unverified
     Given the metrics fixture "metrics_2026-10-20_unsorted.csv"
     When the metrics rows are ordered

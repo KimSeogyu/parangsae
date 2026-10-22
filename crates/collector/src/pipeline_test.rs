@@ -268,6 +268,86 @@ fn a_bad_checksum_stores_nothing() {
         .contains("checksum"));
 }
 
+#[test]
+fn january_2020_funding_exponent_month_is_accepted() -> Result<(), Box<dyn std::error::Error>> {
+    let csv = std::fs::read_to_string(format!(
+        "{}/../../fixtures/vision/BTCUSDT-fundingRate-2020-01.csv",
+        env!("CARGO_MANIFEST_DIR")
+    ))?;
+    let from = CivilDay::new(2020, 1, 1).expect("2020-01-01");
+    let to = CivilDay::new(2020, 1, 31).expect("2020-01-31");
+    let dir = tempfile::tempdir()?;
+    let request = RunRequest {
+        datasets: vec![VisionDataset::FundingRate],
+        symbol: symbol(),
+        range: DayRange::new(from, to)?,
+        data_dir: dir.path().to_path_buf(),
+        jobs: 2,
+        min_interval: Duration::from_millis(0),
+        fetched_at: at(10),
+    };
+    let summary = run::run_vision(&request, &MapBlob::new(funding_january_map(&csv)?))?
+        .into_iter()
+        .next()
+        .ok_or_else(|| -> Box<dyn std::error::Error> { "missing funding summary".into() })?
+        .1;
+    assert_eq!(summary.faults, 0, "{summary}");
+    assert_eq!(summary.conflicts, 0, "{summary}");
+    assert_eq!(summary.gaps, 0, "{summary}");
+    assert!(summary.ok(), "{summary}");
+    assert_eq!(summary.rows_inserted, 93, "{summary}");
+
+    let mut stored = Vec::new();
+    let mut day = from;
+    for _ in 0..31 {
+        stored.extend(store::load_funding(
+            dir.path(),
+            VisionDataset::FundingRate.as_str(),
+            "BTCUSDT",
+            day,
+        )?);
+        day = day.next();
+    }
+    assert_eq!(stored.len(), 93);
+    let rate_at = |calc_ms: i64| -> Option<i64> {
+        let calc_us = calc_ms.checked_mul(1_000).expect("calc_time fits");
+        stored
+            .iter()
+            .find(|row| row.raw_calc_time.micros() == calc_us)
+            .map(|row| row.rate.ticks())
+    };
+    assert_eq!(rate_at(1_577_836_800_000), Some(-35));
+    assert_eq!(rate_at(1_577_865_600_000), Some(-1));
+    assert_eq!(rate_at(1_577_894_400_000), Some(-10));
+    assert_eq!(rate_at(1_577_923_200_000), Some(6));
+    assert_eq!(rate_at(1_577_952_000_000), Some(0));
+    assert_eq!(rate_at(1_578_124_800_000), Some(84));
+    Ok(())
+}
+
+fn funding_january_map(csv: &str) -> Result<HashMap<String, Vec<u8>>, Error> {
+    let zip_name = "BTCUSDT-fundingRate-2020-01.zip";
+    let zip_bytes = zip_csv("BTCUSDT-fundingRate-2020-01.csv", csv);
+    let checksum = checksum_bytes(zip_name, &zip_bytes);
+    let prefix = "data/futures/um/monthly/fundingRate/BTCUSDT/";
+    let key = format!("{prefix}{zip_name}");
+    let checksum_key = format!("{key}.CHECKSUM");
+    let mut map = HashMap::new();
+    for (_, listed) in VisionDataset::FundingRate.prefixes("BTCUSDT") {
+        map.insert(list_url(&listed, "")?, empty_list());
+    }
+    map.insert(
+        list_url(prefix, "")?,
+        listing(&[
+            (&key, zip_bytes.len() as u64),
+            (&checksum_key, checksum.len() as u64),
+        ]),
+    );
+    map.insert(download_url(&key), zip_bytes);
+    map.insert(download_url(&checksum_key), checksum);
+    Ok(map)
+}
+
 fn sample_bar(minute: i64, price: i64, received: i64) -> crate::vision::KlineFact {
     let open = 1_788_220_800_000_000 + minute * 60_000_000;
     let close = open + 59_999_000;

@@ -1,0 +1,2 @@
+create_time,symbol,sum_open_interest,sum_open_interest_value,count_toptrader_long_short_ratio,sum_toptrader_long_short_ratio,count_long_short_ratio,sum_taker_long_short_vol_ratio
+2020-09-01 00:00:00,BTCUSDT,0E-8,0E-16,1.00000000,1.00000000,1.00000000,1.00000000
