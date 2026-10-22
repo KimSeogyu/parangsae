@@ -123,7 +123,79 @@ struct Target {
 pub fn workspace(root: &Path) -> Result<Vec<String>, String> {
     let meta = load_metadata(root)?;
     let policy = load_policy(&root.join("policy/deps.toml"))?;
-    Ok(check(&meta, &policy))
+    let mut violations = check(&meta, &policy);
+    let members: BTreeSet<&str> = meta.workspace_members.iter().map(String::as_str).collect();
+    let names = member_names(&meta, &members);
+    violations.extend(test_support_in_non_test_builds(
+        &root.join("Cargo.toml"),
+        &names,
+    )?);
+    Ok(violations)
+}
+
+/// Workspace `cargo metadata` and `cargo tree --workspace` unify dev-dependency
+/// features into every member. A non-test build is that package's own tree
+/// with dev edges removed (`-e no-dev,features --target all`).
+fn test_support_in_non_test_builds(
+    manifest: &Path,
+    packages: &BTreeSet<&str>,
+) -> Result<Vec<String>, String> {
+    let mut violations = Vec::new();
+    for name in packages {
+        let tree = cargo_tree(manifest, name, "no-dev,features")?;
+        if enables_test_support(&tree) {
+            violations.push(format!("{name} non-test build enables test-support"));
+        }
+    }
+    Ok(violations)
+}
+
+fn cargo_tree(manifest: &Path, package: &str, edges: &str) -> Result<String, String> {
+    let output = Command::new("cargo")
+        .args([
+            "tree",
+            "--offline",
+            "--locked",
+            "--color",
+            "never",
+            "--manifest-path",
+        ])
+        .arg(manifest)
+        .args([
+            "-p", package, "-e", edges, "--target", "all", "--prefix", "none", "-f", "{p}|{f}",
+        ])
+        .output()
+        .map_err(|err| format!("cargo tree: {err}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "cargo tree -p {package} -e {edges} failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    let text =
+        String::from_utf8(output.stdout).map_err(|err| format!("cargo tree utf-8: {err}"))?;
+    if !text.lines().any(|line| line.contains('|')) {
+        return Err(format!("cargo tree -p {package} reported no feature rows"));
+    }
+    Ok(text)
+}
+
+fn enables_test_support(tree: &str) -> bool {
+    tree.lines().any(|line| {
+        let Some((pkg, feats)) = line.split_once('|') else {
+            return false;
+        };
+        feature_edge(pkg, "test-support") || feats.split(',').any(|feat| feat == "test-support")
+    })
+}
+
+fn feature_edge(pkg: &str, name: &str) -> bool {
+    let marker = format!(" feature \"{name}\"");
+    let Some(at) = pkg.find(&marker) else {
+        return false;
+    };
+    let after = &pkg[at + marker.len()..];
+    after.is_empty() || after.starts_with(" (")
 }
 
 fn load_policy(path: &Path) -> Result<Policy, String> {
@@ -616,6 +688,167 @@ mod tests {
             "{violations:?}"
         );
         Ok(())
+    }
+
+    #[test]
+    fn a_normal_dependency_enabling_test_support_fails() -> Result<(), String> {
+        let manifest = fixture_manifest("test-support-normal")?;
+        let names = package_names(&manifest)?;
+        let view: BTreeSet<&str> = names.iter().map(String::as_str).collect();
+        let violations = test_support_in_non_test_builds(&manifest, &view)?;
+        if violations.iter().any(|item| {
+            item.contains("parangsae-signals")
+                && item.contains("non-test build enables test-support")
+        }) {
+            Ok(())
+        } else {
+            Err(format!("{violations:?}"))
+        }
+    }
+
+    #[test]
+    fn a_dev_only_test_support_edge_stays_off_for_non_test_builds() -> Result<(), String> {
+        let manifest = fixture_manifest("test-support-dev")?;
+        let names = package_names(&manifest)?;
+        let view: BTreeSet<&str> = names.iter().map(String::as_str).collect();
+        let violations = test_support_in_non_test_builds(&manifest, &view)?;
+        if !violations.is_empty() {
+            return Err(violations.join("\n"));
+        }
+        let unified = resolved_feature_names(&manifest, "parangsae-core")?;
+        if !unified.contains("test-support") {
+            return Err(
+                "dev fixture did not enable test-support in the workspace resolve".to_owned(),
+            );
+        }
+        let dev_tree = cargo_tree(&manifest, "parangsae-signals", "features")?;
+        if enables_test_support(&dev_tree) {
+            Ok(())
+        } else {
+            Err("dev-including tree did not show test-support".to_owned())
+        }
+    }
+
+    #[test]
+    fn a_longer_feature_name_is_not_test_support() {
+        let tree = "\
+parangsae-core v0.0.0|test-support-extra
+parangsae-core feature \"test-support-extra\"|
+";
+        assert!(!enables_test_support(tree));
+        assert!(enables_test_support(
+            "parangsae-core v0.0.0|default,test-support\n"
+        ));
+        assert!(enables_test_support(
+            "parangsae-core feature \"test-support\"|\n"
+        ));
+    }
+
+    fn fixture_manifest(name: &str) -> Result<PathBuf, String> {
+        Ok(crate::workspace_root()?
+            .join("fixtures/depgraph")
+            .join(name)
+            .join("Cargo.toml"))
+    }
+
+    fn package_names(manifest: &Path) -> Result<BTreeSet<String>, String> {
+        let output = Command::new("cargo")
+            .args([
+                "metadata",
+                "--no-deps",
+                "--offline",
+                "--locked",
+                "--format-version",
+                "1",
+                "--manifest-path",
+            ])
+            .arg(manifest)
+            .output()
+            .map_err(|err| format!("cargo metadata: {err}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "cargo metadata failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        let meta: serde_json::Value = serde_json::from_slice(&output.stdout)
+            .map_err(|err| format!("metadata json: {err}"))?;
+        let members: BTreeSet<&str> = meta
+            .get("workspace_members")
+            .and_then(|members| members.as_array())
+            .ok_or("metadata has no workspace_members")?
+            .iter()
+            .filter_map(|id| id.as_str())
+            .collect();
+        let packages = meta
+            .get("packages")
+            .and_then(|packages| packages.as_array())
+            .ok_or("metadata has no packages")?;
+        let mut names = BTreeSet::new();
+        for pkg in packages {
+            let id = pkg.get("id").and_then(|id| id.as_str()).unwrap_or("");
+            if !members.contains(id) {
+                continue;
+            }
+            let Some(name) = pkg.get("name").and_then(|name| name.as_str()) else {
+                continue;
+            };
+            names.insert(name.to_owned());
+        }
+        if names.is_empty() {
+            return Err("metadata listed no workspace packages".to_owned());
+        }
+        Ok(names)
+    }
+
+    fn resolved_feature_names(manifest: &Path, package: &str) -> Result<BTreeSet<String>, String> {
+        let output = Command::new("cargo")
+            .args([
+                "metadata",
+                "--offline",
+                "--locked",
+                "--format-version",
+                "1",
+                "--manifest-path",
+            ])
+            .arg(manifest)
+            .output()
+            .map_err(|err| format!("cargo metadata: {err}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "cargo metadata failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ));
+        }
+        let meta: serde_json::Value = serde_json::from_slice(&output.stdout)
+            .map_err(|err| format!("metadata json: {err}"))?;
+        let id = meta
+            .get("packages")
+            .and_then(|packages| packages.as_array())
+            .and_then(|packages| {
+                packages.iter().find_map(|pkg| {
+                    (pkg.get("name").and_then(|name| name.as_str()) == Some(package))
+                        .then(|| pkg.get("id").and_then(|id| id.as_str()).map(str::to_owned))
+                        .flatten()
+                })
+            })
+            .ok_or_else(|| format!("metadata has no package {package}"))?;
+        let features = meta
+            .get("resolve")
+            .and_then(|resolve| resolve.get("nodes"))
+            .and_then(|nodes| nodes.as_array())
+            .and_then(|nodes| {
+                nodes
+                    .iter()
+                    .find(|node| node.get("id").and_then(|id| id.as_str()) == Some(id.as_str()))
+            })
+            .and_then(|node| node.get("features"))
+            .and_then(|features| features.as_array())
+            .ok_or_else(|| format!("resolve has no features for {package}"))?;
+        Ok(features
+            .iter()
+            .filter_map(|feature| feature.as_str().map(str::to_owned))
+            .collect())
     }
 
     #[test]
