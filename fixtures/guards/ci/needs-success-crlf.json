@@ -1,0 +1,12 @@
+{
+  "clippy": { "result": "success", "outputs": {} },
+  "cucumber": { "result": "success", "outputs": {} },
+  "deny": { "result": "success", "outputs": {} },
+  "depgraph": { "result": "success", "outputs": {} },
+  "fmt": { "result": "success", "outputs": {} },
+  "guards": { "result": "success", "outputs": {} },
+  "kani": { "result": "success", "outputs": {} },
+  "lint-fixture": { "result": "success", "outputs": {} },
+  "test": { "result": "success", "outputs": {} },
+  "tla": { "result": "success", "outputs": {} }
+}

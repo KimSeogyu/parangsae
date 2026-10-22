@@ -149,7 +149,24 @@ jobs:
         env:
           PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
-        run: cargo xtask guards
+        run: |
+          set +e
+          output=$(cargo xtask guards 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          zeros=0000000000000000000000000000000000000000
+          if [ "$PARANGSAE_FLOOR_BASE" = "$zeros" ]; then
+            if printf '%s\n' "$output" | grep -q 'unreadable'; then
+              echo "all-zero before was treated as unreadable"
+              exit 1
+            fi
+            if [ "$status" -ne 0 ]; then
+              printf '%s\n' "$output" | grep -q 'baseline floors.toml is missing'
+            fi
+          elif [ "$status" -ne 0 ]; then
+            exit "$status"
+          fi
       - name: unowned feature fails
         run: |
           set +e
@@ -339,6 +356,26 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'needs-success.json sha256 does not match'
+      - name: bom or crlf gate fixture fails the sha256 pin
+        run: |
+          set +e
+          bom=$(cargo xtask guards gate-fixture --name fixtures/guards/ci/needs-success.json --file fixtures/guards/ci/needs-success-bom.json 2>&1)
+          bom_status=$?
+          crlf=$(cargo xtask guards gate-fixture --name fixtures/guards/ci/needs-success.json --file fixtures/guards/ci/needs-success-crlf.json 2>&1)
+          crlf_status=$?
+          set -e
+          printf '%s\n' "$bom"
+          printf '%s\n' "$crlf"
+          if [ "$bom_status" -eq 0 ]; then
+            echo "bom gate fixture was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$bom" | grep -q 'needs-success.json sha256 does not match'
+          if [ "$crlf_status" -eq 0 ]; then
+            echo "crlf gate fixture was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$crlf" | grep -q 'needs-success.json sha256 does not match'
       - name: gate continue-on-error fails
         run: |
           set +e
