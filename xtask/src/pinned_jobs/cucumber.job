@@ -16,14 +16,14 @@
         run: |
           cargo_bin="$(rustup which cargo)"
           rustc_bin="$(rustup which rustc)"
-          case "$cargo_bin" in
-            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/cargo) ;;
-            *) echo "cargo is ${cargo_bin}"; exit 1 ;;
-          esac
-          case "$rustc_bin" in
-            "$RUSTUP_HOME"/toolchains/1.98.0-*/bin/rustc) ;;
-            *) echo "rustc is ${rustc_bin}"; exit 1 ;;
-          esac
+          if [ "$cargo_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo" ]; then
+            echo "cargo is ${cargo_bin}"
+            exit 1
+          fi
+          if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
+            echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
       - name: kline integrity features
         run: cargo test -p parangsae-core --test kline_integrity
       - name: vision integrity features

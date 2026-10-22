@@ -13,7 +13,8 @@
 //! `BOOTSTRAP_BASE`, `BOOTSTRAP_FLOORS_SHA256`, `EXPECTED_GUARD_RUNS`,
 //! `CARGO_CONFIG_TOML`, `CARGO_CONFIG_SHA256`, `ALLOWED_ACTIONS`,
 //! `REQUIRED_JOBS`, `JOB_ENV_ALLOW`, `STEP_ENV_ALLOW`, `RUST_TOOLCHAIN_TOML`,
-//! `RUST_TOOLCHAIN_SHA256`, `DENY_TOML_SHA256`, and `CARGO_LOCK_SHA256`
+//! `RUST_TOOLCHAIN_SHA256`, `DENY_TOML_SHA256`, `CARGO_LOCK_SHA256`, and
+//! `GATE_RESULTS_SHA256`
 //! are Reviewer-protected. Baseline resolution never skips the other guards.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -443,57 +444,57 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "fmt",
         include_str!("pinned_jobs/fmt.job"),
-        "d10bca32292ea0b139dba9715c5b6d7ab936d9bb52efc0ca677f3561ab35d805",
+        "4a3664cb17e5321858fbfdfe019b4893751ee0a4368056585ea30baaca7c9ba4",
     ),
     (
         "clippy",
         include_str!("pinned_jobs/clippy.job"),
-        "a2f3141767afe1d64f04ff28f7dbf7f43b5595591c33fabd44ea4ecd10cb3a51",
+        "4d0504d3116fc4fc6fe940d0f6ea4ed4fe38300bf7418f059b1081f0c0c7417e",
     ),
     (
         "lint-fixture",
         include_str!("pinned_jobs/lint-fixture.job"),
-        "6cd3dfb44474100ac3c4d1d6c44b31db96261c1f99ecbc74b0dcdc279c9aaf53",
+        "49e68b76eefea590b3313eb4881ba1b22fdc1a271816d7e6b8738124019a7d92",
     ),
     (
         "depgraph",
         include_str!("pinned_jobs/depgraph.job"),
-        "f7b305a41a10c7e9c6c21f9f74a0c90c868921ac741f7c73246ef62853082696",
+        "0ce326ff3ba52e488207195cd8e38f305b600e86123a37a7a9b6945062938ef6",
     ),
     (
         "test",
         include_str!("pinned_jobs/test.job"),
-        "05d0811e99913dcb19ab2edf11748c132308428e709ab772d979721221475ca6",
+        "08bfaa14ee23b847f73d1bf78d56faca9b12c138b9ea403625cc03d37ee7b768",
     ),
     (
         "cucumber",
         include_str!("pinned_jobs/cucumber.job"),
-        "375b16a6f71b69d349a933442b57b368e8a3c56d21acd7eb1d8a5e609ccd388f",
+        "5a0323bd6df7a99c14ae4da576aa243736cfcd5e7cbea5ccc70556f9db55b872",
     ),
     (
         "guards",
         include_str!("pinned_jobs/guards.job"),
-        "8137c034f0aa49a7616a3d7cef04794ee4fd87e2876938f8dc3dfad6739baf4d",
+        "5e14759f281ac6cb00f95b13e20517defd1717d044e5b89d24fcb7ac9a392db5",
     ),
     (
         "guard-fixtures",
         include_str!("pinned_jobs/guard-fixtures.job"),
-        "a416c01e2879f63927f1eff3c1209630abd79731221c630297c883d1658352a7",
+        "91ec07b69ce92a6717808c8db500fa45c122bbb415f95fd9135fcba9eb393e79",
     ),
     (
         "tla",
         include_str!("pinned_jobs/tla.job"),
-        "8aa93b38ccd696187890fac5a44fdfdc24152d5ef605b72d6322b00c566d95e7",
+        "f5a04325e8e4b12739dff0e4cb26711caa58f453a70e689425e41b62de66dfe7",
     ),
     (
         "kani",
         include_str!("pinned_jobs/kani.job"),
-        "8f6c91cb840cbb8c36b00cacd98e97950a06f614cb01c38451b72294af7ca1a2",
+        "5e6303b783826d2ee8856390ef7994a0631809bd08ffc454bd4ee1aa1760a818",
     ),
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "233007703a72370e5967fdf89c51867fe67694b8c0e47ceba47d194ed1752341",
+        "c69be0d054e2c38760b5b53a61d4ba72f62cd35d74b31c3293717cc396b1467f",
     ),
     (
         "gate",
@@ -550,14 +551,14 @@ const RUSTUP_WHICH_STEP: &str = concat!(
     "        run: |\n",
     "          cargo_bin=\"$(rustup which cargo)\"\n",
     "          rustc_bin=\"$(rustup which rustc)\"\n",
-    "          case \"$cargo_bin\" in\n",
-    "            \"$RUSTUP_HOME\"/toolchains/1.98.0-*/bin/cargo) ;;\n",
-    "            *) echo \"cargo is ${cargo_bin}\"; exit 1 ;;\n",
-    "          esac\n",
-    "          case \"$rustc_bin\" in\n",
-    "            \"$RUSTUP_HOME\"/toolchains/1.98.0-*/bin/rustc) ;;\n",
-    "            *) echo \"rustc is ${rustc_bin}\"; exit 1 ;;\n",
-    "          esac\n",
+    "          if [ \"$cargo_bin\" != \"/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo\" ]; then\n",
+    "            echo \"cargo is ${cargo_bin}\"\n",
+    "            exit 1\n",
+    "          fi\n",
+    "          if [ \"$rustc_bin\" != \"/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc\" ]; then\n",
+    "            echo \"rustc is ${rustc_bin}\"\n",
+    "            exit 1\n",
+    "          fi\n",
 );
 
 const GUARD_FIXTURE_UNREADABLE_STEP: &str = concat!(
@@ -589,6 +590,7 @@ const FORBIDDEN_ENV: &[&str] = &[
 
 const GATE_FIXTURE_STEP: &str = include_str!("gate_fixture_step.txt");
 
+/// Reviewer-protected. Raw sha256 of `.github/workflows/gate_results.py`.
 const GATE_RESULTS_SHA256: &str =
     "7e0f2561876477d8516e7642d8f3be7aa938cbd571273babe7bc0fd80a891666";
 
@@ -5209,8 +5211,26 @@ jobs:
         if !deny.contains(DENY_TOML_SHA256) || !deny.contains(CARGO_LOCK_SHA256) {
             return Err("deny job does not re-hash deny.toml and Cargo.lock".to_owned());
         }
-        if !deny.contains("env -i") || !deny.contains("rustup which cargo") {
-            return Err("deny job does not use env -i and rustup which cargo".to_owned());
+        if !deny.contains("env -i") {
+            return Err("deny job does not use env -i".to_owned());
+        }
+        let cargo_bin = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo";
+        let rustc_bin = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc";
+        if !RUSTUP_WHICH_STEP.contains(cargo_bin) || !RUSTUP_WHICH_STEP.contains(rustc_bin) {
+            return Err("toolchain check does not use the runner's literal paths".to_owned());
+        }
+        if RUSTUP_WHICH_STEP.contains("RUSTUP_HOME")
+            || ci.contains("$RUSTUP_HOME")
+            || ci.contains("${RUSTUP_HOME:-")
+            || ci.contains("${CARGO_HOME:-")
+        {
+            return Err("toolchain check reads RUSTUP_HOME or CARGO_HOME".to_owned());
+        }
+        let deny_invocations = deny.matches(cargo_bin).count();
+        if deny_invocations < 4 {
+            return Err(format!(
+                "deny job invokes the absolute cargo {deny_invocations} times"
+            ));
         }
         expect_gaps(
             "toolchain",
