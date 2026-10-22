@@ -1,0 +1,5 @@
+error[E0308]: mismatched types
+ --> tests/ui/rule_version_string.rs:8:15
+  |
+8 |         rule: "metrics_spec_v2.1",
+  |               ^^^^^^^^^^^^^^^^^^^ expected `RuleVersion`, found `&str`

@@ -38,6 +38,8 @@ pub enum AuditError {
     DigestMismatch,
     RootMismatch,
     Malformed,
+    /// Unknown payload, unknown rule, or a stale partition payload.
+    Refused,
     Io(String),
 }
 
@@ -47,12 +49,15 @@ impl std::fmt::Display for AuditError {
             Self::DigestMismatch => write!(f, "manifest digest mismatch"),
             Self::RootMismatch => write!(f, "manifest root mismatch"),
             Self::Malformed => write!(f, "manifest is malformed"),
+            Self::Refused => write!(f, "manifest version is refused"),
             Self::Io(detail) => write!(f, "{detail}"),
         }
     }
 }
 
-/// Open one manifest for audit. Digest and root are checked. A §5.4 refusal is not.
+/// Open one manifest for audit. Digest and root are checked.
+/// A superseded metrics root is opened. Unknown payload, unknown rule, and a
+/// stale partition payload are refused.
 pub fn open_version(
     data_dir: &Path,
     dataset_id: &str,
@@ -71,6 +76,7 @@ pub fn open_version(
         Err(ManifestProofError::DigestMismatch) => return Err(AuditError::DigestMismatch),
         Err(ManifestProofError::RootMismatch) => return Err(AuditError::RootMismatch),
         Err(ManifestProofError::Malformed) => return Err(AuditError::Malformed),
+        Err(ManifestProofError::Refused) => return Err(AuditError::Refused),
     };
     if proof.root != root || proof.dataset_id != dataset_id {
         return Err(AuditError::RootMismatch);

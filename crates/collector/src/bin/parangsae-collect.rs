@@ -375,6 +375,8 @@ fn load_status(err: &LoadError) -> ExitCode {
         | LoadError::SpecVersionMismatch { .. }
         | LoadError::SupersededVersion { .. }
         | LoadError::StalePayloadVersion { .. }
+        | LoadError::UnknownPayloadVersion { .. }
+        | LoadError::UnknownRuleVersion { .. }
         | LoadError::ZeroOiStored { .. }
         | LoadError::MetricMissingMismatch { .. }
         | LoadError::Io(_) => ExitCode::from(1),
@@ -485,12 +487,19 @@ mod tests {
                 dataset_id: "binance-vision.um.metrics.BTCUSDT".to_owned(),
                 root: parangsae_collector::version::VersionRoot::from_bytes([0; 32]),
                 successor_root: None,
-                rule: "metrics_spec_v2.1",
+                rule: parangsae_collector::version::RuleVersion::MetricsSpecV2_1,
             },
             LoadError::StalePayloadVersion {
                 date,
-                found: "payload/v2".to_owned(),
+                found: Some("payload/v2".to_owned()),
                 required: "payload/v3".to_owned(),
+            },
+            LoadError::UnknownPayloadVersion {
+                found: "payload/v4".to_owned(),
+            },
+            LoadError::UnknownRuleVersion {
+                field: "metric_missing_rules",
+                found: None,
             },
             LoadError::ZeroOiStored {
                 date,

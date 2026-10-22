@@ -25,7 +25,7 @@ pub use id::{
 };
 pub use load::{
     prove_manifest, ConflictEntry, ExcludedWindow, GapEntry, LoadError, ManifestProof,
-    ManifestProofError, Table, Verified, VerifyMode, VersionStore,
+    ManifestProofError, RuleVersion, Table, Verified, VerifyMode, VersionStore,
 };
 pub use publish::{publish, PublishError, PublishRequest, Published};
 

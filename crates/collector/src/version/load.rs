@@ -185,18 +185,29 @@ pub enum LoadError {
         found: String,
     },
     /// Metrics root refused by §5.4 because the manifest itself is old.
-    /// Disjoint from the three partition defects below.
+    /// Disjoint from the partition defects and from the unknown-version defects.
     SupersededVersion {
         dataset_id: String,
         root: VersionRoot,
         successor_root: Option<VersionRoot>,
-        rule: &'static str,
+        rule: RuleVersion,
     },
-    /// Metrics manifest claims `payload/v3`, but a partition records an older payload.
+    /// A current metrics manifest has a partition whose payload string is not
+    /// exactly `schema.payload_version`. `found` is `None` when the key is absent.
     StalePayloadVersion {
         date: CivilDay,
-        found: String,
+        found: Option<String>,
         required: String,
+    },
+    /// Metrics `schema.payload_version` is present and is not exactly `payload/v2`
+    /// or `payload/v3`.
+    UnknownPayloadVersion {
+        found: String,
+    },
+    /// `metric_missing_rules` is absent or is not a row of the closed registry.
+    UnknownRuleVersion {
+        field: &'static str,
+        found: Option<String>,
     },
     /// Canonical metrics row stores a non-NULL open interest of 0.
     ZeroOiStored {
@@ -232,6 +243,8 @@ impl LoadError {
             Self::SpecVersionMismatch { .. } => "SpecVersionMismatch",
             Self::SupersededVersion { .. } => "SupersededVersion",
             Self::StalePayloadVersion { .. } => "StalePayloadVersion",
+            Self::UnknownPayloadVersion { .. } => "UnknownPayloadVersion",
+            Self::UnknownRuleVersion { .. } => "UnknownRuleVersion",
             Self::ZeroOiStored { .. } => "ZeroOiStored",
             Self::MetricMissingMismatch { .. } => "MetricMissingMismatch",
             Self::Io(_) => "Io",
@@ -287,6 +300,25 @@ impl VersionStore {
         range: DayRange,
         verify: VerifyMode,
     ) -> Result<Verified<Table>, LoadError> {
+        self.load_with_registry(
+            dataset,
+            root,
+            manifest_digest,
+            range,
+            verify,
+            PRODUCTION_RULES,
+        )
+    }
+
+    fn load_with_registry(
+        &self,
+        dataset: &DatasetId,
+        root: VersionRoot,
+        manifest_digest: ManifestDigest,
+        range: DayRange,
+        verify: VerifyMode,
+        rules: &[RuleEntry],
+    ) -> Result<Verified<Table>, LoadError> {
         refuse_holdout(dataset, range)?;
         let path = manifest_path(&self.data_dir, dataset, root);
         if !path.is_file() {
@@ -302,7 +334,7 @@ impl VersionStore {
         if encode::sha256(&bytes) != manifest_digest.as_bytes() {
             return Err(LoadError::ManifestDigestMismatch);
         }
-        let parsed = parse_manifest(&bytes)?;
+        let parsed = parse_manifest_with(&bytes, rules)?;
         if parsed.dataset_id != dataset.as_str() {
             return Err(LoadError::ManifestOrder);
         }
@@ -470,8 +502,82 @@ struct ParsedManifest {
 
 enum ManifestGate {
     Current,
-    Superseded { rule: &'static str },
-    StalePayload { date: CivilDay, found: String },
+    Superseded {
+        rule: RuleVersion,
+    },
+    StalePayload {
+        date: CivilDay,
+        found: Option<String>,
+    },
+}
+
+/// Why a metrics root is superseded. Closed: a new variant breaks every exhaustive match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuleVersion {
+    MetricsSpecV2_1,
+    PayloadVersionAbsent,
+    PayloadV2,
+    MetricMissingRulesV1,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RuleStanding {
+    Current,
+    Superseded,
+}
+
+#[derive(Clone, Copy)]
+struct RuleEntry {
+    version: RuleVersion,
+    text: &'static str,
+    standing: RuleStanding,
+}
+
+const PRODUCTION_RULES: &[RuleEntry] = &[RuleEntry {
+    version: RuleVersion::MetricMissingRulesV1,
+    text: encode::METRIC_MISSING_RULES,
+    standing: RuleStanding::Current,
+}];
+
+const SUPERSEDED_STANDING: RuleStanding = RuleStanding::Superseded;
+
+#[cfg(test)]
+fn registry_holds(rows: &[RuleEntry]) -> bool {
+    if rows
+        .iter()
+        .filter(|row| row.standing == RuleStanding::Current)
+        .count()
+        != 1
+    {
+        return false;
+    }
+    let mut seen = HashSet::new();
+    for row in rows {
+        if !seen.insert(row.text) {
+            return false;
+        }
+    }
+    [
+        RuleVersion::MetricsSpecV2_1,
+        RuleVersion::PayloadVersionAbsent,
+        RuleVersion::PayloadV2,
+        RuleVersion::MetricMissingRulesV1,
+    ]
+    .into_iter()
+    .all(|version| {
+        let count = rows.iter().filter(|row| row.version == version).count();
+        !is_metric_missing_rule(version) || count == 1
+    })
+}
+
+#[cfg(test)]
+fn is_metric_missing_rule(version: RuleVersion) -> bool {
+    match version {
+        RuleVersion::MetricMissingRulesV1 => true,
+        RuleVersion::MetricsSpecV2_1
+        | RuleVersion::PayloadVersionAbsent
+        | RuleVersion::PayloadV2 => false,
+    }
 }
 
 struct Part {
@@ -706,8 +812,6 @@ fn write_cache(path: &Path, sha: &[u8; 32]) -> Result<(), LoadError> {
     fs::write(path, hex::encode(sha)).map_err(|err| LoadError::Io(err.to_string()))
 }
 
-const RULE_METRICS_SPEC_V2_1: &str = "metrics_spec_v2.1";
-const RULE_PAYLOAD_BELOW_V3: &str = "payload_version_below_v3";
 const SUPERSESSION_REASONS: [&str; 6] = [
     "archive_replaced",
     "gap_filled",
@@ -729,13 +833,25 @@ pub enum ManifestProofError {
     DigestMismatch,
     RootMismatch,
     Malformed,
+    /// `UnknownPayloadVersion`, `UnknownRuleVersion`, or `StalePayloadVersion`.
+    /// A superseded root is not this error.
+    Refused,
 }
 
 pub fn prove_manifest(bytes: &[u8], digest: [u8; 32]) -> Result<ManifestProof, ManifestProofError> {
     if encode::sha256(bytes) != digest {
         return Err(ManifestProofError::DigestMismatch);
     }
-    let parsed = parse_manifest(bytes).map_err(|_| ManifestProofError::Malformed)?;
+    let parsed = match parse_manifest(bytes) {
+        Ok(parsed) => parsed,
+        Err(LoadError::UnknownPayloadVersion { .. } | LoadError::UnknownRuleVersion { .. }) => {
+            return Err(ManifestProofError::Refused);
+        }
+        Err(_) => return Err(ManifestProofError::Malformed),
+    };
+    if matches!(parsed.gate, ManifestGate::StalePayload { .. }) {
+        return Err(ManifestProofError::Refused);
+    }
     let leaves = recompute_leaves(&parsed).map_err(|_| ManifestProofError::Malformed)?;
     if encode::merkle_tree_head(&leaves) != parsed.version_root.as_bytes() {
         return Err(ManifestProofError::RootMismatch);
@@ -760,7 +876,7 @@ fn refuse_version_gate(
                 dataset_id: parsed.dataset_id.clone(),
                 root,
                 successor_root,
-                rule,
+                rule: *rule,
             })
         }
         ManifestGate::StalePayload { date, found } => Err(LoadError::StalePayloadVersion {
@@ -833,68 +949,152 @@ fn successor_of(data_dir: &Path, root: VersionRoot) -> Result<Option<VersionRoot
 }
 
 fn classify_manifest(
-    dataset_id: &str,
-    spec: &str,
-    payload: Option<&str>,
+    root: &serde_json::Map<String, serde_json::Value>,
+    rules: &[RuleEntry],
 ) -> Result<ManifestGate, LoadError> {
-    let parsed = DatasetId::parse(dataset_id).ok();
+    let dataset_id = text(root, "dataset_id")?;
+    let spec = root
+        .get("spec")
+        .and_then(|value| value.as_str())
+        .unwrap_or("");
+    let parsed = DatasetId::parse(&dataset_id).ok();
     let dataset = parsed
         .as_ref()
         .map(|id| id.dataset().to_owned())
-        .unwrap_or_else(|| dataset_id.to_owned());
+        .unwrap_or_else(|| dataset_id);
     if dataset == "metrics" && spec == encode::MANIFEST_SPEC_V2_1 {
         return Ok(ManifestGate::Superseded {
-            rule: RULE_METRICS_SPEC_V2_1,
+            rule: RuleVersion::MetricsSpecV2_1,
         });
     }
     let expected = parsed
         .as_ref()
         .and_then(|id| encode::manifest_spec(id.dataset()));
-    match expected {
-        Some(expected) if spec == expected => {}
-        _ => {
-            return Err(LoadError::SpecVersionMismatch {
-                dataset,
-                found: spec.to_owned(),
-            });
-        }
-    }
-    if dataset == "metrics" && payload != Some(encode::PAYLOAD_V3) {
-        return Ok(ManifestGate::Superseded {
-            rule: RULE_PAYLOAD_BELOW_V3,
+    if expected != Some(spec) || (dataset != "metrics" && carries_metrics_only_key(root)) {
+        return Err(LoadError::SpecVersionMismatch {
+            dataset,
+            found: spec.to_owned(),
         });
     }
-    Ok(ManifestGate::Current)
+    if dataset != "metrics" {
+        return Ok(ManifestGate::Current);
+    }
+    let schema = root
+        .get("schema")
+        .and_then(|item| item.as_object())
+        .ok_or(LoadError::ManifestOrder)?;
+    match schema.get("payload_version") {
+        None => Ok(ManifestGate::Superseded {
+            rule: RuleVersion::PayloadVersionAbsent,
+        }),
+        Some(value) if value.as_str() == Some(encode::PAYLOAD_V2) => Ok(ManifestGate::Superseded {
+            rule: RuleVersion::PayloadV2,
+        }),
+        Some(value) if value.as_str() == Some(encode::PAYLOAD_V3) => classify_rule(schema, rules),
+        Some(value) => Err(LoadError::UnknownPayloadVersion {
+            found: found_text(value),
+        }),
+    }
 }
 
-fn stale_payload(parts: &[Part]) -> Option<(CivilDay, String)> {
+fn classify_rule(
+    schema: &serde_json::Map<String, serde_json::Value>,
+    rules: &[RuleEntry],
+) -> Result<ManifestGate, LoadError> {
+    let field = schema
+        .get("rule_versions")
+        .and_then(|item| item.as_object())
+        .and_then(|item| item.get("metric_missing_rules"));
+    let Some(field) = field else {
+        return Err(LoadError::UnknownRuleVersion {
+            field: "metric_missing_rules",
+            found: None,
+        });
+    };
+    let found = found_text(field);
+    let Some(text) = field.as_str() else {
+        return Err(LoadError::UnknownRuleVersion {
+            field: "metric_missing_rules",
+            found: Some(found),
+        });
+    };
+    match rules.iter().find(|row| row.text == text) {
+        Some(row) if row.standing == RuleStanding::Current => Ok(ManifestGate::Current),
+        Some(row) if row.standing == SUPERSEDED_STANDING => {
+            Ok(ManifestGate::Superseded { rule: row.version })
+        }
+        Some(_) => Err(LoadError::UnknownRuleVersion {
+            field: "metric_missing_rules",
+            found: Some(found.clone()),
+        }),
+        None => Err(LoadError::UnknownRuleVersion {
+            field: "metric_missing_rules",
+            found: Some(found),
+        }),
+    }
+}
+
+fn found_text(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => text.clone(),
+        other => serde_json::to_string(other).unwrap_or_default(),
+    }
+}
+
+fn carries_metrics_only_key(root: &serde_json::Map<String, serde_json::Value>) -> bool {
+    if root.contains_key("metric_missing")
+        || root.contains_key("quality")
+        || root.contains_key("metric_missing_digest")
+        || root.contains_key("quality_digest")
+    {
+        return true;
+    }
+    if let Some(schema) = root.get("schema").and_then(|item| item.as_object()) {
+        if schema.contains_key("payload_version") {
+            return true;
+        }
+        if schema
+            .get("rule_versions")
+            .and_then(|item| item.as_object())
+            .is_some_and(|rules| rules.contains_key("metric_missing_rules"))
+        {
+            return true;
+        }
+    }
+    let Some(parts) = root.get("partitions").and_then(|item| item.as_array()) else {
+        return false;
+    };
+    parts.iter().any(|part| {
+        part.as_object()
+            .is_some_and(|part| part.contains_key("payload_version"))
+    })
+}
+
+fn stale_payload(parts: &[Part]) -> Option<(CivilDay, Option<String>)> {
     for part in parts {
         match part.payload_version.as_deref() {
             Some(encode::PAYLOAD_V3) => {}
-            Some(found) => return Some((part.date, found.to_owned())),
-            None => return Some((part.date, "payload/v2".to_owned())),
+            Some(found) => return Some((part.date, Some(found.to_owned()))),
+            None => return Some((part.date, None)),
         }
     }
     None
 }
 
 fn parse_manifest(bytes: &[u8]) -> Result<ParsedManifest, LoadError> {
+    parse_manifest_with(bytes, PRODUCTION_RULES)
+}
+
+fn parse_manifest_with(bytes: &[u8], rules: &[RuleEntry]) -> Result<ParsedManifest, LoadError> {
     let value: serde_json::Value =
         serde_json::from_slice(bytes).map_err(|err| LoadError::Io(err.to_string()))?;
     let root = value.as_object().ok_or(LoadError::ManifestOrder)?;
     let dataset_id = text(root, "dataset_id")?;
-    let spec = root
-        .get("spec")
-        .and_then(|value| value.as_str())
-        .unwrap_or("");
+    let mut gate = classify_manifest(root, rules)?;
     let schema = root
         .get("schema")
         .and_then(|item| item.as_object())
         .ok_or(LoadError::ManifestOrder)?;
-    let payload = schema
-        .get("payload_version")
-        .and_then(|value| value.as_str());
-    let mut gate = classify_manifest(&dataset_id, spec, payload)?;
     let columns = schema
         .get("columns")
         .and_then(|item| item.as_array())
@@ -1000,10 +1200,7 @@ fn parse_part(value: &serde_json::Value) -> Result<Part, LoadError> {
     require_hash(part, "conflicts_digest")?;
     require_hash(part, "sources_digest")?;
     require_hash(part, "leaf_hash")?;
-    let payload_version = part
-        .get("payload_version")
-        .and_then(|value| value.as_str())
-        .map(str::to_owned);
+    let payload_version = part.get("payload_version").map(found_text);
     Ok(Part {
         date,
         payload_version,
@@ -1859,7 +2056,7 @@ mod tests {
 
     fn assert_superseded(
         err: &LoadError,
-        rule: &str,
+        rule: RuleVersion,
         successor: Option<VersionRoot>,
     ) -> Result<(), String> {
         match err {
@@ -2025,7 +2222,7 @@ mod tests {
     #[test]
     fn spec_version_metrics_on_v2_1_is_superseded() -> Result<(), String> {
         let err = load_manifest(&metrics_bytes(SPEC_V2_1, Some(encode::PAYLOAD_V3), &[])?)?;
-        assert_superseded(&err, "metrics_spec_v2.1", None)
+        assert_superseded(&err, RuleVersion::MetricsSpecV2_1, None)
     }
 
     fn mismatch(dataset: &str, spec: &str) -> Result<(), String> {
@@ -2076,7 +2273,7 @@ mod tests {
     fn superseded_metrics_root_names_its_successor() -> Result<(), String> {
         let bytes = metrics_bytes(SPEC_V2_1, Some(encode::PAYLOAD_V3), &[])?;
         let err = load_manifest(&bytes)?;
-        assert_superseded(&err, "metrics_spec_v2.1", None)?;
+        assert_superseded(&err, RuleVersion::MetricsSpecV2_1, None)?;
         if matches!(
             err,
             LoadError::StalePayloadVersion { .. }
@@ -2092,7 +2289,7 @@ mod tests {
             &bytes,
             &[Supersession::new(successor, ROOT, "schema_change")],
         )?;
-        assert_superseded(&err, "metrics_spec_v2.1", Some(successor))
+        assert_superseded(&err, RuleVersion::MetricsSpecV2_1, Some(successor))
     }
 
     #[test]
@@ -2107,7 +2304,7 @@ mod tests {
                 Supersession::new(latest, middle, "schema_change"),
             ],
         )?;
-        assert_superseded(&err, "metrics_spec_v2.1", Some(latest))
+        assert_superseded(&err, RuleVersion::MetricsSpecV2_1, Some(latest))
     }
 
     #[test]
@@ -2138,27 +2335,411 @@ mod tests {
     }
 
     #[test]
-    fn superseded_metrics_payload_below_v3_is_not_stale() -> Result<(), String> {
-        let bytes = metrics_bytes(SPEC_V2_2, Some("payload/v2"), &[])?;
+    fn superseded_metrics_payload_v2_is_not_stale() -> Result<(), String> {
+        let bytes = metrics_bytes(SPEC_V2_2, Some(encode::PAYLOAD_V2), &[])?;
         let err = load_manifest(&bytes)?;
-        assert_superseded(&err, "payload_version_below_v3", None)?;
+        assert_superseded(&err, RuleVersion::PayloadV2, None)
+    }
+
+    #[test]
+    fn superseded_metrics_payload_absent_is_not_stale() -> Result<(), String> {
         let missing = metrics_bytes(SPEC_V2_2, None, &[])?;
         let err = load_manifest(&missing)?;
-        assert_superseded(&err, "payload_version_below_v3", None)
+        assert_superseded(&err, RuleVersion::PayloadVersionAbsent, None)
     }
 
     #[test]
     fn stale_payload_on_a_current_metrics_root_is_not_superseded() -> Result<(), String> {
         let day = crate::civil::CivilDay::new(2024, 7, 9).ok_or("day")?;
-        let bytes = metrics_bytes(SPEC_V2_2, Some(encode::PAYLOAD_V3), &[day])?;
+        let cases = [
+            (Some("payload/v2"), Some("payload/v2".to_owned())),
+            (Some("payload/v4"), Some("payload/v4".to_owned())),
+            (Some("payload/v10"), Some("payload/v10".to_owned())),
+            (Some("Payload/v3"), Some("Payload/v3".to_owned())),
+            (Some("payload/v3 "), Some("payload/v3 ".to_owned())),
+            (None, None),
+        ];
+        for (payload, found) in cases {
+            let bytes = metrics_bytes_with_part(SPEC_V2_2, encode::PAYLOAD_V3, &day, payload)?;
+            let err = load_manifest(&bytes)?;
+            let expected = LoadError::StalePayloadVersion {
+                date: day,
+                found: found.clone(),
+                required: encode::PAYLOAD_V3.to_owned(),
+            };
+            if err != expected {
+                return Err(format!("stale {payload:?}: {err}"));
+            }
+        }
+        let current = metrics_bytes_with_part(
+            SPEC_V2_2,
+            encode::PAYLOAD_V3,
+            &day,
+            Some(encode::PAYLOAD_V3),
+        )?;
+        let parsed = parse_manifest(&current).map_err(|err| format!("current partition: {err}"))?;
+        if !matches!(parsed.gate, ManifestGate::Current) {
+            return Err("exact partition payload was not current".into());
+        }
+        Ok(())
+    }
+
+    fn metrics_bytes_with_part(
+        spec: &str,
+        payload: &str,
+        day: &CivilDay,
+        part_payload: Option<&str>,
+    ) -> Result<Vec<u8>, String> {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&metrics_bytes(spec, Some(payload), &[])?).map_err(show)?;
+        let mut part = stale_part(day);
+        match part_payload {
+            Some(text) => {
+                part.as_object_mut().ok_or("part")?.insert(
+                    "payload_version".to_owned(),
+                    serde_json::Value::String(text.to_owned()),
+                );
+            }
+            None => {
+                part.as_object_mut()
+                    .ok_or("part")?
+                    .remove("payload_version");
+            }
+        }
+        value.as_object_mut().ok_or("manifest")?.insert(
+            "partitions".to_owned(),
+            serde_json::Value::Array(vec![part]),
+        );
+        serde_json::to_vec(&value).map_err(show)
+    }
+
+    #[test]
+    fn unknown_payload_versions_are_not_current() -> Result<(), String> {
+        let cases = [
+            serde_json::json!("payload/v4"),
+            serde_json::json!("payload/v10"),
+            serde_json::json!("payload/v3 "),
+            serde_json::json!(" payload/v3"),
+            serde_json::json!("Payload/v3"),
+            serde_json::json!("payload/V3"),
+            serde_json::json!(""),
+            serde_json::json!("garbage"),
+            serde_json::json!(3),
+            serde_json::Value::Null,
+        ];
+        for payload in cases {
+            let bytes = metrics_with_payload(SPEC_V2_2, Some(&payload))?;
+            let err = load_manifest(&bytes)?;
+            let found = match &payload {
+                serde_json::Value::String(text) => text.clone(),
+                other => serde_json::to_string(other).map_err(show)?,
+            };
+            let expected = LoadError::UnknownPayloadVersion { found };
+            if err != expected {
+                return Err(format!("payload {payload}: {err}"));
+            }
+        }
+        let current = metrics_bytes(SPEC_V2_2, Some(encode::PAYLOAD_V3), &[])?;
+        let parsed = parse_manifest(&current).map_err(|err| format!("v3: {err}"))?;
+        if !matches!(parsed.gate, ManifestGate::Current) {
+            return Err("payload/v3 did not pass step 2c".into());
+        }
+        Ok(())
+    }
+
+    fn metrics_with_payload(
+        spec: &str,
+        payload: Option<&serde_json::Value>,
+    ) -> Result<Vec<u8>, String> {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&metrics_bytes(spec, Some(encode::PAYLOAD_V3), &[])?)
+                .map_err(show)?;
+        let schema = value
+            .get_mut("schema")
+            .and_then(|item| item.as_object_mut())
+            .ok_or("schema")?;
+        match payload {
+            Some(payload) => {
+                schema.insert("payload_version".to_owned(), payload.clone());
+            }
+            None => {
+                schema.remove("payload_version");
+            }
+        }
+        serde_json::to_vec(&value).map_err(show)
+    }
+
+    #[test]
+    fn a_metrics_only_key_on_um_kline_is_a_spec_mismatch() -> Result<(), String> {
+        let base = canonical_spec(&id_for("um-kline"))?;
+        let keys: Vec<(&str, serde_json::Value)> = vec![
+            ("metric_missing", serde_json::json!([])),
+            ("quality", serde_json::json!([])),
+            ("metric_missing_digest", serde_json::json!("ab")),
+            ("quality_digest", serde_json::json!("cd")),
+        ];
+        for (key, extra) in keys {
+            let mut value: serde_json::Value = serde_json::from_slice(&base).map_err(show)?;
+            value
+                .as_object_mut()
+                .ok_or("manifest")?
+                .insert(key.to_owned(), extra);
+            let err = refused(&serde_json::to_vec(&value).map_err(show)?, key)?;
+            let expected = LoadError::SpecVersionMismatch {
+                dataset: "um-kline".to_owned(),
+                found: SPEC_V2_1.to_owned(),
+            };
+            if err != expected {
+                return Err(format!("{key}: {err}"));
+            }
+        }
+        let mut value: serde_json::Value = serde_json::from_slice(&base).map_err(show)?;
+        value
+            .get_mut("schema")
+            .and_then(|item| item.as_object_mut())
+            .ok_or("schema")?
+            .insert(
+                "payload_version".to_owned(),
+                serde_json::Value::String(encode::PAYLOAD_V3.to_owned()),
+            );
+        let err = refused(
+            &serde_json::to_vec(&value).map_err(show)?,
+            "payload_version",
+        )?;
+        if err
+            != (LoadError::SpecVersionMismatch {
+                dataset: "um-kline".to_owned(),
+                found: SPEC_V2_1.to_owned(),
+            })
+        {
+            return Err(format!("schema payload: {err}"));
+        }
+        let mut value: serde_json::Value = serde_json::from_slice(&base).map_err(show)?;
+        value
+            .pointer_mut("/schema/rule_versions")
+            .and_then(|item| item.as_object_mut())
+            .ok_or("rules")?
+            .insert(
+                "metric_missing_rules".to_owned(),
+                serde_json::Value::String(encode::METRIC_MISSING_RULES.to_owned()),
+            );
+        let err = refused(&serde_json::to_vec(&value).map_err(show)?, "rule")?;
+        if err
+            != (LoadError::SpecVersionMismatch {
+                dataset: "um-kline".to_owned(),
+                found: SPEC_V2_1.to_owned(),
+            })
+        {
+            return Err(format!("rule key: {err}"));
+        }
+        let mut value: serde_json::Value = serde_json::from_slice(&base).map_err(show)?;
+        value
+            .get_mut("partitions")
+            .and_then(|item| item.as_array_mut())
+            .ok_or("partitions")?
+            .push(serde_json::json!({"payload_version": "payload/v3"}));
+        let err = refused(&serde_json::to_vec(&value).map_err(show)?, "partition")?;
+        if err
+            != (LoadError::SpecVersionMismatch {
+                dataset: "um-kline".to_owned(),
+                found: SPEC_V2_1.to_owned(),
+            })
+        {
+            return Err(format!("partition payload: {err}"));
+        }
+        Ok(())
+    }
+
+    const SYNTHETIC_RULE: &str =
+        "metric_missing_rules/v2 merge=across_utc_days long_null_run_slots=24";
+
+    fn test_rules() -> [RuleEntry; 2] {
+        [
+            RuleEntry {
+                version: RuleVersion::MetricMissingRulesV1,
+                text: encode::METRIC_MISSING_RULES,
+                standing: RuleStanding::Superseded,
+            },
+            // The synthetic current string has no public variant. This field is
+            // not returned while the row is Current.
+            RuleEntry {
+                version: RuleVersion::PayloadV2,
+                text: SYNTHETIC_RULE,
+                standing: RuleStanding::Current,
+            },
+        ]
+    }
+
+    #[test]
+    fn a_superseded_rule_string_names_its_successor() -> Result<(), String> {
+        let bytes = metrics_bytes(SPEC_V2_2, Some(encode::PAYLOAD_V3), &[])?;
+        let err = load_manifest_rules(&bytes, &[], &test_rules())?;
+        assert_superseded(&err, RuleVersion::MetricMissingRulesV1, None)?;
+        let successor = VersionRoot::from_bytes([4; 32]);
+        let err = load_manifest_rules(
+            &bytes,
+            &[Supersession::new(successor, ROOT, "rule_change")],
+            &test_rules(),
+        )?;
+        assert_superseded(&err, RuleVersion::MetricMissingRulesV1, Some(successor))
+    }
+
+    fn load_manifest_rules(
+        bytes: &[u8],
+        links: &[Supersession],
+        rules: &[RuleEntry],
+    ) -> Result<LoadError, String> {
+        let dir = tempfile::tempdir().map_err(show)?;
+        for link in links {
+            let path = dir
+                .path()
+                .join("manifest")
+                .join("supersessions")
+                .join(format!("{}.json", link.new_root.to_hex()));
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).map_err(show)?;
+            }
+            let body = format!(
+                "{{\"supersedes\":\"{}\",\"supersede_reason\":\"{}\"}}",
+                link.old_root.to_hex(),
+                link.reason
+            );
+            fs::write(path, body).map_err(show)?;
+        }
+        let id = DatasetId::parse(&id_for("metrics")).map_err(show)?;
+        let path = manifest_path(dir.path(), &id, ROOT);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(show)?;
+        }
+        fs::write(&path, bytes).map_err(show)?;
+        let digest = ManifestDigest::from_bytes(encode::sha256(bytes));
+        let day = CivilDay::new(2021, 6, 1).ok_or("day")?;
+        let range = DayRange::new(day, day).map_err(show)?;
+        let store = VersionStore::open(dir.path()).map_err(show)?;
+        match store.load_with_registry(&id, ROOT, digest, range, VerifyMode::Cached, rules) {
+            Err(err) => Ok(err),
+            Ok(_) => Err("load returned rows".into()),
+        }
+    }
+
+    #[test]
+    fn unknown_rule_strings_are_not_current_or_old() -> Result<(), String> {
+        let current = metrics_bytes(SPEC_V2_2, Some(encode::PAYLOAD_V3), &[])?;
+        let parsed = parse_manifest(&current).map_err(|err| format!("v1 rule: {err}"))?;
+        if !matches!(parsed.gate, ManifestGate::Current) {
+            return Err("the v1 rule string did not pass step 2d".into());
+        }
+        let unknown = [
+            "metric_missing_rules/v1 merge=across_utc_days long_null_run_slots=13",
+            "metric_missing_rules/v0",
+            "metric_missing_rules/v1 merge=across_utc_days long_null_run_slots=12 ",
+        ];
+        for text in unknown {
+            let bytes = metrics_with_rule(Some(&serde_json::Value::String(text.to_owned())))?;
+            let err = load_manifest(&bytes)?;
+            let expected = LoadError::UnknownRuleVersion {
+                field: "metric_missing_rules",
+                found: Some(text.to_owned()),
+            };
+            if err != expected {
+                return Err(format!("rule {text}: {err}"));
+            }
+        }
+        let bytes = metrics_with_rule(None)?;
         let err = load_manifest(&bytes)?;
-        let expected = LoadError::StalePayloadVersion {
-            date: day,
-            found: "payload/v2".to_owned(),
-            required: encode::PAYLOAD_V3.to_owned(),
+        let expected = LoadError::UnknownRuleVersion {
+            field: "metric_missing_rules",
+            found: None,
         };
         if err != expected {
-            return Err(format!("stale: {err}"));
+            return Err(format!("absent rule: {err}"));
+        }
+        Ok(())
+    }
+
+    fn metrics_with_rule(rule: Option<&serde_json::Value>) -> Result<Vec<u8>, String> {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&metrics_bytes(SPEC_V2_2, Some(encode::PAYLOAD_V3), &[])?)
+                .map_err(show)?;
+        let rules = value
+            .pointer_mut("/schema/rule_versions")
+            .and_then(|item| item.as_object_mut())
+            .ok_or("rules")?;
+        match rule {
+            Some(rule) => {
+                rules.insert("metric_missing_rules".to_owned(), rule.clone());
+            }
+            None => {
+                rules.remove("metric_missing_rules");
+            }
+        }
+        serde_json::to_vec(&value).map_err(show)
+    }
+
+    #[test]
+    fn the_rule_registry_has_one_current_row() {
+        assert!(registry_holds(PRODUCTION_RULES));
+        let v1 = encode::METRIC_MISSING_RULES;
+        let current = RuleEntry {
+            version: RuleVersion::MetricMissingRulesV1,
+            text: v1,
+            standing: RuleStanding::Current,
+        };
+        let second = RuleEntry {
+            version: RuleVersion::PayloadV2,
+            text: SYNTHETIC_RULE,
+            standing: RuleStanding::Current,
+        };
+        assert!(!registry_holds(&[current, second]));
+        let duplicated = RuleEntry {
+            version: RuleVersion::PayloadV2,
+            text: v1,
+            standing: RuleStanding::Superseded,
+        };
+        assert!(!registry_holds(&[current, duplicated]));
+        let again = RuleEntry {
+            version: RuleVersion::MetricMissingRulesV1,
+            text: SYNTHETIC_RULE,
+            standing: RuleStanding::Superseded,
+        };
+        assert!(!registry_holds(&[current, again]));
+        let other = RuleEntry {
+            version: RuleVersion::PayloadV2,
+            text: SYNTHETIC_RULE,
+            standing: RuleStanding::Current,
+        };
+        assert!(!registry_holds(&[other]));
+    }
+
+    #[test]
+    fn version_strings_are_not_ordered() -> Result<(), String> {
+        let dir = format!("{}/src/version", env!("CARGO_MANIFEST_DIR"));
+        let cmp_token = ".cm".to_owned() + "p(";
+        let partial = ".partial_cm".to_owned() + "p(";
+        for entry in fs::read_dir(&dir).map_err(show)? {
+            let path = entry.map_err(show)?.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("rs") {
+                continue;
+            }
+            let text = fs::read_to_string(&path).map_err(show)?;
+            for (number, line) in text.lines().enumerate() {
+                let mentions = line.contains("payload_version")
+                    || line.contains("PAYLOAD_V")
+                    || line.contains("payload/v")
+                    || line.contains("MANIFEST_SPEC")
+                    || line.contains("dataset-manifest/v");
+                if !mentions {
+                    continue;
+                }
+                let orders = line.contains(&cmp_token)
+                    || line.contains(&partial)
+                    || line.contains(" < ")
+                    || line.contains(" > ")
+                    || line.contains(" Ord");
+                if orders {
+                    return Err(format!("{}:{}: {line}", path.display(), number + 1));
+                }
+            }
         }
         Ok(())
     }

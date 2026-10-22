@@ -1,11 +1,14 @@
 //! Canonical hashing for a dataset version. Compression and receipt run ids
 //! stay outside the hash. A non-increasing primary key is rejected, not sorted.
 
+use std::collections::BTreeSet;
+
 use sha2::{Digest, Sha256};
 
 use super::id::DatasetId;
-use crate::vision::{Gap, KlineFact};
-use parangsae_core::Receipt;
+use crate::civil::CivilDay;
+use crate::vision::{Gap, GapKind, KlineFact};
+use parangsae_core::{Receipt, UtcMicros};
 
 pub const ROW_ENCODING_VERSION: &str = "rows/v2";
 pub const AVAILABLE_TS_RULES_VERSION: &str = "available_ts_rules/v0.2";
@@ -27,8 +30,10 @@ pub const MANIFEST_SPEC_V2_1: &str = "parangsae/dataset-manifest/v2.1";
 pub const MANIFEST_SPEC_V2_2: &str = "parangsae/dataset-manifest/v2.2";
 /// Kline, funding, and book manifests. Metrics uses [`MANIFEST_SPEC_V2_2`].
 pub const MANIFEST_SPEC: &str = MANIFEST_SPEC_V2_1;
-/// Current metrics payload. A lower or missing version is a superseded metrics root.
+/// Current metrics payload. Only this exact string is current.
 pub const PAYLOAD_V3: &str = "payload/v3";
+/// Superseded metrics payload. Only this exact string selects that rule.
+pub const PAYLOAD_V2: &str = "payload/v2";
 
 /// Spec string for one dataset name.
 ///
@@ -190,6 +195,7 @@ pub const METRICS_COLUMNS: &[Column] = &[
 ];
 
 /// One metrics row in the v2.2 content hash. `None` is NULL (`0x00`), not zero.
+#[derive(Clone, Copy)]
 pub struct MetricsCanonicalRow<'a> {
     pub symbol: &'a str,
     pub create_time_us: i64,
@@ -566,6 +572,13 @@ pub fn canonical_manifest(doc: &ManifestDoc<'_>) -> Result<Vec<u8>, EncodeError>
         "conflict_rules".to_owned(),
         serde_json::Value::String(CONFLICT_RULES_VERSION.to_owned()),
     );
+    let spec = manifest_spec_of(doc.dataset_id)?;
+    if spec == MANIFEST_SPEC_V2_2 {
+        rule_versions.insert(
+            "metric_missing_rules".to_owned(),
+            serde_json::Value::String(METRIC_MISSING_RULES.to_owned()),
+        );
+    }
     let mut schema = serde_json::Map::new();
     schema.insert("schema_hash".to_owned(), json_hex(doc.schema_hash));
     schema.insert("columns".to_owned(), serde_json::Value::Array(columns));
@@ -587,7 +600,6 @@ pub fn canonical_manifest(doc: &ManifestDoc<'_>) -> Result<Vec<u8>, EncodeError>
         "rule_versions".to_owned(),
         serde_json::Value::Object(rule_versions),
     );
-    let spec = manifest_spec_of(doc.dataset_id)?;
     if spec == MANIFEST_SPEC_V2_2 {
         schema.insert(
             "payload_version".to_owned(),
@@ -988,6 +1000,477 @@ fn json_u64(value: u64) -> serde_json::Value {
     serde_json::Value::String(value.to_string())
 }
 
+const METRICS_STEP_US: i64 = 300_000_000;
+const METRICS_SLOTS_PER_DAY: i64 = 288;
+const OI_COLUMNS: [&str; 2] = ["sum_open_interest", "sum_open_interest_value"];
+const ZERO_OI_TOKEN: &str = "0E-16";
+
+/// One `metric_missing[]` record. Counts are the raw token counts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MetricMissingRec {
+    pub column: String,
+    pub start_us: i64,
+    pub end_us: i64,
+    pub slots: u64,
+    pub token_class: String,
+    pub tokens: Vec<(String, u64)>,
+}
+
+/// One `quality[]` record. `kind` is `long_null_run` for the v1 rule.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct QualityRec {
+    pub column: String,
+    pub start_us: i64,
+    pub end_us: i64,
+    pub slots: u64,
+    pub threshold_slots: u64,
+}
+
+/// `metric_missing[]` and `quality[]` from hashed rows and the rule's slot threshold.
+///
+/// A column run is consecutive 5-minute rows whose `missing_tokens` name that
+/// column as the `0E-16` sentinel. `quality` keeps runs with more slots than
+/// `threshold_slots`.
+pub fn metric_lists(
+    rows: &[MetricsCanonicalRow<'_>],
+    threshold_slots: u64,
+) -> Result<(Vec<MetricMissingRec>, Vec<QualityRec>), EncodeError> {
+    let mut missing = Vec::new();
+    let mut quality = Vec::new();
+    for column in OI_COLUMNS {
+        let mut run_start: Option<i64> = None;
+        let mut slots = 0u64;
+        let mut previous: Option<i64> = None;
+        for row in rows {
+            let sentinel = row_sentinel(row, column);
+            let continues = sentinel
+                && previous.is_some_and(|prior| row.create_time_us == prior + METRICS_STEP_US);
+            if sentinel && (run_start.is_none() || continues) {
+                if run_start.is_none() {
+                    run_start = Some(row.create_time_us);
+                }
+                slots += 1;
+                previous = Some(row.create_time_us);
+                continue;
+            }
+            if let Some(start) = run_start.take() {
+                push_run(
+                    &mut missing,
+                    &mut quality,
+                    column,
+                    start,
+                    slots,
+                    threshold_slots,
+                )?;
+                slots = 0;
+                previous = None;
+            }
+            if sentinel {
+                run_start = Some(row.create_time_us);
+                slots = 1;
+                previous = Some(row.create_time_us);
+            }
+        }
+        if let Some(start) = run_start {
+            push_run(
+                &mut missing,
+                &mut quality,
+                column,
+                start,
+                slots,
+                threshold_slots,
+            )?;
+        }
+    }
+    Ok((missing, quality))
+}
+
+fn row_sentinel(row: &MetricsCanonicalRow<'_>, column: &str) -> bool {
+    let Some(tokens) = row.missing_tokens else {
+        return false;
+    };
+    tokens.split(';').any(|part| {
+        let Some((name, value)) = part.split_once('=') else {
+            return false;
+        };
+        name == column && value == "\"0E-16\""
+    })
+}
+
+fn push_run(
+    missing: &mut Vec<MetricMissingRec>,
+    quality: &mut Vec<QualityRec>,
+    column: &str,
+    start_us: i64,
+    slots: u64,
+    threshold_slots: u64,
+) -> Result<(), EncodeError> {
+    let width = i64::try_from(slots).map_err(|_| EncodeError::Length)?;
+    let end_us = width
+        .checked_mul(METRICS_STEP_US)
+        .and_then(|span| start_us.checked_add(span))
+        .ok_or(EncodeError::Length)?;
+    missing.push(MetricMissingRec {
+        column: column.to_owned(),
+        start_us,
+        end_us,
+        slots,
+        token_class: "zero_oi_sentinel".to_owned(),
+        tokens: vec![(ZERO_OI_TOKEN.to_owned(), slots)],
+    });
+    if slots > threshold_slots {
+        quality.push(QualityRec {
+            column: column.to_owned(),
+            start_us,
+            end_us,
+            slots,
+            threshold_slots,
+        });
+    }
+    Ok(())
+}
+
+pub fn metric_missing_digest(entries: &[MetricMissingRec]) -> Result<[u8; 32], EncodeError> {
+    let mut items = entries.to_vec();
+    items.sort_by(|left, right| {
+        column_index(&left.column)
+            .cmp(&column_index(&right.column))
+            .then(left.start_us.cmp(&right.start_us))
+    });
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/metric_missing/v1")?;
+    push_u64(&mut buf, u64_len(items.len())?)?;
+    for entry in items {
+        push_str(&mut buf, &entry.column)?;
+        push_i64(&mut buf, entry.start_us);
+        push_i64(&mut buf, entry.end_us);
+        push_u64(&mut buf, entry.slots)?;
+        push_str(&mut buf, &entry.token_class)?;
+        push_u32(&mut buf, u32_len(entry.tokens.len())?)?;
+        let mut tokens = entry.tokens;
+        tokens.sort_by(|left, right| left.0.as_bytes().cmp(right.0.as_bytes()));
+        for (token, count) in tokens {
+            push_str(&mut buf, &token)?;
+            push_u64(&mut buf, count)?;
+        }
+    }
+    Ok(sha256(&buf))
+}
+
+pub fn quality_digest(entries: &[QualityRec]) -> Result<[u8; 32], EncodeError> {
+    let mut items = entries.to_vec();
+    items.sort_by(|left, right| {
+        column_index(&left.column)
+            .cmp(&column_index(&right.column))
+            .then(left.start_us.cmp(&right.start_us))
+    });
+    let mut buf = Vec::new();
+    push_str(&mut buf, "parangsae/quality/v1")?;
+    push_u64(&mut buf, u64_len(items.len())?)?;
+    for entry in items {
+        push_str(&mut buf, "long_null_run")?;
+        push_str(&mut buf, &entry.column)?;
+        push_i64(&mut buf, entry.start_us);
+        push_i64(&mut buf, entry.end_us);
+        push_u64(&mut buf, entry.slots)?;
+        push_u64(&mut buf, entry.threshold_slots)?;
+    }
+    Ok(sha256(&buf))
+}
+
+fn column_index(name: &str) -> usize {
+    OI_COLUMNS
+        .iter()
+        .position(|column| *column == name)
+        .unwrap_or(usize::MAX)
+}
+
+/// Canonical metrics manifest for one civil day. Bytes are RFC 8785 JCS.
+pub fn metrics_canonical_manifest(
+    dataset_id: &str,
+    symbol: &str,
+    date: &str,
+    rows: &[MetricsCanonicalRow<'_>],
+    missing: &[MetricMissingRec],
+    quality: &[QualityRec],
+) -> Result<Vec<u8>, EncodeError> {
+    let day = parse_civil_day(date)?;
+    let schema = metrics_schema_hash(dataset_id)?;
+    let content = metrics_content_hash(&schema, rows)?;
+    let gaps = metrics_grid_gaps(day, rows);
+    let gaps_hash = gaps_digest(&gaps)?;
+    let conflicts_hash = conflicts_digest(&[])?;
+    let sources_hash = sources_digest(&[])?;
+    let (pk_min, pk_max, available_min, available_max) = row_bounds(rows)?;
+    let leaf = leaf_hash(&LeafInput {
+        dataset_id,
+        symbol,
+        date,
+        schema_hash: &schema,
+        row_count: u64_len(rows.len())?,
+        pk_min_us: pk_min,
+        pk_max_us: pk_max,
+        content_hash: &content,
+        gaps_digest: &gaps_hash,
+        conflicts_digest: &conflicts_hash,
+        sources_digest: &sources_hash,
+    })?;
+    let missing_hash = metric_missing_digest(missing)?;
+    let quality_hash = quality_digest(quality)?;
+    let path = format!("parquet/metrics/symbol={symbol}/date={date}/part.parquet");
+    let mut part = partition_json(&PartitionDoc {
+        date,
+        path: &path,
+        row_count: u64_len(rows.len())?,
+        pk_min_us: pk_min,
+        pk_max_us: pk_max,
+        available_min_us: available_min,
+        available_max_us: available_max,
+        content_hash: &content,
+        gaps: &gaps,
+        sources: &[],
+        conflicts: &[],
+        excluded_windows: &[],
+        leaf_hash: &leaf,
+        gaps_digest: &gaps_hash,
+        conflicts_digest: &conflicts_hash,
+        sources_digest: &sources_hash,
+    })?;
+    part.as_object_mut().ok_or(EncodeError::Length)?.insert(
+        "payload_version".to_owned(),
+        serde_json::Value::String(PAYLOAD_V3.to_owned()),
+    );
+    let mut rule_versions = serde_json::Map::new();
+    rule_versions.insert(
+        "row_encoding".to_owned(),
+        serde_json::Value::String(METRICS_SCHEMA_RULES[0].to_owned()),
+    );
+    rule_versions.insert(
+        "available_ts_rules".to_owned(),
+        serde_json::Value::String(METRICS_SCHEMA_RULES[1].to_owned()),
+    );
+    rule_versions.insert(
+        "gap_rules".to_owned(),
+        serde_json::Value::String(METRICS_SCHEMA_RULES[2].to_owned()),
+    );
+    rule_versions.insert(
+        "conflict_rules".to_owned(),
+        serde_json::Value::String(METRICS_SCHEMA_RULES[3].to_owned()),
+    );
+    rule_versions.insert(
+        "metric_missing_rules".to_owned(),
+        serde_json::Value::String(METRICS_SCHEMA_RULES[4].to_owned()),
+    );
+    let columns = METRICS_COLUMNS
+        .iter()
+        .map(|column| {
+            serde_json::Value::Array(vec![
+                serde_json::Value::String(column.name.to_owned()),
+                serde_json::Value::String(column.ty.to_owned()),
+            ])
+        })
+        .collect();
+    let mut schema_obj = serde_json::Map::new();
+    schema_obj.insert("schema_hash".to_owned(), json_hex(&schema));
+    schema_obj.insert("columns".to_owned(), serde_json::Value::Array(columns));
+    schema_obj.insert(
+        "excluded_from_hash".to_owned(),
+        serde_json::Value::Array(vec![serde_json::Value::String(
+            "receipt.Archive.fetched_at_run".to_owned(),
+        )]),
+    );
+    schema_obj.insert(
+        "scale".to_owned(),
+        serde_json::Value::String("per-column".to_owned()),
+    );
+    schema_obj.insert(
+        "contract_version".to_owned(),
+        serde_json::Value::String(CONTRACT_VERSION.to_owned()),
+    );
+    schema_obj.insert(
+        "rule_versions".to_owned(),
+        serde_json::Value::Object(rule_versions),
+    );
+    schema_obj.insert(
+        "payload_version".to_owned(),
+        serde_json::Value::String(PAYLOAD_V3.to_owned()),
+    );
+    let mut range = serde_json::Map::new();
+    range.insert(
+        "first_date".to_owned(),
+        serde_json::Value::String(date.to_owned()),
+    );
+    range.insert(
+        "last_date".to_owned(),
+        serde_json::Value::String(date.to_owned()),
+    );
+    let mut summary = serde_json::Map::new();
+    summary.insert(
+        "partitions".to_owned(),
+        serde_json::Value::String("1".to_owned()),
+    );
+    summary.insert(
+        "rows".to_owned(),
+        serde_json::Value::String(rows.len().to_string()),
+    );
+    let mut root = serde_json::Map::new();
+    root.insert(
+        "spec".to_owned(),
+        serde_json::Value::String(MANIFEST_SPEC_V2_2.to_owned()),
+    );
+    root.insert(
+        "dataset_id".to_owned(),
+        serde_json::Value::String(dataset_id.to_owned()),
+    );
+    root.insert("version_root".to_owned(), json_hex(&leaf));
+    root.insert("schema".to_owned(), serde_json::Value::Object(schema_obj));
+    root.insert("range".to_owned(), serde_json::Value::Object(range));
+    root.insert(
+        "partitions".to_owned(),
+        serde_json::Value::Array(vec![part]),
+    );
+    root.insert("summary".to_owned(), serde_json::Value::Object(summary));
+    root.insert(
+        "metric_missing".to_owned(),
+        serde_json::Value::Array(missing.iter().map(missing_json).collect()),
+    );
+    root.insert(
+        "metric_missing_digest".to_owned(),
+        serde_json::Value::String(hex::encode(missing_hash)),
+    );
+    root.insert(
+        "quality".to_owned(),
+        serde_json::Value::Array(quality.iter().map(quality_json).collect()),
+    );
+    root.insert(
+        "quality_digest".to_owned(),
+        serde_json::Value::String(hex::encode(quality_hash)),
+    );
+    serde_json::to_vec(&serde_json::Value::Object(root)).map_err(|_| EncodeError::Length)
+}
+
+fn missing_json(entry: &MetricMissingRec) -> serde_json::Value {
+    let mut tokens = serde_json::Map::new();
+    let mut pairs = entry.tokens.clone();
+    pairs.sort_by(|left, right| left.0.as_bytes().cmp(right.0.as_bytes()));
+    for (token, count) in pairs {
+        tokens.insert(token, serde_json::Value::String(count.to_string()));
+    }
+    let mut object = serde_json::Map::new();
+    object.insert(
+        "kind".to_owned(),
+        serde_json::Value::String("metric_missing".to_owned()),
+    );
+    object.insert(
+        "column".to_owned(),
+        serde_json::Value::String(entry.column.clone()),
+    );
+    object.insert("start_us".to_owned(), json_i64(entry.start_us));
+    object.insert("end_us".to_owned(), json_i64(entry.end_us));
+    object.insert("slots".to_owned(), json_u64(entry.slots));
+    object.insert(
+        "token_class".to_owned(),
+        serde_json::Value::String(entry.token_class.clone()),
+    );
+    object.insert("tokens".to_owned(), serde_json::Value::Object(tokens));
+    serde_json::Value::Object(object)
+}
+
+fn quality_json(entry: &QualityRec) -> serde_json::Value {
+    let mut object = serde_json::Map::new();
+    object.insert(
+        "kind".to_owned(),
+        serde_json::Value::String("long_null_run".to_owned()),
+    );
+    object.insert(
+        "column".to_owned(),
+        serde_json::Value::String(entry.column.clone()),
+    );
+    object.insert("start_us".to_owned(), json_i64(entry.start_us));
+    object.insert("end_us".to_owned(), json_i64(entry.end_us));
+    object.insert("slots".to_owned(), json_u64(entry.slots));
+    object.insert(
+        "threshold_slots".to_owned(),
+        json_u64(entry.threshold_slots),
+    );
+    serde_json::Value::Object(object)
+}
+
+fn parse_civil_day(date: &str) -> Result<CivilDay, EncodeError> {
+    let mut parts = date.split('-');
+    let year = parts
+        .next()
+        .and_then(|text| text.parse::<i32>().ok())
+        .ok_or(EncodeError::Column("date"))?;
+    let month = parts
+        .next()
+        .and_then(|text| text.parse::<u8>().ok())
+        .ok_or(EncodeError::Column("date"))?;
+    let day = parts
+        .next()
+        .and_then(|text| text.parse::<u8>().ok())
+        .ok_or(EncodeError::Column("date"))?;
+    if parts.next().is_some() {
+        return Err(EncodeError::Column("date"));
+    }
+    CivilDay::new(year, month, day).ok_or(EncodeError::Column("date"))
+}
+
+fn row_bounds(rows: &[MetricsCanonicalRow<'_>]) -> Result<(i64, i64, i64, i64), EncodeError> {
+    let first = rows.first().ok_or(EncodeError::PkOrder)?;
+    let mut pk_min = first.create_time_us;
+    let mut pk_max = first.create_time_us;
+    let mut available_min = first.available_ts_us;
+    let mut available_max = first.available_ts_us;
+    for row in rows.iter().skip(1) {
+        if row.create_time_us < pk_min {
+            pk_min = row.create_time_us;
+        }
+        if row.create_time_us > pk_max {
+            pk_max = row.create_time_us;
+        }
+        if row.available_ts_us < available_min {
+            available_min = row.available_ts_us;
+        }
+        if row.available_ts_us > available_max {
+            available_max = row.available_ts_us;
+        }
+    }
+    Ok((pk_min, pk_max, available_min, available_max))
+}
+
+fn metrics_grid_gaps(day: CivilDay, rows: &[MetricsCanonicalRow<'_>]) -> Vec<Gap> {
+    let present: BTreeSet<i64> = rows.iter().map(|row| row.create_time_us).collect();
+    let start = day.start_us().micros();
+    let mut gaps = Vec::new();
+    let mut run: Option<(i64, i64)> = None;
+    for index in 0..METRICS_SLOTS_PER_DAY {
+        let slot = start + index * METRICS_STEP_US;
+        if present.contains(&slot) {
+            if let Some((run_start, run_end)) = run.take() {
+                gaps.push(grid_gap(run_start, run_end));
+            }
+        } else if let Some((run_start, _)) = run {
+            run = Some((run_start, slot));
+        } else {
+            run = Some((slot, slot));
+        }
+    }
+    if let Some((run_start, run_end)) = run {
+        gaps.push(grid_gap(run_start, run_end));
+    }
+    gaps
+}
+
+fn grid_gap(start: i64, last: i64) -> Gap {
+    Gap {
+        kind: GapKind::Grid,
+        start: UtcMicros::from_micros(start),
+        end: UtcMicros::from_micros(last + METRICS_STEP_US),
+        detail: String::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1104,6 +1587,273 @@ mod tests {
             "b5c3268e1fbd6552d60fa1ba892a55c5f2e4b085de7cf513d898bf2207c51784",
         )?;
         Ok(())
+    }
+
+    const G1_BYTES: &str = include_str!("../../tests/golden/metrics_manifest_g1.json");
+    const KLINE_ROOT: &str = "35bfb3fe3d97d398cadc0b288a6afdb4fc7f7cb8a34ba5dab68f64b848e121a9";
+    const KLINE_DIGEST: &str = "1c47beeef27e8908d16773c474897fc2eb18c623a44408fc56c703b04bc39c16";
+    const KLINE_ID: &str = "binance-vision.um.um-kline.BTCUSDT";
+
+    fn three_rows() -> [MetricsCanonicalRow<'static>; 3] {
+        [
+            metrics_row(
+                1_720_545_600_000_000,
+                Some(8_107_070_500_000),
+                Some(466_141_999_090_011_700),
+                [
+                    Some(19_127_967_400_000_000),
+                    Some(16_027_240_000_000_000),
+                    Some(17_918_580_100_000_000),
+                    Some(10_458_250_000_000_000),
+                ],
+                None,
+            ),
+            metrics_row(
+                1_720_545_900_000_000,
+                None,
+                None,
+                [
+                    Some(19_113_286_700_000_000),
+                    Some(16_038_800_000_000_000),
+                    Some(17_959_065_800_000_000),
+                    Some(32_169_940_000_000_000),
+                ],
+                Some(NULL_OI),
+            ),
+            metrics_row(
+                1_720_546_200_000_000,
+                Some(8_108_182_300_000),
+                Some(466_890_045_478_454_500),
+                [
+                    Some(19_098_314_800_000_000),
+                    Some(16_041_570_000_000_000),
+                    Some(17_922_812_500_000_000),
+                    Some(5_946_510_000_000_000),
+                ],
+                None,
+            ),
+        ]
+    }
+
+    fn row_at(index: i64, template: &MetricsCanonicalRow<'static>) -> MetricsCanonicalRow<'static> {
+        let create = 1_720_545_600_000_000 + index * 300_000_000;
+        MetricsCanonicalRow {
+            create_time_us: create,
+            event_ts_us: create,
+            available_ts_us: create + 300_000_000,
+            ..*template
+        }
+    }
+
+    fn g2_rows() -> Vec<MetricsCanonicalRow<'static>> {
+        let base = three_rows();
+        let mut rows = Vec::with_capacity(15);
+        rows.push(row_at(0, &base[0]));
+        for index in 1..14 {
+            rows.push(row_at(index, &base[1]));
+        }
+        rows.push(row_at(14, &base[2]));
+        rows
+    }
+
+    fn manifest_of(rows: &[MetricsCanonicalRow<'_>], threshold: u64) -> Result<Vec<u8>, String> {
+        let (missing, quality) = metric_lists(rows, threshold).map_err(|err| err.to_string())?;
+        metrics_canonical_manifest(
+            METRICS_ID,
+            "BTCUSDT",
+            "2024-07-09",
+            rows,
+            &missing,
+            &quality,
+        )
+        .map_err(|err| err.to_string())
+    }
+
+    fn decode_hex(text: &str) -> Result<[u8; 32], String> {
+        let bytes = hex::decode(text).map_err(|err| err.to_string())?;
+        let mut out = [0u8; 32];
+        if bytes.len() != 32 {
+            return Err(format!("len {}", bytes.len()));
+        }
+        out.copy_from_slice(&bytes);
+        Ok(out)
+    }
+
+    struct Golden<'a> {
+        content: &'a str,
+        root: &'a str,
+        missing: &'a str,
+        quality: &'a str,
+        length: usize,
+        digest: &'a str,
+        bundle_one: &'a str,
+        bundle_two: &'a str,
+    }
+
+    fn assert_table(bytes: &[u8], golden: &Golden<'_>) -> Result<(), String> {
+        if bytes.len() != golden.length {
+            return Err(format!("length {} != {}", bytes.len(), golden.length));
+        }
+        let value: serde_json::Value =
+            serde_json::from_slice(bytes).map_err(|err| err.to_string())?;
+        let part = value
+            .get("partitions")
+            .and_then(|item| item.as_array())
+            .and_then(|items| items.first())
+            .ok_or("partition")?;
+        let found_content = part
+            .get("content_hash")
+            .and_then(|item| item.as_str())
+            .ok_or("content")?;
+        if found_content != golden.content {
+            return Err(format!("content {found_content}"));
+        }
+        let found_root = value
+            .get("version_root")
+            .and_then(|item| item.as_str())
+            .ok_or("root")?;
+        if found_root != golden.root {
+            return Err(format!("root {found_root}"));
+        }
+        let found_missing = value
+            .get("metric_missing_digest")
+            .and_then(|item| item.as_str())
+            .ok_or("missing digest")?;
+        if found_missing != golden.missing {
+            return Err(format!("metric_missing_digest {found_missing}"));
+        }
+        let found_quality = value
+            .get("quality_digest")
+            .and_then(|item| item.as_str())
+            .ok_or("quality digest")?;
+        if found_quality != golden.quality {
+            return Err(format!("quality_digest {found_quality}"));
+        }
+        let actual = hex::encode(sha256(bytes));
+        if actual != golden.digest {
+            return Err(format!("manifest_digest {actual}"));
+        }
+        let root_bytes = decode_hex(golden.root)?;
+        let digest_bytes = decode_hex(golden.digest)?;
+        let one = bundle_hash(&[(METRICS_ID, root_bytes, digest_bytes)])
+            .map_err(|err| format!("{err:?}"))?;
+        expect(&one, golden.bundle_one)?;
+        let two = bundle_hash(&[
+            (METRICS_ID, root_bytes, digest_bytes),
+            (KLINE_ID, decode_hex(KLINE_ROOT)?, decode_hex(KLINE_DIGEST)?),
+        ])
+        .map_err(|err| format!("{err:?}"))?;
+        expect(&two, golden.bundle_two)?;
+        Ok(())
+    }
+
+    #[test]
+    fn metrics_manifest_goldens_match_section_4_7_2() -> Result<(), String> {
+        let g1 = manifest_of(&three_rows(), 12)?;
+        if g1 != G1_BYTES.as_bytes() {
+            return Err(format!(
+                "G1 bytes differ: len {} sha {}",
+                g1.len(),
+                hex::encode(sha256(&g1))
+            ));
+        }
+        assert_table(
+            &g1,
+            &Golden {
+                content: "68f5b06841e63fd7e0a00ac39814e37ff3af5310a937a09c839c32cc9d9949e0",
+                root: "193fae8075970a40b4bd3c2987e32a48a21daa71f79f5420ceafa7f8845cec47",
+                missing: "8cbaeb8e31f6c135ad21d8b05a5b8fe380f8ec436da94204fff69bc1c9b236bd",
+                quality: "8b27c0f3ae97776df89a78ca99db8f21b970fd4a2124340dc9fa4050e1241004",
+                length: 2725,
+                digest: "7a492a20a51bcabb5a89a8d14157ba61dc8ef91fc9e585c06918bac976135478",
+                bundle_one: "08b3b9bce407c38b24f26bcecbcd5f95deb4302f07b94af2f66125df4a36c014",
+                bundle_two: "adb97ce3a0d2c75ebcadacf8faea84d64d47c66efbbb960e3e72aea3605772cf",
+            },
+        )?;
+        let g2 = manifest_of(&g2_rows(), 12)?;
+        assert_table(
+            &g2,
+            &Golden {
+                content: "94460866bb82a62b6d38aac2582f8f934d2f28bc634d22bdb021cc57d21f56c9",
+                root: "b957115f715add9d65b7e649d0b658b8ab4081f5aada99985d315e72291c415e",
+                missing: "16136d5a7884b2c5c8b0269eb0b5745f7922a2e1aeffa1200216725d48234958",
+                quality: "33b067c07c76afa1a549876cd6fbf31d06203c989e029f72f95753ca2da2ca72",
+                length: 3032,
+                digest: "755d0f6c8a7affbe6844fc1f3bd78bd4c531798978400acb103fd3353be11ce1",
+                bundle_one: "56981fe5ca7a37bc33adea1073be718ae25d13ff432365c624f20ab7d07e4c92",
+                bundle_two: "ba71350e123bc86d8be165e278c38bf046bbe98d847b53acaaaa66ee4e8b16cd",
+            },
+        )?;
+        assert_mutants(&g1, &g2)?;
+        Ok(())
+    }
+
+    fn assert_mutants(g1: &[u8], g2: &[u8]) -> Result<(), String> {
+        let g1_digest = sha256(g1);
+        let g2_digest = sha256(g2);
+        let flipped = mutate_str(g1, &["partitions", "0", "payload_version"], "payload/v4")?;
+        if sha256(&flipped) == g1_digest {
+            return Err("payload_version mutant kept the digest".into());
+        }
+        let dropped = drop_quality(g2)?;
+        if sha256(&dropped) == g2_digest {
+            return Err("quality mutant kept the digest".into());
+        }
+        let counted = mutate_str(g1, &["metric_missing", "0", "tokens", "0E-16"], "9")?;
+        if sha256(&counted) == g1_digest {
+            return Err("token count mutant kept the digest".into());
+        }
+        let threshold = mutate_str(g2, &["quality", "0", "threshold_slots"], "11")?;
+        if sha256(&threshold) == g2_digest {
+            return Err("threshold_slots mutant kept the digest".into());
+        }
+        Ok(())
+    }
+
+    fn mutate_str(bytes: &[u8], path: &[&str], replacement: &str) -> Result<Vec<u8>, String> {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(bytes).map_err(|err| err.to_string())?;
+        let mut cursor = &mut value;
+        for (index, key) in path.iter().enumerate() {
+            let last = index + 1 == path.len();
+            if last {
+                let found = cursor
+                    .get(*key)
+                    .and_then(|item| item.as_str())
+                    .ok_or(*key)?;
+                if found == replacement {
+                    return Err(format!("{key} was already {replacement}"));
+                }
+                if let Some(object) = cursor.as_object_mut() {
+                    object.insert(
+                        (*key).to_owned(),
+                        serde_json::Value::String(replacement.to_owned()),
+                    );
+                } else {
+                    return Err((*key).to_owned());
+                }
+                break;
+            }
+            cursor = if let Ok(slot) = key.parse::<usize>() {
+                cursor.get_mut(slot).ok_or_else(|| (*key).to_owned())?
+            } else {
+                cursor.get_mut(*key).ok_or_else(|| (*key).to_owned())?
+            };
+        }
+        serde_json::to_vec(&value).map_err(|err| err.to_string())
+    }
+
+    fn drop_quality(bytes: &[u8]) -> Result<Vec<u8>, String> {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(bytes).map_err(|err| err.to_string())?;
+        let quality = value
+            .get_mut("quality")
+            .and_then(|item| item.as_array_mut())
+            .ok_or("quality")?;
+        if quality.pop().is_none() {
+            return Err("quality was empty".into());
+        }
+        serde_json::to_vec(&value).map_err(|err| err.to_string())
     }
 
     fn receipt() -> Receipt {

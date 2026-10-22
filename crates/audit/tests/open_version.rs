@@ -124,3 +124,84 @@ fn this_workspace_does_not_let_research_crates_depend_on_audit() {
     let metadata: serde_json::Value = serde_json::from_slice(&output.stdout).expect("metadata");
     runner_depends_on_audit(&metadata).expect("depgraph");
 }
+
+#[test]
+fn audit_refuses_unknown_payload_unknown_rule_and_stale_partition() {
+    let root_bytes = merkle_tree_head(&[]);
+    let zeros = [0u8; 32];
+    let built = canonical_manifest(&ManifestDoc {
+        dataset_id: DATASET,
+        columns: UM_KLINE_COLUMNS,
+        schema_hash: &zeros,
+        version_root: &root_bytes,
+        first_date: "2021-06-01",
+        last_date: "2021-06-01",
+        partitions: &[],
+        rows: 0,
+    })
+    .expect("manifest");
+    let mut unknown_payload: serde_json::Value = serde_json::from_slice(&built).expect("json");
+    *unknown_payload
+        .pointer_mut("/schema/payload_version")
+        .expect("payload") = serde_json::json!("payload/v4");
+    expect_refused(
+        &serde_json::to_vec(&unknown_payload).expect("bytes"),
+        root_bytes,
+    );
+
+    let mut unknown_rule: serde_json::Value = serde_json::from_slice(&built).expect("json");
+    unknown_rule
+        .pointer_mut("/schema/rule_versions")
+        .and_then(|item| item.as_object_mut())
+        .expect("rules")
+        .remove("metric_missing_rules");
+    expect_refused(
+        &serde_json::to_vec(&unknown_rule).expect("bytes"),
+        root_bytes,
+    );
+
+    let mut stale: serde_json::Value = serde_json::from_slice(&built).expect("json");
+    let zero = "0000000000000000000000000000000000000000000000000000000000000000";
+    stale.as_object_mut().expect("object").insert(
+        "partitions".to_owned(),
+        serde_json::json!([{
+            "date": "2021-06-01",
+            "path": "parquet/metrics/symbol=BTCUSDT/date=2021-06-01/part.parquet",
+            "row_count": "0",
+            "pk_min_us": "0",
+            "pk_max_us": "0",
+            "available_ts_min_us": "0",
+            "available_ts_max_us": "0",
+            "content_hash": zero,
+            "sources": [],
+            "open_gaps": [],
+            "conflicts": [],
+            "excluded_windows": [],
+            "gaps_digest": zero,
+            "conflicts_digest": zero,
+            "sources_digest": zero,
+            "leaf_hash": zero,
+            "payload_version": "payload/v2"
+        }]),
+    );
+    expect_refused(&serde_json::to_vec(&stale).expect("bytes"), root_bytes);
+}
+
+fn expect_refused(bytes: &[u8], root_bytes: [u8; 32]) {
+    let root = VersionRoot::from_bytes(root_bytes);
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir
+        .path()
+        .join("manifest")
+        .join("versions")
+        .join(DATASET)
+        .join(format!("{}.json", root.to_hex()));
+    fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+    fs::write(&path, bytes).expect("write");
+    let digest = ManifestDigest::from_bytes(encode::sha256(bytes));
+    match open_version(dir.path(), DATASET, root, digest) {
+        Err(AuditError::Refused) => {}
+        Err(err) => panic!("{err}"),
+        Ok(_) => panic!("audit opened a refused manifest"),
+    }
+}
