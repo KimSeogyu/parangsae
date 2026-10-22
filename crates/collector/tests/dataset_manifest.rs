@@ -3,12 +3,14 @@
 use std::path::PathBuf;
 
 use cucumber::{given, then, when, World as _};
-use parangsae_collector::civil::{CivilDay, YearMonth};
+use parangsae_collector::civil::{CivilDay, DayRange, YearMonth};
 use parangsae_collector::run::Provenance;
 use parangsae_collector::store::{self, fact_path};
-use parangsae_collector::version::{directory_digest, migrate_receipts};
+use parangsae_collector::version::{
+    directory_digest, migrate_receipts, publish, DatasetId, PublishRequest,
+};
 use parangsae_collector::vision::{
-    funding_window, parse_funding, parse_klines, FundingFact, TickDomain,
+    funding_window, missing_coverage, parse_funding, parse_klines, FundingFact, TickDomain,
 };
 use parangsae_core::{AvailableTs, Receipt, RunId, Symbol, UtcMicros};
 
@@ -21,6 +23,7 @@ struct ManifestWorld {
     funding: Option<FundingFact>,
     rejected: bool,
     digest: Option<String>,
+    publish_error: Option<String>,
 }
 
 fn symbol() -> Symbol {
@@ -178,6 +181,44 @@ fn then_not_clamped(world: &mut ManifestWorld) {
     assert!(world.rejected);
     let row = world.funding.as_ref().expect("funding row");
     assert!(row.available_ts.micros() < row.event_ts.micros());
+}
+
+#[given("a gap cache that says missing_file for that day")]
+fn given_stale_gaps(world: &mut ManifestWorld) {
+    let dir = world.dir.as_ref().expect("dir");
+    let day = world.day.expect("day");
+    let dataset = world.dataset.as_deref().expect("dataset");
+    let gap = missing_coverage(day, false);
+    store::write_gaps(dir, dataset, "BTCUSDT", day, &[gap]).expect("gaps");
+}
+
+#[when("the day is published")]
+fn when_published(world: &mut ManifestWorld) {
+    let dir = world.dir.clone().expect("dir");
+    let day = world.day.expect("day");
+    let dataset = DatasetId::parse("binance-vision.um.um-kline.BTCUSDT").expect("dataset id");
+    let range = DayRange::new(day, day).expect("range");
+    let provenance = Provenance {
+        git_sha: "0123456789abcdef0123456789abcdef01234567".to_owned(),
+        dirty: false,
+    };
+    let run = RunId::from_bytes([4; 16]);
+    world.publish_error = match publish(&PublishRequest {
+        data_dir: &dir,
+        dataset: &dataset,
+        range,
+        provenance: &provenance,
+        run,
+        built_at: UtcMicros::from_micros(1),
+    }) {
+        Ok(_) => None,
+        Err(err) => Some(err.name().to_owned()),
+    };
+}
+
+#[then(regex = r#"^publish fails with "([^"]+)""#)]
+fn then_publish_fails(world: &mut ManifestWorld, name: String) {
+    assert_eq!(world.publish_error.as_deref(), Some(name.as_str()));
 }
 
 fn stored(world: &ManifestWorld) -> Vec<parangsae_collector::vision::KlineFact> {

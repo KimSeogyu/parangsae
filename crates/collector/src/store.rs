@@ -622,6 +622,15 @@ fn decode_receipts(batches: &[RecordBatch]) -> Result<Vec<Receipt>, Error> {
 }
 
 pub(crate) fn write_klines(path: &Path, dataset: &str, rows: &[KlineFact]) -> Result<(), Error> {
+    write_klines_compressed(path, dataset, rows, Compression::SNAPPY)
+}
+
+pub(crate) fn write_klines_compressed(
+    path: &Path,
+    dataset: &str,
+    rows: &[KlineFact],
+    compression: Compression,
+) -> Result<(), Error> {
     let flat = records_flat(dataset);
     if !flat && rows.iter().any(|row| row.zero_volume_flat) {
         return Err(Error::check(
@@ -659,7 +668,11 @@ pub(crate) fn write_klines(path: &Path, dataset: &str, rows: &[KlineFact]) -> Re
     }
     let batch = RecordBatch::try_new(schema, columns)
         .map_err(|err| Error::check("parquet", err.to_string()))?;
-    write_batch(path, batch)
+    write_batch_compressed(path, batch, compression)
+}
+
+pub(crate) fn read_klines_file(path: &Path, dataset: &str) -> Result<Vec<KlineFact>, Error> {
+    read_klines_at(path, dataset)
 }
 
 fn read_klines_at(path: &Path, dataset: &str) -> Result<Vec<KlineFact>, Error> {
@@ -969,6 +982,14 @@ pub(crate) fn scale_schema(fields: Vec<Field>) -> Arc<Schema> {
 }
 
 pub(crate) fn write_batch(path: &Path, batch: RecordBatch) -> Result<(), Error> {
+    write_batch_compressed(path, batch, Compression::SNAPPY)
+}
+
+pub(crate) fn write_batch_compressed(
+    path: &Path,
+    batch: RecordBatch,
+    compression: Compression,
+) -> Result<(), Error> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|source| Error::Io {
             path: parent.display().to_string(),
@@ -981,7 +1002,7 @@ pub(crate) fn write_batch(path: &Path, batch: RecordBatch) -> Result<(), Error> 
         source,
     })?;
     let properties = WriterProperties::builder()
-        .set_compression(Compression::SNAPPY)
+        .set_compression(compression)
         .build();
     let mut writer = ArrowWriter::try_new(file, batch.schema(), Some(properties))
         .map_err(|err| Error::check("parquet", err.to_string()))?;

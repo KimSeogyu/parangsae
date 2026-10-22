@@ -107,6 +107,18 @@ pub enum EncodeError {
     Column(&'static str),
 }
 
+impl std::fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::PkOrder => write!(f, "primary key is not strictly increasing"),
+            Self::DuplicateGap => write!(f, "duplicate gap"),
+            Self::DuplicateConflict => write!(f, "duplicate conflict"),
+            Self::Length => write!(f, "length does not fit"),
+            Self::Column(name) => write!(f, "column {name}"),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BundleError {
     DuplicateDataset,

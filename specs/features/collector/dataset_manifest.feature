@@ -19,3 +19,9 @@ Feature: Dataset version manifest
     Given a v1 parquet partition for dataset "um-kline"
     When receipts are migrated without --apply
     Then the data directory is unchanged
+
+  Scenario: a stale gap cache blocks publish
+    Given an archive ingest of "um_kline_2021-06-01_headerless.csv" with run id "0123456789abcdef0123456789abcdef"
+    And a gap cache that says missing_file for that day
+    When the day is published
+    Then publish fails with "StaleGapCache"
