@@ -12,7 +12,10 @@ def shown(info):
     return str(result)
 
 
-needs = json.loads(os.environ["NEEDS"])
+try:
+    needs = json.loads(os.environ["NEEDS"])
+except json.JSONDecodeError:
+    sys.exit("gate needs are not json")
 if not isinstance(needs, dict):
     sys.exit("gate needs must be an object")
 bad = [

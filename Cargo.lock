@@ -2819,6 +2819,7 @@ dependencies = [
  "gherkin",
  "serde",
  "serde_json",
+ "sha2",
  "toml",
 ]
 

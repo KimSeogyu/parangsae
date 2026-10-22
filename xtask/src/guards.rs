@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Floors {
@@ -90,6 +91,10 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
             let file = required_path(args, "--file")?;
             finish(Ok(ci_gate_gaps(&read(&file)?)?))
         }
+        "gate-script" => {
+            let file = required_path(args, "--file")?;
+            finish(Ok(gate_results_pin(&read(&file)?)))
+        }
         other => Err(format!("unknown guards command {other}")),
     }
 }
@@ -106,6 +111,9 @@ fn check_workspace(root: &Path) -> Result<(), String> {
     violations.extend(ci_gate_gaps(&read(
         &root.join(".github/workflows/ci.yml"),
     )?)?);
+    violations.extend(gate_results_pin(&read(
+        &root.join(".github/workflows/gate_results.py"),
+    )?));
     finish(Ok(violations))
 }
 
@@ -115,6 +123,22 @@ const GATE_CHECK_STEP: &str = concat!(
     "          NEEDS: ${{ toJSON(needs) }}\n",
     "        run: python3 .github/workflows/gate_results.py\n",
 );
+
+const GATE_RESULTS_SHA256: &str =
+    "fc29c5183b78333789e1290fa2f1e859e1cbc53a4f8ab9bf50d99069ca131f55";
+
+fn gate_results_pin(text: &str) -> Vec<String> {
+    let digest = Sha256::digest(text.as_bytes());
+    let mut hex = String::with_capacity(64);
+    for byte in digest {
+        hex.push_str(&format!("{byte:02x}"));
+    }
+    if hex == GATE_RESULTS_SHA256 {
+        Vec::new()
+    } else {
+        vec!["gate_results.py sha256 does not match".to_owned()]
+    }
+}
 
 fn ci_gate_gaps(text: &str) -> Result<Vec<String>, String> {
     let jobs = ci_job_ids(text)?;
@@ -1757,6 +1781,10 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         if !gaps.is_empty() {
             return Err(gaps.join("\n"));
         }
+        let pin = gate_results_pin(&read(&root.join(".github/workflows/gate_results.py"))?);
+        if !pin.is_empty() {
+            return Err(pin.join("\n"));
+        }
         Ok(())
     }
 
@@ -1843,6 +1871,22 @@ jobs:
         let gaps = ci_gate_gaps(text)?;
         if gaps != ["gate.needs lists phantom which is not a ci job".to_owned()] {
             return Err(format!("{gaps:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_replaced_gate_script_fails_the_sha256_pin() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let pinned = gate_results_pin(&read(&root.join(".github/workflows/gate_results.py"))?);
+        if !pinned.is_empty() {
+            return Err(format!("real script: {pinned:?}"));
+        }
+        let replaced = gate_results_pin(&read(
+            &root.join("fixtures/guards/ci/gate_results_exit_zero.py"),
+        )?);
+        if replaced != ["gate_results.py sha256 does not match".to_owned()] {
+            return Err(format!("{replaced:?}"));
         }
         Ok(())
     }

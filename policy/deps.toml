@@ -406,6 +406,12 @@ source = "crates.io"
 default_features = true
 
 [[crate.edge]]
+name = "sha2"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
 name = "toml"
 kind = "normal"
 source = "crates.io"
