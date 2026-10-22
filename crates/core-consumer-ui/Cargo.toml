@@ -1,0 +1,13 @@
+[package]
+name = "core-consumer-ui"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Compile-fail checks against parangsae-core's public surface."
+
+[dependencies]
+parangsae-core = { path = "../core" }
+
+[dev-dependencies]
+trybuild = "1.0.122"

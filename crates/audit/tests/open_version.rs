@@ -185,9 +185,67 @@ fn audit_refuses_unknown_payload_unknown_rule_and_stale_partition() {
         }]),
     );
     expect_refused(&serde_json::to_vec(&stale).expect("bytes"), root_bytes);
+
+    let mut absent: serde_json::Value = serde_json::from_slice(&built).expect("json");
+    absent
+        .pointer_mut("/schema")
+        .and_then(|item| item.as_object_mut())
+        .expect("schema")
+        .remove("payload_version");
+    expect_refused(&serde_json::to_vec(&absent).expect("bytes"), root_bytes);
+
+    let mut broken: serde_json::Value = serde_json::from_slice(&built).expect("json");
+    broken.as_object_mut().expect("object").remove("schema");
+    expect_refused(&serde_json::to_vec(&broken).expect("bytes"), root_bytes);
+
+    let kline_id = "binance-vision.um.um-kline.BTCUSDT";
+    let kline = canonical_manifest(&ManifestDoc {
+        dataset_id: kline_id,
+        columns: UM_KLINE_COLUMNS,
+        schema_hash: &zeros,
+        version_root: &root_bytes,
+        first_date: "2021-06-01",
+        last_date: "2021-06-01",
+        partitions: &[],
+        rows: 0,
+    })
+    .expect("kline");
+    let mut mismatch: serde_json::Value = serde_json::from_slice(&kline).expect("json");
+    mismatch
+        .pointer_mut("/schema")
+        .and_then(|item| item.as_object_mut())
+        .expect("schema")
+        .insert(
+            "payload_version".to_owned(),
+            serde_json::json!("payload/v3"),
+        );
+    expect_refused_id(
+        kline_id,
+        &serde_json::to_vec(&mismatch).expect("bytes"),
+        root_bytes,
+    );
 }
 
-fn expect_refused(bytes: &[u8], root_bytes: [u8; 32]) {
+#[test]
+fn audit_opens_a_payload_v2_metrics_root() {
+    let root_bytes = merkle_tree_head(&[]);
+    let zeros = [0u8; 32];
+    let built = canonical_manifest(&ManifestDoc {
+        dataset_id: DATASET,
+        columns: UM_KLINE_COLUMNS,
+        schema_hash: &zeros,
+        version_root: &root_bytes,
+        first_date: "2021-06-01",
+        last_date: "2021-06-01",
+        partitions: &[],
+        rows: 0,
+    })
+    .expect("manifest");
+    let mut value: serde_json::Value = serde_json::from_slice(&built).expect("json");
+    *value
+        .pointer_mut("/schema/payload_version")
+        .expect("payload") = serde_json::json!("payload/v2");
+    let bytes = serde_json::to_vec(&value).expect("bytes");
     let root = VersionRoot::from_bytes(root_bytes);
     let dir = tempfile::tempdir().expect("dir");
     let path = dir
@@ -197,9 +255,30 @@ fn expect_refused(bytes: &[u8], root_bytes: [u8; 32]) {
         .join(DATASET)
         .join(format!("{}.json", root.to_hex()));
     fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
+    fs::write(&path, &bytes).expect("write");
+    let digest = ManifestDigest::from_bytes(encode::sha256(&bytes));
+    let view = open_version(dir.path(), DATASET, root, digest).expect("payload v2");
+    assert_eq!(view.dataset_id(), DATASET);
+    assert_eq!(view.partitions(), 0);
+}
+
+fn expect_refused(bytes: &[u8], root_bytes: [u8; 32]) {
+    expect_refused_id(DATASET, bytes, root_bytes);
+}
+
+fn expect_refused_id(dataset_id: &str, bytes: &[u8], root_bytes: [u8; 32]) {
+    let root = VersionRoot::from_bytes(root_bytes);
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir
+        .path()
+        .join("manifest")
+        .join("versions")
+        .join(dataset_id)
+        .join(format!("{}.json", root.to_hex()));
+    fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
     fs::write(&path, bytes).expect("write");
     let digest = ManifestDigest::from_bytes(encode::sha256(bytes));
-    match open_version(dir.path(), DATASET, root, digest) {
+    match open_version(dir.path(), dataset_id, root, digest) {
         Err(AuditError::Refused) => {}
         Err(err) => panic!("{err}"),
         Ok(_) => panic!("audit opened a refused manifest"),

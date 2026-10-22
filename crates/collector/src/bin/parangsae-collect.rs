@@ -376,8 +376,11 @@ fn load_status(err: &LoadError) -> ExitCode {
         | LoadError::SupersededVersion { .. }
         | LoadError::StalePayloadVersion { .. }
         | LoadError::UnknownPayloadVersion { .. }
+        | LoadError::ManifestStructure { .. }
         | LoadError::UnknownRuleVersion { .. }
         | LoadError::ZeroOiStored { .. }
+        | LoadError::NegativeOiStored { .. }
+        | LoadError::NonPositiveRatioStored { .. }
         | LoadError::MetricMissingMismatch { .. }
         | LoadError::Io(_) => ExitCode::from(1),
     }
@@ -495,7 +498,12 @@ mod tests {
                 required: "payload/v3".to_owned(),
             },
             LoadError::UnknownPayloadVersion {
-                found: "payload/v4".to_owned(),
+                found: Some("payload/v4".to_owned()),
+            },
+            LoadError::UnknownPayloadVersion { found: None },
+            LoadError::ManifestStructure {
+                pointer: "/schema".to_owned(),
+                expected: "object",
             },
             LoadError::UnknownRuleVersion {
                 field: "metric_missing_rules",
@@ -505,6 +513,16 @@ mod tests {
                 date,
                 pk: 1,
                 column: "sum_open_interest",
+            },
+            LoadError::NegativeOiStored {
+                date,
+                pk: 1,
+                column: "sum_open_interest",
+            },
+            LoadError::NonPositiveRatioStored {
+                date,
+                pk: 1,
+                column: "count_long_short_ratio",
             },
             LoadError::MetricMissingMismatch { date },
             LoadError::Io("io".to_owned()),

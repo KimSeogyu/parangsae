@@ -1,7 +1,7 @@
 //! Canonical hashing for a dataset version. Compression and receipt run ids
 //! stay outside the hash. A non-increasing primary key is rejected, not sorted.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use sha2::{Digest, Sha256};
 
@@ -654,6 +654,23 @@ pub fn canonical_manifest(doc: &ManifestDoc<'_>) -> Result<Vec<u8>, EncodeError>
         serde_json::Value::Array(partitions),
     );
     root.insert("summary".to_owned(), serde_json::Value::Object(summary));
+    if spec == MANIFEST_SPEC_V2_2 {
+        let missing_hash = metric_missing_digest(&[])?;
+        let quality_hash = quality_digest(&[])?;
+        root.insert(
+            "metric_missing".to_owned(),
+            serde_json::Value::Array(Vec::new()),
+        );
+        root.insert(
+            "metric_missing_digest".to_owned(),
+            serde_json::Value::String(hex::encode(missing_hash)),
+        );
+        root.insert("quality".to_owned(), serde_json::Value::Array(Vec::new()));
+        root.insert(
+            "quality_digest".to_owned(),
+            serde_json::Value::String(hex::encode(quality_hash)),
+        );
+    }
     serde_json::to_vec(&serde_json::Value::Object(root)).map_err(|_| EncodeError::Length)
 }
 
@@ -1002,8 +1019,17 @@ fn json_u64(value: u64) -> serde_json::Value {
 
 const METRICS_STEP_US: i64 = 300_000_000;
 const METRICS_SLOTS_PER_DAY: i64 = 288;
-const OI_COLUMNS: [&str; 2] = ["sum_open_interest", "sum_open_interest_value"];
 const ZERO_OI_TOKEN: &str = "0E-16";
+const QUOTED_EMPTY_TOKEN: &str = "\"\"";
+/// Nullable metrics columns and their 0-based schema positions.
+const NULLABLE_COLUMNS: [(&str, usize); 6] = [
+    ("sum_open_interest", 2),
+    ("sum_open_interest_value", 3),
+    ("count_toptrader_long_short_ratio", 4),
+    ("sum_toptrader_long_short_ratio", 5),
+    ("count_long_short_ratio", 6),
+    ("sum_taker_long_short_vol_ratio", 7),
+];
 
 /// One `metric_missing[]` record. Counts are the raw token counts.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1029,101 +1055,119 @@ pub struct QualityRec {
 /// `metric_missing[]` and `quality[]` from hashed rows and the rule's slot threshold.
 ///
 /// A column run is consecutive 5-minute rows whose `missing_tokens` name that
-/// column as the `0E-16` sentinel. `quality` keeps runs with more slots than
-/// `threshold_slots`.
+/// column with the same token class (`0E-16`, or a quoted or unquoted empty
+/// field). `quality` keeps runs with more slots than `threshold_slots`.
 pub fn metric_lists(
     rows: &[MetricsCanonicalRow<'_>],
     threshold_slots: u64,
 ) -> Result<(Vec<MetricMissingRec>, Vec<QualityRec>), EncodeError> {
     let mut missing = Vec::new();
     let mut quality = Vec::new();
-    for column in OI_COLUMNS {
-        let mut run_start: Option<i64> = None;
-        let mut slots = 0u64;
-        let mut previous: Option<i64> = None;
+    for (column, _) in NULLABLE_COLUMNS {
+        let mut open: Option<OpenRun> = None;
         for row in rows {
-            let sentinel = row_sentinel(row, column);
-            let continues = sentinel
-                && previous.is_some_and(|prior| row.create_time_us == prior + METRICS_STEP_US);
-            if sentinel && (run_start.is_none() || continues) {
-                if run_start.is_none() {
-                    run_start = Some(row.create_time_us);
+            let observed = column_token(row, column);
+            let continues = match (&open, &observed) {
+                (Some(run), Some(hit)) => {
+                    hit.class == run.class
+                        && run.previous.checked_add(METRICS_STEP_US) == Some(row.create_time_us)
                 }
-                slots += 1;
-                previous = Some(row.create_time_us);
+                _ => false,
+            };
+            if continues {
+                let run = open.as_mut().ok_or(EncodeError::Length)?;
+                let hit = observed.ok_or(EncodeError::Length)?;
+                run.slots = run.slots.checked_add(1).ok_or(EncodeError::Length)?;
+                let count = run.tokens.entry(hit.raw).or_insert(0);
+                *count = count.checked_add(1).ok_or(EncodeError::Length)?;
+                run.previous = row.create_time_us;
                 continue;
             }
-            if let Some(start) = run_start.take() {
-                push_run(
-                    &mut missing,
-                    &mut quality,
-                    column,
-                    start,
-                    slots,
-                    threshold_slots,
-                )?;
-                slots = 0;
-                previous = None;
+            if let Some(run) = open.take() {
+                push_run(&mut missing, &mut quality, column, run, threshold_slots)?;
             }
-            if sentinel {
-                run_start = Some(row.create_time_us);
-                slots = 1;
-                previous = Some(row.create_time_us);
+            if let Some(hit) = observed {
+                let mut tokens = BTreeMap::new();
+                tokens.insert(hit.raw, 1);
+                open = Some(OpenRun {
+                    start_us: row.create_time_us,
+                    previous: row.create_time_us,
+                    class: hit.class,
+                    slots: 1,
+                    tokens,
+                });
             }
         }
-        if let Some(start) = run_start {
-            push_run(
-                &mut missing,
-                &mut quality,
-                column,
-                start,
-                slots,
-                threshold_slots,
-            )?;
+        if let Some(run) = open {
+            push_run(&mut missing, &mut quality, column, run, threshold_slots)?;
         }
     }
     Ok((missing, quality))
 }
 
-fn row_sentinel(row: &MetricsCanonicalRow<'_>, column: &str) -> bool {
-    let Some(tokens) = row.missing_tokens else {
-        return false;
-    };
-    tokens.split(';').any(|part| {
-        let Some((name, value)) = part.split_once('=') else {
-            return false;
-        };
-        name == column && value == "\"0E-16\""
-    })
+struct OpenRun {
+    start_us: i64,
+    previous: i64,
+    class: &'static str,
+    slots: u64,
+    tokens: BTreeMap<String, u64>,
+}
+
+struct ColumnHit {
+    class: &'static str,
+    raw: String,
+}
+
+fn column_token(row: &MetricsCanonicalRow<'_>, column: &str) -> Option<ColumnHit> {
+    let tokens = row.missing_tokens?;
+    for part in tokens.split(';') {
+        let (name, encoded) = part.split_once('=')?;
+        if name != column {
+            continue;
+        }
+        let raw = serde_json::from_str::<String>(encoded).ok()?;
+        let class = token_class(&raw)?;
+        return Some(ColumnHit { class, raw });
+    }
+    None
+}
+
+fn token_class(raw: &str) -> Option<&'static str> {
+    if raw == ZERO_OI_TOKEN {
+        Some("zero_oi_sentinel")
+    } else if raw.is_empty() || raw == QUOTED_EMPTY_TOKEN {
+        Some("source_empty")
+    } else {
+        None
+    }
 }
 
 fn push_run(
     missing: &mut Vec<MetricMissingRec>,
     quality: &mut Vec<QualityRec>,
     column: &str,
-    start_us: i64,
-    slots: u64,
+    run: OpenRun,
     threshold_slots: u64,
 ) -> Result<(), EncodeError> {
-    let width = i64::try_from(slots).map_err(|_| EncodeError::Length)?;
+    let width = i64::try_from(run.slots).map_err(|_| EncodeError::Length)?;
     let end_us = width
         .checked_mul(METRICS_STEP_US)
-        .and_then(|span| start_us.checked_add(span))
+        .and_then(|span| run.start_us.checked_add(span))
         .ok_or(EncodeError::Length)?;
     missing.push(MetricMissingRec {
         column: column.to_owned(),
-        start_us,
+        start_us: run.start_us,
         end_us,
-        slots,
-        token_class: "zero_oi_sentinel".to_owned(),
-        tokens: vec![(ZERO_OI_TOKEN.to_owned(), slots)],
+        slots: run.slots,
+        token_class: run.class.to_owned(),
+        tokens: run.tokens.into_iter().collect(),
     });
-    if slots > threshold_slots {
+    if run.slots > threshold_slots {
         quality.push(QualityRec {
             column: column.to_owned(),
-            start_us,
+            start_us: run.start_us,
             end_us,
-            slots,
+            slots: run.slots,
             threshold_slots,
         });
     }
@@ -1179,9 +1223,10 @@ pub fn quality_digest(entries: &[QualityRec]) -> Result<[u8; 32], EncodeError> {
 }
 
 fn column_index(name: &str) -> usize {
-    OI_COLUMNS
+    NULLABLE_COLUMNS
         .iter()
-        .position(|column| *column == name)
+        .find(|(column, _)| *column == name)
+        .map(|(_, index)| *index)
         .unwrap_or(usize::MAX)
 }
 
@@ -1590,6 +1635,7 @@ mod tests {
     }
 
     const G1_BYTES: &str = include_str!("../../tests/golden/metrics_manifest_g1.json");
+    const G3_BYTES: &str = include_str!("../../tests/golden/metrics_manifest_g3.json");
     const KLINE_ROOT: &str = "35bfb3fe3d97d398cadc0b288a6afdb4fc7f7cb8a34ba5dab68f64b848e121a9";
     const KLINE_DIGEST: &str = "1c47beeef27e8908d16773c474897fc2eb18c623a44408fc56c703b04bc39c16";
     const KLINE_ID: &str = "binance-vision.um.um-kline.BTCUSDT";
@@ -1656,17 +1702,14 @@ mod tests {
         rows
     }
 
-    fn manifest_of(rows: &[MetricsCanonicalRow<'_>], threshold: u64) -> Result<Vec<u8>, String> {
+    fn manifest_of(
+        date: &str,
+        rows: &[MetricsCanonicalRow<'_>],
+        threshold: u64,
+    ) -> Result<Vec<u8>, String> {
         let (missing, quality) = metric_lists(rows, threshold).map_err(|err| err.to_string())?;
-        metrics_canonical_manifest(
-            METRICS_ID,
-            "BTCUSDT",
-            "2024-07-09",
-            rows,
-            &missing,
-            &quality,
-        )
-        .map_err(|err| err.to_string())
+        metrics_canonical_manifest(METRICS_ID, "BTCUSDT", date, rows, &missing, &quality)
+            .map_err(|err| err.to_string())
     }
 
     fn decode_hex(text: &str) -> Result<[u8; 32], String> {
@@ -1749,7 +1792,7 @@ mod tests {
 
     #[test]
     fn metrics_manifest_goldens_match_section_4_7_2() -> Result<(), String> {
-        let g1 = manifest_of(&three_rows(), 12)?;
+        let g1 = manifest_of("2024-07-09", &three_rows(), 12)?;
         if g1 != G1_BYTES.as_bytes() {
             return Err(format!(
                 "G1 bytes differ: len {} sha {}",
@@ -1770,7 +1813,7 @@ mod tests {
                 bundle_two: "adb97ce3a0d2c75ebcadacf8faea84d64d47c66efbbb960e3e72aea3605772cf",
             },
         )?;
-        let g2 = manifest_of(&g2_rows(), 12)?;
+        let g2 = manifest_of("2024-07-09", &g2_rows(), 12)?;
         assert_table(
             &g2,
             &Golden {
@@ -1784,11 +1827,73 @@ mod tests {
                 bundle_two: "ba71350e123bc86d8be165e278c38bf046bbe98d847b53acaaaa66ee4e8b16cd",
             },
         )?;
-        assert_mutants(&g1, &g2)?;
+        let g3 = manifest_of("2022-01-01", &g3_rows(), 12)?;
+        if g3 != G3_BYTES.as_bytes() {
+            return Err(format!(
+                "G3 bytes differ: len {} sha {}",
+                g3.len(),
+                hex::encode(sha256(&g3))
+            ));
+        }
+        assert_table(
+            &g3,
+            &Golden {
+                content: "8f84e88aaf7e60b78e2841861af0b387e92ddc896cb02916178d0580464b138a",
+                root: "c49177324a0a9281b7fe8b40394d92e142bcc4634be989fdabe40c9f11f871a7",
+                missing: "766134f73054940951daf0fe9e98ff7af8fc1f57939a1f2059fceb706e726a86",
+                quality: "8b27c0f3ae97776df89a78ca99db8f21b970fd4a2124340dc9fa4050e1241004",
+                length: 2481,
+                digest: "cd9754e9e68b344fbc3713705d016042c45fbad279b0a6365ed1c3d59f7f0bd8",
+                bundle_one: "5947f0455c1b7504a994874d9acfc0e49ebeae756e5410c61c420fb230104729",
+                bundle_two: "19e93c6522de922381ed8a7ca4ab54bd95fb5e21e23371d49a3dab55c423d528",
+            },
+        )?;
+        assert_mutants(&g1, &g2, &g3)?;
         Ok(())
     }
 
-    fn assert_mutants(g1: &[u8], g2: &[u8]) -> Result<(), String> {
+    fn g3_rows() -> [MetricsCanonicalRow<'static>; 4] {
+        let ratios = [
+            Some(16_027_240_000_000_000),
+            Some(17_918_580_100_000_000),
+            Some(10_458_250_000_000_000),
+        ];
+        const QUOTED: &str = "count_toptrader_long_short_ratio=\"\\\"\\\"\"";
+        const EMPTY: &str = "count_toptrader_long_short_ratio=\"\"";
+        [
+            g3_row(
+                1_640_995_200_000_000,
+                Some(19_127_967_400_000_000),
+                ratios,
+                None,
+            ),
+            g3_row(1_640_995_500_000_000, None, ratios, Some(QUOTED)),
+            g3_row(1_640_995_800_000_000, None, ratios, Some(EMPTY)),
+            g3_row(
+                1_640_996_100_000_000,
+                Some(19_127_967_400_000_000),
+                ratios,
+                None,
+            ),
+        ]
+    }
+
+    fn g3_row(
+        create_time_us: i64,
+        top: Option<i128>,
+        rest: [Option<i128>; 3],
+        missing: Option<&'static str>,
+    ) -> MetricsCanonicalRow<'static> {
+        metrics_row(
+            create_time_us,
+            Some(7_480_341_000_000),
+            Some(345_668_379_032_415_250),
+            [top, rest[0], rest[1], rest[2]],
+            missing,
+        )
+    }
+
+    fn assert_mutants(g1: &[u8], g2: &[u8], g3: &[u8]) -> Result<(), String> {
         let g1_digest = sha256(g1);
         let g2_digest = sha256(g2);
         let flipped = mutate_str(g1, &["partitions", "0", "payload_version"], "payload/v4")?;
@@ -1807,7 +1912,56 @@ mod tests {
         if sha256(&threshold) == g2_digest {
             return Err("threshold_slots mutant kept the digest".into());
         }
+        let g3_digest = sha256(g3);
+        let (bound_a, bound_b) = swap_g3_token_bindings(g3)?;
+        if sha256(&bound_a) == sha256(&bound_b)
+            || sha256(&bound_a) == g3_digest
+            || sha256(&bound_b) == g3_digest
+        {
+            return Err("token-count swap did not change the digest".into());
+        }
+        let unquoted = unquote_g3_token(g3)?;
+        if sha256(&unquoted) == g3_digest {
+            return Err("unquote mutant kept the digest".into());
+        }
         Ok(())
+    }
+
+    fn swap_g3_token_bindings(bytes: &[u8]) -> Result<(Vec<u8>, Vec<u8>), String> {
+        let mut left: serde_json::Value =
+            serde_json::from_slice(bytes).map_err(|err| err.to_string())?;
+        let tokens = left
+            .pointer_mut("/metric_missing/0/tokens")
+            .and_then(|item| item.as_object_mut())
+            .ok_or("tokens")?;
+        if !tokens.contains_key("") || !tokens.contains_key("\"\"") {
+            return Err("G3 tokens were not the empty pair".into());
+        }
+        tokens.insert(String::new(), serde_json::Value::String("2".to_owned()));
+        tokens.insert("\"\"".to_owned(), serde_json::Value::String("3".to_owned()));
+        let bound_a = serde_json::to_vec(&left).map_err(|err| err.to_string())?;
+        let tokens = left
+            .pointer_mut("/metric_missing/0/tokens")
+            .and_then(|item| item.as_object_mut())
+            .ok_or("tokens")?;
+        tokens.insert(String::new(), serde_json::Value::String("3".to_owned()));
+        tokens.insert("\"\"".to_owned(), serde_json::Value::String("2".to_owned()));
+        let bound_b = serde_json::to_vec(&left).map_err(|err| err.to_string())?;
+        Ok((bound_a, bound_b))
+    }
+
+    fn unquote_g3_token(bytes: &[u8]) -> Result<Vec<u8>, String> {
+        let mut value: serde_json::Value =
+            serde_json::from_slice(bytes).map_err(|err| err.to_string())?;
+        let tokens = value
+            .pointer_mut("/metric_missing/0/tokens")
+            .and_then(|item| item.as_object_mut())
+            .ok_or("tokens")?;
+        let count = tokens
+            .remove("\"\"")
+            .ok_or("quoted-empty token was absent")?;
+        tokens.insert("\"".to_owned(), count);
+        serde_json::to_vec(&value).map_err(|err| err.to_string())
     }
 
     fn mutate_str(bytes: &[u8], path: &[&str], replacement: &str) -> Result<Vec<u8>, String> {

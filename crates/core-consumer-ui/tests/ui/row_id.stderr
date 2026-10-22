@@ -1,0 +1,11 @@
+error[E0603]: enum `RowId` is private
+ --> tests/ui/row_id.rs:1:37
+  |
+1 | use parangsae_core::version_status::RowId;
+  |                                     ^^^^^ private enum
+  |
+note: the enum `RowId` is defined here
+ --> $WORKSPACE/crates/core/src/version_status.rs
+  |
+  | pub(crate) enum RowId {
+  | ^^^^^^^^^^^^^^^^^^^^^

@@ -7,13 +7,14 @@ members = [
     "crates/signals",
     "crates/regime",
     "crates/execution",
+    "crates/core-consumer-ui",
 ]
 
 [workspace.package]
 version = "0.0.0"
 edition = "2021"
 publish = false
-rust-version = "1.88"
+rust-version = "1.98"
 
 # Checked arithmetic stays checked in release builds. A wrapping notional is a bug.
 [profile.release]

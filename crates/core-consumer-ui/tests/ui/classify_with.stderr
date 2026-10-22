@@ -1,0 +1,11 @@
+error[E0603]: function `classify_with` is private
+ --> tests/ui/classify_with.rs:1:37
+  |
+1 | use parangsae_core::version_status::classify_with;
+  |                                     ^^^^^^^^^^^^^ private function
+  |
+note: the function `classify_with` is defined here
+ --> $WORKSPACE/crates/core/src/version_status.rs
+  |
+  | fn classify_with(head: &ManifestHead<'_>, registry: &RuleRegistry<'_>) -> VersionStatus {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

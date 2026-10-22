@@ -38,7 +38,7 @@ pub enum AuditError {
     DigestMismatch,
     RootMismatch,
     Malformed,
-    /// Unknown payload, unknown rule, or a stale partition payload.
+    /// Structure, spec mismatch, unknown payload, unknown rule, or a stale partition payload.
     Refused,
     Io(String),
 }
@@ -56,8 +56,8 @@ impl std::fmt::Display for AuditError {
 }
 
 /// Open one manifest for audit. Digest and root are checked.
-/// A superseded metrics root is opened. Unknown payload, unknown rule, and a
-/// stale partition payload are refused.
+/// A superseded metrics root is opened. A structural fault, a spec mismatch,
+/// an unknown payload, an unknown rule, and a stale partition payload are refused.
 pub fn open_version(
     data_dir: &Path,
     dataset_id: &str,

@@ -1,0 +1,11 @@
+error[E0603]: struct `RuleRegistry` is private
+ --> tests/ui/rule_registry.rs:1:37
+  |
+1 | use parangsae_core::version_status::RuleRegistry;
+  |                                     ^^^^^^^^^^^^ private struct
+  |
+note: the struct `RuleRegistry` is defined here
+ --> $WORKSPACE/crates/core/src/version_status.rs
+  |
+  | pub(crate) struct RuleRegistry<'a> {
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

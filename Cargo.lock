@@ -443,6 +443,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "core-consumer-ui"
+version = "0.0.0"
+dependencies = [
+ "parangsae-core",
+ "trybuild",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

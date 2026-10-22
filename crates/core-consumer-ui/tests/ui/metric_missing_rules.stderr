@@ -1,0 +1,11 @@
+error[E0603]: constant `METRIC_MISSING_RULES` is private
+ --> tests/ui/metric_missing_rules.rs:1:37
+  |
+1 | use parangsae_core::version_status::METRIC_MISSING_RULES;
+  |                                     ^^^^^^^^^^^^^^^^^^^^ private constant
+  |
+note: the constant `METRIC_MISSING_RULES` is defined here
+ --> $WORKSPACE/crates/core/src/version_status.rs
+  |
+  | pub(crate) const METRIC_MISSING_RULES: &str =
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -12,6 +12,7 @@ pub mod instrument_spec;
 pub mod symbol;
 pub mod time;
 pub mod timestamps;
+pub mod version_status;
 
 pub use causal::{Causal, DecisionTime, Observation};
 pub use fixed::{notional, Amount, FixedError, Notional, Price, Qty, Ratio, SCALE};
