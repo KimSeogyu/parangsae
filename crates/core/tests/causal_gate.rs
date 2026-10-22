@@ -2,7 +2,7 @@
 //! that fail that test cannot change the visible values.
 
 use parangsae_core::{
-    AvailableTs, DecisionTime, EventTs, Observation, ReceivedTs, Timestamps, UtcMicros,
+    AvailableTs, DecisionTime, EventTs, Observation, Receipt, Timestamps, UtcMicros,
 };
 use proptest::prelude::*;
 
@@ -11,7 +11,9 @@ fn observation(event: i64, available: i64, received: i64, value: i64) -> Observa
         Timestamps {
             event_ts: EventTs::from_micros(UtcMicros::from_micros(event)),
             available_ts: AvailableTs::from_micros(UtcMicros::from_micros(available)),
-            received_ts: ReceivedTs::from_micros(UtcMicros::from_micros(received)),
+            receipt: Receipt::Live {
+                received_ts: UtcMicros::from_micros(received),
+            },
         },
         value,
     )

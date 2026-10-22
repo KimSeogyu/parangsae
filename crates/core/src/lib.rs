@@ -21,4 +21,4 @@ pub use time::{
     validate_close_time, Interval, KlineSpan, TimeError, TimeUnit, UnitError, UtcMicros,
     MICROS_PER_MILLIS,
 };
-pub use timestamps::{AvailableTs, EventTs, Receipt, ReceivedTs, RunId, RunIdError, Timestamps};
+pub use timestamps::{AvailableTs, EventTs, Receipt, RunId, RunIdError, Timestamps};

@@ -1416,6 +1416,7 @@ dependencies = [
  "arrow-schema",
  "clap",
  "cucumber",
+ "getrandom 0.2.17",
  "hex",
  "parangsae-core",
  "parquet",

@@ -2,7 +2,7 @@
 //!
 //! `merge_fact` is the Rust side of `specs/tla/ManifestWrite.tla`. Same payload
 //! is a no-op. A different payload records a conflict and leaves the stored
-//! value in place. `received_ts` is not part of the payload, so a second ingest
+//! value in place. `receipt` is not part of the payload, so a second ingest
 //! does not look like a new value. The model does not include checksum bytes.
 
 use std::collections::BTreeMap;
@@ -10,7 +10,7 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use parangsae_core::{ReceivedTs, UtcMicros};
+use parangsae_core::{Receipt, RunId, UtcMicros};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -23,7 +23,9 @@ pub struct ObjectManifest {
     pub dataset: String,
     pub symbol: String,
     pub row_count: u64,
-    pub fetched_at: ReceivedTs,
+    /// Wall clock of the ingest run. Log field only. JSON key `fetched_at_us`.
+    pub fetched_at: UtcMicros,
+    pub run: RunId,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,7 +38,7 @@ pub enum WriteEffect {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stored<T> {
     pub value: T,
-    pub received: ReceivedTs,
+    pub receipt: Receipt,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -84,7 +86,7 @@ where
         slots.insert(
             key,
             Slot::Present(Stored {
-                received: placeholder_received(),
+                receipt: placeholder_receipt(),
                 value: row,
             }),
         );
@@ -96,7 +98,7 @@ where
     for row in incoming {
         let key = key_of(&row);
         let slot = trial.entry(key).or_insert(Slot::Absent);
-        let effect = merge_fact(slot, row, placeholder_received());
+        let effect = merge_fact(slot, row, placeholder_receipt());
         match effect {
             WriteEffect::Inserted => inserted += 1,
             WriteEffect::Unchanged => unchanged += 1,
@@ -129,17 +131,19 @@ where
     }
 }
 
-fn placeholder_received() -> ReceivedTs {
-    ReceivedTs::from_micros(UtcMicros::from_micros(0))
+fn placeholder_receipt() -> Receipt {
+    Receipt::Archive {
+        fetched_at_run: RunId::from_bytes([0; 16]),
+    }
 }
 
 /// Apply one write. The stored payload never changes once it is present.
 pub fn merge_fact<T: Clone + PartialEq>(
     slot: &mut Slot<T>,
     value: T,
-    received: ReceivedTs,
+    receipt: Receipt,
 ) -> WriteEffect {
-    let incoming = Stored { value, received };
+    let incoming = Stored { value, receipt };
     match slot {
         Slot::Absent => {
             *slot = Slot::Present(incoming);
@@ -173,6 +177,8 @@ struct ManifestLine {
     symbol: String,
     row_count: u64,
     fetched_at_us: i64,
+    #[serde(default)]
+    run_id: Option<String>,
     event: String,
     previous_sha256: Option<String>,
 }
@@ -262,7 +268,8 @@ impl ManifestLog {
             dataset: object.dataset.clone(),
             symbol: object.symbol.clone(),
             row_count: object.row_count,
-            fetched_at_us: object.fetched_at.micros().micros(),
+            fetched_at_us: object.fetched_at.micros(),
+            run_id: Some(object.run.to_hex()),
             event: event.to_owned(),
             previous_sha256: previous.map(hex::encode),
         };
@@ -314,6 +321,23 @@ fn load_active(path: &Path) -> Result<Vec<ObjectManifest>, super::Error> {
             return Err(super::Error::check("manifest", "sha256 is not 32 bytes"));
         }
         sha256.copy_from_slice(&bytes);
+        let data_dir = path
+            .parent()
+            .and_then(Path::parent)
+            .ok_or_else(|| super::Error::check("manifest", "object log has no data dir"))?;
+        let run = match parsed.run_id {
+            Some(text) => RunId::parse_hex(&text).map_err(|err| {
+                super::Error::check(
+                    "manifest",
+                    format!("bad run_id on line {}: {err}", index + 1),
+                )
+            })?,
+            None => lookup_legacy_run(data_dir, parsed.fetched_at_us)?.ok_or_else(|| {
+                super::Error::LegacyObjectLine {
+                    url: parsed.url.clone(),
+                }
+            })?,
+        };
         let object = ObjectManifest {
             url: parsed.url,
             sha256,
@@ -323,7 +347,8 @@ fn load_active(path: &Path) -> Result<Vec<ObjectManifest>, super::Error> {
             dataset: parsed.dataset,
             symbol: parsed.symbol,
             row_count: parsed.row_count,
-            fetched_at: ReceivedTs::from_micros(UtcMicros::from_micros(parsed.fetched_at_us)),
+            fetched_at: UtcMicros::from_micros(parsed.fetched_at_us),
+            run,
         };
         if let Some(pos) = active.iter().position(|row| row.path == object.path) {
             active[pos] = object;
@@ -334,24 +359,67 @@ fn load_active(path: &Path) -> Result<Vec<ObjectManifest>, super::Error> {
     Ok(active)
 }
 
+/// `manifest/legacy-run-map.jsonl`: `fetched_at_us` string to `run_id`.
+/// Absence is `Ok(None)`. A bad line is an error. This does not invent a `RunId`.
+fn lookup_legacy_run(data_dir: &Path, fetched_at_us: i64) -> Result<Option<RunId>, super::Error> {
+    let path = data_dir.join("manifest").join("legacy-run-map.jsonl");
+    if !path.exists() {
+        return Ok(None);
+    }
+    let text = fs::read_to_string(&path).map_err(|source| super::Error::Io {
+        path: path.display().to_string(),
+        source,
+    })?;
+    let key = fetched_at_us.to_string();
+    for (index, line) in text.lines().enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+        let parsed: LegacyRunLine = serde_json::from_str(line).map_err(|err| {
+            super::Error::check(
+                "manifest",
+                format!("{} line {}: {err}", path.display(), index + 1),
+            )
+        })?;
+        if parsed.fetched_at_us == key {
+            let run = RunId::parse_hex(&parsed.run_id).map_err(|err| {
+                super::Error::check(
+                    "manifest",
+                    format!("bad run_id on legacy map line {}: {err}", index + 1),
+                )
+            })?;
+            return Ok(Some(run));
+        }
+    }
+    Ok(None)
+}
+
+#[derive(Deserialize)]
+struct LegacyRunLine {
+    fetched_at_us: String,
+    run_id: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use proptest::prelude::*;
 
-    fn at(micros: i64) -> ReceivedTs {
-        ReceivedTs::from_micros(UtcMicros::from_micros(micros))
+    fn at(byte: u8) -> Receipt {
+        Receipt::Archive {
+            fetched_at_run: RunId::from_bytes([byte; 16]),
+        }
     }
 
     #[test]
-    fn same_payload_keeps_the_original_received_time() {
+    fn same_payload_keeps_the_original_receipt() {
         let mut slot = Slot::Absent;
         assert_eq!(merge_fact(&mut slot, "bar", at(1)), WriteEffect::Inserted);
         assert_eq!(merge_fact(&mut slot, "bar", at(2)), WriteEffect::Unchanged);
         match slot {
             Slot::Present(stored) => {
                 assert_eq!(stored.value, "bar");
-                assert_eq!(stored.received, at(1));
+                assert_eq!(stored.receipt, at(1));
             }
             other => panic!("expected present, got {other:?}"),
         }
@@ -379,10 +447,36 @@ mod tests {
             let mut slot = Slot::<u8>::Absent;
             let first = writes[0];
             for (index, value) in writes.into_iter().enumerate() {
-                merge_fact(&mut slot, value, at(index as i64));
+                let byte = u8::try_from(index).unwrap_or(0);
+                merge_fact(&mut slot, value, at(byte));
             }
             let stored = slot.stored().expect("a write happened");
             prop_assert_eq!(stored.value, first);
+        }
+    }
+
+    #[test]
+    fn a_legacy_object_line_without_a_map_entry_is_refused() -> Result<(), String> {
+        let dir = tempfile::tempdir().map_err(|err| err.to_string())?;
+        let manifest_dir = dir.path().join("manifest");
+        std::fs::create_dir_all(&manifest_dir).map_err(|err| err.to_string())?;
+        let line = concat!(
+            r#"{"path":"data/x.zip","url":"https://example.invalid/x.zip","sha256":""#,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            r#"","size_bytes":1,"schema_version":1,"dataset":"um-kline","symbol":"BTCUSDT","row_count":1,"fetched_at_us":10,"event":"stored","previous_sha256":null}"#
+        );
+        std::fs::write(manifest_dir.join("objects.jsonl"), format!("{line}\n"))
+            .map_err(|err| err.to_string())?;
+        match ManifestLog::open(dir.path()) {
+            Err(crate::Error::LegacyObjectLine { url }) => {
+                if url == "https://example.invalid/x.zip" {
+                    Ok(())
+                } else {
+                    Err(format!("url was {url}"))
+                }
+            }
+            Ok(_) => Err("legacy line was accepted".to_owned()),
+            Err(err) => Err(format!("unexpected error {err}")),
         }
     }
 }

@@ -105,7 +105,14 @@ fn vision(args: VisionArgs) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let fetched_at = match run::received_now() {
+    let run_id = match run::generate_run_id() {
+        Ok(run_id) => run_id,
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
+    };
+    let started_at = match run::wall_now() {
         Ok(ts) => ts,
         Err(err) => {
             eprintln!("{err}");
@@ -126,7 +133,8 @@ fn vision(args: VisionArgs) -> ExitCode {
         data_dir: args.data_dir,
         jobs: args.jobs,
         min_interval: Duration::from_millis(args.min_interval_ms),
-        fetched_at,
+        run: run_id,
+        started_at,
     };
     match run::run_vision(&request, &client) {
         Ok(rows) => print_rows(&rows),

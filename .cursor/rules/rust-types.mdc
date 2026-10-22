@@ -8,7 +8,7 @@ alwaysApply: false
 
 `Price`, `Qty`, and `Notional` come from `parangsae_core`. They are `i64` ticks at scale `10^8`. Do not store a price, a quantity, or a notional in `f32` or `f64`.
 
-Timestamps in public APIs are `UtcMicros` or the `EventTs` / `AvailableTs` / `ReceivedTs` newtypes, not a bare `i64`.
+Timestamps in public APIs are `UtcMicros` or the `EventTs` / `AvailableTs` newtypes, not a bare `i64`. A `Receipt` is an archive `RunId` or a live `UtcMicros`. `RunId` has no conversion to a time.
 
 `match` on a domain enum is exhaustive. Do not use `_` for it.
 

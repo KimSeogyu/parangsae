@@ -18,7 +18,9 @@ use parangsae_collector::vision::{
     BOOK_GAP_LIMIT_US,
 };
 use parangsae_collector::Error;
-use parangsae_core::{Amount, AvailableTs, EventTs, Qty, ReceivedTs, Symbol, TimeUnit, UtcMicros};
+use parangsae_core::{
+    Amount, AvailableTs, EventTs, Qty, Receipt, RunId, Symbol, TimeUnit, UtcMicros,
+};
 
 #[derive(Debug, Default)]
 enum Loaded {
@@ -53,8 +55,10 @@ fn symbol() -> Symbol {
     Symbol::new("BTCUSDT").expect("symbol")
 }
 
-fn received() -> ReceivedTs {
-    ReceivedTs::from_micros(UtcMicros::from_micros(1))
+fn receipt() -> Receipt {
+    Receipt::Archive {
+        fetched_at_run: RunId::from_bytes([1; 16]),
+    }
 }
 
 fn fixture(name: &str) -> String {
@@ -85,7 +89,8 @@ fn given_um(world: &mut VisionWorld, name: String) {
         &symbol(),
         parangsae_collector::normalize::UM_KLINE_CLOCK,
         TickDomain::Price,
-        received(),
+        receipt(),
+        true,
     ) {
         Ok(parsed) => world.loaded = Loaded::Klines(parsed.rows),
         Err(err) => note_error(world, err),
@@ -101,7 +106,8 @@ fn given_spot(world: &mut VisionWorld, name: String, day_text: String) {
         &symbol(),
         parangsae_collector::normalize::spot_kline_clock(day),
         TickDomain::Price,
-        received(),
+        receipt(),
+        true,
     ) {
         Ok(parsed) => world.loaded = Loaded::Klines(parsed.rows),
         Err(err) => note_error(world, err),
@@ -116,7 +122,8 @@ fn given_spot_micros(world: &mut VisionWorld, name: String) {
         &symbol(),
         parangsae_collector::normalize::SPOT_KLINE_CLOCK,
         TickDomain::Price,
-        received(),
+        receipt(),
+        true,
     ) {
         Ok(parsed) => world.loaded = Loaded::Klines(parsed.rows),
         Err(err) => note_error(world, err),
@@ -247,7 +254,7 @@ fn checksum_ok(world: &mut VisionWorld) {
 
 #[given(regex = r#"^the funding fixture "([^"]+)""#)]
 fn given_funding(world: &mut VisionWorld, name: String) {
-    match parse_funding(&fixture(&name), &symbol(), received()) {
+    match parse_funding(&fixture(&name), &symbol(), receipt()) {
         Ok(parsed) => world.loaded = Loaded::Funding(parsed.rows),
         Err(err) => note_error(world, err),
     }
@@ -322,7 +329,7 @@ fn funding_gap(world: &mut VisionWorld, start: i64) {
 
 #[given(regex = r#"^the metrics fixture "([^"]+)""#)]
 fn given_metrics(world: &mut VisionWorld, name: String) {
-    match parse_metrics(&fixture(&name), &symbol(), received()) {
+    match parse_metrics(&fixture(&name), &symbol(), receipt()) {
         Ok(parsed) => world.loaded = Loaded::Metrics(parsed.rows),
         Err(err) => note_error(world, err),
     }
@@ -384,7 +391,7 @@ fn metrics_count(world: &mut VisionWorld, count: usize) {
 #[given(regex = r#"^the book fixture "([^"]+)""#)]
 fn given_book(world: &mut VisionWorld, name: String) {
     world.faults.clear();
-    match parse_book(&fixture(&name), &symbol(), received()) {
+    match parse_book(&fixture(&name), &symbol(), receipt()) {
         Ok(parsed) => world.book = parsed.rows,
         Err(err) => note_error(world, err),
     }
@@ -610,7 +617,8 @@ fn verify_ingest(
         data_dir: dir.to_path_buf(),
         jobs: 1,
         min_interval: Duration::from_millis(0),
-        fetched_at: received(),
+        run: RunId::from_bytes([1; 16]),
+        started_at: UtcMicros::from_micros(10),
     };
     let summary = run::run_vision(&request, &MapBlob::new(map))
         .map_err(|err| err.to_string())?
@@ -787,14 +795,16 @@ fn bar(open: i64, close: i64, price: i64) -> KlineFact {
         taker_buy_quote_volume: Amount::from_ticks(0).unwrap(),
         event_ts: EventTs::from_micros(open_time),
         available_ts: AvailableTs::from_micros(close_time.checked_add_micros(1_000).unwrap()),
-        received_ts: received(),
+        receipt: receipt(),
         schema_version: 1,
         tick_domain: TickDomain::Price,
+        zero_volume_flat: true,
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs/features/collector");
+    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../specs/features/collector/vision_integrity.feature");
     VisionWorld::cucumber().run_and_exit(features).await;
 }

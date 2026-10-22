@@ -12,14 +12,20 @@ use crate::run::{self, RunRequest};
 use crate::store;
 use crate::vision::{download_url, list_url, sha256_bytes, VisionDataset};
 use crate::Error;
-use parangsae_core::{Amount, AvailableTs, EventTs, Qty, ReceivedTs, Symbol, UtcMicros};
+use parangsae_core::{Amount, AvailableTs, EventTs, Qty, Receipt, RunId, Symbol, UtcMicros};
 
 fn symbol() -> Symbol {
     Symbol::new("BTCUSDT").expect("symbol")
 }
 
-fn at(micros: i64) -> ReceivedTs {
-    ReceivedTs::from_micros(UtcMicros::from_micros(micros))
+fn run_of(byte: u8) -> RunId {
+    RunId::from_bytes([byte; 16])
+}
+
+fn archive(byte: u8) -> Receipt {
+    Receipt::Archive {
+        fetched_at_run: run_of(byte),
+    }
 }
 
 fn zip_csv(name: &str, csv: &str) -> Vec<u8> {
@@ -79,7 +85,8 @@ fn request(dir: &std::path::Path, dataset: VisionDataset, day: CivilDay) -> RunR
         data_dir: dir.to_path_buf(),
         jobs: 2,
         min_interval: Duration::from_millis(0),
-        fetched_at: at(10),
+        run: run_of(1),
+        started_at: UtcMicros::from_micros(10),
     }
 }
 
@@ -129,6 +136,15 @@ fn a_partial_day_is_stored_and_a_rerun_does_not_insert_again() {
     let blob = MapBlob::new(map);
     let first = run::run_vision(&req, &blob).unwrap().pop().unwrap().1;
     assert_eq!(first.rows_inserted, 3);
+    let stored = store::load_klines(dir.path(), "um-kline", "BTCUSDT", day).unwrap();
+    assert!(stored
+        .iter()
+        .all(|row| { row.receipt == archive(1) && row.receipt.live_received_ts().is_none() }));
+    let run_log = std::fs::read_to_string(dir.path().join("manifest/runs.jsonl")).unwrap();
+    assert!(run_log.contains(&run_of(1).to_hex()));
+    assert!(run_log.contains("\"command\":\"vision\""));
+    let objects = std::fs::read_to_string(dir.path().join("manifest/objects.jsonl")).unwrap();
+    assert!(objects.contains("\"run_id\""));
     assert_eq!(first.quarantined, 1);
     assert!(first.gaps > 0);
     assert!(!first.ok());
@@ -284,7 +300,8 @@ fn january_2020_funding_exponent_month_is_accepted() -> Result<(), Box<dyn std::
         data_dir: dir.path().to_path_buf(),
         jobs: 2,
         min_interval: Duration::from_millis(0),
-        fetched_at: at(10),
+        run: run_of(10),
+        started_at: UtcMicros::from_micros(10),
     };
     let summary = run::run_vision(&request, &MapBlob::new(funding_january_map(&csv)?))?
         .into_iter()
@@ -369,9 +386,10 @@ fn sample_bar(minute: i64, price: i64, received: i64) -> crate::vision::KlineFac
         taker_buy_quote_volume: Amount::from_ticks(0).unwrap(),
         event_ts: EventTs::from_micros(open_time),
         available_ts: AvailableTs::from_micros(close_time.checked_add_micros(1_000).unwrap()),
-        received_ts: at(received),
+        receipt: archive(u8::try_from(received).unwrap_or(1)),
         schema_version: 1,
         tick_domain: crate::vision::TickDomain::Price,
+        zero_volume_flat: true,
     }
 }
 
@@ -389,7 +407,12 @@ proptest! {
         let day = CivilDay::new(2026, 9, 1).unwrap();
         let stored = store::load_klines(dir.path(), "um-kline", "BTCUSDT", day).unwrap();
         prop_assert_eq!(stored.len(), count);
-        prop_assert!(stored.iter().all(|row| row.open_ticks == price && row.received_ts == at(1)));
+        let receipts_match = stored.iter().all(|row| {
+            row.open_ticks == price
+                && row.receipt == archive(1)
+                && row.receipt.live_received_ts().is_none()
+        });
+        prop_assert!(receipts_match);
         let mut changed = rows;
         changed[0].open_ticks += 1;
         let conflict = store::upsert_klines(dir.path(), "um-kline", changed).unwrap();

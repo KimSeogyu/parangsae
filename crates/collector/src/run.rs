@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use parangsae_core::{ReceivedTs, Symbol, TimeUnit, UtcMicros};
+use parangsae_core::{Receipt, RunId, Symbol, TimeUnit, UtcMicros};
 use serde::Serialize;
 
 use crate::civil::{day_of, parse_day, CivilDay, DayRange};
@@ -35,7 +35,42 @@ pub struct RunRequest {
     pub data_dir: PathBuf,
     pub jobs: usize,
     pub min_interval: Duration,
-    pub fetched_at: ReceivedTs,
+    pub run: RunId,
+    /// Wall clock of this run. Written to the run log and the object log, never to rows.
+    pub started_at: UtcMicros,
+}
+
+/// Build provenance baked into the binary. Publish-time working-tree status is not checked.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Provenance {
+    pub git_sha: String,
+    pub dirty: bool,
+}
+
+impl Provenance {
+    pub fn from_build() -> Self {
+        Self {
+            git_sha: env!("PARANGSAE_GIT_SHA").to_owned(),
+            dirty: env!("PARANGSAE_GIT_DIRTY") == "1",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RunCommand {
+    Vision,
+    MigrateReceipts,
+    Publish,
+}
+
+impl RunCommand {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Vision => "vision",
+            Self::MigrateReceipts => "migrate-receipts",
+            Self::Publish => "publish",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -240,13 +275,80 @@ fn days_label(from: Option<CivilDay>, to: Option<CivilDay>) -> String {
     }
 }
 
-pub fn received_now() -> Result<ReceivedTs, Error> {
+pub fn wall_now() -> Result<UtcMicros, Error> {
     let elapsed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|err| Error::check("clock", err.to_string()))?;
     let micros = i64::try_from(elapsed.as_micros())
         .map_err(|_| Error::check("clock", "clock does not fit"))?;
-    Ok(ReceivedTs::from_micros(UtcMicros::from_micros(micros)))
+    Ok(UtcMicros::from_micros(micros))
+}
+
+/// 128 bits from the OS RNG. Not time-derived. Requires the `getrandom` feature.
+pub fn generate_run_id() -> Result<RunId, Error> {
+    generate_run_id_os()
+}
+
+#[cfg(feature = "getrandom")]
+fn generate_run_id_os() -> Result<RunId, Error> {
+    let mut bytes = [0u8; 16];
+    getrandom::getrandom(&mut bytes).map_err(|err| Error::check("run_id", err.to_string()))?;
+    Ok(RunId::from_bytes(bytes))
+}
+
+#[cfg(not(feature = "getrandom"))]
+fn generate_run_id_os() -> Result<RunId, Error> {
+    Err(Error::check(
+        "run_id",
+        "the getrandom feature is off; a RunId is not derived from the clock",
+    ))
+}
+
+pub fn append_run_log(
+    data_dir: &Path,
+    run: RunId,
+    started_at: UtcMicros,
+    provenance: &Provenance,
+    command: RunCommand,
+) -> Result<(), Error> {
+    let path = data_dir.join("manifest").join("runs.jsonl");
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|source| Error::Io {
+            path: parent.display().to_string(),
+            source,
+        })?;
+    }
+    let sha = if provenance.git_sha == "unknown"
+        || (provenance.git_sha.len() == 40
+            && provenance
+                .git_sha
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit() && !matches!(byte, b'A'..=b'F')))
+    {
+        provenance.git_sha.as_str()
+    } else {
+        "unknown"
+    };
+    let line = format!(
+        "{{\"run_id\":\"{}\",\"started_at_us\":\"{}\",\"collector_git_sha\":\"{sha}\",\"collector_dirty\":{},\"command\":\"{}\"}}",
+        run.to_hex(),
+        started_at.micros(),
+        if provenance.dirty { "true" } else { "false" },
+        command.as_str(),
+    );
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|source| Error::Io {
+            path: path.display().to_string(),
+            source,
+        })?;
+    writeln!(file, "{line}").map_err(|source| Error::Io {
+        path: path.display().to_string(),
+        source,
+    })?;
+    Ok(())
 }
 
 pub fn run_vision<G: BlobGet>(
@@ -256,6 +358,13 @@ pub fn run_vision<G: BlobGet>(
     if request.jobs == 0 {
         return Err(Error::Usage("jobs must be at least 1".into()));
     }
+    append_run_log(
+        &request.data_dir,
+        request.run,
+        request.started_at,
+        &Provenance::from_build(),
+        RunCommand::Vision,
+    )?;
     let mut out = Vec::new();
     for dataset in &request.datasets {
         out.push((*dataset, run_dataset(request, *dataset, getter)?));
@@ -562,7 +671,8 @@ fn ingest_one(
         dataset: dataset.as_str().to_owned(),
         symbol: request.symbol.as_str().to_owned(),
         row_count: 0,
-        fetched_at: request.fetched_at,
+        fetched_at: request.started_at,
+        run: request.run,
     };
     let accepted = match dataset {
         VisionDataset::UmKline
@@ -617,7 +727,16 @@ fn ingest_klines(
     let domain = dataset
         .tick_domain()
         .ok_or_else(|| Error::check("schema", "kline dataset has no tick domain"))?;
-    let parsed = match parse_klines(csv, &request.symbol, clock, domain, request.fetched_at) {
+    let parsed = match parse_klines(
+        csv,
+        &request.symbol,
+        clock,
+        domain,
+        Receipt::Archive {
+            fetched_at_run: request.run,
+        },
+        dataset.records_zero_volume_flat(),
+    ) {
         Ok(parsed) => parsed,
         Err(err) => {
             reject(
@@ -674,7 +793,13 @@ fn ingest_funding(
     summary: &mut RunSummary,
     funding_gaps: &mut BTreeMap<crate::civil::CivilDay, Vec<Gap>>,
 ) -> Result<bool, Error> {
-    let parsed = match parse_funding(csv, &request.symbol, request.fetched_at) {
+    let parsed = match parse_funding(
+        csv,
+        &request.symbol,
+        Receipt::Archive {
+            fetched_at_run: request.run,
+        },
+    ) {
         Ok(parsed) => parsed,
         Err(err) => {
             reject(
@@ -734,7 +859,13 @@ fn ingest_metrics(
     manifest: &mut ManifestLog,
     summary: &mut RunSummary,
 ) -> Result<bool, Error> {
-    let parsed = match parse_metrics(csv, &request.symbol, request.fetched_at) {
+    let parsed = match parse_metrics(
+        csv,
+        &request.symbol,
+        Receipt::Archive {
+            fetched_at_run: request.run,
+        },
+    ) {
         Ok(parsed) => parsed,
         Err(err) => {
             let path = object.path.clone();
@@ -787,7 +918,13 @@ fn ingest_book(
     manifest: &mut ManifestLog,
     summary: &mut RunSummary,
 ) -> Result<bool, Error> {
-    let mut parsed = match parse_book(csv, &request.symbol, request.fetched_at) {
+    let mut parsed = match parse_book(
+        csv,
+        &request.symbol,
+        Receipt::Archive {
+            fetched_at_run: request.run,
+        },
+    ) {
         Ok(parsed) => parsed,
         Err(err) => {
             let path = object.path.clone();
@@ -1374,15 +1511,22 @@ fn verify_archive(
     csv: &str,
     object: &ObjectManifest,
 ) -> Result<(), Error> {
+    let receipt = Receipt::Archive {
+        fetched_at_run: object.run,
+    };
     match dataset {
         VisionDataset::UmKline
         | VisionDataset::MarkPriceKline
         | VisionDataset::IndexPriceKline
         | VisionDataset::PremiumIndexKline
-        | VisionDataset::SpotKline => verify_kline_archive(ctx, dataset, symbol, name, csv, object),
-        VisionDataset::FundingRate => verify_funding_archive(ctx, symbol, name, csv, object),
-        VisionDataset::Metrics => verify_metrics_archive(ctx, symbol, csv, object),
-        VisionDataset::BookDepth => verify_book_archive(ctx, symbol, csv, object),
+        | VisionDataset::SpotKline => {
+            verify_kline_archive(ctx, dataset, symbol, name, csv, object, receipt)
+        }
+        VisionDataset::FundingRate => {
+            verify_funding_archive(ctx, symbol, name, csv, object, receipt)
+        }
+        VisionDataset::Metrics => verify_metrics_archive(ctx, symbol, csv, object, receipt),
+        VisionDataset::BookDepth => verify_book_archive(ctx, symbol, csv, object, receipt),
     }
 }
 
@@ -1393,6 +1537,7 @@ fn verify_kline_archive(
     name: &ArchiveName,
     csv: &str,
     object: &ObjectManifest,
+    receipt: Receipt,
 ) -> Result<(), Error> {
     let clock = dataset
         .clock(archive_clock_day(name))
@@ -1400,7 +1545,14 @@ fn verify_kline_archive(
     let domain = dataset
         .tick_domain()
         .ok_or_else(|| Error::check("schema", "domain"))?;
-    let parsed = parse_klines(csv, symbol, clock, domain, object.fetched_at)?;
+    let parsed = parse_klines(
+        csv,
+        symbol,
+        clock,
+        domain,
+        receipt,
+        dataset.records_zero_volume_flat(),
+    )?;
     if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
@@ -1438,8 +1590,9 @@ fn verify_funding_archive(
     name: &ArchiveName,
     csv: &str,
     object: &ObjectManifest,
+    receipt: Receipt,
 ) -> Result<(), Error> {
-    let parsed = parse_funding(csv, symbol, object.fetched_at)?;
+    let parsed = parse_funding(csv, symbol, receipt)?;
     if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
@@ -1473,8 +1626,9 @@ fn verify_metrics_archive(
     symbol: &Symbol,
     csv: &str,
     object: &ObjectManifest,
+    receipt: Receipt,
 ) -> Result<(), Error> {
-    let parsed = parse_metrics(csv, symbol, object.fetched_at)?;
+    let parsed = parse_metrics(csv, symbol, receipt)?;
     if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
@@ -1500,8 +1654,9 @@ fn verify_book_archive(
     symbol: &Symbol,
     csv: &str,
     object: &ObjectManifest,
+    receipt: Receipt,
 ) -> Result<(), Error> {
-    let mut parsed = parse_book(csv, symbol, object.fetched_at)?;
+    let mut parsed = parse_book(csv, symbol, receipt)?;
     if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }

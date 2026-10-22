@@ -11,7 +11,7 @@ use parangsae_collector::fetch::MapBlob;
 use parangsae_collector::run::{self, RunRequest, VerifyFilter, VerifyReport};
 use parangsae_collector::store;
 use parangsae_collector::vision::{download_url, list_url, sha256_bytes, Cadence, VisionDataset};
-use parangsae_core::{ReceivedTs, Symbol, UtcMicros};
+use parangsae_core::{RunId, Symbol, UtcMicros};
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
@@ -131,7 +131,8 @@ fn ingest(
         data_dir: dir.to_path_buf(),
         jobs: 1,
         min_interval: Duration::from_millis(0),
-        fetched_at: ReceivedTs::from_micros(UtcMicros::from_micros(10)),
+        run: RunId::from_bytes([1; 16]),
+        started_at: UtcMicros::from_micros(10),
     };
     let summary = run::run_vision(&request, &MapBlob::new(map))?
         .into_iter()

@@ -30,6 +30,10 @@ pub enum Error {
         detail: String,
     },
     Usage(String),
+    /// An object-log line has no `run_id` and `manifest/legacy-run-map.jsonl` has no entry.
+    LegacyObjectLine {
+        url: String,
+    },
 }
 
 impl Error {
@@ -48,9 +52,18 @@ impl Error {
             Self::Unit(_) => Some("timestamp_unit"),
             Self::Fixed(FixedError::Negative) => Some("negative"),
             Self::Fixed(FixedError::Overflow) => Some("overflow"),
-            Self::Scale(ScaleError::Scale) => Some("scale"),
-            Self::Scale(_) => Some("scale"),
-            _ => None,
+            Self::Scale(
+                ScaleError::Empty | ScaleError::Charset | ScaleError::Scale | ScaleError::Overflow,
+            ) => Some("scale"),
+            Self::Time(TimeError::Overflow)
+            | Self::Symbol(_)
+            | Self::Io { .. }
+            | Self::Http { .. }
+            | Self::Xml(_)
+            | Self::Zip(_)
+            | Self::Csv { .. }
+            | Self::Usage(_)
+            | Self::LegacyObjectLine { .. } => None,
         }
     }
 }
@@ -70,6 +83,9 @@ impl fmt::Display for Error {
             Self::Zip(detail) => write!(f, "zip: {detail}"),
             Self::Csv { line, detail } => write!(f, "csv line {line}: {detail}"),
             Self::Usage(detail) => write!(f, "{detail}"),
+            Self::LegacyObjectLine { url } => {
+                write!(f, "legacy object line {url}: run migrate-receipts")
+            }
         }
     }
 }

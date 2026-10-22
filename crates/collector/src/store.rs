@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use arrow_array::{Array, BooleanArray, Int64Array, RecordBatch, StringArray, UInt32Array};
 use arrow_schema::{DataType, Field, Schema};
-use parangsae_core::{Amount, AvailableTs, EventTs, Qty, Ratio, ReceivedTs, Symbol, UtcMicros};
+use parangsae_core::{Amount, AvailableTs, EventTs, Qty, Ratio, Receipt, RunId, Symbol, UtcMicros};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
@@ -46,8 +46,8 @@ pub fn upsert_klines(
         rows,
         |row| day_of(row.open_time),
         |row| row.open_time.micros(),
-        read_klines_at,
-        write_klines,
+        |path| read_klines_at(path, dataset),
+        |path, rows| write_klines(path, dataset, rows),
         kline_key,
         kline_payload,
     )
@@ -209,7 +209,7 @@ pub fn load_klines(
 ) -> Result<Vec<KlineFact>, Error> {
     let path = fact_path(data_dir, dataset, symbol, day);
     if path.exists() {
-        read_klines_at(&path)
+        read_klines_at(&path, dataset)
     } else {
         Ok(Vec::new())
     }
@@ -397,7 +397,7 @@ fn kline_key(row: &KlineFact) -> String {
 
 fn kline_payload(row: &KlineFact) -> String {
     format!(
-        "open={} high={} low={} close={} volume={} close_time={} count={} taker={} domain={} schema={}",
+        "open={} high={} low={} close={} volume={} close_time={} count={} taker={} domain={} schema={} flat={}",
         row.open_ticks,
         row.high_ticks,
         row.low_ticks,
@@ -407,7 +407,8 @@ fn kline_payload(row: &KlineFact) -> String {
         row.count,
         row.taker_buy_volume.ticks(),
         row.tick_domain.as_str(),
-        row.schema_version
+        row.schema_version,
+        if row.zero_volume_flat { 1 } else { 0 }
     )
 }
 
@@ -453,8 +454,24 @@ fn book_payload(row: &BookFact) -> String {
     )
 }
 
-fn write_klines(path: &Path, rows: &[KlineFact]) -> Result<(), Error> {
-    let schema = scale_schema(vec![
+fn records_flat(dataset: &str) -> bool {
+    dataset == "um-kline" || dataset == "spot-kline"
+}
+
+fn nullable(name: &str, data_type: DataType) -> Field {
+    Field::new(name, data_type, true)
+}
+
+fn receipt_fields() -> [Field; 3] {
+    [
+        field("receipt_kind", DataType::Utf8),
+        nullable("receipt_run_id", DataType::Utf8),
+        nullable("receipt_received_ts_us", DataType::Int64),
+    ]
+}
+
+fn kline_layout(flat: bool) -> Vec<Field> {
+    let mut fields = vec![
         field("symbol", DataType::Utf8),
         field("interval_us", DataType::Int64),
         field("open_time_us", DataType::Int64),
@@ -470,99 +487,184 @@ fn write_klines(path: &Path, rows: &[KlineFact]) -> Result<(), Error> {
         field("taker_buy_quote_volume_ticks", DataType::Int64),
         field("event_ts_us", DataType::Int64),
         field("available_ts_us", DataType::Int64),
-        field("received_ts_us", DataType::Int64),
-        field("schema_version", DataType::UInt32),
-        field("tick_domain", DataType::Utf8),
-    ]);
-    let batch = RecordBatch::try_new(
-        schema,
-        vec![
-            Arc::new(StringArray::from(
-                rows.iter()
-                    .map(|row| row.symbol.as_str().to_owned())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter().map(|row| row.interval_us).collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter()
-                    .map(|row| row.open_time.micros())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter()
-                    .map(|row| row.close_time.micros())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter().map(|row| row.open_ticks).collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter().map(|row| row.high_ticks).collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter().map(|row| row.low_ticks).collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter().map(|row| row.close_ticks).collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter()
-                    .map(|row| row.volume.ticks())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter()
-                    .map(|row| row.quote_volume.ticks())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter().map(|row| row.count).collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter()
-                    .map(|row| row.taker_buy_volume.ticks())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter()
-                    .map(|row| row.taker_buy_quote_volume.ticks())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter()
-                    .map(|row| row.event_ts.micros().micros())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter()
-                    .map(|row| row.available_ts.micros().micros())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(Int64Array::from(
-                rows.iter()
-                    .map(|row| row.received_ts.micros().micros())
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(UInt32Array::from(
-                rows.iter()
-                    .map(|row| row.schema_version)
-                    .collect::<Vec<_>>(),
-            )),
-            Arc::new(StringArray::from(
-                rows.iter()
-                    .map(|row| row.tick_domain.as_str().to_owned())
-                    .collect::<Vec<_>>(),
-            )),
-        ],
-    )
-    .map_err(|err| Error::check("parquet", err.to_string()))?;
+    ];
+    fields.extend(receipt_fields());
+    fields.push(field("schema_version", DataType::UInt32));
+    fields.push(field("tick_domain", DataType::Utf8));
+    if flat {
+        fields.push(field("zero_volume_flat", DataType::Boolean));
+    }
+    fields
+}
+
+fn funding_layout() -> Vec<Field> {
+    let mut fields = vec![
+        field("symbol", DataType::Utf8),
+        field("raw_calc_time_us", DataType::Int64),
+        field("funding_time_us", DataType::Int64),
+        field("interval_hours", DataType::Int64),
+        field("rate_ticks", DataType::Int64),
+        field("event_ts_us", DataType::Int64),
+        field("available_ts_us", DataType::Int64),
+    ];
+    fields.extend(receipt_fields());
+    fields.push(field("schema_version", DataType::UInt32));
+    fields
+}
+
+fn metrics_layout() -> Vec<Field> {
+    let mut fields = vec![
+        field("symbol", DataType::Utf8),
+        field("create_time_us", DataType::Int64),
+        field("sum_open_interest_ticks", DataType::Int64),
+        field("sum_open_interest_value_ticks", DataType::Int64),
+        field("count_toptrader_long_short_ratio_ticks", DataType::Int64),
+        field("sum_toptrader_long_short_ratio_ticks", DataType::Int64),
+        field("count_long_short_ratio_ticks", DataType::Int64),
+        field("sum_taker_long_short_vol_ratio_ticks", DataType::Int64),
+        field("event_ts_us", DataType::Int64),
+        field("available_ts_us", DataType::Int64),
+    ];
+    fields.extend(receipt_fields());
+    fields.push(field("available_lag_verified", DataType::Boolean));
+    fields.push(field("schema_version", DataType::UInt32));
+    fields
+}
+
+fn book_layout() -> Vec<Field> {
+    let mut fields = vec![
+        field("symbol", DataType::Utf8),
+        field("timestamp_us", DataType::Int64),
+        field("percentage_ticks", DataType::Int64),
+        field("depth_ticks", DataType::Int64),
+        field("notional_ticks", DataType::Int64),
+        field("level_schema", DataType::UInt32),
+        field("event_ts_us", DataType::Int64),
+        field("available_ts_us", DataType::Int64),
+    ];
+    fields.extend(receipt_fields());
+    fields.push(field("schema_version", DataType::UInt32));
+    fields
+}
+
+fn fact_schema(fields: Vec<Field>) -> Arc<Schema> {
+    let mut metadata = std::collections::HashMap::new();
+    metadata.insert("parangsae.scale".to_owned(), "100000000".to_owned());
+    metadata.insert("parangsae.row_encoding".to_owned(), "rows/v2".to_owned());
+    Arc::new(Schema::new_with_metadata(fields, metadata))
+}
+
+fn push_receipt(
+    columns: &mut Vec<Arc<dyn Array>>,
+    receipts: impl Iterator<Item = Receipt>,
+) -> Result<(), Error> {
+    let receipts: Vec<Receipt> = receipts.collect();
+    let mut kinds = Vec::with_capacity(receipts.len());
+    let mut runs = Vec::with_capacity(receipts.len());
+    let mut times = Vec::with_capacity(receipts.len());
+    for receipt in receipts {
+        match receipt {
+            Receipt::Archive { fetched_at_run } => {
+                kinds.push("archive".to_owned());
+                runs.push(Some(fetched_at_run.to_hex()));
+                times.push(None);
+            }
+            Receipt::Live { received_ts } => {
+                kinds.push("live".to_owned());
+                runs.push(None);
+                times.push(Some(received_ts.micros()));
+            }
+        }
+    }
+    columns.push(Arc::new(StringArray::from(kinds)));
+    columns.push(Arc::new(StringArray::from(runs)));
+    columns.push(Arc::new(Int64Array::from(times)));
+    Ok(())
+}
+
+fn decode_receipt(
+    kind: &str,
+    run_id: Option<&str>,
+    received: Option<i64>,
+) -> Result<Receipt, Error> {
+    match (kind, run_id, received) {
+        ("archive", Some(text), None) => {
+            let fetched_at_run = RunId::parse_hex(text)
+                .map_err(|err| Error::check("receipt", format!("archive run id: {err}")))?;
+            Ok(Receipt::Archive { fetched_at_run })
+        }
+        ("live", None, Some(micros)) => Ok(Receipt::Live {
+            received_ts: UtcMicros::from_micros(micros),
+        }),
+        _ => Err(Error::check(
+            "receipt",
+            "receipt_kind, receipt_run_id, and receipt_received_ts_us violate the iff rule",
+        )),
+    }
+}
+
+fn decode_receipts(batches: &[RecordBatch]) -> Result<Vec<Receipt>, Error> {
+    let kinds = collect_string(batches, "receipt_kind")?;
+    let runs = collect_string_opt(batches, "receipt_run_id")?;
+    let times = collect_i64_opt(batches, "receipt_received_ts_us")?;
+    if kinds.len() != runs.len() || kinds.len() != times.len() {
+        return Err(Error::check("schema", "receipt columns differ in length"));
+    }
+    let mut out = Vec::with_capacity(kinds.len());
+    for index in 0..kinds.len() {
+        out.push(decode_receipt(
+            &kinds[index],
+            runs[index].as_deref(),
+            times[index],
+        )?);
+    }
+    Ok(out)
+}
+
+fn write_klines(path: &Path, dataset: &str, rows: &[KlineFact]) -> Result<(), Error> {
+    let flat = records_flat(dataset);
+    if !flat && rows.iter().any(|row| row.zero_volume_flat) {
+        return Err(Error::check(
+            "zero_volume_flat",
+            "mark, index, and premium klines do not record zero_volume_flat",
+        ));
+    }
+    let schema = fact_schema(kline_layout(flat));
+    let mut columns: Vec<Arc<dyn Array>> = vec![
+        strings(rows.iter().map(|row| row.symbol.as_str())),
+        i64s(rows.iter().map(|row| row.interval_us)),
+        i64s(rows.iter().map(|row| row.open_time.micros())),
+        i64s(rows.iter().map(|row| row.close_time.micros())),
+        i64s(rows.iter().map(|row| row.open_ticks)),
+        i64s(rows.iter().map(|row| row.high_ticks)),
+        i64s(rows.iter().map(|row| row.low_ticks)),
+        i64s(rows.iter().map(|row| row.close_ticks)),
+        i64s(rows.iter().map(|row| row.volume.ticks())),
+        i64s(rows.iter().map(|row| row.quote_volume.ticks())),
+        i64s(rows.iter().map(|row| row.count)),
+        i64s(rows.iter().map(|row| row.taker_buy_volume.ticks())),
+        i64s(rows.iter().map(|row| row.taker_buy_quote_volume.ticks())),
+        i64s(rows.iter().map(|row| row.event_ts.micros().micros())),
+        i64s(rows.iter().map(|row| row.available_ts.micros().micros())),
+    ];
+    push_receipt(&mut columns, rows.iter().map(|row| row.receipt))?;
+    columns.push(u32s(rows.iter().map(|row| row.schema_version)));
+    columns.push(strings(rows.iter().map(|row| row.tick_domain.as_str())));
+    if flat {
+        columns.push(Arc::new(BooleanArray::from(
+            rows.iter()
+                .map(|row| row.zero_volume_flat)
+                .collect::<Vec<_>>(),
+        )));
+    }
+    let batch = RecordBatch::try_new(schema, columns)
+        .map_err(|err| Error::check("parquet", err.to_string()))?;
     write_batch(path, batch)
 }
 
-fn read_klines_at(path: &Path) -> Result<Vec<KlineFact>, Error> {
-    let batches = read_batches(path)?;
+fn read_klines_at(path: &Path, dataset: &str) -> Result<Vec<KlineFact>, Error> {
+    let flat = records_flat(dataset);
+    let batches = open_v2(path, &kline_layout(flat))?;
     let symbol = collect_string(&batches, "symbol")?;
     let interval = collect_i64(&batches, "interval_us")?;
     let open_time = collect_i64(&batches, "open_time_us")?;
@@ -578,9 +680,14 @@ fn read_klines_at(path: &Path) -> Result<Vec<KlineFact>, Error> {
     let taker_quote = collect_i64(&batches, "taker_buy_quote_volume_ticks")?;
     let event = collect_i64(&batches, "event_ts_us")?;
     let available = collect_i64(&batches, "available_ts_us")?;
-    let received = collect_i64(&batches, "received_ts_us")?;
+    let receipts = decode_receipts(&batches)?;
     let schema = collect_u32(&batches, "schema_version")?;
     let domain = collect_string(&batches, "tick_domain")?;
+    let flat_flags = if flat {
+        collect_bool(&batches, "zero_volume_flat")?
+    } else {
+        vec![false; symbol.len()]
+    };
     let mut rows = Vec::with_capacity(symbol.len());
     for index in 0..symbol.len() {
         let tick_domain = TickDomain::parse(&domain[index]).ok_or_else(|| {
@@ -602,46 +709,93 @@ fn read_klines_at(path: &Path) -> Result<Vec<KlineFact>, Error> {
             taker_buy_quote_volume: Amount::from_ticks(taker_quote[index])?,
             event_ts: EventTs::from_micros(UtcMicros::from_micros(event[index])),
             available_ts: AvailableTs::from_micros(UtcMicros::from_micros(available[index])),
-            received_ts: ReceivedTs::from_micros(UtcMicros::from_micros(received[index])),
+            receipt: receipts[index],
             schema_version: schema[index],
             tick_domain,
+            zero_volume_flat: flat_flags[index],
         });
     }
     Ok(rows)
 }
 
-fn write_funding(path: &Path, rows: &[FundingFact]) -> Result<(), Error> {
+/// Rows/v1 fixture writer. The v2 readers reject the file. Migration reads v1
+/// through its own decoder, not through `load_klines`.
+pub fn write_v1_klines(
+    path: &Path,
+    rows: &[KlineFact],
+    received_ts_us: &[i64],
+) -> Result<(), Error> {
+    if rows.len() != received_ts_us.len() {
+        return Err(Error::check(
+            "schema",
+            "v1 fixture row count does not match received_ts_us",
+        ));
+    }
     let schema = scale_schema(vec![
         field("symbol", DataType::Utf8),
-        field("raw_calc_time_us", DataType::Int64),
-        field("funding_time_us", DataType::Int64),
-        field("interval_hours", DataType::Int64),
-        field("rate_ticks", DataType::Int64),
+        field("interval_us", DataType::Int64),
+        field("open_time_us", DataType::Int64),
+        field("close_time_us", DataType::Int64),
+        field("open_ticks", DataType::Int64),
+        field("high_ticks", DataType::Int64),
+        field("low_ticks", DataType::Int64),
+        field("close_ticks", DataType::Int64),
+        field("volume_ticks", DataType::Int64),
+        field("quote_volume_ticks", DataType::Int64),
+        field("count", DataType::Int64),
+        field("taker_buy_volume_ticks", DataType::Int64),
+        field("taker_buy_quote_volume_ticks", DataType::Int64),
         field("event_ts_us", DataType::Int64),
         field("available_ts_us", DataType::Int64),
         field("received_ts_us", DataType::Int64),
         field("schema_version", DataType::UInt32),
+        field("tick_domain", DataType::Utf8),
     ]);
-    let batch = RecordBatch::try_new(
-        schema,
-        vec![
-            strings(rows.iter().map(|row| row.symbol.as_str())),
-            i64s(rows.iter().map(|row| row.raw_calc_time.micros())),
-            i64s(rows.iter().map(|row| row.funding_time.micros())),
-            i64s(rows.iter().map(|row| row.interval_hours)),
-            i64s(rows.iter().map(|row| row.rate.ticks())),
-            i64s(rows.iter().map(|row| row.event_ts.micros().micros())),
-            i64s(rows.iter().map(|row| row.available_ts.micros().micros())),
-            i64s(rows.iter().map(|row| row.received_ts.micros().micros())),
-            u32s(rows.iter().map(|row| row.schema_version)),
-        ],
-    )
-    .map_err(|err| Error::check("parquet", err.to_string()))?;
+    let columns: Vec<Arc<dyn Array>> = vec![
+        strings(rows.iter().map(|row| row.symbol.as_str())),
+        i64s(rows.iter().map(|row| row.interval_us)),
+        i64s(rows.iter().map(|row| row.open_time.micros())),
+        i64s(rows.iter().map(|row| row.close_time.micros())),
+        i64s(rows.iter().map(|row| row.open_ticks)),
+        i64s(rows.iter().map(|row| row.high_ticks)),
+        i64s(rows.iter().map(|row| row.low_ticks)),
+        i64s(rows.iter().map(|row| row.close_ticks)),
+        i64s(rows.iter().map(|row| row.volume.ticks())),
+        i64s(rows.iter().map(|row| row.quote_volume.ticks())),
+        i64s(rows.iter().map(|row| row.count)),
+        i64s(rows.iter().map(|row| row.taker_buy_volume.ticks())),
+        i64s(rows.iter().map(|row| row.taker_buy_quote_volume.ticks())),
+        i64s(rows.iter().map(|row| row.event_ts.micros().micros())),
+        i64s(rows.iter().map(|row| row.available_ts.micros().micros())),
+        i64s(received_ts_us.iter().copied()),
+        u32s(rows.iter().map(|row| row.schema_version)),
+        strings(rows.iter().map(|row| row.tick_domain.as_str())),
+    ];
+    let batch = RecordBatch::try_new(schema, columns)
+        .map_err(|err| Error::check("parquet", err.to_string()))?;
+    write_batch(path, batch)
+}
+
+fn write_funding(path: &Path, rows: &[FundingFact]) -> Result<(), Error> {
+    let schema = fact_schema(funding_layout());
+    let mut columns: Vec<Arc<dyn Array>> = vec![
+        strings(rows.iter().map(|row| row.symbol.as_str())),
+        i64s(rows.iter().map(|row| row.raw_calc_time.micros())),
+        i64s(rows.iter().map(|row| row.funding_time.micros())),
+        i64s(rows.iter().map(|row| row.interval_hours)),
+        i64s(rows.iter().map(|row| row.rate.ticks())),
+        i64s(rows.iter().map(|row| row.event_ts.micros().micros())),
+        i64s(rows.iter().map(|row| row.available_ts.micros().micros())),
+    ];
+    push_receipt(&mut columns, rows.iter().map(|row| row.receipt))?;
+    columns.push(u32s(rows.iter().map(|row| row.schema_version)));
+    let batch = RecordBatch::try_new(schema, columns)
+        .map_err(|err| Error::check("parquet", err.to_string()))?;
     write_batch(path, batch)
 }
 
 fn read_funding_at(path: &Path) -> Result<Vec<FundingFact>, Error> {
-    let batches = read_batches(path)?;
+    let batches = open_v2(path, &funding_layout())?;
     let symbol = collect_string(&batches, "symbol")?;
     let raw = collect_i64(&batches, "raw_calc_time_us")?;
     let funding = collect_i64(&batches, "funding_time_us")?;
@@ -649,7 +803,7 @@ fn read_funding_at(path: &Path) -> Result<Vec<FundingFact>, Error> {
     let rate = collect_i64(&batches, "rate_ticks")?;
     let event = collect_i64(&batches, "event_ts_us")?;
     let available = collect_i64(&batches, "available_ts_us")?;
-    let received = collect_i64(&batches, "received_ts_us")?;
+    let receipts = decode_receipts(&batches)?;
     let schema = collect_u32(&batches, "schema_version")?;
     let mut rows = Vec::with_capacity(symbol.len());
     for index in 0..symbol.len() {
@@ -661,7 +815,7 @@ fn read_funding_at(path: &Path) -> Result<Vec<FundingFact>, Error> {
             rate: Ratio::from_ticks(rate[index]),
             event_ts: EventTs::from_micros(UtcMicros::from_micros(event[index])),
             available_ts: AvailableTs::from_micros(UtcMicros::from_micros(available[index])),
-            received_ts: ReceivedTs::from_micros(UtcMicros::from_micros(received[index])),
+            receipt: receipts[index],
             schema_version: schema[index],
         });
     }
@@ -669,58 +823,42 @@ fn read_funding_at(path: &Path) -> Result<Vec<FundingFact>, Error> {
 }
 
 fn write_metrics(path: &Path, rows: &[MetricsFact]) -> Result<(), Error> {
-    let schema = scale_schema(vec![
-        field("symbol", DataType::Utf8),
-        field("create_time_us", DataType::Int64),
-        field("sum_open_interest_ticks", DataType::Int64),
-        field("sum_open_interest_value_ticks", DataType::Int64),
-        field("count_toptrader_long_short_ratio_ticks", DataType::Int64),
-        field("sum_toptrader_long_short_ratio_ticks", DataType::Int64),
-        field("count_long_short_ratio_ticks", DataType::Int64),
-        field("sum_taker_long_short_vol_ratio_ticks", DataType::Int64),
-        field("event_ts_us", DataType::Int64),
-        field("available_ts_us", DataType::Int64),
-        field("received_ts_us", DataType::Int64),
-        field("available_lag_verified", DataType::Boolean),
-        field("schema_version", DataType::UInt32),
-    ]);
-    let batch = RecordBatch::try_new(
-        schema,
-        vec![
-            strings(rows.iter().map(|row| row.symbol.as_str())),
-            i64s(rows.iter().map(|row| row.create_time.micros())),
-            i64s(rows.iter().map(|row| row.sum_open_interest.ticks())),
-            i64s(rows.iter().map(|row| row.sum_open_interest_value.ticks())),
-            i64s(
-                rows.iter()
-                    .map(|row| row.count_toptrader_long_short_ratio.ticks()),
-            ),
-            i64s(
-                rows.iter()
-                    .map(|row| row.sum_toptrader_long_short_ratio.ticks()),
-            ),
-            i64s(rows.iter().map(|row| row.count_long_short_ratio.ticks())),
-            i64s(
-                rows.iter()
-                    .map(|row| row.sum_taker_long_short_vol_ratio.ticks()),
-            ),
-            i64s(rows.iter().map(|row| row.event_ts.micros().micros())),
-            i64s(rows.iter().map(|row| row.available_ts.micros().micros())),
-            i64s(rows.iter().map(|row| row.received_ts.micros().micros())),
-            Arc::new(BooleanArray::from(
-                rows.iter()
-                    .map(|row| row.available_lag_verified)
-                    .collect::<Vec<_>>(),
-            )),
-            u32s(rows.iter().map(|row| row.schema_version)),
-        ],
-    )
-    .map_err(|err| Error::check("parquet", err.to_string()))?;
+    let schema = fact_schema(metrics_layout());
+    let mut columns: Vec<Arc<dyn Array>> = vec![
+        strings(rows.iter().map(|row| row.symbol.as_str())),
+        i64s(rows.iter().map(|row| row.create_time.micros())),
+        i64s(rows.iter().map(|row| row.sum_open_interest.ticks())),
+        i64s(rows.iter().map(|row| row.sum_open_interest_value.ticks())),
+        i64s(
+            rows.iter()
+                .map(|row| row.count_toptrader_long_short_ratio.ticks()),
+        ),
+        i64s(
+            rows.iter()
+                .map(|row| row.sum_toptrader_long_short_ratio.ticks()),
+        ),
+        i64s(rows.iter().map(|row| row.count_long_short_ratio.ticks())),
+        i64s(
+            rows.iter()
+                .map(|row| row.sum_taker_long_short_vol_ratio.ticks()),
+        ),
+        i64s(rows.iter().map(|row| row.event_ts.micros().micros())),
+        i64s(rows.iter().map(|row| row.available_ts.micros().micros())),
+    ];
+    push_receipt(&mut columns, rows.iter().map(|row| row.receipt))?;
+    columns.push(Arc::new(BooleanArray::from(
+        rows.iter()
+            .map(|row| row.available_lag_verified)
+            .collect::<Vec<_>>(),
+    )));
+    columns.push(u32s(rows.iter().map(|row| row.schema_version)));
+    let batch = RecordBatch::try_new(schema, columns)
+        .map_err(|err| Error::check("parquet", err.to_string()))?;
     write_batch(path, batch)
 }
 
 fn read_metrics_at(path: &Path) -> Result<Vec<MetricsFact>, Error> {
-    let batches = read_batches(path)?;
+    let batches = open_v2(path, &metrics_layout())?;
     let symbol = collect_string(&batches, "symbol")?;
     let create = collect_i64(&batches, "create_time_us")?;
     let oi = collect_i64(&batches, "sum_open_interest_ticks")?;
@@ -731,7 +869,7 @@ fn read_metrics_at(path: &Path) -> Result<Vec<MetricsFact>, Error> {
     let taker = collect_i64(&batches, "sum_taker_long_short_vol_ratio_ticks")?;
     let event = collect_i64(&batches, "event_ts_us")?;
     let available = collect_i64(&batches, "available_ts_us")?;
-    let received = collect_i64(&batches, "received_ts_us")?;
+    let receipts = decode_receipts(&batches)?;
     let verified = collect_bool(&batches, "available_lag_verified")?;
     let schema = collect_u32(&batches, "schema_version")?;
     let mut rows = Vec::with_capacity(symbol.len());
@@ -748,7 +886,7 @@ fn read_metrics_at(path: &Path) -> Result<Vec<MetricsFact>, Error> {
             sum_taker_long_short_vol_ratio: Ratio::from_ticks(taker[index]),
             event_ts: EventTs::from_micros(UtcMicros::from_micros(event[index])),
             available_ts: AvailableTs::from_micros(UtcMicros::from_micros(available[index])),
-            received_ts: ReceivedTs::from_micros(UtcMicros::from_micros(received[index])),
+            receipt: receipts[index],
             available_lag_verified: verified[index],
             schema_version: schema[index],
         });
@@ -757,39 +895,26 @@ fn read_metrics_at(path: &Path) -> Result<Vec<MetricsFact>, Error> {
 }
 
 fn write_book(path: &Path, rows: &[BookFact]) -> Result<(), Error> {
-    let schema = scale_schema(vec![
-        field("symbol", DataType::Utf8),
-        field("timestamp_us", DataType::Int64),
-        field("percentage_ticks", DataType::Int64),
-        field("depth_ticks", DataType::Int64),
-        field("notional_ticks", DataType::Int64),
-        field("level_schema", DataType::UInt32),
-        field("event_ts_us", DataType::Int64),
-        field("available_ts_us", DataType::Int64),
-        field("received_ts_us", DataType::Int64),
-        field("schema_version", DataType::UInt32),
-    ]);
-    let batch = RecordBatch::try_new(
-        schema,
-        vec![
-            strings(rows.iter().map(|row| row.symbol.as_str())),
-            i64s(rows.iter().map(|row| row.timestamp.micros())),
-            i64s(rows.iter().map(|row| row.percentage.ticks())),
-            i64s(rows.iter().map(|row| row.depth.ticks())),
-            i64s(rows.iter().map(|row| row.notional.ticks())),
-            u32s(rows.iter().map(|row| row.level_schema)),
-            i64s(rows.iter().map(|row| row.event_ts.micros().micros())),
-            i64s(rows.iter().map(|row| row.available_ts.micros().micros())),
-            i64s(rows.iter().map(|row| row.received_ts.micros().micros())),
-            u32s(rows.iter().map(|row| row.schema_version)),
-        ],
-    )
-    .map_err(|err| Error::check("parquet", err.to_string()))?;
+    let schema = fact_schema(book_layout());
+    let mut columns: Vec<Arc<dyn Array>> = vec![
+        strings(rows.iter().map(|row| row.symbol.as_str())),
+        i64s(rows.iter().map(|row| row.timestamp.micros())),
+        i64s(rows.iter().map(|row| row.percentage.ticks())),
+        i64s(rows.iter().map(|row| row.depth.ticks())),
+        i64s(rows.iter().map(|row| row.notional.ticks())),
+        u32s(rows.iter().map(|row| row.level_schema)),
+        i64s(rows.iter().map(|row| row.event_ts.micros().micros())),
+        i64s(rows.iter().map(|row| row.available_ts.micros().micros())),
+    ];
+    push_receipt(&mut columns, rows.iter().map(|row| row.receipt))?;
+    columns.push(u32s(rows.iter().map(|row| row.schema_version)));
+    let batch = RecordBatch::try_new(schema, columns)
+        .map_err(|err| Error::check("parquet", err.to_string()))?;
     write_batch(path, batch)
 }
 
 fn read_book_at(path: &Path) -> Result<Vec<BookFact>, Error> {
-    let batches = read_batches(path)?;
+    let batches = open_v2(path, &book_layout())?;
     let symbol = collect_string(&batches, "symbol")?;
     let timestamp = collect_i64(&batches, "timestamp_us")?;
     let percentage = collect_i64(&batches, "percentage_ticks")?;
@@ -798,7 +923,7 @@ fn read_book_at(path: &Path) -> Result<Vec<BookFact>, Error> {
     let level_schema = collect_u32(&batches, "level_schema")?;
     let event = collect_i64(&batches, "event_ts_us")?;
     let available = collect_i64(&batches, "available_ts_us")?;
-    let received = collect_i64(&batches, "received_ts_us")?;
+    let receipts = decode_receipts(&batches)?;
     let schema = collect_u32(&batches, "schema_version")?;
     let mut rows = Vec::with_capacity(symbol.len());
     for index in 0..symbol.len() {
@@ -812,7 +937,7 @@ fn read_book_at(path: &Path) -> Result<Vec<BookFact>, Error> {
             level_schema: level_schema[index],
             event_ts: EventTs::from_micros(UtcMicros::from_micros(event[index])),
             available_ts: AvailableTs::from_micros(UtcMicros::from_micros(available[index])),
-            received_ts: ReceivedTs::from_micros(UtcMicros::from_micros(received[index])),
+            receipt: receipts[index],
             schema_version: schema[index],
         });
     }
@@ -951,6 +1076,119 @@ fn collect_string(batches: &[RecordBatch], name: &str) -> Result<Vec<String>, Er
                 return Err(Error::check("parquet_schema", format!("{name} has a null")));
             }
             out.push(array.value(index).to_owned());
+        }
+    }
+    Ok(out)
+}
+
+fn open_v2(path: &Path, layout: &[Field]) -> Result<Vec<RecordBatch>, Error> {
+    let file = File::open(path).map_err(|source| Error::Io {
+        path: path.display().to_string(),
+        source,
+    })?;
+    let builder = ParquetRecordBatchReaderBuilder::try_new(file)
+        .map_err(|err| Error::check("parquet", err.to_string()))?;
+    let schema = builder.schema();
+    require_scale(schema.as_ref())?;
+    require_rows_v2(schema.as_ref())?;
+    require_layout(schema.as_ref(), layout)?;
+    let reader = builder
+        .build()
+        .map_err(|err| Error::check("parquet", err.to_string()))?;
+    let mut batches = Vec::new();
+    for batch in reader {
+        batches.push(batch.map_err(|err| Error::check("parquet", err.to_string()))?);
+    }
+    Ok(batches)
+}
+
+fn require_rows_v2(schema: &Schema) -> Result<(), Error> {
+    if schema.column_with_name("received_ts_us").is_some() {
+        return Err(Error::check("schema", "v1 file still has received_ts_us"));
+    }
+    match schema
+        .metadata()
+        .get("parangsae.row_encoding")
+        .map(String::as_str)
+    {
+        Some("rows/v2") => Ok(()),
+        Some(other) => Err(Error::check("schema", format!("row encoding is {other}"))),
+        None => Err(Error::check(
+            "schema",
+            "parquet schema has no parangsae.row_encoding",
+        )),
+    }
+}
+
+fn require_layout(schema: &Schema, layout: &[Field]) -> Result<(), Error> {
+    if schema.fields().len() != layout.len() {
+        return Err(Error::check(
+            "schema",
+            format!(
+                "expected {} columns, found {}",
+                layout.len(),
+                schema.fields().len()
+            ),
+        ));
+    }
+    for (index, expected) in layout.iter().enumerate() {
+        let found = schema.field(index);
+        if found.name() != expected.name()
+            || found.data_type() != expected.data_type()
+            || found.is_nullable() != expected.is_nullable()
+        {
+            return Err(Error::check(
+                "schema",
+                format!(
+                    "column {index} is {} {:?} nullable={}, expected {} {:?} nullable={}",
+                    found.name(),
+                    found.data_type(),
+                    found.is_nullable(),
+                    expected.name(),
+                    expected.data_type(),
+                    expected.is_nullable()
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn collect_string_opt(batches: &[RecordBatch], name: &str) -> Result<Vec<Option<String>>, Error> {
+    let mut out = Vec::new();
+    for batch in batches {
+        let array = batch
+            .column_by_name(name)
+            .ok_or_else(|| Error::check("schema", format!("missing {name}")))?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .ok_or_else(|| Error::check("schema", format!("{name} is not utf8")))?;
+        for index in 0..array.len() {
+            if array.is_null(index) {
+                out.push(None);
+            } else {
+                out.push(Some(array.value(index).to_owned()));
+            }
+        }
+    }
+    Ok(out)
+}
+
+fn collect_i64_opt(batches: &[RecordBatch], name: &str) -> Result<Vec<Option<i64>>, Error> {
+    let mut out = Vec::new();
+    for batch in batches {
+        let array = batch
+            .column_by_name(name)
+            .ok_or_else(|| Error::check("schema", format!("missing {name}")))?
+            .as_any()
+            .downcast_ref::<Int64Array>()
+            .ok_or_else(|| Error::check("schema", format!("{name} is not int64")))?;
+        for index in 0..array.len() {
+            if array.is_null(index) {
+                out.push(None);
+            } else {
+                out.push(Some(array.value(index)));
+            }
         }
     }
     Ok(out)

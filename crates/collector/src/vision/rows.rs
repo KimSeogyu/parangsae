@@ -1,6 +1,28 @@
-//! One parsed Vision row. Payload equality ignores `received_ts`.
+//! One parsed Vision row. Payload equality ignores `receipt`.
+//!
+//! `zero_volume_flat` is descriptive: OHLC is flat and volume is 0. It is not a
+//! halt flag and not a maintenance flag.
 
-use parangsae_core::{Amount, AvailableTs, EventTs, Qty, Ratio, ReceivedTs, Symbol, UtcMicros};
+use parangsae_core::{Amount, AvailableTs, EventTs, Qty, Ratio, Receipt, Symbol, UtcMicros};
+
+/// `volume == 0`, `count == 0`, and open, high, low, and close are equal.
+///
+/// Descriptive only. Mark, index, and premium rows do not use this; their
+/// volume columns are always 0.
+pub fn zero_volume_flat(
+    volume_ticks: i64,
+    count: i64,
+    open_ticks: i64,
+    high_ticks: i64,
+    low_ticks: i64,
+    close_ticks: i64,
+) -> bool {
+    volume_ticks == 0
+        && count == 0
+        && open_ticks == high_ticks
+        && high_ticks == low_ticks
+        && low_ticks == close_ticks
+}
 
 /// OHLC domain. Premium bars are ratios. Trade, mark, index, and spot bars are prices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,9 +65,12 @@ pub struct KlineFact {
     pub taker_buy_quote_volume: Amount,
     pub event_ts: EventTs,
     pub available_ts: AvailableTs,
-    pub received_ts: ReceivedTs,
+    pub receipt: Receipt,
     pub schema_version: u32,
     pub tick_domain: TickDomain,
+    /// Set from [`zero_volume_flat`] for um and spot klines. Always `false` for
+    /// mark, index, and premium, and not part of their content hash.
+    pub zero_volume_flat: bool,
 }
 
 impl PartialEq for KlineFact {
@@ -67,6 +92,7 @@ impl PartialEq for KlineFact {
             && self.available_ts == other.available_ts
             && self.schema_version == other.schema_version
             && self.tick_domain == other.tick_domain
+            && self.zero_volume_flat == other.zero_volume_flat
     }
 }
 
@@ -81,7 +107,7 @@ pub struct FundingFact {
     pub rate: Ratio,
     pub event_ts: EventTs,
     pub available_ts: AvailableTs,
-    pub received_ts: ReceivedTs,
+    pub receipt: Receipt,
     pub schema_version: u32,
 }
 
@@ -112,7 +138,7 @@ pub struct MetricsFact {
     pub sum_taker_long_short_vol_ratio: Ratio,
     pub event_ts: EventTs,
     pub available_ts: AvailableTs,
-    pub received_ts: ReceivedTs,
+    pub receipt: Receipt,
     pub available_lag_verified: bool,
     pub schema_version: u32,
 }
@@ -146,7 +172,7 @@ pub struct BookFact {
     pub level_schema: u32,
     pub event_ts: EventTs,
     pub available_ts: AvailableTs,
-    pub received_ts: ReceivedTs,
+    pub receipt: Receipt,
     pub schema_version: u32,
 }
 

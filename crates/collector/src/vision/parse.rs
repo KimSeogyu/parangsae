@@ -3,12 +3,11 @@
 use std::io::{Cursor, Read};
 
 use parangsae_core::{
-    Amount, AvailableTs, EventTs, Price, Qty, Ratio, ReceivedTs, Symbol, UtcMicros,
-    MICROS_PER_MILLIS,
+    Amount, AvailableTs, EventTs, Price, Qty, Ratio, Receipt, Symbol, UtcMicros, MICROS_PER_MILLIS,
 };
 use zip::ZipArchive;
 
-use super::rows::{BookFact, FundingFact, KlineFact, MetricsFact, TickDomain};
+use super::rows::{zero_volume_flat, BookFact, FundingFact, KlineFact, MetricsFact, TickDomain};
 use super::{
     SCHEMA_BOOK, SCHEMA_FUNDING, SCHEMA_KLINE_HEADER, SCHEMA_KLINE_HEADERLESS, SCHEMA_METRICS,
 };
@@ -73,7 +72,8 @@ pub fn parse_klines(
     symbol: &Symbol,
     clock: SourceClock,
     domain: TickDomain,
-    received: ReceivedTs,
+    receipt: Receipt,
+    record_zero_volume_flat: bool,
 ) -> Result<Parsed<KlineFact>, Error> {
     let lines = nonempty_lines(csv);
     if lines.is_empty() {
@@ -97,11 +97,14 @@ pub fn parse_klines(
         rows.push(parse_kline_line(
             line,
             line_no,
-            symbol,
-            clock,
-            domain,
-            received,
-            schema_version,
+            &KlineParse {
+                symbol,
+                clock,
+                domain,
+                receipt,
+                record_zero_volume_flat,
+                schema_version,
+            },
         )?);
     }
     Ok(Parsed {
@@ -110,24 +113,29 @@ pub fn parse_klines(
     })
 }
 
+struct KlineParse<'a> {
+    symbol: &'a Symbol,
+    clock: SourceClock,
+    domain: TickDomain,
+    receipt: Receipt,
+    record_zero_volume_flat: bool,
+    schema_version: u32,
+}
+
 fn parse_kline_line(
     line: &str,
     line_no: usize,
-    symbol: &Symbol,
-    clock: SourceClock,
-    domain: TickDomain,
-    received: ReceivedTs,
-    schema_version: u32,
+    source: &KlineParse<'_>,
 ) -> Result<KlineFact, Error> {
     let fields = split_fields(line, line_no, 12)?;
     let open_raw = parse_int(fields[0], line_no, "open_time")?;
     let close_raw = parse_int(fields[6], line_no, "close_time")?;
-    let open_time = clock.read(open_raw)?;
-    let close_time = clock.read(close_raw)?;
-    let open_ticks = ohlc_ticks(fields[1], line_no, domain)?;
-    let high_ticks = ohlc_ticks(fields[2], line_no, domain)?;
-    let low_ticks = ohlc_ticks(fields[3], line_no, domain)?;
-    let close_ticks = ohlc_ticks(fields[4], line_no, domain)?;
+    let open_time = source.clock.read(open_raw)?;
+    let close_time = source.clock.read(close_raw)?;
+    let open_ticks = ohlc_ticks(fields[1], line_no, source.domain)?;
+    let high_ticks = ohlc_ticks(fields[2], line_no, source.domain)?;
+    let low_ticks = ohlc_ticks(fields[3], line_no, source.domain)?;
+    let close_ticks = ohlc_ticks(fields[4], line_no, source.domain)?;
     let volume = Qty::from_ticks(parse_ticks(fields[5])?)?;
     let quote_volume = Amount::from_ticks(parse_ticks(fields[7])?)?;
     let count = parse_int(fields[8], line_no, "count")?;
@@ -145,7 +153,7 @@ fn parse_kline_line(
             )
         })?;
     Ok(KlineFact {
-        symbol: symbol.clone(),
+        symbol: source.symbol.clone(),
         interval_us: ONE_MINUTE_US,
         open_time,
         close_time,
@@ -160,9 +168,21 @@ fn parse_kline_line(
         taker_buy_quote_volume,
         event_ts: EventTs::from_micros(open_time),
         available_ts: AvailableTs::from_micros(available),
-        received_ts: received,
-        schema_version,
-        tick_domain: domain,
+        receipt: source.receipt,
+        schema_version: source.schema_version,
+        tick_domain: source.domain,
+        zero_volume_flat: if source.record_zero_volume_flat {
+            zero_volume_flat(
+                volume.ticks(),
+                count,
+                open_ticks,
+                high_ticks,
+                low_ticks,
+                close_ticks,
+            )
+        } else {
+            false
+        },
     })
 }
 
@@ -183,7 +203,7 @@ fn ohlc_ticks(text: &str, line_no: usize, domain: TickDomain) -> Result<i64, Err
 pub fn parse_funding(
     csv: &str,
     symbol: &Symbol,
-    received: ReceivedTs,
+    receipt: Receipt,
 ) -> Result<Parsed<FundingFact>, Error> {
     let data = headed_lines(csv, FUNDING_HEADER)?;
     let mut rows = Vec::with_capacity(data.len());
@@ -213,7 +233,7 @@ pub fn parse_funding(
             rate,
             event_ts: EventTs::from_micros(raw_calc),
             available_ts: AvailableTs::from_micros(funding_time),
-            received_ts: received,
+            receipt,
             schema_version: SCHEMA_FUNDING,
         });
     }
@@ -251,7 +271,7 @@ pub fn snap_funding_time(raw: UtcMicros) -> Result<UtcMicros, String> {
 pub fn parse_metrics(
     csv: &str,
     symbol: &Symbol,
-    received: ReceivedTs,
+    receipt: Receipt,
 ) -> Result<Parsed<MetricsFact>, Error> {
     let data = headed_lines(csv, METRICS_HEADER)?;
     let mut rows = Vec::with_capacity(data.len());
@@ -287,7 +307,7 @@ pub fn parse_metrics(
             sum_taker_long_short_vol_ratio: Ratio::from_ticks(parse_ticks(fields[7])?),
             event_ts: EventTs::from_micros(create_time),
             available_ts: AvailableTs::from_micros(available),
-            received_ts: received,
+            receipt,
             available_lag_verified: false,
             schema_version: SCHEMA_METRICS,
         });
@@ -298,11 +318,7 @@ pub fn parse_metrics(
     })
 }
 
-pub fn parse_book(
-    csv: &str,
-    symbol: &Symbol,
-    received: ReceivedTs,
-) -> Result<Parsed<BookFact>, Error> {
+pub fn parse_book(csv: &str, symbol: &Symbol, receipt: Receipt) -> Result<Parsed<BookFact>, Error> {
     let data = headed_lines(csv, BOOK_HEADER)?;
     let mut rows = Vec::with_capacity(data.len());
     for (offset, line) in data.iter().enumerate() {
@@ -318,7 +334,7 @@ pub fn parse_book(
             level_schema: 0,
             event_ts: EventTs::from_micros(timestamp),
             available_ts: AvailableTs::from_micros(timestamp),
-            received_ts: received,
+            receipt,
             schema_version: SCHEMA_BOOK,
         });
     }
@@ -382,14 +398,17 @@ mod tests {
     use crate::civil::CivilDay;
     use crate::normalize::{spot_kline_clock, UM_KLINE_CLOCK};
     use crate::scale::format_ticks;
+    use parangsae_core::RunId;
     use proptest::prelude::*;
 
     fn symbol() -> Symbol {
         Symbol::new("BTCUSDT").expect("symbol")
     }
 
-    fn received() -> ReceivedTs {
-        ReceivedTs::from_micros(UtcMicros::from_micros(1))
+    fn receipt() -> Receipt {
+        Receipt::Archive {
+            fetched_at_run: RunId::from_bytes([1; 16]),
+        }
     }
 
     fn fixture(name: &str) -> String {
@@ -407,7 +426,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert_eq!(headerless.schema_version, SCHEMA_KLINE_HEADERLESS);
@@ -418,7 +438,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert_eq!(headed.schema_version, SCHEMA_KLINE_HEADER);
@@ -434,7 +455,8 @@ mod tests {
             &symbol(),
             spot_kline_clock(day),
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert_eq!(parsed.rows[0].open_time.micros(), 1_735_689_600_000_000);
@@ -443,7 +465,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap_err();
         assert_eq!(err.check_name(), Some("timestamp_unit"));
@@ -452,7 +475,7 @@ mod tests {
     #[test]
     fn funding_snap_keeps_the_raw_calc_time() {
         let parsed =
-            parse_funding(&fixture("funding_2026-09-01.csv"), &symbol(), received()).unwrap();
+            parse_funding(&fixture("funding_2026-09-01.csv"), &symbol(), receipt()).unwrap();
         assert_eq!(parsed.rows[0].raw_calc_time.micros(), 1_788_220_800_005_000);
         assert_eq!(parsed.rows[0].funding_time.micros(), 1_788_220_800_000_000);
         assert_eq!(
@@ -464,7 +487,7 @@ mod tests {
             1_788_220_800_005_000
         );
         let err =
-            parse_funding(&fixture("funding_off_slot.csv"), &symbol(), received()).unwrap_err();
+            parse_funding(&fixture("funding_off_slot.csv"), &symbol(), receipt()).unwrap_err();
         assert_eq!(err.check_name(), Some("funding_snap"));
     }
 
@@ -477,7 +500,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert_eq!(parsed.rows.len(), 3);
@@ -499,7 +523,15 @@ mod tests {
                 format_ticks(volume),
                 format_ticks(volume),
             );
-            let parsed = parse_klines(&line, &symbol(), UM_KLINE_CLOCK, TickDomain::Price, received()).unwrap();
+            let parsed = parse_klines(
+                &line,
+                &symbol(),
+                UM_KLINE_CLOCK,
+                TickDomain::Price,
+                receipt(),
+                true,
+            )
+            .unwrap();
             prop_assert_eq!(parsed.rows.len(), 1);
             prop_assert_eq!(parsed.rows[0].open_ticks, price);
             prop_assert_eq!(parsed.rows[0].volume.ticks(), volume);
@@ -516,7 +548,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .err()
         .ok_or_else(|| Error::Usage("kline exponent was accepted".into()))?;
@@ -531,7 +564,7 @@ mod tests {
         let parsed = parse_metrics(
             &fixture("metrics_open_interest_exponent.csv"),
             &symbol(),
-            received(),
+            receipt(),
         )?;
         let row = parsed
             .rows
@@ -553,7 +586,7 @@ mod tests {
     #[test]
     fn metrics_ratio_exponent_stays_on_the_plain_parser() -> Result<(), Error> {
         let csv = "create_time,symbol,sum_open_interest,sum_open_interest_value,count_toptrader_long_short_ratio,sum_toptrader_long_short_ratio,count_long_short_ratio,sum_taker_long_short_vol_ratio\n2020-09-01 00:00:00,BTCUSDT,1,1,0E-8,1,1,1\n";
-        let err = parse_metrics(csv, &symbol(), received())
+        let err = parse_metrics(csv, &symbol(), receipt())
             .err()
             .ok_or_else(|| Error::Usage("metrics ratio exponent was accepted".into()))?;
         match err {

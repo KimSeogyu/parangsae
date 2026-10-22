@@ -8,7 +8,7 @@ Specs that do not run are not specs. TLA+ is checked with TLC. Behavior is check
 
 1. **Specs run.** A behavior change lands with a Gherkin scenario or a TLA+ invariant in the same change. TLC, cucumber, Kani, and proptest are required CI checks.
 
-2. **Data shape before logic.** `Price` and `Qty` are fixed-point newtypes (`10^8` scale). `Symbol` is a newtype. `EventTs`, `AvailableTs`, and `ReceivedTs` are distinct. Domain state is an enum. `match` on a domain enum is exhaustive.
+2. **Data shape before logic.** `Price` and `Qty` are fixed-point newtypes (`10^8` scale). `Symbol` is a newtype. `EventTs` and `AvailableTs` are distinct. A `Receipt` is either an archive `RunId` or a live `UtcMicros`, and an archive receipt has no time. Domain state is an enum. `match` on a domain enum is exhaustive.
 
 3. **Parse once, at the boundary.** REST, WebSocket, config, and env become domain types once. Inside the crates, logic is a pure function.
 

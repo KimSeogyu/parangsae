@@ -23,7 +23,7 @@ pub use checksum::{parse_checksum, require_sha256, sha256_bytes};
 pub use listxml::{list_page, ListPage, ListedObject};
 pub use name::{basename, classify, ArchiveName, Cadence, Classified};
 pub use parse::{parse_book, parse_funding, parse_klines, parse_metrics, unzip_csv};
-pub use rows::{BookFact, FundingFact, KlineFact, MetricsFact, TickDomain};
+pub use rows::{zero_volume_flat, BookFact, FundingFact, KlineFact, MetricsFact, TickDomain};
 
 /// Column-schema versions recorded on the manifest. Book level sets are a
 /// separate per-timestamp version in [`BookFact::level_schema`].
@@ -147,6 +147,19 @@ impl VisionDataset {
                 Cadence::Daily,
                 format!("data/futures/um/daily/bookDepth/{sym}/"),
             )],
+        }
+    }
+
+    /// Um and spot klines record `zero_volume_flat`. Mark, index, and premium do not.
+    pub const fn records_zero_volume_flat(self) -> bool {
+        match self {
+            Self::UmKline | Self::SpotKline => true,
+            Self::MarkPriceKline
+            | Self::IndexPriceKline
+            | Self::PremiumIndexKline
+            | Self::FundingRate
+            | Self::Metrics
+            | Self::BookDepth => false,
         }
     }
 

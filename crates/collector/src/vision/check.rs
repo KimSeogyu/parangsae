@@ -544,14 +544,16 @@ mod tests {
     use crate::normalize::{spot_kline_clock, UM_KLINE_CLOCK};
     use crate::vision::parse::{parse_book, parse_funding, parse_klines, parse_metrics};
     use crate::vision::{KlineFact, MetricsFact, TickDomain};
-    use parangsae_core::{ReceivedTs, Symbol, TimeUnit};
+    use parangsae_core::{Receipt, RunId, Symbol, TimeUnit};
 
     fn symbol() -> Symbol {
         Symbol::new("BTCUSDT").unwrap()
     }
 
-    fn received() -> ReceivedTs {
-        ReceivedTs::from_micros(UtcMicros::from_micros(1))
+    fn receipt() -> Receipt {
+        Receipt::Archive {
+            fetched_at_run: RunId::from_bytes([1; 16]),
+        }
     }
 
     fn fixture(name: &str) -> String {
@@ -569,7 +571,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert!(kline_row_faults(&ok.rows, TimeUnit::Millis).is_empty());
@@ -578,7 +581,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert_eq!(
@@ -590,7 +594,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert_eq!(
@@ -602,7 +607,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert_eq!(
@@ -614,7 +620,8 @@ mod tests {
             &symbol(),
             UM_KLINE_CLOCK,
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert_eq!(
@@ -631,7 +638,8 @@ mod tests {
             &symbol(),
             spot_kline_clock(day),
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert!(kline_row_faults(&parsed.rows, TimeUnit::Micros).is_empty());
@@ -645,7 +653,8 @@ mod tests {
             &symbol(),
             spot_kline_clock(earlier),
             TickDomain::Price,
-            received(),
+            receipt(),
+            true,
         )
         .unwrap();
         assert!(kline_row_faults(&millis.rows, TimeUnit::Millis).is_empty());
@@ -699,9 +708,10 @@ mod tests {
             available_ts: parangsae_core::AvailableTs::from_micros(
                 close_time.checked_add_micros(1_000).unwrap(),
             ),
-            received_ts: received(),
+            receipt: receipt(),
             schema_version: 1,
             tick_domain: TickDomain::Price,
+            zero_volume_flat: true,
         }
     }
 
@@ -721,7 +731,7 @@ mod tests {
             available_ts: parangsae_core::AvailableTs::from_micros(UtcMicros::from_micros(
                 create + FIVE_MINUTES_US,
             )),
-            received_ts: received(),
+            receipt: receipt(),
             available_lag_verified: false,
             schema_version: 4,
         }
@@ -745,7 +755,7 @@ mod tests {
             93
         );
         let parsed =
-            parse_funding(&fixture("funding_missing_slot.csv"), &symbol(), received()).unwrap();
+            parse_funding(&fixture("funding_missing_slot.csv"), &symbol(), receipt()).unwrap();
         let gaps = funding_window(&parsed.rows, september).unwrap();
         assert!(gaps
             .iter()
@@ -754,34 +764,26 @@ mod tests {
 
     #[test]
     fn book_schemas_monotonic_notional_and_gap() {
-        let mut v2 = parse_book(
-            &fixture("book_2026-10-20_one_ts.csv"),
-            &symbol(),
-            received(),
-        )
-        .unwrap();
+        let mut v2 =
+            parse_book(&fixture("book_2026-10-20_one_ts.csv"), &symbol(), receipt()).unwrap();
         assert!(book_row_faults(&mut v2.rows).is_empty());
         assert!(v2.rows.iter().all(|row| row.level_schema == 2));
-        let mut v1 = parse_book(
-            &fixture("book_2023-01-01_one_ts.csv"),
-            &symbol(),
-            received(),
-        )
-        .unwrap();
+        let mut v1 =
+            parse_book(&fixture("book_2023-01-01_one_ts.csv"), &symbol(), receipt()).unwrap();
         assert!(book_row_faults(&mut v1.rows).is_empty());
         assert!(v1.rows.iter().all(|row| row.level_schema == 1));
         let mut bad_levels =
-            parse_book(&fixture("book_bad_levels.csv"), &symbol(), received()).unwrap();
+            parse_book(&fixture("book_bad_levels.csv"), &symbol(), receipt()).unwrap();
         assert_eq!(book_row_faults(&mut bad_levels.rows)[0].name, "level_set");
         let mut bad_mono =
-            parse_book(&fixture("book_bad_monotonic.csv"), &symbol(), received()).unwrap();
+            parse_book(&fixture("book_bad_monotonic.csv"), &symbol(), receipt()).unwrap();
         assert_eq!(book_row_faults(&mut bad_mono.rows)[0].name, "monotonic");
         let mut bad_notional =
-            parse_book(&fixture("book_bad_notional.csv"), &symbol(), received()).unwrap();
+            parse_book(&fixture("book_bad_notional.csv"), &symbol(), receipt()).unwrap();
         let notional_faults = book_row_faults(&mut bad_notional.rows);
         assert!(notional_faults.iter().any(|fault| fault.name == "notional"));
         let mut gap_rows =
-            parse_book(&fixture("book_gap_real_span.csv"), &symbol(), received()).unwrap();
+            parse_book(&fixture("book_gap_real_span.csv"), &symbol(), receipt()).unwrap();
         assert!(book_row_faults(&mut gap_rows.rows).is_empty());
         let day = CivilDay::new(2026, 10, 20).unwrap();
         let gaps = book_day_gaps(&gap_rows.rows, day);
@@ -807,7 +809,7 @@ mod tests {
         let parsed = parse_metrics(
             &fixture("metrics_2020-09-01_duplicate.csv"),
             &symbol(),
-            received(),
+            receipt(),
         )
         .unwrap();
         let collapsed = collapse_by(parsed.rows, |row| row.create_time.micros()).unwrap();
@@ -815,7 +817,7 @@ mod tests {
         let unsorted = parse_metrics(
             &fixture("metrics_2026-10-20_unsorted.csv"),
             &symbol(),
-            received(),
+            receipt(),
         )
         .unwrap();
         assert!(metrics_row_faults(&unsorted.rows).is_empty());
