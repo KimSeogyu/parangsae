@@ -196,7 +196,8 @@ jobs:
         run: cargo test -p parangsae-core --features test-support --lib
       - name: causal gate compile-fail
         # Own workspace: the main workspace test unifies parangsae-sim's driver-clock.
-        run: cargo test --manifest-path fixtures/causal/closed-gate/Cargo.toml --locked --offline
+        # trybuild is not in the workspace lock, so this step cannot use --offline.
+        run: cargo test --manifest-path fixtures/causal/closed-gate/Cargo.toml --locked
 
   cucumber:
     name: cucumber
