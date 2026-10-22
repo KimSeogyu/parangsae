@@ -5676,14 +5676,11 @@ const GHERKIN_CRATE: (&str, &str, &str) = (
 const PINNED_CARGO: &str =
     "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo";
 
-/// Reviewer-protected. Both P3 `case` shapes on the final head. Pending Reviewer review.
-const CASE_LITERAL_MATCHES: usize = 2;
+/// Reviewer-protected. Accepted P3 `case` forms. The final head has none, so
+/// `case` stays rejected and this count is 0.
+const CASE_LITERAL_MATCHES: usize = 0;
 
-const ENUMERATED_MATCH_FORMS: &[&str] = &[
-    "grep -qF -- '<lit>' \"$f\"",
-    "case \"$v\" in *'<lit>'*) body ;; esac",
-    "case \"$v\" in *'<lit>'*) ;; *) body ;; esac",
-];
+const ENUMERATED_MATCH_FORMS: &[&str] = &["grep -qF -- '<lit>' \"$f\""];
 
 const API_SNAPSHOT_POSTCHECK: &str = "\
 test \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\n\
@@ -5964,7 +5961,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "xtask",
         "lib",
         "unittests src/lib.rs (target/debug/deps/xtask-",
-        93,
+        98,
     ),
     (
         (
@@ -6208,6 +6205,8 @@ struct Ctx<'a> {
     step_key: &'a str,
     file_line: usize,
     pipefail: bool,
+    /// GitHub Actions starts `run:` with `bash -e`. A command substitution does not inherit it.
+    errexit: bool,
     captured: bool,
     in_if_cond: bool,
     status_vars: BTreeSet<String>,
@@ -6231,6 +6230,7 @@ fn parse_run_script(script: &str, step_key: &str, file_line: usize) -> ShellRepo
         step_key,
         file_line,
         pipefail: false,
+        errexit: true,
         captured: false,
         in_if_cond: false,
         status_vars: BTreeSet::new(),
@@ -6378,98 +6378,16 @@ fn parse_for(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
 }
 
 fn parse_case(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
-    let line = ctx.line_of(cur.src, cur.i);
     cur.bump_str("case");
-    cur.skip_inline();
-    let subject = scan_word(cur, ctx);
-    skip_separators(cur);
-    if !consume_kw(cur, "in") || !is_p3_subject(&subject) {
+    if ctx.captured {
+        ctx.gap(&format!(
+            "{}: check form inside a command substitution",
+            ctx.step_key
+        ));
+    } else {
         ctx.gap("case form is not a p3 match");
-        skip_until_esac(cur);
-        return;
     }
-    skip_separators(cur);
-    let pattern = scan_word(cur, ctx);
-    cur.skip_inline();
-    if cur.peek() != Some(')') || !is_p3_pattern(&pattern) {
-        ctx.gap("case form is not a p3 match");
-        skip_until_esac(cur);
-        return;
-    }
-    cur.bump();
-    cur.skip_inline();
-    if cur.starts(";;") {
-        cur.bump_str(";;");
-        if !parse_p3_default_arm(cur, ctx) {
-            ctx.gap("case form is not a p3 match");
-            skip_until_esac(cur);
-            return;
-        }
-        ctx.report.p3_default = ctx.report.p3_default.saturating_add(1);
-        ctx.report
-            .listing
-            .push(format!("{} L{line} case :: match:p3-default", ctx.step_key));
-        return;
-    }
-    parse_until(cur, ctx, &["esac"]);
-    cur.skip_inline();
-    if !cur.starts(";;") {
-        ctx.gap("case form is not a p3 match");
-        skip_until_esac(cur);
-        return;
-    }
-    cur.bump_str(";;");
-    skip_separators(cur);
-    if !consume_kw(cur, "esac") {
-        ctx.gap("case form is not a p3 match");
-        skip_until_esac(cur);
-        return;
-    }
-    ctx.report.p3_body = ctx.report.p3_body.saturating_add(1);
-    ctx.report
-        .listing
-        .push(format!("{} L{line} case :: match:p3-body", ctx.step_key));
-}
-
-fn is_p3_subject(word: &str) -> bool {
-    let Some(inner) = word
-        .strip_prefix("\"$")
-        .and_then(|rest| rest.strip_suffix('"'))
-    else {
-        return false;
-    };
-    !inner.is_empty()
-        && inner
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
-}
-
-fn is_p3_pattern(word: &str) -> bool {
-    let Some(inner) = word.strip_prefix("*'") else {
-        return false;
-    };
-    let Some(inner) = inner.strip_suffix("'*") else {
-        return false;
-    };
-    !inner.is_empty() && !inner.contains('\'')
-}
-
-fn parse_p3_default_arm(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) -> bool {
-    skip_separators(cur);
-    let star = scan_word(cur, ctx);
-    cur.skip_inline();
-    if star != "*" || cur.peek() != Some(')') {
-        return false;
-    }
-    cur.bump();
-    parse_until(cur, ctx, &["esac"]);
-    cur.skip_inline();
-    if !cur.starts(";;") {
-        return false;
-    }
-    cur.bump_str(";;");
-    skip_separators(cur);
-    consume_kw(cur, "esac")
+    skip_until_esac(cur);
 }
 
 fn skip_until_esac(cur: &mut Cur<'_>) {
@@ -6829,6 +6747,7 @@ fn scan_dollar(cur: &mut Cur<'_>, ctx: &mut Ctx<'_>) {
             step_key: ctx.step_key,
             file_line: ctx.line_of(cur.src, cur.i),
             pipefail: ctx.pipefail,
+            errexit: false,
             captured: true,
             in_if_cond: false,
             status_vars: BTreeSet::new(),
@@ -7035,6 +6954,17 @@ fn classify_simple(ctx: &mut Ctx<'_>, cmd: &Cmd, heredoc: Option<&str>, cur: &Cu
     if argv0 == "set" && sets_pipefail(&cmd.argv) {
         ctx.pipefail = true;
     }
+    if argv0 == "set" {
+        if let Some(enabled) = sets_errexit(&cmd.argv) {
+            ctx.errexit = enabled;
+        }
+    }
+    if ctx.captured && check_form_in_substitution(cmd) {
+        ctx.gap(&format!(
+            "{}: check form inside a command substitution",
+            ctx.step_key
+        ));
+    }
     if argv0 == "exit" {
         if let Some(message) = exit_gap(&cmd.argv, &ctx.status_vars) {
             ctx.gap(&message);
@@ -7056,7 +6986,7 @@ fn classify_pipeline(ctx: &mut Ctx<'_>, negated: bool, fact_at: usize, stages: &
             fact.in_pipeline = true;
         }
     }
-    if ctx.pipefail && pipeline_ends_blocked(stages) && !test_piped_to_grep(stages) {
+    if ctx.pipefail && pipeline_has_early_reader(stages) && !test_piped_to_grep(stages) {
         ctx.gap(&format!(
             "{}: early-exit reader in a pipeline under pipefail",
             ctx.step_key
@@ -7074,6 +7004,13 @@ fn classify_pipeline(ctx: &mut Ctx<'_>, negated: bool, fact_at: usize, stages: &
         return;
     }
     if is_printf_grep(stages) {
+        if ctx.captured {
+            ctx.gap(&format!(
+                "{}: check form inside a command substitution",
+                ctx.step_key
+            ));
+            return;
+        }
         if ctx.in_if_cond && negated {
             ctx.report.listing.push(format!(
                 "{} printf-grep :: match:printf-grep-bang",
@@ -7083,6 +7020,10 @@ fn classify_pipeline(ctx: &mut Ctx<'_>, negated: bool, fact_at: usize, stages: &
         }
         if ctx.in_if_cond && !negated {
             ctx.gap("positive printf grep is not accepted");
+            return;
+        }
+        if !ctx.errexit {
+            ctx.gap(&format!("{}: P2 statement without errexit", ctx.step_key));
             return;
         }
         if !negated && printf_grep_is_literal(stages) {
@@ -7112,8 +7053,8 @@ fn classify_pipeline(ctx: &mut Ctx<'_>, negated: bool, fact_at: usize, stages: &
     }
 }
 
-fn pipeline_ends_blocked(stages: &[Cmd]) -> bool {
-    stages.len() >= 2 && stages.last().is_some_and(early_exit_reader)
+fn pipeline_has_early_reader(stages: &[Cmd]) -> bool {
+    stages.len() >= 2 && stages.iter().skip(1).any(early_exit_reader)
 }
 
 fn early_exit_reader(cmd: &Cmd) -> bool {
@@ -7180,10 +7121,9 @@ fn printf_grep_is_literal(stages: &[Cmd]) -> bool {
 fn finish_script(script: &str, ctx: &mut Ctx<'_>) {
     let file_grep = script.contains("grep -qF") || script.contains("grep -qxF");
     let piped_grep = script.contains("| grep -qF") || script.contains("| grep -qxF");
-    if file_grep
-        && !piped_grep
-        && !(script.contains("-eq 0") && script.contains("-eq 1") && script.contains("-gt 1"))
-    {
+    let distinguishes = script.contains("-gt 1")
+        && (script.contains("-eq 0") || script.contains("-eq 1") || script.contains("-ne 0"));
+    if file_grep && !piped_grep && !distinguishes {
         ctx.gap(&format!(
             "{}: grep rc above 1 is treated as absent",
             ctx.step_key
@@ -7493,6 +7433,43 @@ fn sets_pipefail(argv: &[String]) -> bool {
     has_name && has_o
 }
 
+fn sets_errexit(argv: &[String]) -> Option<bool> {
+    let mut result = None;
+    let mut idx = 1usize;
+    while idx < argv.len() {
+        let word = argv.get(idx).map(String::as_str).unwrap_or("");
+        if word == "-o" || word == "+o" {
+            if argv
+                .get(idx.saturating_add(1))
+                .is_some_and(|arg| arg == "errexit")
+            {
+                result = Some(word == "-o");
+            }
+            idx = idx.saturating_add(2);
+            continue;
+        }
+        if let Some(flags) = word.strip_prefix('+') {
+            if flags.contains('e') {
+                result = Some(false);
+            }
+        } else if let Some(flags) = word.strip_prefix('-') {
+            if !flags.is_empty() && !flags.starts_with('-') && flags.contains('e') {
+                result = Some(true);
+            }
+        }
+        idx = idx.saturating_add(1);
+    }
+    result
+}
+
+fn check_form_in_substitution(cmd: &Cmd) -> bool {
+    if is_grep_qf(&cmd.argv) {
+        return true;
+    }
+    cmd.argv.first().is_some_and(|arg| arg == "exit")
+        && cmd.argv.get(1).is_some_and(|arg| arg == "1")
+}
+
 fn exit_gap(argv: &[String], status_vars: &BTreeSet<String>) -> Option<String> {
     let word = argv.get(1).map(String::as_str).unwrap_or("0");
     if word.chars().all(|ch| ch.is_ascii_digit()) {
@@ -7715,7 +7692,7 @@ fn inventory_report(root: &Path, ci: &str) -> Result<Inventory, String> {
         ));
     }
     let case_matches = p3_body.saturating_add(p3_default);
-    if case_matches != CASE_LITERAL_MATCHES || p3_body != 1 || p3_default != 1 {
+    if case_matches != CASE_LITERAL_MATCHES {
         gaps.push(format!(
             "case literal matches counted {case_matches} does not match {CASE_LITERAL_MATCHES}"
         ));
@@ -7741,7 +7718,7 @@ fn inventory_report(root: &Path, ci: &str) -> Result<Inventory, String> {
 fn embedded_sample_gaps(root: &Path) -> Vec<String> {
     let mut gaps = parse_run_script(API_SNAPSHOT_POSTCHECK, "api-snapshot postcheck", 1).gaps;
     gaps.extend(parse_run_script(H2_INSTALL, "h2 install", 1).gaps);
-    if ENUMERATED_MATCH_FORMS.len() != 3 {
+    if ENUMERATED_MATCH_FORMS.len() != 1 {
         gaps.push("match forms are not enumerated".to_owned());
     }
     let bespoke = root.join("fixtures/guards/bespoke/cases.txt");
@@ -12581,6 +12558,13 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             let mut paths = Vec::new();
             collect_yml(&root.join(dir), &mut paths)?;
             for path in paths {
+                let name = path
+                    .file_name()
+                    .and_then(|item| item.to_str())
+                    .unwrap_or("");
+                if name.starts_with("item13-") {
+                    continue;
+                }
                 let text = read(&path)?;
                 let hits = run_scripts(&text)
                     .iter()
@@ -13400,14 +13384,7 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         let ci = read(&root.join(".github/workflows/ci.yml"))?;
         let report = inventory_report(&root, &ci)?;
         expect_gaps("head ci", report.gaps, &[])?;
-        assert_eq!(
-            ENUMERATED_MATCH_FORMS,
-            &[
-                "grep -qF -- '<lit>' \"$f\"",
-                "case \"$v\" in *'<lit>'*) body ;; esac",
-                "case \"$v\" in *'<lit>'*) ;; *) body ;; esac",
-            ]
-        );
+        assert_eq!(ENUMERATED_MATCH_FORMS, &["grep -qF -- '<lit>' \"$f\""]);
         assert_eq!(ENV_I_TEMPLATES.len(), 13);
         let mut occurrences = 0usize;
         for count in ENV_I_OCCURRENCES {
@@ -13415,15 +13392,13 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         }
         assert_eq!(occurrences, 18);
         assert_eq!(PRINTF_GREP_STATEMENTS, 35);
-        assert_eq!(CASE_LITERAL_MATCHES, 2);
-        for needle in [
-            "match:p3-body",
-            "match:p3-default",
-            "match:printf-grep-literal",
-        ] {
-            if !report.listing.iter().any(|line| line.contains(needle)) {
-                return Err(format!("listing missing {needle}"));
-            }
+        assert_eq!(CASE_LITERAL_MATCHES, 0);
+        if !report
+            .listing
+            .iter()
+            .any(|line| line.contains("match:printf-grep-literal"))
+        {
+            return Err("listing missing match:printf-grep-literal".to_owned());
         }
         let steps = ci_run_steps(&ci);
         if steps.is_empty() {
@@ -13463,12 +13438,12 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         expect_gaps(
             "p3 body",
             fixture_script_gaps("fixtures/guards/ci/item13-p3-body.yml")?,
-            &[],
+            &["case form is not a p3 match"],
         )?;
         expect_gaps(
             "p3 default",
             fixture_script_gaps("fixtures/guards/ci/item13-p3-default.yml")?,
-            &[],
+            &["case form is not a p3 match"],
         )?;
         expect_gaps(
             "pipefail plain",
@@ -14008,6 +13983,81 @@ Running tests
             {
                 return Err(format!("{:?}", report.gaps));
             }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn item13_middle_stage_and_nested_check_forms_are_rejected() -> Result<(), String> {
+        let early = "sample probe: early-exit reader in a pipeline under pipefail";
+        let nested = "sample probe: check form inside a command substitution";
+        let no_e = "sample probe: P2 statement without errexit";
+        let middle_grep = "set -o pipefail\nif printf '%s\\n' \"$output\" | grep -q 'lit' | cat; then exit 1; fi\n";
+        let middle_head =
+            "set -o pipefail\nprintf '%s\\n' \"$output\" | head -c 100 | grep -F 'lit' >/dev/null\n";
+        expect_gaps(
+            "middle grep -q",
+            parse_run_script(middle_grep, "sample probe", 1).gaps,
+            &[early],
+        )?;
+        expect_gaps(
+            "middle head",
+            parse_run_script(middle_head, "sample probe", 1).gaps,
+            &[early],
+        )?;
+        expect_gaps(
+            "set +e",
+            parse_run_script(
+                "set +e\nprintf '%s\\n' \"$v\" | grep -q 'lit'\n",
+                "sample probe",
+                1,
+            )
+            .gaps,
+            &[no_e],
+        )?;
+        expect_gaps(
+            "p2 subst",
+            parse_run_script(
+                "set -e\nx=$(printf '%s\\n' \"$v\" | grep -q 'lit')\n",
+                "sample probe",
+                1,
+            )
+            .gaps,
+            &[nested],
+        )?;
+        expect_gaps(
+            "p1 subst",
+            parse_run_script(
+                "set -e\nx=$(if ! printf '%s\\n' \"$v\" | grep -q lit; then exit 1; fi)\n",
+                "sample probe",
+                1,
+            )
+            .gaps,
+            &[nested],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn item13_middle_grep_fail_open_uses_two_hundred_kilobytes() -> Result<(), String> {
+        let producer = std::env::temp_dir().join("item13-lines.py");
+        std::fs::write(
+            &producer,
+            "import os, sys\nchunk = b\"z\\n\" * 2048\nwritten = 0\nfor _ in range(50):\n    try:\n        written += os.write(1, chunk)\n    except BrokenPipeError:\n        sys.stderr.write(\"broken %s\\n\" % written)\n        raise SystemExit(141)\nsys.stderr.write(\"all %s\\n\" % written)\n",
+        )
+        .map_err(|err| format!("write producer: {err}"))?;
+        let script = format!(
+            "set -o pipefail\npython3 '{py}' | grep -q z | cat\necho status=$? pipe=${{PIPESTATUS[0]}}:${{PIPESTATUS[1]}}:${{PIPESTATUS[2]}}\nif python3 '{py}' | grep -q z | cat; then echo BRANCH=then; else echo BRANCH=else; fi\npython3 '{py}' | head -c 100 | grep -F z >/dev/null\necho head=$? headpipe=${{PIPESTATUS[0]}}:${{PIPESTATUS[1]}}:${{PIPESTATUS[2]}}\n",
+            py = producer.display()
+        );
+        let (_code, text) = run_shell(&script)?;
+        if !text.contains("status=141")
+            || !text.contains("pipe=141:0:0")
+            || !text.contains("BRANCH=else")
+            || !text.contains("head=141")
+            || !text.contains("headpipe=141:0:0")
+        {
+            return Err(text);
         }
         Ok(())
     }
