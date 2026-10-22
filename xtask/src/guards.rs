@@ -1997,8 +1997,15 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
     if text.contains('\0') {
         push_gap(&mut gaps, format!("{name} contains NUL"));
     }
+    if text.contains('\r') {
+        push_gap(&mut gaps, format!("{name} uses crlf line endings"));
+    }
+    let stripped = text.replace('\u{feff}', "");
+    let text = stripped.as_str();
     let mut block_parent: Option<usize> = None;
     let mut stack: Vec<YamlFrame> = Vec::new();
+    let mut maps: Vec<(usize, Vec<String>)> = Vec::new();
+    let mut open_key: Option<(String, usize)> = None;
     for line in text.lines() {
         let (indent, tab) = leading_indent(line);
         if tab {
@@ -2017,6 +2024,10 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
         }
         if trimmed == "---" || trimmed == "..." || trimmed.starts_with("--- ") {
             push_gap(&mut gaps, format!("{name} has multiple documents"));
+            block_parent = None;
+            stack.clear();
+            maps.clear();
+            open_key = None;
             continue;
         }
         let marks = structural_marks(trimmed);
@@ -2032,14 +2043,27 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
         if marks.alias {
             push_gap(&mut gaps, format!("{name} uses an alias"));
         }
+        if open_key.as_ref().is_some_and(|(_, at)| indent <= *at) {
+            open_key = None;
+        }
         while stack.last().is_some_and(|frame| indent <= frame.indent) {
             stack.pop();
         }
         let parent = stack.last().copied();
         let seq = trimmed.starts_with("- ");
         let body = trimmed.strip_prefix("- ").unwrap_or(trimmed).trim_start();
+        let key_indent = if seq { indent + 2 } else { indent };
+        if seq {
+            while maps.last().is_some_and(|(at, _)| *at >= key_indent) {
+                maps.pop();
+            }
+        }
         if body.starts_with('?') || body.starts_with(':') {
             push_gap(&mut gaps, format!("{name} uses an explicit yaml key"));
+            continue;
+        }
+        if yaml_tag(body) {
+            push_gap(&mut gaps, format!("{name} uses a tag"));
             continue;
         }
         if body.starts_with('{') || body.starts_with('[') {
@@ -2051,10 +2075,28 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
                         flow_kind(body.starts_with('{'))
                     ),
                 );
+            } else {
+                push_gap(
+                    &mut gaps,
+                    format!("{name} uses a flow {}", flow_kind(body.starts_with('{'))),
+                );
             }
             continue;
         }
         let Some((key, value)) = split_yaml_key(body) else {
+            if block_scalar_header(body) {
+                if let Some((key, at)) = open_key.clone() {
+                    if indent > at && step_run(&key, parent, at) {
+                        block_parent = Some(at);
+                        open_key = None;
+                        continue;
+                    }
+                }
+                push_gap(&mut gaps, format!("{name} uses a block scalar outside run"));
+                block_parent = Some(indent);
+                open_key = None;
+                continue;
+            }
             if seq && parent.is_some_and(|frame| direct_child(frame, indent, YamlFrameKind::On)) {
                 push_gap(&mut gaps, format!("{name} uses a sequence under on"));
             }
@@ -2072,8 +2114,20 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
         if key != key.trim_end() {
             push_gap(&mut gaps, format!("{name} has whitespace before a colon"));
         }
+        if repeats_key(&mut maps, key_indent, key) {
+            push_gap(
+                &mut gaps,
+                format!(
+                    "{name} repeats key {}",
+                    key.trim().trim_matches(['"', '\''])
+                ),
+            );
+        }
         let value = value.trim();
-        if value.starts_with('{') || value.starts_with('[') {
+        if yaml_tag(value) {
+            push_gap(&mut gaps, format!("{name} uses a tag"));
+        }
+        if (value.starts_with('{') || value.starts_with('[')) && !allowed_needs_list(key, value) {
             if let Some(role) = flow_value_role(key, parent, indent) {
                 push_gap(
                     &mut gaps,
@@ -2082,16 +2136,28 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
                         flow_kind(value.starts_with('{'))
                     ),
                 );
+            } else {
+                push_gap(
+                    &mut gaps,
+                    format!("{name} uses a flow {}", flow_kind(value.starts_with('{'))),
+                );
             }
         }
-        if is_block_scalar(value) {
+        if block_scalar_header(value) {
+            if !step_run(key, parent, indent) {
+                push_gap(&mut gaps, format!("{name} uses a block scalar outside run"));
+            }
             block_parent = Some(indent);
+            open_key = None;
             continue;
         }
         if value.is_empty() {
+            open_key = Some((key.trim().trim_matches(['"', '\'']).to_owned(), key_indent));
             if let Some(kind) = frame_kind(key) {
                 stack.push(YamlFrame { kind, indent });
             }
+        } else {
+            open_key = None;
         }
     }
     gaps
@@ -2204,8 +2270,75 @@ fn key_is_quoted(key: &str) -> bool {
     key.contains(['"', '\''])
 }
 
-fn is_block_scalar(value: &str) -> bool {
-    matches!(value, "|" | "|-" | "|+" | ">" | ">-" | ">+")
+fn yaml_tag(value: &str) -> bool {
+    let mut chars = value.trim().chars();
+    if chars.next() != Some('!') {
+        return false;
+    }
+    !matches!(chars.next(), Some('='))
+}
+
+fn block_scalar_header(value: &str) -> bool {
+    let mut chars = value.trim().chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    if first != '|' && first != '>' {
+        return false;
+    }
+    let rest: String = chars.collect();
+    if rest.len() > 2 {
+        return false;
+    }
+    let digits = rest.chars().filter(|ch| ch.is_ascii_digit()).count();
+    let chomps = rest.chars().filter(|ch| *ch == '+' || *ch == '-').count();
+    digits <= 1 && chomps <= 1 && digits + chomps == rest.chars().count()
+}
+
+fn step_run(key: &str, parent: Option<YamlFrame>, indent: usize) -> bool {
+    key == "run"
+        && parent.is_some_and(|frame| frame.kind == YamlFrameKind::Steps && indent > frame.indent)
+}
+
+fn allowed_needs_list(key: &str, value: &str) -> bool {
+    if key != "needs" {
+        return false;
+    }
+    let Some(inner) = value
+        .trim()
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+    else {
+        return false;
+    };
+    if inner.contains(['{', '}', '[', ']', ':', '!', '&', '*', '|', '>', '?', '#']) {
+        return false;
+    }
+    inner.split(',').all(|item| {
+        let item = item.trim().trim_matches(['"', '\'']);
+        !item.is_empty()
+            && item
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+    })
+}
+
+fn repeats_key(maps: &mut Vec<(usize, Vec<String>)>, key_indent: usize, key: &str) -> bool {
+    let key = key.trim().trim_matches(['"', '\'']).to_owned();
+    while maps.last().is_some_and(|(indent, _)| *indent > key_indent) {
+        maps.pop();
+    }
+    if let Some((indent, keys)) = maps.last_mut() {
+        if *indent == key_indent {
+            if keys.iter().any(|found| found == &key) {
+                return true;
+            }
+            keys.push(key);
+            return false;
+        }
+    }
+    maps.push((key_indent, vec![key]));
+    false
 }
 
 fn frame_kind(key: &str) -> Option<YamlFrameKind> {
@@ -4012,6 +4145,73 @@ jobs:
             ),
             &["step-flow.yml uses a flow sequence as a step"],
         )?;
+        let grammar = [
+            (
+                "fixtures/guards/ci/yaml-single-tag.yml",
+                &["yaml-single-tag.yml uses a tag"][..],
+            ),
+            (
+                "fixtures/guards/ci/block-scalar-pipe.yml",
+                &["block-scalar-pipe.yml uses a block scalar outside run"][..],
+            ),
+            (
+                "fixtures/guards/ci/block-scalar-fold.yml",
+                &["block-scalar-fold.yml uses a block scalar outside run"][..],
+            ),
+            (
+                "fixtures/guards/ci/block-scalar-next-line.yml",
+                &["block-scalar-next-line.yml uses a block scalar outside run"][..],
+            ),
+            (
+                "fixtures/guards/ci/flow-runs-on.yml",
+                &["flow-runs-on.yml uses a flow sequence"][..],
+            ),
+            (
+                "fixtures/guards/ci/flow-mapping.yml",
+                &["flow-mapping.yml uses a flow mapping"][..],
+            ),
+            (
+                "fixtures/guards/ci/crlf-workflow.yml",
+                &["crlf-workflow.yml uses crlf line endings"][..],
+            ),
+            (
+                "fixtures/guards/ci/bom-workflow.yml",
+                &["bom-workflow.yml has a byte order mark"][..],
+            ),
+            (
+                "fixtures/guards/ci/duplicate-key.yml",
+                &["duplicate-key.yml repeats key name"][..],
+            ),
+        ];
+        for (path, expected) in grammar {
+            let Some(name) = path.rsplit('/').next() else {
+                return Err(format!("{path} has no file name"));
+            };
+            let text = read(&root.join(path))?;
+            expect_gaps(path, strict_yaml_gaps(name, &text), expected)?;
+        }
+        let needs_list = "\
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt
+  gate:
+    needs: [fmt]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo gate
+";
+        expect_gaps(
+            "needs scalar list",
+            strict_yaml_gaps("needs.yml", needs_list),
+            &[],
+        )?;
         Ok(())
     }
 
@@ -4178,13 +4378,11 @@ jobs:
             expect_gaps(path, strict_yaml_gaps(name, &text), expected)?;
         }
         let bom = read(&root.join("fixtures/guards/ci/bom-workflow.yml"))?;
-        let bom_gaps = strict_yaml_gaps("bom-workflow.yml", &bom);
-        if !bom_gaps
-            .iter()
-            .any(|gap| gap == "bom-workflow.yml has a byte order mark")
-        {
-            return Err(format!("bom: {bom_gaps:?}"));
-        }
+        expect_gaps(
+            "bom",
+            strict_yaml_gaps("bom-workflow.yml", &bom),
+            &["bom-workflow.yml has a byte order mark"],
+        )?;
         let nul = read(&root.join("fixtures/guards/ci/nul-workflow.yml"))?;
         expect_gaps(
             "nul",
