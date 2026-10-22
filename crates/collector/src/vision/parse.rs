@@ -23,6 +23,8 @@ const METRICS_HEADER: &str = "create_time,symbol,sum_open_interest,sum_open_inte
 const BOOK_HEADER: &str = "timestamp,percentage,depth,notional";
 
 const ONE_MINUTE_US: i64 = 60_000_000;
+/// Placeholder publication lag (`available_ts_rules/v0.2`). Not a clamp.
+const FUNDING_AVAILABLE_LAG_US: i64 = 60_000_000;
 const FIVE_MINUTES_US: i64 = 300_000_000;
 const EIGHT_HOURS_US: i64 = 8 * 3_600_000_000;
 const SNAP_TOLERANCE_US: i64 = 1_000_000;
@@ -225,6 +227,14 @@ pub fn parse_funding(
                 format!("line {line_no} calc_time {} {err}", raw_calc.micros()),
             )
         })?;
+        let available = funding_time
+            .checked_add_micros(FUNDING_AVAILABLE_LAG_US)
+            .ok_or_else(|| {
+                Error::check(
+                    "available_ts",
+                    format!("line {line_no} funding_time + 60s overflows"),
+                )
+            })?;
         rows.push(FundingFact {
             symbol: symbol.clone(),
             raw_calc_time: raw_calc,
@@ -232,7 +242,7 @@ pub fn parse_funding(
             interval_hours,
             rate,
             event_ts: EventTs::from_micros(raw_calc),
-            available_ts: AvailableTs::from_micros(funding_time),
+            available_ts: AvailableTs::from_micros(available),
             receipt,
             schema_version: SCHEMA_FUNDING,
         });
@@ -480,7 +490,7 @@ mod tests {
         assert_eq!(parsed.rows[0].funding_time.micros(), 1_788_220_800_000_000);
         assert_eq!(
             parsed.rows[0].available_ts.micros().micros(),
-            1_788_220_800_000_000
+            1_788_220_860_000_000
         );
         assert_eq!(
             parsed.rows[0].event_ts.micros().micros(),

@@ -280,7 +280,7 @@ fn slot_funding(world: &mut VisionWorld, micros: i64) {
     );
     assert_eq!(
         rows[0].available_ts.micros().micros(),
-        rows[0].funding_time.micros()
+        rows[0].funding_time.micros() + 60_000_000
     );
 }
 

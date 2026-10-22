@@ -3,10 +3,12 @@
 use std::path::PathBuf;
 
 use cucumber::{given, then, when, World as _};
-use parangsae_collector::civil::CivilDay;
+use parangsae_collector::civil::{CivilDay, YearMonth};
 use parangsae_collector::store::{self, fact_path};
-use parangsae_collector::vision::{parse_klines, TickDomain};
-use parangsae_core::{Receipt, RunId, Symbol};
+use parangsae_collector::vision::{
+    funding_window, parse_funding, parse_klines, FundingFact, TickDomain,
+};
+use parangsae_core::{AvailableTs, Receipt, RunId, Symbol, UtcMicros};
 
 #[derive(Debug, Default, cucumber::World)]
 struct ManifestWorld {
@@ -14,6 +16,8 @@ struct ManifestWorld {
     day: Option<CivilDay>,
     dataset: Option<String>,
     check: Option<String>,
+    funding: Option<FundingFact>,
+    rejected: bool,
 }
 
 fn symbol() -> Symbol {
@@ -105,6 +109,54 @@ fn when_loaded(world: &mut ManifestWorld) {
 #[then(regex = r#"^the check is "([^"]+)""#)]
 fn then_check(world: &mut ManifestWorld, name: String) {
     assert_eq!(world.check.as_deref(), Some(name.as_str()));
+}
+
+#[given(regex = r#"^a funding row from "([^"]+)" with available_ts before its event_ts$"#)]
+fn given_early_funding(world: &mut ManifestWorld, name: String) {
+    let parsed = parse_funding(
+        &fixture(&name),
+        &symbol(),
+        Receipt::Archive {
+            fetched_at_run: RunId::from_bytes([3; 16]),
+        },
+    )
+    .expect("parse");
+    let mut row = parsed.rows.into_iter().next().expect("row");
+    let event_us = row.event_ts.micros().micros();
+    row.available_ts = AvailableTs::from_micros(UtcMicros::from_micros(event_us - 1));
+    let day = parangsae_collector::civil::day_of(row.funding_time).expect("day");
+    let dir = tempfile::tempdir().expect("temp").keep();
+    world.dir = Some(dir);
+    world.day = Some(day);
+    world.dataset = Some("funding-rate".to_owned());
+    world.funding = Some(row);
+    world.rejected = false;
+}
+
+#[then(regex = r#"^the funding archive is rejected with fault "([^"]+)""#)]
+fn then_funding_rejected(world: &mut ManifestWorld, name: String) {
+    let row = world.funding.clone().expect("funding row");
+    let day = world.day.expect("day");
+    let month = YearMonth::new(day.year(), day.month()).expect("month");
+    match funding_window(std::slice::from_ref(&row), month) {
+        Err(faults) => {
+            assert!(faults.iter().any(|fault| fault.name == name), "{faults:?}");
+            world.rejected = true;
+            world.check = Some(name);
+        }
+        Ok(_) => panic!("archive was accepted"),
+    }
+    let dir = world.dir.as_ref().expect("dir");
+    let day = world.day.expect("day");
+    let path = fact_path(dir, "funding-rate", "BTCUSDT", day);
+    assert!(!path.exists(), "rejected archive must not be written");
+}
+
+#[then("the row available_ts is left before its event_ts")]
+fn then_not_clamped(world: &mut ManifestWorld) {
+    assert!(world.rejected);
+    let row = world.funding.as_ref().expect("funding row");
+    assert!(row.available_ts.micros() < row.event_ts.micros());
 }
 
 fn stored(world: &ManifestWorld) -> Vec<parangsae_collector::vision::KlineFact> {

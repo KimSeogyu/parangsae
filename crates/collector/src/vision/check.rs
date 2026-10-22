@@ -122,6 +122,15 @@ where
 }
 
 pub fn kline_row_faults(rows: &[KlineFact], unit: TimeUnit) -> Vec<FaultReport> {
+    if let Some(faults) = clock_faults(rows.iter().enumerate().map(|(index, row)| {
+        (
+            index,
+            row.event_ts.micros().micros(),
+            row.available_ts.micros().micros(),
+        )
+    })) {
+        return faults;
+    }
     let mut faults = Vec::new();
     for (index, row) in rows.iter().enumerate() {
         if row.interval_us != ONE_MINUTE_US || row.open_time.micros() % ONE_MINUTE_US != 0 {
@@ -180,6 +189,34 @@ pub fn kline_row_faults(rows: &[KlineFact], unit: TimeUnit) -> Vec<FaultReport> 
     faults
 }
 
+/// `available_ts < event_ts` rejects the archive. The value is not rewritten.
+fn available_before_event(index: usize, event_us: i64, available_us: i64) -> Option<FaultReport> {
+    if available_us < event_us {
+        Some(FaultReport {
+            name: "available_before_event",
+            detail: format!(
+                "row {index} available_ts {available_us} is before event_ts {event_us}"
+            ),
+        })
+    } else {
+        None
+    }
+}
+
+/// Clock faults are not subject to the eight-fault cap: one bad row rejects the archive.
+fn clock_faults(rows: impl Iterator<Item = (usize, i64, i64)>) -> Option<Vec<FaultReport>> {
+    let faults: Vec<FaultReport> = rows
+        .filter_map(|(index, event_us, available_us)| {
+            available_before_event(index, event_us, available_us)
+        })
+        .collect();
+    if faults.is_empty() {
+        None
+    } else {
+        Some(faults)
+    }
+}
+
 fn ohlc_ordered(low: i64, open: i64, close: i64, high: i64) -> bool {
     low <= open && low <= close && open <= high && close <= high
 }
@@ -200,6 +237,15 @@ pub fn kline_day_gaps(rows: &[KlineFact], day: CivilDay) -> Vec<Gap> {
 }
 
 pub fn metrics_row_faults(rows: &[MetricsFact]) -> Vec<FaultReport> {
+    if let Some(faults) = clock_faults(rows.iter().enumerate().map(|(index, row)| {
+        (
+            index,
+            row.event_ts.micros().micros(),
+            row.available_ts.micros().micros(),
+        )
+    })) {
+        return faults;
+    }
     let mut faults = Vec::new();
     for (index, row) in rows.iter().enumerate() {
         if row.create_time.micros() % FIVE_MINUTES_US != 0 {
@@ -284,7 +330,14 @@ pub fn funding_window(
     let expected_set: BTreeSet<i64> = expected.iter().map(|slot| slot.micros()).collect();
     let mut present: BTreeSet<i64> = BTreeSet::new();
     let mut faults = Vec::new();
-    for row in rows {
+    for (index, row) in rows.iter().enumerate() {
+        if let Some(fault) = available_before_event(
+            index,
+            row.event_ts.micros().micros(),
+            row.available_ts.micros().micros(),
+        ) {
+            faults.push(fault);
+        }
         if row.interval_hours != 8 {
             faults.push(FaultReport {
                 name: "funding_interval",
@@ -320,6 +373,15 @@ pub fn funding_window(
 }
 
 pub fn book_row_faults(rows: &mut [BookFact]) -> Vec<FaultReport> {
+    if let Some(faults) = clock_faults(rows.iter().enumerate().map(|(index, row)| {
+        (
+            index,
+            row.event_ts.micros().micros(),
+            row.available_ts.micros().micros(),
+        )
+    })) {
+        return faults;
+    }
     let mut grouped: BTreeMap<i64, Vec<usize>> = BTreeMap::new();
     for (index, row) in rows.iter().enumerate() {
         grouped
@@ -830,5 +892,108 @@ mod tests {
             sorted[0].available_ts.micros().micros(),
             sorted[0].create_time.micros() + FIVE_MINUTES_US
         );
+    }
+
+    #[test]
+    fn available_before_event_rejects_every_dataset_without_clamping() -> Result<(), String> {
+        let parsed = parse_funding(&fixture("funding_2026-09-01.csv"), &symbol(), receipt())
+            .map_err(|err| err.to_string())?;
+        let first = &parsed.rows[0];
+        if first.event_ts.micros().micros() != 1_788_220_800_005_000 {
+            return Err(format!("event_ts {}", first.event_ts.micros()));
+        }
+        if first.available_ts.micros().micros() != 1_788_220_860_000_000 {
+            return Err(format!("available_ts {}", first.available_ts.micros()));
+        }
+        let september = YearMonth::new(2026, 9).ok_or("september")?;
+        funding_window(&parsed.rows, september).map_err(|faults| format!("{faults:?}"))?;
+
+        let mut early = first.clone();
+        let event_us = early.event_ts.micros().micros();
+        early.available_ts =
+            parangsae_core::AvailableTs::from_micros(UtcMicros::from_micros(event_us - 1));
+        let kept = early.available_ts;
+        match funding_window(std::slice::from_ref(&early), september) {
+            Err(faults) => {
+                if !faults
+                    .iter()
+                    .any(|fault| fault.name == "available_before_event")
+                {
+                    return Err(format!("funding accepted the early row: {faults:?}"));
+                }
+            }
+            Ok(_) => return Err("funding archive was not rejected".into()),
+        }
+        if early.available_ts != kept || early.available_ts.micros().micros() >= event_us {
+            return Err("funding available_ts was clamped".into());
+        }
+        let mut equal = first.clone();
+        equal.available_ts = parangsae_core::AvailableTs::from_micros(equal.event_ts.micros());
+        if let Err(faults) = funding_window(std::slice::from_ref(&equal), september) {
+            if faults
+                .iter()
+                .any(|fault| fault.name == "available_before_event")
+            {
+                return Err("available_ts == event_ts must pass".into());
+            }
+        }
+
+        let open = 1_788_220_800_000_000;
+        let mut kline = synthetic_kline(open, open + ONE_MINUTE_US - 1_000);
+        kline.available_ts = parangsae_core::AvailableTs::from_micros(UtcMicros::from_micros(
+            kline.event_ts.micros().micros() - 1,
+        ));
+        let kline_kept = kline.available_ts;
+        let kline_faults = kline_row_faults(std::slice::from_ref(&kline), TimeUnit::Millis);
+        if !kline_faults
+            .iter()
+            .any(|fault| fault.name == "available_before_event")
+        {
+            return Err(format!("kline accepted the early row: {kline_faults:?}"));
+        }
+        if kline.available_ts != kline_kept {
+            return Err("kline available_ts was clamped".into());
+        }
+
+        let mut metric = synthetic_metric(open);
+        metric.available_ts = parangsae_core::AvailableTs::from_micros(UtcMicros::from_micros(
+            metric.event_ts.micros().micros() - 1,
+        ));
+        let metric_kept = metric.available_ts;
+        let metric_faults = metrics_row_faults(std::slice::from_ref(&metric));
+        if !metric_faults
+            .iter()
+            .any(|fault| fault.name == "available_before_event")
+        {
+            return Err(format!("metrics accepted the early row: {metric_faults:?}"));
+        }
+        if metric.available_ts != metric_kept {
+            return Err("metrics available_ts was clamped".into());
+        }
+        metric.available_ts = parangsae_core::AvailableTs::from_micros(metric.event_ts.micros());
+        if metrics_row_faults(std::slice::from_ref(&metric))
+            .iter()
+            .any(|fault| fault.name == "available_before_event")
+        {
+            return Err("metrics available_ts == event_ts must pass the clock check".into());
+        }
+
+        let mut book = parse_book(&fixture("book_2026-10-20_one_ts.csv"), &symbol(), receipt())
+            .map_err(|err| err.to_string())?;
+        book.rows[0].available_ts = parangsae_core::AvailableTs::from_micros(
+            UtcMicros::from_micros(book.rows[0].event_ts.micros().micros() - 1),
+        );
+        let book_kept = book.rows[0].available_ts;
+        let book_faults = book_row_faults(&mut book.rows);
+        if !book_faults
+            .iter()
+            .any(|fault| fault.name == "available_before_event")
+        {
+            return Err(format!("book accepted the early row: {book_faults:?}"));
+        }
+        if book.rows[0].available_ts != book_kept {
+            return Err("book available_ts was clamped".into());
+        }
+        Ok(())
     }
 }

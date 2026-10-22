@@ -9,3 +9,8 @@ Feature: Dataset version manifest
     Given a v1 parquet partition for dataset "um-kline"
     When the partition is loaded
     Then the check is "schema"
+
+  Scenario: a funding row available before its event is rejected
+    Given a funding row from "funding_2026-09-01.csv" with available_ts before its event_ts
+    Then the funding archive is rejected with fault "available_before_event"
+    And the row available_ts is left before its event_ts
