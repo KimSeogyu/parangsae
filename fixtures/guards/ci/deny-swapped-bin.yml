@@ -1,0 +1,210 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  deny:
+    name: deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: cargo and rustc are the 1.98.0 toolchain
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          rustc_bin="$(rustup which rustc)"
+          if [ "$cargo_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo" ]; then
+            echo "cargo is ${cargo_bin}"
+            exit 1
+          fi
+          if [ "$rustc_bin" != "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
+            echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+      - name: Install cargo-deny 0.20.2
+        run: |
+          tarball=/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+          extract=/tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl
+          for p in "$tarball" "$extract"; do
+            if [ -e "$p" ] || [ -L "$p" ]; then
+              echo "$p pre-exists"
+              exit 1
+            fi
+          done
+          env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/curl --fail --location --silent --show-error \
+            --output "$tarball" \
+            https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz
+          tarball_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum "$tarball")"
+          tarball_got="${tarball_line%% *}"
+          if [ "$tarball_got" != "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f" ]; then
+            echo "cargo-deny tarball sha256 does not match"
+            exit 1
+          fi
+          env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/tar -xzf "$tarball" -C /tmp
+          bin_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny)"
+          bin_got="${bin_line%% *}"
+          if [ "$bin_got" != "b329e25933d01c36dd7c47d84ea5716694f9b7caf53a5003d45674703a8ed54a" ]; then
+            echo "cargo-deny binary sha256 does not match"
+            exit 1
+          fi
+      - name: cargo-deny check
+        run: |
+          deny_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum deny.toml)"
+          deny_got="${deny_line%% *}"
+          if [ "$deny_got" != "9a54da72f5bf1f6a00695a4348f76941bdfae24e84b86d445ccfced828e06c86" ]; then
+            echo "deny.toml sha256 does not match"
+            exit 1
+          fi
+          lock_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum Cargo.lock)"
+          lock_got="${lock_line%% *}"
+          if [ "$lock_got" != "6b617ee34a33bac5754ced2bb940ea529d0ca34f409f71fb352351db72b31d04" ]; then
+            echo "Cargo.lock sha256 does not match"
+            exit 1
+          fi
+          toolchain_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum rust-toolchain.toml)"
+          toolchain_got="${toolchain_line%% *}"
+          if [ "$toolchain_got" != "07487db9d6b45de2f308f9fb578c9c46041381c3ee44ef782eca64150a394772" ]; then
+            echo "rust-toolchain.toml sha256 does not match"
+            exit 1
+          fi
+          manifest_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum \
+            Cargo.toml \
+            crates/collector/Cargo.toml \
+            crates/core/Cargo.toml \
+            crates/execution/Cargo.toml \
+            crates/regime/Cargo.toml \
+            crates/signals/Cargo.toml \
+            crates/sim/Cargo.toml \
+            xtask/Cargo.toml \
+            | env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum)"
+          manifest_got="${manifest_line%% *}"
+          if [ "$manifest_got" != "759609fc11f7355b0476c9310adafb6a53c0ef91a33e578314be3b316c89b901" ]; then
+            echo "cargo manifests sha256 does not match"
+            exit 1
+          fi
+          config_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum .cargo/config.toml)"
+          config_got="${config_line%% *}"
+          if [ "$config_got" != "783fdc447abb5b8f8b5652157aa9ede64da640813fa89679c29c5251c8e0cbe6" ]; then
+            echo ".cargo/config.toml sha256 does not match"
+            exit 1
+          fi
+          bin_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny)"
+          bin_got="${bin_line%% *}"
+          if [ "$bin_got" != "0000000000000000000000000000000000000000000000000000000000000000" ]; then
+            echo "cargo-deny binary sha256 does not match"
+            exit 1
+          fi
+          env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
+            /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny check
+      - name: reqwest outside the collector wrapper fails
+        run: |
+          set +e
+          config_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum .cargo/config.toml)"
+          config_got="${config_line%% *}"
+          if [ "$config_got" != "783fdc447abb5b8f8b5652157aa9ede64da640813fa89679c29c5251c8e0cbe6" ]; then
+            echo ".cargo/config.toml sha256 does not match"
+            exit 1
+          fi
+          bin_line="$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            /usr/bin/sha256sum /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny)"
+          bin_got="${bin_line%% *}"
+          if [ "$bin_got" != "0000000000000000000000000000000000000000000000000000000000000000" ]; then
+            echo "cargo-deny binary sha256 does not match"
+            exit 1
+          fi
+          output=$(env -i \
+            HOME=/home/runner \
+            PATH=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+            CARGO_HOME=/home/runner/.cargo \
+            RUSTUP_HOME=/home/runner/.rustup \
+            CARGO=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo \
+            RUSTC=/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc \
+            /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny --manifest-path fixtures/deny/banned-reqwest/Cargo.toml --config deny.toml check bans 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "banned reqwest was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'reqwest'
+

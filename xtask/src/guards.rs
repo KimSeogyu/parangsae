@@ -515,7 +515,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "guard-fixtures",
         include_str!("pinned_jobs/guard-fixtures.job"),
-        "59514e01c8b0a8c3eb02efbaa2fec1e5e07cd8cec209b8dd9029e3fecfdcba00",
+        "3d989760b962de684d3e7aad602c67ec577deb7b5aaa753c7eada000a3942c31",
     ),
     (
         "tla",
@@ -530,7 +530,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "99489793523e82ec80af416480069004db6fbe8fa3e305513b8d1a5f980d4707",
+        "f4bf62202b18e9daf7798a33414a84ed280c2775d138f3792e932487fb7c3ece",
     ),
     (
         "gate",
@@ -618,13 +618,6 @@ const GUARD_FIXTURE_UNREADABLE_STEP: &str = concat!(
 /// narrower: `workflow_dispatch` only.
 const ALLOWED_TRIGGERS: &[&str] = &["push", "pull_request", "workflow_dispatch"];
 
-/// Reviewer-protected. Files allowed under `.github/workflows/`.
-const ALLOWED_WORKFLOW_FILES: &[&str] = &[
-    ".github/workflows/ci.yml",
-    ".github/workflows/gate_results.py",
-    ".github/workflows/vision-smoke.yml",
-];
-
 /// Reviewer-protected. The only secrets a non-ci workflow may reference.
 const ALLOWED_DEMO_SECRETS: &[&str] = &["BINANCE_DEMO_API_KEY", "BINANCE_DEMO_API_SECRET"];
 
@@ -645,6 +638,34 @@ const GATE_FIXTURE_STEP: &str = include_str!("gate_fixture_step.txt");
 /// Reviewer-protected. Raw sha256 of `.github/workflows/gate_results.py`.
 const GATE_RESULTS_SHA256: &str =
     "7e0f2561876477d8516e7642d8f3be7aa938cbd571273babe7bc0fd80a891666";
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WorkflowFilePin {
+    Ci,
+    WholeFile {
+        message: &'static str,
+        sha256: &'static str,
+    },
+}
+
+/// Reviewer-protected. Files allowed under `.github/workflows/`, keyed to the pin.
+const ALLOWED_WORKFLOW_FILES: &[(&str, WorkflowFilePin)] = &[
+    (".github/workflows/ci.yml", WorkflowFilePin::Ci),
+    (
+        ".github/workflows/gate_results.py",
+        WorkflowFilePin::WholeFile {
+            message: "gate_results.py sha256 does not match",
+            sha256: GATE_RESULTS_SHA256,
+        },
+    ),
+    (
+        ".github/workflows/vision-smoke.yml",
+        WorkflowFilePin::WholeFile {
+            message: "vision-smoke.yml sha256 does not match",
+            sha256: VISION_SMOKE_SHA256,
+        },
+    ),
+];
 
 const GATE_FIXTURE_SHA256: &[(&str, &str)] = &[
     (
@@ -695,11 +716,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 }
 
 fn gate_results_pin(bytes: &[u8]) -> Vec<String> {
-    if sha256_hex(bytes) == GATE_RESULTS_SHA256 {
-        Vec::new()
-    } else {
-        vec!["gate_results.py sha256 does not match".to_owned()]
-    }
+    pinned_whole_file_gaps(".github/workflows/gate_results.py", bytes)
 }
 
 fn gate_fixture_pin(name: &str, bytes: &[u8]) -> Vec<String> {
@@ -916,24 +933,15 @@ fn block_sets_continue_on_error(block: &str) -> bool {
 }
 
 fn ci_job_ids(text: &str) -> Result<BTreeSet<String>, String> {
-    let mut in_jobs = false;
-    let mut jobs = BTreeSet::new();
-    for line in text.lines() {
-        if !in_jobs {
-            if !line.starts_with(' ') && strip_yaml_comment(line).trim() == "jobs:" {
-                in_jobs = true;
-            }
-            continue;
-        }
-        if is_top_level(line) {
-            break;
-        }
-        let Some(id) = job_id(line) else {
-            continue;
-        };
-        jobs.insert(id);
+    let lines: Vec<&str> = text.lines().collect();
+    if jobs_region(&lines).is_none() {
+        return Err("ci workflow has no jobs".to_owned());
     }
-    if !in_jobs || jobs.is_empty() {
+    let jobs: BTreeSet<String> = job_key_lines(&lines)
+        .into_iter()
+        .map(|(_, id)| id)
+        .collect();
+    if jobs.is_empty() {
         return Err("ci workflow has no jobs".to_owned());
     }
     Ok(jobs)
@@ -945,17 +953,110 @@ fn gate_job_block(text: &str) -> Result<&str, String> {
 
 fn job_block<'a>(text: &'a str, id: &str) -> Option<&'a str> {
     let lines: Vec<&str> = text.lines().collect();
-    let start = lines
+    let (_, jobs_end) = jobs_region(&lines)?;
+    let keys = job_key_lines(&lines);
+    let start_pos = keys.iter().position(|(_, key)| key == id)?;
+    let start = keys[start_pos].0;
+    let end = keys
+        .get(start_pos + 1)
+        .map(|(idx, _)| *idx)
+        .unwrap_or(jobs_end);
+    Some(&text[line_offset(text, start)..line_offset(text, end)])
+}
+
+enum RunBlockScan {
+    Outside,
+    NeedIndent,
+    Inside(usize),
+}
+
+fn jobs_region(lines: &[&str]) -> Option<(usize, usize)> {
+    let jobs_at = lines
         .iter()
-        .position(|line| job_id(line).as_deref() == Some(id))?;
-    let mut end = lines.len();
-    for (idx, line) in lines.iter().enumerate().skip(start + 1) {
-        if job_id(line).is_some() || is_top_level(line) {
-            end = idx;
+        .position(|line| is_top_level(line) && strip_yaml_comment(line).trim() == "jobs:")?;
+    let mut jobs_end = lines.len();
+    for (idx, line) in lines.iter().enumerate().skip(jobs_at + 1) {
+        if is_top_level(line) {
+            jobs_end = idx;
             break;
         }
     }
-    Some(&text[line_offset(text, start)..line_offset(text, end)])
+    Some((jobs_at, jobs_end))
+}
+
+fn job_key_lines(lines: &[&str]) -> Vec<(usize, String)> {
+    let Some((jobs_at, jobs_end)) = jobs_region(lines) else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    let mut block = RunBlockScan::Outside;
+    for (idx, line) in lines.iter().enumerate().take(jobs_end).skip(jobs_at + 1) {
+        if line_inside_block(&mut block, line) {
+            continue;
+        }
+        if let Some(content) = block_scalar_content_indent(line) {
+            block = match content {
+                Some(indent) => RunBlockScan::Inside(indent),
+                None => RunBlockScan::NeedIndent,
+            };
+            continue;
+        }
+        if let Some(id) = job_id(line) {
+            found.push((idx, id));
+        }
+    }
+    found
+}
+
+fn line_inside_block(block: &mut RunBlockScan, line: &str) -> bool {
+    match *block {
+        RunBlockScan::Outside => false,
+        RunBlockScan::NeedIndent | RunBlockScan::Inside(_) => {
+            if strip_yaml_comment(line).trim().is_empty() {
+                return true;
+            }
+            let (indent, _) = leading_indent(line);
+            match *block {
+                RunBlockScan::NeedIndent => {
+                    *block = RunBlockScan::Inside(indent);
+                    true
+                }
+                RunBlockScan::Inside(min) if indent >= min => true,
+                RunBlockScan::Inside(_) => {
+                    *block = RunBlockScan::Outside;
+                    false
+                }
+                RunBlockScan::Outside => false,
+            }
+        }
+    }
+}
+
+fn block_scalar_content_indent(line: &str) -> Option<Option<usize>> {
+    let trimmed = strip_yaml_comment(line).trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let body = trimmed.strip_prefix("- ").unwrap_or(trimmed).trim_start();
+    let (_, value) = split_yaml_key(body)?;
+    let value = value.trim();
+    if block_scalar_header(value) {
+        return Some(None);
+    }
+    if indented_block_scalar(value) {
+        return Some(explicit_block_indent(value));
+    }
+    None
+}
+
+fn explicit_block_indent(value: &str) -> Option<usize> {
+    let rest = value.trim().trim_start_matches(['|', '>']);
+    let digits: String = rest.chars().take_while(|ch| ch.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        None
+    } else {
+        digits.parse().ok()
+    }
 }
 
 fn gate_named_step<'a>(block: &'a str, header: &str) -> &'a str {
@@ -1778,23 +1879,239 @@ enum BaselineChoice {
     Sha(String),
 }
 
+fn filtered_cargo_test_gaps(name: &str, text: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    for step in job_steps(text) {
+        if step_runs_filtered_cargo_test(&step) && !step_asserts_passed_count(&step) {
+            gaps.push(format!(
+                "{name} filtered cargo test does not assert the passed count"
+            ));
+        }
+    }
+    gaps
+}
+
+fn job_steps(text: &str) -> Vec<String> {
+    let mut steps = Vec::new();
+    let mut current: Option<Vec<&str>> = None;
+    let mut block = RunBlockScan::Outside;
+    for line in text.lines() {
+        let inside = line_inside_block(&mut block, line);
+        if !inside && line.starts_with("      - ") {
+            if let Some(done) = current.take() {
+                steps.push(done.join("\n"));
+            }
+            current = Some(vec![line]);
+            if let Some(content) = block_scalar_content_indent(line) {
+                block = match content {
+                    Some(indent) => RunBlockScan::Inside(indent),
+                    None => RunBlockScan::NeedIndent,
+                };
+            }
+            continue;
+        }
+        if !inside && (job_id(line).is_some() || is_top_level(line)) {
+            if let Some(done) = current.take() {
+                steps.push(done.join("\n"));
+            }
+        }
+        if !inside {
+            if let Some(content) = block_scalar_content_indent(line) {
+                block = match content {
+                    Some(indent) => RunBlockScan::Inside(indent),
+                    None => RunBlockScan::NeedIndent,
+                };
+            }
+        }
+        if let Some(step) = current.as_mut() {
+            step.push(line);
+        }
+    }
+    if let Some(done) = current {
+        steps.push(done.join("\n"));
+    }
+    steps
+}
+
+fn step_runs_filtered_cargo_test(step: &str) -> bool {
+    cargo_test_arg_lists(step)
+        .iter()
+        .any(|args| cargo_test_args_are_filtered(args))
+}
+
+fn step_asserts_passed_count(step: &str) -> bool {
+    step.lines()
+        .any(|line| line.contains("test result: ok.") && line.contains("passed"))
+}
+
+fn cargo_test_arg_lists(step: &str) -> Vec<Vec<String>> {
+    let bytes = step.as_bytes();
+    let mut found = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if word_at(bytes, i, b"cargo") {
+            let mut j = i + 5;
+            while j < bytes.len() && (bytes[j] == b' ' || bytes[j] == b'\t') {
+                j += 1;
+            }
+            if word_at(bytes, j, b"test") {
+                let (args, next) = cargo_test_shell_words(bytes, j + 4);
+                found.push(args);
+                i = next;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    found
+}
+
+fn word_at(bytes: &[u8], i: usize, word: &[u8]) -> bool {
+    if i > 0 && is_word_byte(bytes[i - 1]) {
+        return false;
+    }
+    let Some(end) = i.checked_add(word.len()) else {
+        return false;
+    };
+    if bytes.get(i..end) != Some(word) {
+        return false;
+    }
+    !bytes.get(end).is_some_and(|byte| is_word_byte(*byte))
+}
+
+fn is_word_byte(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
+}
+
+fn cargo_test_shell_words(bytes: &[u8], mut i: usize) -> (Vec<String>, usize) {
+    let mut words = Vec::new();
+    loop {
+        while i < bytes.len() && (bytes[i] == b' ' || bytes[i] == b'\t') {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        match bytes[i] {
+            b'\n' | b';' | b'|' | b'&' | b'(' | b')' | b'`' | b'<' | b'>' | b'#' => break,
+            b'\'' | b'"' => {
+                let (word, next) = cargo_test_quoted_word(bytes, i);
+                words.push(word);
+                i = next;
+            }
+            _ => {
+                let start = i;
+                while i < bytes.len() {
+                    match bytes[i] {
+                        b' ' | b'\t' | b'\n' | b';' | b'|' | b'&' | b'(' | b')' | b'`' | b'<'
+                        | b'>' | b'#' | b'\'' | b'"' => break,
+                        _ => i += 1,
+                    }
+                }
+                words.push(String::from_utf8_lossy(&bytes[start..i]).into_owned());
+            }
+        }
+    }
+    (words, i)
+}
+
+fn cargo_test_quoted_word(bytes: &[u8], start: usize) -> (String, usize) {
+    let quote = bytes[start];
+    let mut i = start + 1;
+    let mut word = String::new();
+    while i < bytes.len() {
+        let byte = bytes[i];
+        if byte == quote {
+            return (word, i + 1);
+        }
+        if quote == b'"' && byte == b'\\' && i + 1 < bytes.len() {
+            word.push(bytes[i + 1] as char);
+            i += 2;
+            continue;
+        }
+        word.push(byte as char);
+        i += 1;
+    }
+    (word, i)
+}
+
+fn cargo_test_args_are_filtered(args: &[String]) -> bool {
+    let mut idx = 0;
+    while idx < args.len() {
+        let arg = &args[idx];
+        if arg == "--" {
+            idx += 1;
+            continue;
+        }
+        let (name, inline) = match arg.split_once('=') {
+            Some((name, _)) => (name, true),
+            None => (arg.as_str(), false),
+        };
+        if name == "--exact" {
+            return true;
+        }
+        if name.starts_with('-') {
+            if !inline && flag_takes_value(name) {
+                idx += 2;
+            } else {
+                idx += 1;
+            }
+            continue;
+        }
+        return true;
+    }
+    false
+}
+
+fn flag_takes_value(flag: &str) -> bool {
+    matches!(
+        flag,
+        "-p" | "--package"
+            | "--test"
+            | "--bin"
+            | "--example"
+            | "--bench"
+            | "--manifest-path"
+            | "--features"
+            | "-F"
+            | "--exclude"
+            | "--target"
+            | "--target-dir"
+            | "-j"
+            | "--jobs"
+            | "--color"
+            | "--profile"
+            | "--message-format"
+            | "--config"
+            | "--skip"
+            | "--format"
+            | "--logfile"
+            | "--test-threads"
+            | "-Z"
+    )
+}
+
 fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
     let mut violations = Vec::new();
+    violations.extend(allowlisted_yml_without_pin_gaps(
+        &allowed_workflow_paths(),
+        ALLOWED_WORKFLOW_FILES,
+    ));
     for path in workflow_dir_files(root)? {
         let name = workflow_display(root, &path);
         let text = read(&path)?;
-        if !ALLOWED_WORKFLOW_FILES.contains(&name.as_str()) {
+        if workflow_file_pin(&name).is_none() {
             violations.push(format!("{name} is not an allowed workflow file"));
+        } else {
+            violations.extend(workflow_byte_pin_gaps(&name, &text));
         }
         if workflow_yaml(&path) {
             violations.extend(workflow_file_gaps(&name, &text));
-            if name.ends_with("/ci.yml") {
-                violations.extend(ci_header_pin_gaps(&text));
+            if name == ".github/workflows/ci.yml" {
                 violations.extend(compiling_job_order_gaps(&text));
             } else {
                 violations.extend(foreign_workflow_gaps(&name, &text));
-                if name.ends_with("/vision-smoke.yml") {
-                    violations.extend(vision_smoke_pin(text.as_bytes()));
+                if name == ".github/workflows/vision-smoke.yml" {
                     if let Some(block) = job_block(&text, "smoke") {
                         violations.extend(compile_step_order_gaps("vision-smoke", block));
                     }
@@ -1808,6 +2125,9 @@ fn workflow_permission_result(root: &Path) -> Result<Vec<String>, String> {
     let ci = read(&root.join(".github/workflows/ci.yml"))?;
     violations.extend(required_job_pin_gaps(&ci));
     violations.extend(deny_release_pin_gaps(&ci));
+    for (name, pinned, _) in REQUIRED_JOBS {
+        violations.extend(filtered_cargo_test_gaps(name, pinned));
+    }
     if !guards_fetch_depth_is_zero(&ci) {
         violations.push("guards checkout fetch-depth is not 0".to_owned());
     }
@@ -2109,10 +2429,63 @@ fn secret_names(text: &str) -> Vec<String> {
 }
 
 fn vision_smoke_pin(bytes: &[u8]) -> Vec<String> {
-    if sha256_hex(bytes) == VISION_SMOKE_SHA256 {
-        Vec::new()
-    } else {
-        vec!["vision-smoke.yml sha256 does not match".to_owned()]
+    pinned_whole_file_gaps(".github/workflows/vision-smoke.yml", bytes)
+}
+
+fn workflow_file_pin(path: &str) -> Option<WorkflowFilePin> {
+    ALLOWED_WORKFLOW_FILES
+        .iter()
+        .find(|(name, _)| *name == path)
+        .map(|(_, pin)| *pin)
+}
+
+fn allowed_workflow_paths() -> Vec<&'static str> {
+    ALLOWED_WORKFLOW_FILES
+        .iter()
+        .map(|(path, _)| *path)
+        .collect()
+}
+
+fn allowlisted_yml_without_pin_gaps(
+    allowed: &[&str],
+    pins: &[(&str, WorkflowFilePin)],
+) -> Vec<String> {
+    let mut gaps = Vec::new();
+    for path in allowed {
+        let yml = path.ends_with(".yml") || path.ends_with(".yaml");
+        let pinned = pins.iter().any(|(name, _)| name == path);
+        if yml && !pinned {
+            gaps.push(format!("{path} is allowlisted without a path-keyed pin"));
+        }
+    }
+    gaps
+}
+
+fn workflow_byte_pin_gaps(name: &str, text: &str) -> Vec<String> {
+    match name {
+        ".github/workflows/ci.yml" => ci_header_pin_gaps(text),
+        ".github/workflows/vision-smoke.yml" => vision_smoke_pin(text.as_bytes()),
+        ".github/workflows/gate_results.py" => gate_results_pin(text.as_bytes()),
+        _ => match workflow_file_pin(name) {
+            Some(WorkflowFilePin::Ci) => ci_header_pin_gaps(text),
+            Some(WorkflowFilePin::WholeFile { .. }) => {
+                pinned_whole_file_gaps(name, text.as_bytes())
+            }
+            None => Vec::new(),
+        },
+    }
+}
+
+fn pinned_whole_file_gaps(path: &str, bytes: &[u8]) -> Vec<String> {
+    match workflow_file_pin(path) {
+        Some(WorkflowFilePin::WholeFile { message, sha256 }) => {
+            if sha256_hex(bytes) == sha256 {
+                Vec::new()
+            } else {
+                vec![message.to_owned()]
+            }
+        }
+        _ => vec![format!("{path} is allowlisted without a path-keyed pin")],
     }
 }
 
@@ -2136,7 +2509,7 @@ fn compiling_job_order_gaps(text: &str) -> Vec<String> {
 
 fn compile_step_order_gaps(name: &str, block: &str) -> Vec<String> {
     let Some(which_at) = block.find(RUSTUP_WHICH_STEP) else {
-        return vec![format!("{name} has no rustup which step")];
+        return which_assert_shape_gaps(name, block);
     };
     let mut gaps = Vec::new();
     if let Some(rustc_at) = block.find(RUSTC_198_STEP) {
@@ -2150,10 +2523,35 @@ fn compile_step_order_gaps(name: &str, block: &str) -> Vec<String> {
     gaps
 }
 
+fn which_assert_shape_gaps(name: &str, block: &str) -> Vec<String> {
+    let mut gaps = Vec::new();
+    if which_assert_uses_glob(block) {
+        gaps.push(format!("{name} which-assert uses a glob"));
+    }
+    if which_assert_uses_rustup_home(block) {
+        gaps.push(format!("{name} which-assert uses RUSTUP_HOME"));
+    }
+    if gaps.is_empty() {
+        gaps.push(format!("{name} has no rustup which step"));
+    }
+    gaps
+}
+
+fn which_assert_uses_glob(block: &str) -> bool {
+    block
+        .lines()
+        .any(|line| line.contains("toolchains/") && (line.contains('*') || line.contains('?')))
+}
+
+fn which_assert_uses_rustup_home(block: &str) -> bool {
+    block.contains("$RUSTUP_HOME") || block.contains("${RUSTUP_HOME")
+}
+
 fn tool_token_before(block: &str, which_at: usize) -> bool {
+    let prefix = block[..which_at].replace(RUSTC_198_STEP, "");
     let mut token = String::new();
     let mut saw = false;
-    for ch in block[..which_at].chars() {
+    for ch in prefix.chars() {
         if ch.is_ascii_alphanumeric() || ch == '_' {
             token.push(ch);
         } else {
@@ -2273,7 +2671,7 @@ fn toolchain_file_gaps(root: &Path) -> Result<Vec<String>, String> {
     if std::fs::symlink_metadata(&root_file).is_ok_and(|meta| meta.file_type().is_symlink()) {
         gaps.push("root rust-toolchain.toml is a symlink".to_owned());
     }
-    for path in git_listed_files(root)? {
+    for path in tree_paths(root)? {
         let rel = path
             .strip_prefix(root)
             .map_err(|err| format!("toolchain path: {err}"))?;
@@ -2286,32 +2684,52 @@ fn toolchain_file_gaps(root: &Path) -> Result<Vec<String>, String> {
                 rel.display()
             ));
         }
+        let parent_is_cargo = rel
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .and_then(|part| part.to_str())
+            == Some(".cargo");
+        if parent_is_cargo
+            && (name == "config" || name == "config.toml")
+            && rel != Path::new(".cargo/config.toml")
+        {
+            gaps.push(format!(
+                "{} is a nested cargo config; only the root .cargo/config.toml is allowed",
+                rel.display()
+            ));
+        }
     }
+    gaps.sort();
     Ok(gaps)
 }
 
-fn git_listed_files(root: &Path) -> Result<Vec<PathBuf>, String> {
-    let output = Command::new("git")
-        .args(["ls-files", "-co", "--exclude-standard", "-z"])
-        .current_dir(root)
-        .output()
-        .map_err(|err| format!("git ls-files: {err}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "git ls-files failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
+fn tree_paths(root: &Path) -> Result<Vec<PathBuf>, String> {
     let mut paths = Vec::new();
-    for raw in output.stdout.split(|byte| *byte == 0) {
-        if raw.is_empty() {
+    collect_tree_files(root, &mut paths)?;
+    paths.sort();
+    Ok(paths)
+}
+
+fn collect_tree_files(dir: &Path, found: &mut Vec<PathBuf>) -> Result<(), String> {
+    let entries = std::fs::read_dir(dir).map_err(|err| format!("read {}: {err}", dir.display()))?;
+    for entry in entries {
+        let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name == ".git" || name == "target" {
             continue;
         }
-        let rel =
-            std::str::from_utf8(raw).map_err(|_| "git ls-files path is not utf-8".to_owned())?;
-        paths.push(root.join(rel));
+        let file_type = entry
+            .file_type()
+            .map_err(|err| format!("read {}: {err}", entry.path().display()))?;
+        let path = entry.path();
+        if file_type.is_symlink() || !file_type.is_dir() {
+            found.push(path);
+            continue;
+        }
+        collect_tree_files(&path, found)?;
     }
-    Ok(paths)
+    Ok(())
 }
 
 fn toolchain_sets_path(text: &str) -> bool {
@@ -2408,8 +2826,126 @@ fn deny_release_pin_gaps(text: &str) -> Vec<String> {
     }
     if !block.contains(DENY_BIN_SHA256) {
         gaps.push("deny job does not pin the cargo-deny binary sha256".to_owned());
+    } else if deny_exec_missing_bin_recheck(block) {
+        gaps.push(
+            "deny job does not re-check the cargo-deny binary sha256 before execution".to_owned(),
+        );
+    }
+    if !block.contains(CARGO_CONFIG_SHA256) {
+        gaps.push("deny job does not re-hash .cargo/config.toml".to_owned());
+    }
+    gaps.extend(deny_path_shim_gaps(block));
+    gaps.extend(deny_cargo_env_gaps(block));
+    gaps
+}
+
+fn deny_path_shim_gaps(block: &str) -> Vec<String> {
+    let toolchain = "/home/runner/.rustup/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin";
+    let mut gaps = Vec::new();
+    for line in block.lines() {
+        let Some(rest) = line.split("PATH=").nth(1) else {
+            continue;
+        };
+        let value = rest
+            .split_whitespace()
+            .next()
+            .unwrap_or(rest)
+            .trim_end_matches('\\')
+            .trim_matches(['"', '\'']);
+        let Some(first) = value.split(':').next() else {
+            continue;
+        };
+        if first != toolchain {
+            let gap = format!("deny job PATH entry {first} is before the toolchain bin");
+            if !gaps.contains(&gap) {
+                gaps.push(gap);
+            }
+        }
     }
     gaps
+}
+
+fn deny_cargo_env_gaps(block: &str) -> Vec<String> {
+    let lines: Vec<&str> = block.lines().collect();
+    let mut gaps = Vec::new();
+    let mut idx = 0usize;
+    while idx < lines.len() {
+        let code = strip_yaml_comment(lines[idx]).trim();
+        let key = code.strip_prefix("- ").unwrap_or(code);
+        let Some(rest) = key.strip_prefix("env:") else {
+            idx += 1;
+            continue;
+        };
+        let indent = lines[idx].len() - lines[idx].trim_start().len();
+        record_flow_cargo(&mut gaps, rest);
+        idx += 1;
+        while idx < lines.len() {
+            let follow = lines[idx];
+            let child = strip_yaml_comment(follow).trim();
+            if child.is_empty() {
+                idx += 1;
+                continue;
+            }
+            let findent = follow.len() - follow.trim_start().len();
+            if findent <= indent {
+                break;
+            }
+            let child_key = child.strip_prefix("- ").unwrap_or(child);
+            if let Some((env_key, value)) = child_key.split_once(':') {
+                if env_key.trim() == "CARGO" {
+                    record_cargo_env(&mut gaps, value.trim());
+                }
+            }
+            idx += 1;
+        }
+    }
+    gaps
+}
+
+fn record_flow_cargo(gaps: &mut Vec<String>, rest: &str) {
+    let rest = rest.trim();
+    if rest.is_empty() {
+        return;
+    }
+    let inner = rest.trim_matches(|ch: char| ch == '{' || ch == '}');
+    for item in inner.split(',') {
+        if let Some((key, value)) = item.split_once(':') {
+            if key.trim() == "CARGO" {
+                record_cargo_env(gaps, value.trim());
+            }
+        }
+    }
+}
+
+fn record_cargo_env(gaps: &mut Vec<String>, value: &str) {
+    let gap = format!("deny job sets CARGO={value} in the step or job env");
+    if !gaps.contains(&gap) {
+        gaps.push(gap);
+    }
+}
+
+fn deny_exec_missing_bin_recheck(block: &str) -> bool {
+    let bin = format!("/tmp/cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny");
+    let lines: Vec<&str> = block.lines().collect();
+    let mut step_starts = Vec::new();
+    for (idx, line) in lines.iter().enumerate() {
+        if line.starts_with("      - ") {
+            step_starts.push(idx);
+        }
+    }
+    step_starts.push(lines.len());
+    for pair in step_starts.windows(2) {
+        let step = &lines[pair[0]..pair[1]];
+        for (offset, line) in step.iter().enumerate() {
+            if line.contains(&bin)
+                && !line.contains("sha256sum")
+                && !step[..offset].join("\n").contains(DENY_BIN_SHA256)
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn required_job_pin_gaps(text: &str) -> Vec<String> {
@@ -3544,41 +4080,26 @@ fn cargo_config_gaps(root: &Path) -> Result<Vec<String>, String> {
     Ok(gaps)
 }
 
-fn collect_cargo_configs(dir: &Path, found: &mut Vec<PathBuf>) -> Result<(), String> {
-    let entries = std::fs::read_dir(dir).map_err(|err| format!("read {}: {err}", dir.display()))?;
-    for entry in entries {
-        let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if name == "target" || name == ".git" {
+fn collect_cargo_configs(root: &Path, found: &mut Vec<PathBuf>) -> Result<(), String> {
+    for path in tree_paths(root)? {
+        let rel = path
+            .strip_prefix(root)
+            .map_err(|err| format!("cargo config path: {err}"))?;
+        let name = rel.file_name().and_then(|part| part.to_str()).unwrap_or("");
+        let parent_is_cargo = rel
+            .parent()
+            .and_then(|parent| parent.file_name())
+            .and_then(|part| part.to_str())
+            == Some(".cargo");
+        if parent_is_cargo && name.starts_with("config") {
+            found.push(path);
             continue;
         }
-        let file_type = entry
-            .file_type()
-            .map_err(|err| format!("read {}: {err}", entry.path().display()))?;
-        let path = entry.path();
-        if file_type.is_symlink() {
-            if name == ".cargo" || name.starts_with("config") {
-                found.push(path);
-            }
-            continue;
+        let symlink =
+            std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.file_type().is_symlink());
+        if symlink && (name == ".cargo" || name.starts_with("config")) {
+            found.push(path);
         }
-        if !file_type.is_dir() {
-            continue;
-        }
-        if name == ".cargo" {
-            let children = std::fs::read_dir(&path)
-                .map_err(|err| format!("read {}: {err}", path.display()))?;
-            for child in children {
-                let child = child.map_err(|err| format!("read {}: {err}", path.display()))?;
-                let child_name = child.file_name();
-                let child_name = child_name.to_string_lossy();
-                if child_name.starts_with("config") {
-                    found.push(child.path());
-                }
-            }
-        }
-        collect_cargo_configs(&path, found)?;
     }
     Ok(())
 }
@@ -3984,6 +4505,29 @@ fn command_failure_detail(stderr: &str, stdout: &str, code: Option<i32>) -> Stri
     }
 }
 
+fn commit_present(root: &Path, base: &str) -> bool {
+    Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["cat-file", "-e", &format!("{base}^{{commit}}")])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
+fn fetch_baseline_commit(root: &Path, base: &str) -> bool {
+    let Ok(output) = Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(["fetch", "--no-tags", "origin", base])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+    else {
+        return false;
+    };
+    output.status.success() && commit_present(root, base)
+}
+
 fn git(root: &Path, args: &[&str]) -> Result<String, String> {
     let output = Command::new("git")
         .arg("-C")
@@ -4009,14 +4553,7 @@ fn git(root: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 fn git_show(root: &Path, base: &str, path: &str) -> Result<Option<String>, String> {
-    let commit = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(["cat-file", "-e", &format!("{base}^{{commit}}")])
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .output()
-        .map_err(|err| format!("git show: {err}"))?;
-    if !commit.status.success() {
+    if !commit_present(root, base) && !fetch_baseline_commit(root, base) {
         return Err(format!("baseline commit {base} is not in this checkout"));
     }
     let output = Command::new("git")
@@ -4765,11 +5302,74 @@ kani.min_harnesses=1
     }
 
     #[test]
+    fn replaced_tip_baseline_is_fetched_from_origin() -> Result<(), String> {
+        let root = TempGit::new("replaced-tip")?;
+        let origin = root.path.join("origin");
+        std::fs::create_dir_all(origin.join("regressions"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        git_fixture(&origin, &["init", "-b", "kept"])?;
+        std::fs::write(origin.join("regressions/floors.toml"), "old-floors\n")
+            .map_err(|err| format!("write: {err}"))?;
+        git_fixture(&origin, &["add", "regressions/floors.toml"])?;
+        git_fixture(&origin, &["commit", "-m", "old floors"])?;
+        let old = git_stdout(&origin, &["rev-parse", "HEAD"])?;
+        git_fixture(&origin, &["checkout", "--orphan", "rewritten"])?;
+        git_fixture(&origin, &["rm", "-rf", "."])?;
+        std::fs::write(origin.join("file"), "new\n").map_err(|err| format!("write: {err}"))?;
+        git_fixture(&origin, &["add", "file"])?;
+        git_fixture(&origin, &["commit", "-m", "rewritten"])?;
+        git_fixture(&origin, &["update-ref", "refs/keep/old", &old])?;
+        git_fixture(&origin, &["branch", "-D", "kept"])?;
+        git_fixture(
+            &origin,
+            &["config", "uploadpack.allowReachableSHA1InWant", "true"],
+        )?;
+        git_fixture(
+            &origin,
+            &["config", "uploadpack.allowAnySHA1InWant", "true"],
+        )?;
+        let origin_url = format!(
+            "file://{}",
+            origin.to_str().ok_or("origin path is not utf-8")?
+        );
+        git_fixture(
+            &root.path,
+            &[
+                "clone",
+                "--single-branch",
+                "--branch",
+                "rewritten",
+                &origin_url,
+                "clone",
+            ],
+        )?;
+        let clone = root.path.join("clone");
+        let already = git_command(&clone, &["cat-file", "-e", &format!("{old}^{{commit}}")])?;
+        if already.status.success() {
+            return Err("replaced tip was already in the clone".to_owned());
+        }
+        let shown = git_show(&clone, &old, "regressions/floors.toml")?;
+        if shown.as_deref() != Some("old-floors\n") {
+            return Err(format!("replaced tip floors: {shown:?}"));
+        }
+        let missing = git_show(
+            &clone,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "regressions/floors.toml",
+        );
+        match missing {
+            Err(err) if err.contains("is not in this checkout") => Ok(()),
+            other => Err(format!("missing baseline: {other:?}")),
+        }
+    }
+
+    #[test]
     fn cargo_workspace_dir_in_ci_fails() -> Result<(), String> {
         let set = std::ffi::OsStr::new("/tmp/other");
         let empty = std::ffi::OsStr::new("");
-        if crate::reject_cargo_workspace_dir_in_ci(true, Some(set)).is_ok() {
-            return Err("CI override was accepted".to_owned());
+        match crate::reject_cargo_workspace_dir_in_ci(true, Some(set)) {
+            Err(err) if err == "CARGO_WORKSPACE_DIR is set in CI" => {}
+            other => return Err(format!("CI override: {other:?}")),
         }
         if crate::reject_cargo_workspace_dir_in_ci(true, Some(empty)).is_err() {
             return Err("empty override was rejected".to_owned());
@@ -5584,6 +6184,50 @@ jobs:
         if !deny.contains(DENY_TARBALL_SHA256) || !deny.contains(DENY_BIN_SHA256) {
             return Err("deny job does not pin the release tarball and binary".to_owned());
         }
+        if deny.matches(DENY_BIN_SHA256).count() != 3 {
+            return Err(format!(
+                "deny job binary sha checks: {}",
+                deny.matches(DENY_BIN_SHA256).count()
+            ));
+        }
+        if deny.matches(CARGO_CONFIG_SHA256).count() != 2 {
+            return Err(format!(
+                "deny job cargo config sha checks: {}",
+                deny.matches(CARGO_CONFIG_SHA256).count()
+            ));
+        }
+        let deny_bin_path =
+            format!("/tmp/cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl/cargo-deny");
+        let deny_lines: Vec<&str> = deny.lines().collect();
+        let mut deny_execs = 0usize;
+        for (idx, line) in deny_lines.iter().enumerate() {
+            if line.contains(&deny_bin_path) && !line.contains("sha256sum") {
+                deny_execs += 1;
+                let from = idx.saturating_sub(40);
+                let window = deny_lines[from..idx].join("\n");
+                if !window.contains(DENY_BIN_SHA256) || !window.contains(CARGO_CONFIG_SHA256) {
+                    return Err(format!(
+                        "cargo-deny execution is not immediately preceded by the binary and config rechecks: {line}"
+                    ));
+                }
+            }
+        }
+        if deny_execs != 2 {
+            return Err(format!("cargo-deny executions: {deny_execs}"));
+        }
+        let bin_parts: Vec<&str> = deny.split(DENY_BIN_SHA256).collect();
+        if bin_parts.len() != 4 {
+            return Err(format!("binary sha splits: {}", bin_parts.len()));
+        }
+        let install_only = format!(
+            "name: ci\non:\n  push:\njobs:\n{}{DENY_BIN_SHA256}{}{}{}",
+            bin_parts[0], bin_parts[1], bin_parts[2], bin_parts[3]
+        );
+        expect_gaps(
+            "install-only binary sha",
+            deny_release_pin_gaps(&install_only),
+            &["deny job does not re-check the cargo-deny binary sha256 before execution"],
+        )?;
         if !deny.contains(&format!(
             "cargo-deny-{DENY_VERSION}-x86_64-unknown-linux-musl.tar.gz"
         )) {
@@ -5751,6 +6395,23 @@ jobs:
                 "fixtures/guards/ci/workflow-env-rustflags.yml",
                 "  RUSTFLAGS: -Awarnings",
             ),
+            (
+                "fixtures/guards/ci/workflow-env-rustc.yml",
+                "  RUSTC: /tmp/rustc",
+            ),
+            (
+                "fixtures/guards/ci/workflow-env-encoded-rustflags.yml",
+                "  CARGO_ENCODED_RUSTFLAGS: -Awarnings",
+            ),
+            (
+                "fixtures/guards/ci/workflow-env-rustdocflags.yml",
+                "  RUSTDOCFLAGS: -Awarnings",
+            ),
+            (
+                "fixtures/guards/ci/workflow-env-target-dir.yml",
+                "  CARGO_TARGET_DIR: /tmp/target",
+            ),
+            ("fixtures/guards/ci/workflow-defaults.yml", "defaults:"),
         ];
         for (path, needle) in header_cases {
             let text = read(&root.join(path))?;
@@ -5811,10 +6472,14 @@ jobs:
             compile_step_order_gaps("vision-smoke", smoke_block),
             &[],
         )?;
-        expect_gaps("smoke pin", vision_smoke_pin(smoke.as_bytes()), &[])?;
+        expect_gaps(
+            "smoke pin",
+            pinned_whole_file_gaps(".github/workflows/vision-smoke.yml", smoke.as_bytes()),
+            &[],
+        )?;
         expect_gaps(
             "extra workflow",
-            if ALLOWED_WORKFLOW_FILES.contains(&".github/workflows/side.yml") {
+            if workflow_file_pin(".github/workflows/side.yml").is_some() {
                 Vec::new()
             } else {
                 vec![".github/workflows/side.yml is not an allowed workflow file".to_owned()]
@@ -5888,6 +6553,429 @@ jobs:
             "symlink",
             toolchain_file_gaps(&link.path)?,
             &["root rust-toolchain.toml is a symlink"],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn required_job_names_equal_pinned_gate_needs() -> Result<(), String> {
+        let mut names = BTreeSet::new();
+        for (name, _, _) in REQUIRED_JOBS {
+            if *name != "gate" {
+                names.insert((*name).to_owned());
+            }
+        }
+        let gate = pinned_job("gate").ok_or("gate job is not pinned")?;
+        let needs = gate_needs(gate)?;
+        let missing: Vec<_> = names.difference(&needs).cloned().collect();
+        let extra: Vec<_> = needs.difference(&names).cloned().collect();
+        if !missing.is_empty() || !extra.is_empty() {
+            return Err(format!(
+                "required jobs missing from gate.needs: {missing:?}; gate.needs not in required jobs: {extra:?}"
+            ));
+        }
+        if names != needs {
+            return Err(format!("names {names:?} needs {needs:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn ignored_untracked_toolchain_and_cargo_config_are_rejected() -> Result<(), String> {
+        let dir = TempGit::new("ignored-tree")?;
+        git_fixture(&dir.path, &["init"])?;
+        std::fs::write(dir.path.join(".gitignore"), "hidden/\n")
+            .map_err(|err| format!("write: {err}"))?;
+        std::fs::create_dir_all(dir.path.join("hidden/nested/.cargo"))
+            .map_err(|err| format!("mkdir: {err}"))?;
+        std::fs::write(dir.path.join("hidden/rust-toolchain"), "nightly\n")
+            .map_err(|err| format!("write: {err}"))?;
+        std::fs::write(
+            dir.path.join("hidden/nested/.cargo/config.toml"),
+            "[alias]\n",
+        )
+        .map_err(|err| format!("write: {err}"))?;
+        std::fs::write(dir.path.join("hidden/nested/.cargo/config"), "paths = []\n")
+            .map_err(|err| format!("write: {err}"))?;
+        git_fixture(&dir.path, &["add", ".gitignore"])?;
+        git_fixture(&dir.path, &["commit", "-m", "ignore hidden"])?;
+        expect_gaps(
+            "ignored tree",
+            toolchain_file_gaps(&dir.path)?,
+            &[
+                "hidden/nested/.cargo/config is a nested cargo config; only the root .cargo/config.toml is allowed",
+                "hidden/nested/.cargo/config.toml is a nested cargo config; only the root .cargo/config.toml is allowed",
+                "hidden/rust-toolchain is a toolchain override; only the root rust-toolchain.toml is allowed",
+            ],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn job_block_ignores_header_and_run_body() -> Result<(), String> {
+        let text = "\
+name: ci
+on:
+  push:
+  gate:
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: show
+        run: |
+          echo '  gate:'
+          echo \"  push:\"
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo real-gate
+";
+        let gate = job_block(text, "gate").ok_or("gate job missing")?;
+        if !gate.contains("echo real-gate") || gate.contains("echo '  gate:'") {
+            return Err(format!(
+                "header or run body was treated as the gate job:\n{gate}"
+            ));
+        }
+        if job_block(text, "push").is_some() {
+            return Err("header id push was treated as a job".to_owned());
+        }
+        let fmt = job_block(text, "fmt").ok_or("fmt job missing")?;
+        if !fmt.contains("echo '  gate:'") || fmt.contains("echo real-gate") {
+            return Err(format!("fmt job:\n{fmt}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn job_block_fixtures_are_not_jobs() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let header = read(&root.join("fixtures/guards/ci/job-id-header.yml"))?;
+        let fmt = job_block(&header, "fmt").ok_or("header fixture has no fmt job")?;
+        if !fmt.contains("echo real-fmt") || !fmt.contains("runs-on:") {
+            return Err(format!("header key was extracted as fmt:\n{fmt}"));
+        }
+        if job_block(&header, "push").is_some() {
+            return Err("header id push was extracted as a job".to_owned());
+        }
+        let run_block = read(&root.join("fixtures/guards/ci/job-id-run-block.yml"))?;
+        if job_block(&run_block, "clippy").is_some() {
+            return Err(format!(
+                "run block key was extracted as clippy:\n{}",
+                job_block(&run_block, "clippy").unwrap_or("")
+            ));
+        }
+        let fmt = job_block(&run_block, "fmt").ok_or("run block fixture has no fmt job")?;
+        if !fmt.contains("echo still-the-script") || !fmt.contains("\n  clippy:\n") {
+            return Err(format!("fmt job dropped the run block:\n{fmt}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn deny_run_step_fixtures_fail() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let shim = read(&root.join("fixtures/guards/ci/deny-path-shim.yml"))?;
+        expect_gaps(
+            "path shim",
+            deny_release_pin_gaps(&shim),
+            &["deny job PATH entry /tmp/shim is before the toolchain bin"],
+        )?;
+        let job_cargo = read(&root.join("fixtures/guards/ci/deny-job-cargo-env.yml"))?;
+        expect_gaps(
+            "job cargo",
+            deny_release_pin_gaps(&job_cargo),
+            &["deny job sets CARGO=/path/to/fake in the step or job env"],
+        )?;
+        let step_cargo = read(&root.join("fixtures/guards/ci/deny-step-cargo-env.yml"))?;
+        expect_gaps(
+            "step cargo",
+            deny_release_pin_gaps(&step_cargo),
+            &["deny job sets CARGO=/path/to/fake in the step or job env"],
+        )?;
+        let swapped = read(&root.join("fixtures/guards/ci/deny-swapped-bin.yml"))?;
+        expect_gaps(
+            "swapped bin",
+            deny_release_pin_gaps(&swapped),
+            &["deny job does not re-check the cargo-deny binary sha256 before execution"],
+        )?;
+        Ok(())
+    }
+
+    fn which_job(path: &str) -> Result<String, String> {
+        let text = read(&crate::workspace_root()?.join(path))?;
+        job_block(&text, "fmt")
+            .map(str::to_owned)
+            .ok_or_else(|| format!("{path} has no fmt job"))
+    }
+
+    #[test]
+    fn which_assert_fixtures_name_the_gap() -> Result<(), String> {
+        let missing = "  fmt:\n    steps:\n      - run: cargo test\n";
+        expect_gaps(
+            "no which step",
+            compile_step_order_gaps("fmt", missing),
+            &["fmt has no rustup which step"],
+        )?;
+        let rustc_first = format!("  fmt:\n    steps:\n{RUSTC_198_STEP}{RUSTUP_WHICH_STEP}");
+        expect_gaps(
+            "rustc -V before which",
+            compile_step_order_gaps("fmt", &rustc_first),
+            &["fmt runs rustc -V before rustup which"],
+        )?;
+        let cargo_first = format!(
+            "  fmt:\n    steps:\n      - run: cargo test\n{RUSTUP_WHICH_STEP}{RUSTC_198_STEP}"
+        );
+        expect_gaps(
+            "cargo before which",
+            compile_step_order_gaps("fmt", &cargo_first),
+            &["fmt runs cargo or rustc before rustup which"],
+        )?;
+        let cargo_before = which_job("fixtures/guards/ci/which-cargo-before.yml")?;
+        let rustc_at = cargo_before
+            .find(RUSTC_198_STEP)
+            .ok_or("which-cargo-before.yml dropped the rustc -V step")?;
+        let which_at = cargo_before
+            .find(RUSTUP_WHICH_STEP)
+            .ok_or("which-cargo-before.yml dropped the which-assert")?;
+        if rustc_at > which_at {
+            return Err("which-cargo-before.yml puts which before rustc -V".to_owned());
+        }
+        let between = &cargo_before[rustc_at + RUSTC_198_STEP.len()..which_at];
+        if !between.contains("\n        run: cargo test\n") {
+            return Err(format!(
+                "which-cargo-before.yml does not run cargo between rustc -V and which: {between}"
+            ));
+        }
+        expect_gaps(
+            "which-cargo-before.yml",
+            compile_step_order_gaps("which-cargo-before.yml", &cargo_before),
+            &[
+                "which-cargo-before.yml runs rustc -V before rustup which",
+                "which-cargo-before.yml runs cargo or rustc before rustup which",
+            ],
+        )?;
+        let glob = which_job("fixtures/guards/ci/which-glob.yml")?;
+        if glob.contains(RUSTUP_WHICH_STEP) {
+            return Err("which-glob.yml still has the literal toolchain path".to_owned());
+        }
+        expect_gaps(
+            "which-glob.yml",
+            compile_step_order_gaps("which-glob.yml", &glob),
+            &["which-glob.yml which-assert uses a glob"],
+        )?;
+        let question = glob.replace(
+            "/home/runner/.rustup/toolchains/\"*\"",
+            "/home/runner/.rustup/toolchains/1.98.?",
+        );
+        expect_gaps(
+            "question glob",
+            compile_step_order_gaps("which-glob.yml", &question),
+            &["which-glob.yml which-assert uses a glob"],
+        )?;
+        let home = which_job("fixtures/guards/ci/which-rustup-home.yml")?;
+        if home.contains(RUSTUP_WHICH_STEP) || !home.contains("$RUSTUP_HOME/toolchains/") {
+            return Err("which-rustup-home.yml does not use $RUSTUP_HOME".to_owned());
+        }
+        expect_gaps(
+            "which-rustup-home.yml",
+            compile_step_order_gaps("which-rustup-home.yml", &home),
+            &["which-rustup-home.yml which-assert uses RUSTUP_HOME"],
+        )?;
+        let braced = home.replace("$RUSTUP_HOME/", "${RUSTUP_HOME}/");
+        expect_gaps(
+            "braced RUSTUP_HOME",
+            compile_step_order_gaps("which-rustup-home.yml", &braced),
+            &["which-rustup-home.yml which-assert uses RUSTUP_HOME"],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn allowlisted_yml_without_a_path_keyed_pin_fails() -> Result<(), String> {
+        let live = allowed_workflow_paths();
+        expect_gaps(
+            "live allowlist",
+            allowlisted_yml_without_pin_gaps(&live, ALLOWED_WORKFLOW_FILES),
+            &[],
+        )?;
+        if live
+            != [
+                ".github/workflows/ci.yml",
+                ".github/workflows/gate_results.py",
+                ".github/workflows/vision-smoke.yml",
+            ]
+        {
+            return Err(format!("allowlist drifted from the pin table: {live:?}"));
+        }
+        if workflow_file_pin(".github/workflows/ci.yml") != Some(WorkflowFilePin::Ci) {
+            return Err("ci.yml pin is not keyed by its path".to_owned());
+        }
+        if workflow_file_pin("nested/ci.yml").is_some()
+            || workflow_file_pin(".github/workflows/not-vision-smoke.yml").is_some()
+        {
+            return Err("a workflow pin matched by suffix".to_owned());
+        }
+        let mut fourth = live.clone();
+        fourth.push(".github/workflows/fourth.yml");
+        expect_gaps(
+            "fourth yml",
+            allowlisted_yml_without_pin_gaps(&fourth, ALLOWED_WORKFLOW_FILES),
+            &[".github/workflows/fourth.yml is allowlisted without a path-keyed pin"],
+        )?;
+        expect_gaps(
+            "unpinned script",
+            allowlisted_yml_without_pin_gaps(
+                &[".github/workflows/extra.py"],
+                ALLOWED_WORKFLOW_FILES,
+            ),
+            &[],
+        )?;
+        expect_gaps(
+            "unpinned script pin",
+            pinned_whole_file_gaps(".github/workflows/fourth.yml", b"name: fourth\n"),
+            &[".github/workflows/fourth.yml is allowlisted without a path-keyed pin"],
+        )?;
+        let root = crate::workspace_root()?;
+        let env = read(&root.join("fixtures/guards/ci/env-overrides.yml"))?;
+        expect_gaps(
+            "env-overrides.yml",
+            forbidden_env_gaps("env-overrides.yml", &env),
+            &[
+                "env-overrides.yml env sets CARGO_WORKSPACE_DIR",
+                "env-overrides.yml env sets GITHUB_ACTIONS",
+                "env-overrides.yml env sets CI",
+                "env-overrides.yml env sets PARANGSAE_FLOOR_BASE",
+            ],
+        )?;
+        let github = read(&root.join("fixtures/guards/ci/github-env-file.yml"))?;
+        let github_gaps = workflow_file_gaps("github-env-file.yml", &github);
+        if !github_gaps
+            .iter()
+            .any(|gap| gap == "github-env-file.yml references GITHUB_ENV")
+        {
+            return Err(format!("github env layer: {github_gaps:?}"));
+        }
+        expect_gaps(
+            "deny.toml",
+            sha_file_gaps(&root, "deny.toml", DENY_TOML_SHA256),
+            &[],
+        )?;
+        let planted = TempGit::new("deny-toml")?;
+        let mut bytes = read_bytes(&root.join("deny.toml"))?;
+        let first = bytes.first_mut().ok_or("deny.toml is empty")?;
+        *first ^= 0x01;
+        std::fs::write(planted.path.join("deny.toml"), &bytes)
+            .map_err(|err| format!("write deny.toml: {err}"))?;
+        expect_gaps(
+            "mutated deny.toml",
+            sha_file_gaps(&planted.path, "deny.toml", DENY_TOML_SHA256),
+            &["deny.toml sha256 does not match"],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn explicit_yaml_keys_are_rejected() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let fixture = read(&root.join("fixtures/guards/ci/explicit-key.yml"))?;
+        expect_gaps(
+            "explicit-key.yml",
+            strict_yaml_gaps("explicit-key.yml", &fixture),
+            &["explicit-key.yml uses an explicit yaml key"],
+        )?;
+        let header = "\
+name: ci
+on:
+  push:
+? owner: ops
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt
+";
+        expect_gaps(
+            "explicit header",
+            strict_yaml_gaps("header.yml", header),
+            &["header.yml uses an explicit yaml key"],
+        )?;
+        let job = "\
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    ? runs-on
+    : ubuntu-latest
+    steps:
+      - run: echo fmt
+";
+        expect_gaps(
+            "explicit job",
+            strict_yaml_gaps("job.yml", job),
+            &["job.yml uses an explicit yaml key"],
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn libtest_one_pass_rejects_other_counts() -> Result<(), String> {
+        let one = "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s";
+        if !crate::libtest_summary_is_one_pass(one) {
+            return Err(format!("one pass was rejected: {one}"));
+        }
+        for line in [
+            "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 60 filtered out",
+            "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+            "test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+            "test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out",
+            "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out",
+        ] {
+            if crate::libtest_summary_is_one_pass(line) {
+                return Err(format!("accepted {line}"));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn filtered_cargo_tests_assert_the_passed_count() -> Result<(), String> {
+        for (name, pinned, _) in REQUIRED_JOBS {
+            expect_gaps(name, filtered_cargo_test_gaps(name, pinned), &[])?;
+        }
+        let root = crate::workspace_root()?;
+        let fixture = read(&root.join("fixtures/guards/ci/filtered-cargo-test.yml"))?;
+        expect_gaps(
+            "filtered-cargo-test.yml",
+            filtered_cargo_test_gaps("filtered-cargo-test.yml", &fixture),
+            &["filtered-cargo-test.yml filtered cargo test does not assert the passed count"],
+        )?;
+        let asserted = "\
+  fmt:
+    steps:
+      - name: one test
+        run: |
+          output=$(cargo test -p xtask --lib guards::tests::missing_or_unreadable_baseline_fails_closed -- --exact)
+          printf '%s\\n' \"$output\" | grep -q 'test result: ok. 1 passed'
+";
+        expect_gaps("asserted", filtered_cargo_test_gaps("fmt", asserted), &[])?;
+        let workspace = "\
+  test:
+    steps:
+      - run: cargo test --workspace
+      - run: cargo test -p parangsae-core --features test-support --lib
+      - run: cargo test --manifest-path fixtures/causal/closed-gate/Cargo.toml --locked
+      - run: cargo test -p parangsae-core --test kline_integrity
+";
+        expect_gaps(
+            "unfiltered",
+            filtered_cargo_test_gaps("test", workspace),
+            &[],
         )?;
         Ok(())
     }

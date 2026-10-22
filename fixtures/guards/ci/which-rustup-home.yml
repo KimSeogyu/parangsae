@@ -1,0 +1,28 @@
+name: ci
+on:
+  push:
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: cargo and rustc are the 1.98.0 toolchain
+        run: |
+          cargo_bin="$(rustup which cargo)"
+          rustc_bin="$(rustup which rustc)"
+          if [ "$cargo_bin" != "$RUSTUP_HOME/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/cargo" ]; then
+            echo "cargo is ${cargo_bin}"
+            exit 1
+          fi
+          if [ "$rustc_bin" != "$RUSTUP_HOME/toolchains/1.98.0-x86_64-unknown-linux-gnu/bin/rustc" ]; then
+            echo "rustc is ${rustc_bin}"
+            exit 1
+          fi
+      - name: rustc is 1.98.0
+        run: |
+          expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
+          actual="$(rustc -V)"
+          if [ "$actual" != "$expected" ]; then
+            echo "rustc -V was ${actual}"
+            exit 1
+          fi
+      - run: cargo test

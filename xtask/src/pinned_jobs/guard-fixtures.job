@@ -80,7 +80,7 @@
           fi
           printf '%s\n' "$output" | grep -q 'unreadable'
       - name: direct push without a floors file fails closed
-        run: cargo test -p xtask --lib missing_or_unreadable_baseline_fails_closed -- --exact
+        run: cargo xtask run-exact guards::tests::missing_or_unreadable_baseline_fails_closed
       - name: lowered floor fails the ratchet
         run: |
           set +e
@@ -311,4 +311,35 @@
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'ci workflow has no jobs'
+      - name: mutated ci job bytes fail closed
+        run: |
+          set -euo pipefail
+          copy=$(mktemp -d)
+          git clone --local --quiet "$GITHUB_WORKSPACE" "$copy"
+          python3 - "$copy" <<'PY'
+          import pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          path = root / ".github/workflows/ci.yml"
+          text = path.read_text()
+          needle = "    name: fmt\n"
+          at = text.find(needle)
+          if at < 0:
+              raise SystemExit("fmt job marker missing")
+          byte_at = at + len("    name: fm")
+          chars = list(text)
+          if chars[byte_at] != "t":
+              raise SystemExit("fmt name byte is not t")
+          chars[byte_at] = "u"
+          path.write_text("".join(chars))
+          PY
+          set +e
+          output=$(cd "$copy" && cargo xtask guards 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "mutated ci job was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'ci job fmt bytes do not match'
 

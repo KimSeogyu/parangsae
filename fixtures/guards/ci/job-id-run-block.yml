@@ -1,0 +1,11 @@
+name: ci
+on:
+  push:
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+  echo before
+  clippy:
+  echo still-the-script

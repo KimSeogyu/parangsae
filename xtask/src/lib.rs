@@ -4,7 +4,8 @@ pub mod depgraph;
 pub mod guards;
 pub mod lints;
 
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 /// `CARGO_WORKSPACE_DIR` would point every check at another tree. CI must not set it.
@@ -64,4 +65,43 @@ pub fn workspace_root() -> Result<PathBuf, String> {
         .and_then(|value| value.as_str())
         .ok_or("cargo metadata has no workspace_root")?;
     Ok(PathBuf::from(root))
+}
+
+/// True when a libtest summary line is exactly one passing test.
+pub fn libtest_summary_is_one_pass(line: &str) -> bool {
+    line.starts_with("test result: ok. 1 passed")
+}
+
+/// Run one `xtask` library test by its full path.
+/// Fails unless the libtest summary is `test result: ok. 1 passed`.
+pub fn run_exact(root: &Path, test: &str) -> Result<(), String> {
+    if test.is_empty() || test.contains(char::is_whitespace) || !test.contains("::") {
+        return Err(format!("run-exact needs one full test path, got {test}"));
+    }
+    let output = Command::new("cargo")
+        .args(["test", "-p", "xtask", "--lib", test, "--", "--exact"])
+        .current_dir(root)
+        .output()
+        .map_err(|err| format!("cargo test: {err}"))?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let mut out = std::io::stdout().lock();
+    out.write_all(stdout.as_bytes())
+        .map_err(|err| format!("write test output: {err}"))?;
+    drop(out);
+    let mut err = std::io::stderr().lock();
+    err.write_all(stderr.as_bytes())
+        .map_err(|err| format!("write test output: {err}"))?;
+    drop(err);
+    let summary = stdout
+        .lines()
+        .chain(stderr.lines())
+        .find(|line| line.starts_with("test result:"));
+    match summary {
+        Some(line) if libtest_summary_is_one_pass(line) && output.status.success() => Ok(()),
+        Some(line) => Err(format!(
+            "run-exact expected test result: ok. 1 passed, got {line}"
+        )),
+        None => Err("run-exact saw no libtest summary".to_owned()),
+    }
 }
