@@ -43,6 +43,7 @@ struct VisionWorld {
     open_ticks: i64,
     unchanged: u64,
     conflicts: u64,
+    registry_hits: bool,
     gap_fails: Option<bool>,
     day: Option<CivilDay>,
     close_unit: Option<TimeUnit>,
@@ -867,4 +868,101 @@ fn header_not_conflict(world: &mut VisionWorld) {
     assert_eq!(world.unchanged, 3);
     let dir = world.data_dir.as_ref().expect("dir");
     assert!(!dir.join("conflicts").join("um-kline.jsonl").exists());
+}
+
+#[given("the November 10 monthly slice is stored before the daily slice")]
+fn store_november_slices(world: &mut VisionWorld) {
+    let dir = tempfile::tempdir().expect("temp").keep();
+    let monthly = archive_source(
+        "data/futures/um/monthly/klines/BTCUSDT/1m/BTCUSDT-1m-2023-11.zip",
+        "63aa156170b2316927ae4c4928cc78866934a02b4bbc14c730b5fe4790383a80",
+        Cadence::Monthly,
+    );
+    let daily = archive_source(
+        "data/futures/um/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2023-11-10.zip",
+        "60fbc08c0a73afa5f04d8bc9b8b960cb782435147c1a1080a2b449714db1ea20",
+        Cadence::Daily,
+    );
+    parangsae_collector::version::versions::record_kline_archive(
+        &dir,
+        "um-kline",
+        integrity_rows("um_monthly_2023-11-10_slice.csv"),
+        &monthly,
+    )
+    .expect("monthly");
+    parangsae_collector::version::versions::record_kline_archive(
+        &dir,
+        "um-kline",
+        integrity_rows("um_daily_2023-11-10_slice.csv"),
+        &daily,
+    )
+    .expect("daily");
+    world.data_dir = Some(dir);
+}
+
+#[then("the conflict line for open time 1699628820000 names both archive paths")]
+fn both_sources(world: &mut VisionWorld) {
+    let dir = world.data_dir.as_ref().expect("dir");
+    let log = std::fs::read_to_string(dir.join("conflicts/um-kline.jsonl")).expect("log");
+    let line = log
+        .lines()
+        .find(|line| line.contains("\"key\":\"1699628820000000\""))
+        .expect("reference key");
+    assert!(line.contains("data/futures/um/monthly/klines/BTCUSDT/1m/BTCUSDT-1m-2023-11.zip"));
+    assert!(line.contains("data/futures/um/daily/klines/BTCUSDT/1m/BTCUSDT-1m-2023-11-10.zip"));
+    assert!(line.contains("\"class\":\"value_by_log\""));
+}
+
+#[given("the reviewed um-kline resolution registry")]
+fn given_registry(world: &mut VisionWorld) {
+    let registry = parangsae_collector::version::resolve::load(
+        &PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../resolutions"),
+    )
+    .expect("registry");
+    world.registry_hits = registry
+        .lookup(
+            "um-kline",
+            "BTCUSDT",
+            1_699_628_820_000_000,
+            &["ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff".to_owned()],
+        )
+        .is_some();
+}
+
+#[then("a lookup whose sha set differs from the entry does not apply")]
+fn resolution_does_not_apply(world: &mut VisionWorld) {
+    assert!(!world.registry_hits);
+}
+
+fn integrity_rows(name: &str) -> Vec<KlineFact> {
+    parse_klines(
+        &fixture(&format!("integrity/{name}")),
+        &Symbol::new("BTCUSDT").expect("symbol"),
+        parangsae_collector::normalize::UM_KLINE_CLOCK,
+        TickDomain::Price,
+        Receipt::Archive {
+            fetched_at_run: RunId::from_bytes([7; 16]),
+        },
+        true,
+    )
+    .expect("parse")
+    .rows
+}
+
+fn archive_source(
+    path: &str,
+    digest: &str,
+    cadence: Cadence,
+) -> parangsae_collector::version::source::Source {
+    let bytes = hex::decode(digest).expect("sha");
+    let mut sha = [0u8; 32];
+    sha.copy_from_slice(&bytes);
+    parangsae_collector::version::source::Source {
+        path: path.to_owned(),
+        sha256: sha,
+        cadence,
+        schema_version: 2,
+        last_modified: None,
+        fetched_at_run: RunId::from_bytes([7; 16]),
+    }
 }

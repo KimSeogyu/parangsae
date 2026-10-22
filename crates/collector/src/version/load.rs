@@ -14,7 +14,6 @@ use crate::version::encode::{
     SourceInput, WindowDoc, UM_KLINE_COLUMNS,
 };
 use crate::version::id::{DatasetId, ManifestDigest, VersionRoot};
-use crate::version::publish::conflict_class;
 use crate::version::validate::{validate_klines, KlineCheck};
 use crate::vision::{BookFact, FundingFact, Gap, GapKind, KlineFact, MetricsFact, TickDomain};
 use crate::Error;
@@ -360,50 +359,29 @@ impl VersionStore {
         if !path.is_file() {
             return Ok(());
         }
-        let text = fs::read_to_string(&path).map_err(|err| LoadError::Io(err.to_string()))?;
-        for (index, line) in text.lines().enumerate() {
-            if line.is_empty() {
-                continue;
-            }
-            let parsed: serde_json::Value = serde_json::from_str(line)
-                .map_err(|err| LoadError::Io(format!("conflict line {}: {err}", index + 1)))?;
-            let symbol = parsed
-                .get("symbol")
-                .and_then(|value| value.as_str())
-                .unwrap_or("");
-            if symbol != dataset.symbol() {
-                continue;
-            }
-            let key = parsed
-                .get("key")
-                .and_then(|value| value.as_str())
-                .ok_or_else(|| LoadError::Io(format!("conflict line {} has no key", index + 1)))?;
-            let pk = key
-                .parse::<i64>()
-                .map_err(|_| LoadError::UnlistedConflict {
-                    key: key.to_owned(),
-                })?;
-            let row_day = crate::civil::day_of(parangsae_core::UtcMicros::from_micros(pk))
-                .map_err(|err| LoadError::Io(err.to_string()))?;
-            if !range.contains(row_day) {
-                continue;
-            }
-            let stored = json_str(&parsed, "stored")?;
-            let rejected = json_str(&parsed, "rejected")?;
-            let class = conflict_class(&stored, &rejected);
-            if class != "value_by_log" {
-                continue;
-            }
-            let entry = ConflictEntry {
-                pk: vec![pk],
-                class: class.to_owned(),
-                stored_sha256: encode::sha256(stored.as_bytes()),
-                rejected_sha256: encode::sha256(rejected.as_bytes()),
-            };
-            if !listed.contains(&entry) {
-                return Err(LoadError::UnlistedConflict {
-                    key: key.to_owned(),
-                });
+        for day in range.days() {
+            let logged = super::versions::logged_conflicts(
+                &self.data_dir,
+                dataset.dataset(),
+                dataset.symbol(),
+                day,
+            )
+            .map_err(|err| LoadError::Io(err.to_string()))?;
+            for line in logged {
+                if line.class != "value_by_log" {
+                    continue;
+                }
+                let entry = ConflictEntry {
+                    pk: vec![line.pk],
+                    class: line.class,
+                    stored_sha256: encode::sha256(line.stored.as_bytes()),
+                    rejected_sha256: encode::sha256(line.rejected.as_bytes()),
+                };
+                if !listed.contains(&entry) {
+                    return Err(LoadError::UnlistedConflict {
+                        key: line.pk.to_string(),
+                    });
+                }
             }
         }
         Ok(())
@@ -653,14 +631,6 @@ fn write_cache(path: &Path, sha: &[u8; 32]) -> Result<(), LoadError> {
         fs::create_dir_all(parent).map_err(|err| LoadError::Io(err.to_string()))?;
     }
     fs::write(path, hex::encode(sha)).map_err(|err| LoadError::Io(err.to_string()))
-}
-
-fn json_str(value: &serde_json::Value, key: &str) -> Result<String, LoadError> {
-    value
-        .get(key)
-        .and_then(|item| item.as_str())
-        .map(str::to_owned)
-        .ok_or_else(|| LoadError::Io(format!("conflict line missing {key}")))
 }
 
 fn parse_manifest(bytes: &[u8]) -> Result<ParsedManifest, LoadError> {

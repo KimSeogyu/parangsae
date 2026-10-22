@@ -773,10 +773,19 @@ fn ingest_klines(
         .into_iter()
         .filter(|row| in_range(row.open_time, request.range))
         .collect();
-    summary.add_counts(store::upsert_klines(
+    let source = crate::version::source::Source {
+        path: item.key.clone(),
+        sha256: object.sha256,
+        cadence: item.name.cadence,
+        schema_version: parsed.schema_version,
+        last_modified: None,
+        fetched_at_run: request.run,
+    };
+    summary.add_counts(crate::version::versions::record_kline_archive(
         &request.data_dir,
         dataset.as_str(),
         windowed,
+        &source,
     )?);
     manifest.record_stored(object, previous)?;
     Ok(true)

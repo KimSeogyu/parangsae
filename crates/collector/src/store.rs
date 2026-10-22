@@ -1175,7 +1175,10 @@ fn require_layout(schema: &Schema, layout: &[Field]) -> Result<(), Error> {
     Ok(())
 }
 
-fn collect_string_opt(batches: &[RecordBatch], name: &str) -> Result<Vec<Option<String>>, Error> {
+pub(crate) fn collect_string_opt(
+    batches: &[RecordBatch],
+    name: &str,
+) -> Result<Vec<Option<String>>, Error> {
     let mut out = Vec::new();
     for batch in batches {
         let array = batch

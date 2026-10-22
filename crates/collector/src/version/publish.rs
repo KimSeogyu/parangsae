@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 use parangsae_core::{RunId, UtcMicros};
 
-use crate::civil::{day_of, CivilDay, DayRange};
+use crate::civil::{CivilDay, DayRange};
 use crate::manifest::ManifestLog;
 use crate::run::{self, Provenance, RunCommand};
 use crate::store::{self, fact_path};
@@ -387,51 +387,22 @@ fn day_conflicts(
     dataset_name: &str,
     day: CivilDay,
 ) -> Result<Vec<ConflictInput>, PublishError> {
-    let path = request
-        .data_dir
-        .join("conflicts")
-        .join(format!("{dataset_name}.jsonl"));
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    let text = fs::read_to_string(&path).map_err(|err| PublishError::Failed(err.to_string()))?;
-    let mut out = Vec::new();
-    for (index, line) in text.lines().enumerate() {
-        if line.is_empty() {
-            continue;
-        }
-        let parsed: serde_json::Value = serde_json::from_str(line)
-            .map_err(|err| PublishError::Failed(format!("conflict line {}: {err}", index + 1)))?;
-        let symbol = parsed
-            .get("symbol")
-            .and_then(|value| value.as_str())
-            .unwrap_or("");
-        if symbol != request.dataset.symbol() {
-            continue;
-        }
-        let key = parsed
-            .get("key")
-            .and_then(|value| value.as_str())
-            .ok_or_else(|| {
-                PublishError::Failed(format!("conflict line {} has no key", index + 1))
-            })?;
-        let pk = key.parse::<i64>().map_err(|_| {
-            PublishError::Failed(format!("conflict line {} key is not an i64", index + 1))
-        })?;
-        let row_day = day_of(UtcMicros::from_micros(pk)).map_err(failed)?;
-        if row_day != day {
-            continue;
-        }
-        let stored = json_string(&parsed, "stored")?;
-        let rejected = json_string(&parsed, "rejected")?;
-        out.push(ConflictInput {
-            pk: vec![pk],
-            class: conflict_class(&stored, &rejected).to_owned(),
-            stored,
-            rejected,
-        });
-    }
-    Ok(out)
+    let logged = super::versions::logged_conflicts(
+        request.data_dir,
+        dataset_name,
+        request.dataset.symbol(),
+        day,
+    )
+    .map_err(failed)?;
+    Ok(logged
+        .into_iter()
+        .map(|line| ConflictInput {
+            pk: vec![line.pk],
+            class: line.class,
+            stored: line.stored,
+            rejected: line.rejected,
+        })
+        .collect())
 }
 
 fn hash_conflicts(conflicts: &[ConflictInput]) -> Vec<ConflictDoc> {
@@ -453,22 +424,6 @@ fn hash_conflicts(conflicts: &[ConflictInput]) -> Vec<ConflictDoc> {
     });
     docs.dedup();
     docs
-}
-
-pub(crate) fn conflict_class(stored: &str, rejected: &str) -> &'static str {
-    let left: Vec<&str> = stored
-        .split(' ')
-        .filter(|token| !token.starts_with("schema="))
-        .collect();
-    let right: Vec<&str> = rejected
-        .split(' ')
-        .filter(|token| !token.starts_with("schema="))
-        .collect();
-    if left == right {
-        "schema_only_by_log"
-    } else {
-        "value_by_log"
-    }
 }
 
 fn day_sources(
@@ -505,14 +460,6 @@ fn day_sources(
         });
     }
     Ok(out)
-}
-
-fn json_string(value: &serde_json::Value, key: &str) -> Result<String, PublishError> {
-    value
-        .get(key)
-        .and_then(|item| item.as_str())
-        .map(str::to_owned)
-        .ok_or_else(|| PublishError::Failed(format!("conflict line missing {key}")))
 }
 
 fn write_manifest(
@@ -661,6 +608,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+    use crate::civil::day_of;
     use crate::normalize::UM_KLINE_CLOCK;
     use crate::version::encode::{kline_content_hash, schema_hash, UM_KLINE_COLUMNS};
     use crate::version::migrate::directory_digest;

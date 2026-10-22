@@ -20,3 +20,11 @@ Feature: Collector verify scope
     Given the headerless 2021-06-01 um-kline rows are stored
     When those rows are stored again with a kline header
     Then the second write is unchanged and records no conflict
+
+  Scenario: a disputed key records both sources
+    Given the November 10 monthly slice is stored before the daily slice
+    Then the conflict line for open time 1699628820000 names both archive paths
+
+  Scenario: a resolution that names a different archive set does not apply
+    Given the reviewed um-kline resolution registry
+    Then a lookup whose sha set differs from the entry does not apply
