@@ -1,0 +1,17 @@
+name: ci
+on: push
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo clippy
+  gate:
+    if: always()
+    needs: [fmt]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo gate
