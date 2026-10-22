@@ -49,6 +49,7 @@ pub enum PublishError {
     SnapshotCorrupt,
     ManifestExists,
     UnsupportedDataset,
+    SpecVersionMismatch,
     Failed(String),
 }
 
@@ -61,6 +62,7 @@ impl PublishError {
             Self::SnapshotCorrupt => "SnapshotCorrupt",
             Self::ManifestExists => "ManifestExists",
             Self::UnsupportedDataset => "UnsupportedDataset",
+            Self::SpecVersionMismatch => "SpecVersionMismatch",
             Self::Failed(_) => "Failed",
         }
     }
@@ -74,7 +76,10 @@ impl std::fmt::Display for PublishError {
             Self::StaleGapCache { day } => write!(f, "stale gap cache for {day}"),
             Self::SnapshotCorrupt => write!(f, "snapshot content hash does not match"),
             Self::ManifestExists => write!(f, "manifest already exists with different bytes"),
-            Self::UnsupportedDataset => write!(f, "publish supports um-kline and spot-kline"),
+            Self::UnsupportedDataset => write!(f, "publish supports um-kline"),
+            Self::SpecVersionMismatch => {
+                write!(f, "spec version is not the one for this dataset")
+            }
             Self::Failed(detail) => write!(f, "{detail}"),
         }
     }
@@ -88,7 +93,10 @@ pub fn publish(request: &PublishRequest<'_>) -> Result<Published, PublishError> 
         return Err(PublishError::UnknownProvenance);
     }
     let dataset_name = request.dataset.dataset();
-    if dataset_name != "um-kline" && dataset_name != "spot-kline" {
+    if encode::manifest_spec(dataset_name).is_none() {
+        return Err(PublishError::SpecVersionMismatch);
+    }
+    if dataset_name != "um-kline" {
         return Err(PublishError::UnsupportedDataset);
     }
     let schema = schema_hash(request.dataset.as_str(), UM_KLINE_COLUMNS).map_err(failed)?;

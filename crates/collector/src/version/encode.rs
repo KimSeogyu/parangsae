@@ -28,19 +28,13 @@ pub const MANIFEST_SPEC_V2_2: &str = "parangsae/dataset-manifest/v2.2";
 /// Kline, funding, and book manifests. Metrics uses [`MANIFEST_SPEC_V2_2`].
 pub const MANIFEST_SPEC: &str = MANIFEST_SPEC_V2_1;
 
-/// Spec string for one dataset name (`um-kline`, `metrics`, …).
+/// Spec string for one dataset name.
 ///
-/// Every dataset main collects except `metrics` is v2.1. An unlisted name is
-/// `None`; the loader and `canonical_manifest` fail closed on that.
+/// The §3 table is exactly um-kline, mark-price-kline, funding-rate, and
+/// book-depth on v2.1, and metrics on v2.2. Every other name is `None`.
 pub fn manifest_spec(dataset: &str) -> Option<&'static str> {
     match dataset {
-        "um-kline"
-        | "mark-price-kline"
-        | "index-price-kline"
-        | "premium-index-kline"
-        | "spot-kline"
-        | "funding-rate"
-        | "book-depth" => Some(MANIFEST_SPEC_V2_1),
+        "um-kline" | "mark-price-kline" | "funding-rate" | "book-depth" => Some(MANIFEST_SPEC_V2_1),
         "metrics" => Some(MANIFEST_SPEC_V2_2),
         _ => None,
     }

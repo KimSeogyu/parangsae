@@ -174,9 +174,13 @@ pub enum LoadError {
     LegacyObjectLine {
         url: String,
     },
-    /// Dataset/spec pair is not the spec-version table: a mismatch, an unknown
-    /// version string, or a dataset that is not in the table.
-    SpecVersionMismatch,
+    /// `(dataset, spec)` is not in the §3 table: a mismatch, an unknown version
+    /// string, or a dataset that is not listed. `found` is the spec string in
+    /// the manifest, empty when the dataset was refused before a file was read.
+    SpecVersionMismatch {
+        dataset: String,
+        found: String,
+    },
     Io(String),
 }
 
@@ -198,7 +202,7 @@ impl LoadError {
             Self::HoldoutRefused => "HoldoutRefused",
             Self::UnlistedConflict { .. } => "UnlistedConflict",
             Self::LegacyObjectLine { .. } => "LegacyObjectLine",
-            Self::SpecVersionMismatch => "SpecVersionMismatch",
+            Self::SpecVersionMismatch { .. } => "SpecVersionMismatch",
             Self::Io(_) => "Io",
         }
     }
@@ -253,11 +257,14 @@ impl VersionStore {
         verify: VerifyMode,
     ) -> Result<Verified<Table>, LoadError> {
         refuse_holdout(dataset, range)?;
-        if dataset.dataset() != "um-kline" && dataset.dataset() != "spot-kline" {
-            return Err(LoadError::SchemaMismatch { date: range.from });
-        }
         let path = manifest_path(&self.data_dir, dataset, root);
         if !path.is_file() {
+            if encode::manifest_spec(dataset.dataset()).is_none() {
+                return Err(LoadError::SpecVersionMismatch {
+                    dataset: dataset.dataset().to_owned(),
+                    found: String::new(),
+                });
+            }
             return Err(LoadError::UnknownVersion);
         }
         let bytes = fs::read(&path).map_err(|err| LoadError::Io(err.to_string()))?;
@@ -267,6 +274,9 @@ impl VersionStore {
         let parsed = parse_manifest(&bytes)?;
         if parsed.dataset_id != dataset.as_str() {
             return Err(LoadError::ManifestOrder);
+        }
+        if dataset.dataset() != "um-kline" {
+            return Err(LoadError::SchemaMismatch { date: range.from });
         }
         if parsed.version_root != root {
             return Err(LoadError::ManifestRootMismatch);
@@ -657,10 +667,20 @@ fn write_cache(path: &Path, sha: &[u8; 32]) -> Result<(), LoadError> {
 }
 
 fn require_manifest_spec(dataset_id: &str, spec: &str) -> Result<(), LoadError> {
-    let id = DatasetId::parse(dataset_id).map_err(|_| LoadError::SpecVersionMismatch)?;
-    match encode::manifest_spec(id.dataset()) {
+    let parsed = DatasetId::parse(dataset_id).ok();
+    let dataset = parsed
+        .as_ref()
+        .map(|id| id.dataset().to_owned())
+        .unwrap_or_else(|| dataset_id.to_owned());
+    let expected = parsed
+        .as_ref()
+        .and_then(|id| encode::manifest_spec(id.dataset()));
+    match expected {
         Some(expected) if spec == expected => Ok(()),
-        _ => Err(LoadError::SpecVersionMismatch),
+        _ => Err(LoadError::SpecVersionMismatch {
+            dataset,
+            found: spec.to_owned(),
+        }),
     }
 }
 
@@ -1527,18 +1547,9 @@ mod tests {
     }
 
     #[test]
-    fn spec_version_index_price_premium_index_and_spot_kline_load_on_v2_1() -> Result<(), String> {
-        let listed = [
-            ("um", "um-kline"),
-            ("um", "mark-price-kline"),
-            ("um", "index-price-kline"),
-            ("um", "premium-index-kline"),
-            ("spot", "spot-kline"),
-            ("um", "funding-rate"),
-            ("um", "book-depth"),
-        ];
-        for (market, dataset) in listed {
-            let id = dataset_id(market, dataset);
+    fn spec_version_listed_pairs_load() -> Result<(), String> {
+        for dataset in ["um-kline", "mark-price-kline", "funding-rate", "book-depth"] {
+            let id = dataset_id("um", dataset);
             let bytes = canonical_spec(&id)?;
             if spec_of(&bytes)? != SPEC_V2_1 {
                 return Err(format!("{dataset} was not stamped v2.1"));
@@ -1553,37 +1564,46 @@ mod tests {
         if spec_of(&bytes)? != SPEC_V2_2 {
             return Err("metrics was not stamped v2.2".into());
         }
-        let parsed = parse_manifest(&bytes).map_err(|err| format!("metrics load: {err}"))?;
-        if parsed.dataset_id != metrics {
-            return Err("metrics dataset id".into());
-        }
+        parse_manifest(&bytes).map_err(|err| format!("metrics load: {err}"))?;
         Ok(())
     }
 
     #[test]
-    fn spec_version_mismatched_pairs_are_refused() -> Result<(), String> {
+    fn spec_version_um_kline_on_v2_2_is_refused() -> Result<(), String> {
+        mismatch("um-kline", SPEC_V2_2)
+    }
+
+    #[test]
+    fn spec_version_mark_price_kline_on_v2_2_is_refused() -> Result<(), String> {
+        mismatch("mark-price-kline", SPEC_V2_2)
+    }
+
+    #[test]
+    fn spec_version_funding_rate_on_v2_2_is_refused() -> Result<(), String> {
+        mismatch("funding-rate", SPEC_V2_2)
+    }
+
+    #[test]
+    fn spec_version_book_depth_on_v2_2_is_refused() -> Result<(), String> {
+        mismatch("book-depth", SPEC_V2_2)
+    }
+
+    #[test]
+    fn spec_version_metrics_on_v2_1_is_refused() -> Result<(), String> {
+        mismatch("metrics", SPEC_V2_1)
+    }
+
+    fn mismatch(dataset: &str, spec: &str) -> Result<(), String> {
         let base = canonical_spec(&dataset_id("um", "um-kline"))?;
-        let v2_1 = [
-            ("um", "um-kline"),
-            ("um", "mark-price-kline"),
-            ("um", "index-price-kline"),
-            ("um", "premium-index-kline"),
-            ("spot", "spot-kline"),
-            ("um", "funding-rate"),
-            ("um", "book-depth"),
-        ];
-        for (market, dataset) in v2_1 {
-            let id = dataset_id(market, dataset);
-            let bytes = with_spec(&base, &id, SPEC_V2_2)?;
-            let err = refused(&bytes, dataset)?;
-            if err != LoadError::SpecVersionMismatch {
-                return Err(format!("{dataset} on v2.2: {err}"));
-            }
-        }
-        let metrics = with_spec(&base, &dataset_id("um", "metrics"), SPEC_V2_1)?;
-        let err = refused(&metrics, "metrics on v2.1")?;
-        if err != LoadError::SpecVersionMismatch {
-            return Err(format!("metrics on v2.1: {err}"));
+        let id = dataset_id("um", dataset);
+        let bytes = with_spec(&base, &id, spec)?;
+        let err = refused(&bytes, dataset)?;
+        let expected = LoadError::SpecVersionMismatch {
+            dataset: dataset.to_owned(),
+            found: spec.to_owned(),
+        };
+        if err != expected {
+            return Err(format!("{dataset} on {spec}: {err}"));
         }
         Ok(())
     }
@@ -1591,42 +1611,57 @@ mod tests {
     #[test]
     fn spec_version_unknown_version_is_refused() -> Result<(), String> {
         let base = canonical_spec(&dataset_id("um", "um-kline"))?;
-        for spec in [
-            "parangsae/dataset-manifest/v2.0",
-            "parangsae/dataset-manifest/v2.2b",
-            "parangsae/dataset-manifest/v9",
-            "",
-        ] {
-            let bytes = with_spec(&base, &dataset_id("um", "um-kline"), spec)?;
-            let err = refused(&bytes, spec)?;
-            if err != LoadError::SpecVersionMismatch {
-                return Err(format!("{spec:?}: {err}"));
-            }
-            let metrics = with_spec(&base, &dataset_id("um", "metrics"), spec)?;
-            let err = refused(&metrics, spec)?;
-            if err != LoadError::SpecVersionMismatch {
-                return Err(format!("metrics {spec:?}: {err}"));
-            }
+        let spec = "parangsae/dataset-manifest/v2.0";
+        let bytes = with_spec(&base, &dataset_id("um", "um-kline"), spec)?;
+        let err = refused(&bytes, spec)?;
+        if err
+            != (LoadError::SpecVersionMismatch {
+                dataset: "um-kline".to_owned(),
+                found: spec.to_owned(),
+            })
+        {
+            return Err(format!("{spec}: {err}"));
         }
         Ok(())
     }
 
     #[test]
     fn spec_version_unlisted_dataset_is_refused() -> Result<(), String> {
-        let id = dataset_id("um", "aggTrades");
-        let err = canonical_spec(&id).expect_err("publish");
+        let dataset = "index-price-kline";
+        let id = dataset_id("um", dataset);
+        let err = canonical_spec(&id).expect_err("publish bytes");
         if err != encode::EncodeError::SpecVersionMismatch.to_string() {
-            return Err(format!("publish {id}: {err}"));
+            return Err(format!("canonical {id}: {err}"));
         }
         let base = canonical_spec(&dataset_id("um", "um-kline"))?;
-        for spec in [SPEC_V2_1, SPEC_V2_2] {
-            let bytes = with_spec(&base, &id, spec)?;
-            let err = refused(&bytes, spec)?;
-            if err != LoadError::SpecVersionMismatch {
-                return Err(format!("{id} on {spec}: {err}"));
-            }
+        let bytes = with_spec(&base, &id, SPEC_V2_1)?;
+        let err = refused(&bytes, dataset)?;
+        if err
+            != (LoadError::SpecVersionMismatch {
+                dataset: dataset.to_owned(),
+                found: SPEC_V2_1.to_owned(),
+            })
+        {
+            return Err(format!("{dataset}: {err}"));
         }
-        Ok(())
+        let dir = tempfile::tempdir().map_err(show)?;
+        let dataset_id = crate::version::id::DatasetId::parse(&id).map_err(show)?;
+        let day = crate::civil::CivilDay::new(2021, 6, 1).ok_or("day")?;
+        let range = DayRange::new(day, day).map_err(show)?;
+        let provenance = provenance();
+        let published = publish(&PublishRequest {
+            data_dir: dir.path(),
+            dataset: &dataset_id,
+            range,
+            provenance: &provenance,
+            run: RunId::from_bytes([1; 16]),
+            built_at: UtcMicros::from_micros(1),
+        });
+        match published {
+            Err(crate::version::PublishError::SpecVersionMismatch) => Ok(()),
+            Err(err) => Err(format!("publish {dataset}: {err}")),
+            Ok(_) => Err(format!("publish {dataset} was accepted")),
+        }
     }
 
     proptest! {

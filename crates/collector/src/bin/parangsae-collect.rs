@@ -372,7 +372,7 @@ fn load_status(err: &LoadError) -> ExitCode {
         | LoadError::HoldoutRefused
         | LoadError::UnlistedConflict { .. }
         | LoadError::LegacyObjectLine { .. }
-        | LoadError::SpecVersionMismatch
+        | LoadError::SpecVersionMismatch { .. }
         | LoadError::Io(_) => ExitCode::from(1),
     }
 }
@@ -386,6 +386,7 @@ fn publish_status(err: &PublishError) -> ExitCode {
         | PublishError::SnapshotCorrupt
         | PublishError::ManifestExists
         | PublishError::UnsupportedDataset
+        | PublishError::SpecVersionMismatch
         | PublishError::Failed(_) => ExitCode::from(1),
     }
 }
@@ -472,7 +473,10 @@ mod tests {
             LoadError::LegacyObjectLine {
                 url: "https://example.invalid/a".to_owned(),
             },
-            LoadError::SpecVersionMismatch,
+            LoadError::SpecVersionMismatch {
+                dataset: "um-kline".to_owned(),
+                found: "parangsae/dataset-manifest/v2.2".to_owned(),
+            },
             LoadError::Io("io".to_owned()),
         ];
         for err in &errors {
@@ -493,6 +497,7 @@ mod tests {
             PublishError::SnapshotCorrupt,
             PublishError::ManifestExists,
             PublishError::UnsupportedDataset,
+            PublishError::SpecVersionMismatch,
             PublishError::Failed("detail".to_owned()),
         ];
         for err in &errors {
