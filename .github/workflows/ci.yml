@@ -303,6 +303,18 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'gate check step does not match'
+      - name: replaced gate script fails the sha256 pin
+        run: |
+          set +e
+          output=$(cargo xtask guards gate-script --file fixtures/guards/ci/gate_results_exit_zero.py 2>&1)
+          status=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$status" -eq 0 ]; then
+            echo "replaced gate script was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$output" | grep -q 'gate_results.py sha256 does not match'
       - name: jobs comment still sees a missing need
         run: |
           set +e
@@ -440,9 +452,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: skipped, cancelled, null, and empty needs fail and success passes
+      - name: non-success gate needs fail and success passes
         run: |
           set +e
+          failure=$(NEEDS="$(cat fixtures/guards/ci/needs-failure.json)" python3 .github/workflows/gate_results.py 2>&1)
+          failure_status=$?
           skipped=$(NEEDS="$(cat fixtures/guards/ci/needs-skipped.json)" python3 .github/workflows/gate_results.py 2>&1)
           skipped_status=$?
           cancelled=$(NEEDS="$(cat fixtures/guards/ci/needs-cancelled.json)" python3 .github/workflows/gate_results.py 2>&1)
@@ -451,14 +465,26 @@ jobs:
           null_status=$?
           empty=$(NEEDS="$(cat fixtures/guards/ci/needs-empty.json)" python3 .github/workflows/gate_results.py 2>&1)
           empty_status=$?
+          malformed=$(NEEDS="$(cat fixtures/guards/ci/needs-malformed.json)" python3 .github/workflows/gate_results.py 2>&1)
+          malformed_status=$?
+          non_object=$(NEEDS="$(cat fixtures/guards/ci/needs-non-object.json)" python3 .github/workflows/gate_results.py 2>&1)
+          non_object_status=$?
           success=$(NEEDS="$(cat fixtures/guards/ci/needs-success.json)" python3 .github/workflows/gate_results.py 2>&1)
           success_status=$?
           set -e
+          printf '%s\n' "$failure"
           printf '%s\n' "$skipped"
           printf '%s\n' "$cancelled"
           printf '%s\n' "$null_result"
           printf '%s\n' "$empty"
+          printf '%s\n' "$malformed"
+          printf '%s\n' "$non_object"
           printf '%s\n' "$success"
+          if [ "$failure_status" -eq 0 ]; then
+            echo "failure result was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$failure" | grep -q 'failure'
           if [ "$skipped_status" -eq 0 ]; then
             echo "skipped result was accepted"
             exit 1
@@ -479,6 +505,16 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$empty" | grep -q 'gate has no needed jobs'
+          if [ "$malformed_status" -eq 0 ]; then
+            echo "malformed needs was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$malformed" | grep -q 'not json'
+          if [ "$non_object_status" -eq 0 ]; then
+            echo "non-object needs was accepted"
+            exit 1
+          fi
+          printf '%s\n' "$non_object" | grep -q 'gate needs must be an object'
           if [ "$success_status" -ne 0 ]; then
             echo "all-success needs was rejected"
             exit 1
