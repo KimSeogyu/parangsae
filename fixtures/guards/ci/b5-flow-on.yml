@@ -1,0 +1,9 @@
+name: ci
+on: {push: {}, pull_request_target: {}}
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt

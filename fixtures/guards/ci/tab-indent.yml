@@ -1,0 +1,8 @@
+name: ci
+on:
+  push:
+jobs:
+	fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo fmt

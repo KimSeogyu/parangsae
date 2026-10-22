@@ -1,0 +1,13 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  kani:
+    runs-on: ubuntu-latest
+    steps:
+      - name: prove
+        env:
+          RUSTUP_TOOLCHAIN: stable
+        run: cargo kani
