@@ -1,8 +1,0 @@
-uv run pytest tests/test_public_derivatives_microstructure.py -q
-uv run pytest tests/test_public_multi_asset_panel_coverage.py -q
-uv run pytest tests/test_alpha_signal_factory.py -q
-uv run pytest tests/test_tsmom_loop.py -q
-uv run pytest -q
-uv run ruff check .
-uv run --with pyright pyright changed files only
-git diff --check

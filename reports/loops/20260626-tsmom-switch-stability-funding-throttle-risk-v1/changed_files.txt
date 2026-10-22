@@ -1,7 +1,0 @@
-src/parangsae/research/tsmom.py
-src/parangsae/research/loop_artifacts.py
-src/parangsae/apps/cli/quantctl.py
-tests/test_tsmom_loop.py
-README.md
-docs/backtesting-paper-trading.md
-reports/loops/20260626-tsmom-switch-stability-funding-throttle-risk-v1

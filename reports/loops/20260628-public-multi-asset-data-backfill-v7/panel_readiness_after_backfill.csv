@@ -1,6 +1,0 @@
-readiness_gate,status,observed,threshold,reason
-minimum_required_symbols,passed,9,3,at least three OHLCV-usable public symbols are required
-common_history,passed,17544,17544,usable symbols must share the requested chronological public OHLCV span
-v5_artifact_present,passed,present,present,V6 uses the V5 artifact only as immutable lineage for excluded symbol reasons
-v5_excluded_symbols_preserved,passed,True,True,V6 records V5 excluded symbols and reasons without mutating V5 artifacts
-panel_ready_for_v5_rerun,passed,True,True,V6 only enables a separate future paper-only V5 rerun when data coverage passes

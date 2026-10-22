@@ -1,6 +1,0 @@
-src/parangsae/research/multi_asset_alpha_factory.py
-src/parangsae/apps/cli/quantctl.py
-src/parangsae/research/loop_artifacts.py
-tests/test_multi_asset_alpha_factory.py
-README.md
-docs/backtesting-paper-trading.md

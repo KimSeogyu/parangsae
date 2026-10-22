@@ -1,7 +1,0 @@
-src/parangsae/research/public_derivatives_microstructure.py
-src/parangsae/apps/cli/quantctl.py
-src/parangsae/research/loop_artifacts.py
-tests/test_public_derivatives_microstructure.py
-README.md
-docs/backtesting-paper-trading.md
-docs/superpowers/plans/2026-06-28-public-derivatives-microstructure-v11.md

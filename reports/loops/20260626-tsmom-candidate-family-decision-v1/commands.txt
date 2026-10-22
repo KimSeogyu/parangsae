@@ -1,5 +1,0 @@
-uv run pytest tests/test_tsmom_loop.py -q
-uv run pytest -q
-uv run ruff check .
-uv run --with pyright pyright src/parangsae/apps/cli/quantctl.py src/parangsae/research/loop_artifacts.py src/parangsae/research/data_depth.py src/parangsae/research/tsmom.py tests/test_tsmom_loop.py
-git diff --check

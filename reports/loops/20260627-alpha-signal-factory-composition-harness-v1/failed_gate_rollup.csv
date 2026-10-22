@@ -1,4 +1,0 @@
-gate,status,reason
-duplicate_correlation_control,watch,10 redundant signal variants marked
-readiness_boundary,passed,readiness_baseline_verdict remains NOT_READY
-tsmom_state_unchanged,passed,TSMOM artifacts are read-only negative-control references only

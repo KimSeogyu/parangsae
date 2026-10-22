@@ -1,4 +1,4 @@
-# secrets
+# Secrets. Never commit env files.
 .env
 .env.*
 !.env.example
@@ -6,32 +6,16 @@
 *secret*
 *credentials*
 
-# python
-.venv/
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.ruff_cache/
+# Rust / Cargo build output
+/target/
+debug/
+**/*.rs.bk
+*.pdb
+**/mutants.out/
 
-# data/build artifacts
-data/**
-!data/.gitkeep
-logs/**
-!logs/.gitkeep
-*.parquet
-*.feather
-*.sqlite
-*.db
-node_modules/
-dist/
-target/
-
-# OS/editor
+# OS and editors
 .DS_Store
-
-# runtime/workflow state
-.omx/
-.runtime/
-
-# local code intelligence
-.codegraph/
+.idea/
+.vscode/
+*.swp
+*~

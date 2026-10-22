@@ -1,7 +1,0 @@
-src/parangsae/research/tsmom.py
-src/parangsae/research/loop_artifacts.py
-src/parangsae/research/data_depth.py
-src/parangsae/apps/cli/quantctl.py
-tests/test_tsmom_loop.py
-README.md
-docs/backtesting-paper-trading.md

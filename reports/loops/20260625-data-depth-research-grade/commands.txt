@@ -1,8 +1,0 @@
-uv --version
-uv sync --dev
-uv run pytest tests/test_data_depth_loop.py -q
-uv run pytest tests/test_binance_vision_data.py tests/test_data_depth_loop.py tests/test_readiness_validation.py -q
-uv run pytest -q
-uv run ruff check .
-uvx pyright --pythonpath .venv/bin/python src/parangsae/research/data_depth.py src/parangsae/apps/cli/quantctl.py tests/test_data_depth_loop.py
-uv run quantctl data-depth-run --output-dir reports/loops/20260625-data-depth-research-grade --overwrite

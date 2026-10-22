@@ -1,2 +1,0 @@
-symbol,data_type,missing_item,reason,remediation,public_only,no_private_data_required,cache_mode,v5_excluded_reason
-TONUSDT,ohlcv,"2024-01,2024-02","missing cached OHLCV month(s): 2024-01,2024-02",download or provide public Binance Vision monthly kline cache files only,True,True,cache-only,"missing cached OHLCV month(s): 2024-01,2024-02,2024-03,2024-04,2024-05,2024-06"

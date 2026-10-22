@@ -1,9 +1,0 @@
-README.md
-docs/backtesting-paper-trading.md
-src/parangsae/apps/cli/quantctl.py
-src/parangsae/research/data_depth.py
-tests/test_data_depth_loop.py
-reports/loops/20260625-data-depth-research-grade/loop.json
-reports/loops/20260625-data-depth-research-grade/report.md
-reports/loops/20260625-data-depth-research-grade/commands.txt
-reports/loops/20260625-data-depth-research-grade/changed_files.txt

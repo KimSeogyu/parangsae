@@ -1,3 +1,0 @@
-symbol,data_type,month,cache_path,source_url,error_type,error,failed_safe
-TONUSDT,ohlcv,2024-01,data/binance-vision/futures/um/monthly/klines/TONUSDT/1h/TONUSDT-1h-2024-01.zip,https://data.binance.vision/data/futures/um/monthly/klines/TONUSDT/1h/TONUSDT-1h-2024-01.zip,HTTPError,404 Client Error: Not Found for url: https://data.binance.vision/data/futures/um/monthly/klines/TONUSDT/1h/TONUSDT-1h-2024-01.zip,True
-TONUSDT,ohlcv,2024-02,data/binance-vision/futures/um/monthly/klines/TONUSDT/1h/TONUSDT-1h-2024-02.zip,https://data.binance.vision/data/futures/um/monthly/klines/TONUSDT/1h/TONUSDT-1h-2024-02.zip,HTTPError,404 Client Error: Not Found for url: https://data.binance.vision/data/futures/um/monthly/klines/TONUSDT/1h/TONUSDT-1h-2024-02.zip,True

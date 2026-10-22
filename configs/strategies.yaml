@@ -1,7 +1,0 @@
-strategies:
-  trend-risk:
-    enabled_for: [spot_crypto, tradfi_perp]
-    lookback: 3
-  crypto-residual-ridge:
-    enabled_for: [crypto_perp]
-    mode: paper_only_until_walkforward_validated
