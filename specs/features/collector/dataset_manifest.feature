@@ -50,3 +50,15 @@ Feature: Dataset version manifest
     Given a published um-kline version of "um_kline_2021-06-01_headerless.csv"
     When a value conflict is appended for an in-range key
     Then load fails with "UnlistedConflict"
+
+  Scenario: a gap in a required dataset aborts only its fold
+    Given a published um-kline version of "um_kline_2021-06-01_headerless.csv"
+    When preflight checks a fold that ends before the open gap and a fold that enters it
+    Then only the fold that enters the gap aborts with "GapInRequired"
+
+  Scenario: an excluded warm-up row can cause InsufficientWarmup
+    Given an archive ingest of "um_kline_2021-06-01_headerless.csv" with run id "0123456789abcdef0123456789abcdef"
+    And a value conflict is recorded for the first stored row
+    When the day is published
+    And preflight requires one warm-up row before the second stored row
+    Then the fold aborts with "InsufficientWarmup"

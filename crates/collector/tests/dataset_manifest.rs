@@ -1,5 +1,6 @@
 //! Cucumber runner for `specs/features/collector/dataset_manifest.feature`.
 
+use std::collections::BTreeMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
@@ -8,8 +9,9 @@ use parangsae_collector::civil::{CivilDay, DayRange, YearMonth};
 use parangsae_collector::run::Provenance;
 use parangsae_collector::store::{self, fact_path};
 use parangsae_collector::version::{
-    directory_digest, migrate_receipts, parse_version_id, publish, DatasetId, ManifestDigest,
-    PublishRequest, VersionIdError, VersionRoot, VersionStore,
+    directory_digest, migrate_receipts, parse_version_id, preflight, publish, DatasetId, FoldSpec,
+    ManifestDigest, PreflightError, PublishRequest, Requirement, Table, VersionIdError,
+    VersionRoot, VersionStore,
 };
 use parangsae_collector::vision::{
     funding_window, missing_coverage, parse_funding, parse_klines, FundingFact, TickDomain,
@@ -30,6 +32,7 @@ struct ManifestWorld {
     manifest_digest: Option<String>,
     load_error: Option<String>,
     version_error: Option<String>,
+    preflight_folds: Vec<(String, Option<String>)>,
 }
 
 fn symbol() -> Symbol {
@@ -217,7 +220,11 @@ fn when_published(world: &mut ManifestWorld) {
         run,
         built_at: UtcMicros::from_micros(1),
     }) {
-        Ok(_) => None,
+        Ok(published) => {
+            world.version_root = Some(published.root.to_hex());
+            world.manifest_digest = Some(published.manifest_digest.to_hex());
+            None
+        }
         Err(err) => Some(err.name().to_owned()),
     };
 }
@@ -320,6 +327,129 @@ fn when_unlisted(world: &mut ManifestWorld) {
     );
     std::fs::write(&path, line).expect("conflict");
     world.load_error = load_published(world).err().map(|err| err.name().to_owned());
+}
+
+#[given("a value conflict is recorded for the first stored row")]
+fn given_listed_conflict(world: &mut ManifestWorld) {
+    let rows = stored(world);
+    let key = rows[0].open_time.micros();
+    let dir = world.dir.as_ref().expect("dir");
+    let path = dir.join("conflicts").join("um-kline.jsonl");
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("conflicts dir");
+    }
+    let line = format!(
+        "{{\"dataset\":\"um-kline\",\"key\":\"{key}\",\"rejected\":\"open=2\",\"stored\":\"open=1\",\"symbol\":\"BTCUSDT\"}}\n"
+    );
+    std::fs::write(&path, line).expect("conflict");
+}
+
+#[when("preflight checks a fold that ends before the open gap and a fold that enters it")]
+fn when_gap_folds(world: &mut ManifestWorld) {
+    let verified = load_published(world).expect("load");
+    let gap = verified
+        .open_gaps()
+        .iter()
+        .find(|gap| gap.kind == "grid")
+        .expect("grid gap")
+        .clone();
+    let id = DatasetId::parse("binance-vision.um.um-kline.BTCUSDT").expect("dataset id");
+    let mut required = BTreeMap::new();
+    required.insert(id.clone(), Requirement::Required);
+    let mut tables = BTreeMap::new();
+    tables.insert(id, &verified);
+    let before = FoldSpec {
+        fold_id: "before".to_owned(),
+        warmup_start_us: gap.start_us - 60_000_000,
+        window_start_us: gap.start_us - 60_000_000,
+        window_end_us: gap.start_us,
+        warmup_rows: BTreeMap::new(),
+    };
+    let inside = FoldSpec {
+        fold_id: "inside".to_owned(),
+        warmup_start_us: gap.start_us,
+        window_start_us: gap.start_us,
+        window_end_us: gap.start_us + 1,
+        warmup_rows: BTreeMap::new(),
+    };
+    world.preflight_folds = preflight(&required, &tables, &[before, inside])
+        .into_iter()
+        .map(|stamp| {
+            (
+                stamp.fold_id,
+                stamp.data_abort.map(|err| err.name().to_owned()),
+            )
+        })
+        .collect();
+}
+
+#[when("preflight requires one warm-up row before the second stored row")]
+fn when_warmup_fold(world: &mut ManifestWorld) {
+    assert!(
+        world.publish_error.is_none(),
+        "publish failed: {:?}",
+        world.publish_error
+    );
+    let verified = load_published(world).expect("load");
+    let Table::Kline(rows) = verified.value() else {
+        panic!("published table is not um-kline");
+    };
+    let gap_start = verified
+        .open_gaps()
+        .iter()
+        .find(|gap| gap.kind == "grid")
+        .expect("grid gap")
+        .start_us;
+    let id = DatasetId::parse("binance-vision.um.um-kline.BTCUSDT").expect("dataset id");
+    assert!(verified.is_excluded(rows[0].open_time.micros()));
+    let mut required = BTreeMap::new();
+    required.insert(id.clone(), Requirement::Required);
+    let mut tables = BTreeMap::new();
+    tables.insert(id.clone(), &verified);
+    let mut warmup_rows = BTreeMap::new();
+    warmup_rows.insert(id, 1);
+    let spec = FoldSpec {
+        fold_id: "warm".to_owned(),
+        warmup_start_us: rows[0].available_ts.micros().micros(),
+        window_start_us: rows[1].available_ts.micros().micros(),
+        window_end_us: gap_start,
+        warmup_rows,
+    };
+    let stamps = preflight(&required, &tables, &[spec]);
+    match &stamps[0].data_abort {
+        Some(PreflightError::InsufficientWarmup {
+            have_rows: 0,
+            need_rows: 1,
+            ..
+        }) => {}
+        other => panic!("warm-up count: {other:?}"),
+    }
+    world.preflight_folds = stamps
+        .into_iter()
+        .map(|stamp| {
+            (
+                stamp.fold_id,
+                stamp.data_abort.map(|err| err.name().to_owned()),
+            )
+        })
+        .collect();
+}
+
+#[then(regex = r#"^only the fold that enters the gap aborts with "([^"]+)""#)]
+fn then_only_inside(world: &mut ManifestWorld, name: String) {
+    assert_eq!(
+        world.preflight_folds,
+        vec![
+            ("before".to_owned(), None),
+            ("inside".to_owned(), Some(name)),
+        ]
+    );
+}
+
+#[then(regex = r#"^the fold aborts with "([^"]+)""#)]
+fn then_fold_aborts(world: &mut ManifestWorld, name: String) {
+    assert_eq!(world.preflight_folds.len(), 1);
+    assert_eq!(world.preflight_folds[0].1.as_deref(), Some(name.as_str()));
 }
 
 #[then(regex = r#"^load fails with "([^"]+)""#)]

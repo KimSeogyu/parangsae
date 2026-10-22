@@ -112,6 +112,23 @@ impl<T> Verified<T> {
             .iter()
             .any(|window| contains_pk(window, pk_us))
     }
+
+    #[cfg(test)]
+    pub(crate) fn from_parts(
+        value: T,
+        gaps: Vec<GapEntry>,
+        conflicts: Vec<ConflictEntry>,
+        excluded: Vec<ExcludedWindow>,
+    ) -> Self {
+        Self {
+            value,
+            gaps,
+            conflicts,
+            excluded,
+            leaves_verified: 0,
+            cache_hits: 0,
+        }
+    }
 }
 
 fn contains_pk(window: &ExcludedWindow, pk_us: i64) -> bool {
