@@ -1,0 +1,24 @@
+{
+  "workspace_root": "WORKSPACE_ROOT",
+  "workspace_members": ["peek"],
+  "packages": [
+    {
+      "name": "parangsae-strategy-peek",
+      "id": "peek",
+      "manifest_path": "WORKSPACE_ROOT/crates/strategies/peek/Cargo.toml",
+      "source": null,
+      "dependencies": [
+        {
+          "name": "parangsae-sim",
+          "source": null,
+          "kind": null,
+          "rename": null,
+          "uses_default_features": true,
+          "features": [],
+          "target": null
+        }
+      ],
+      "targets": [{ "kind": ["proc-macro"], "crate_types": ["proc-macro"] }]
+    }
+  ]
+}
