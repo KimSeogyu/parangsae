@@ -7,6 +7,8 @@
 //!
 //! The proptests in this crate sample invariants. They are not a proof.
 
+use parangsae_core::Causal;
+
 mod bars;
 mod feature;
 mod funding;
@@ -27,6 +29,11 @@ pub use target::{Target, TargetError, TARGET_SCALE};
 pub use tsmom::Tsmom;
 pub use volregime::VolRegime;
 pub use window::{drive, drive_feature, CausalFeature, CausalSignal, CausalWindow, WindowError};
+
+/// Read the value a causal view already admitted.
+pub fn sample_value<'a, T>(sample: &Causal<'a, T>) -> &'a T {
+    sample.value()
+}
 
 /// Target signals the engine may trade.
 pub const TARGET_IDS: &[&str] = &["tsmom", "funding_z"];

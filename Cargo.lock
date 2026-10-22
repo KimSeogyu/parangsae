@@ -1470,6 +1470,7 @@ dependencies = [
  "cucumber",
  "libm",
  "parangsae-core",
+ "parangsae-sim",
  "proptest",
  "tokio",
 ]

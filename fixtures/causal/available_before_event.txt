@@ -1,0 +1,5 @@
+# A row cannot be labeled available before the exchange event.
+event_us = 10
+available_us = 9
+received_us = 9
+expect = available_ts is before event_ts

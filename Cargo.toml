@@ -4,9 +4,9 @@ members = [
     "crates/core",
     "crates/collector",
     "crates/signals",
+    "crates/sim",
     "crates/regime",
     "crates/execution",
-    "crates/sim",
     "crates/backtest",
     "xtask",
 ]

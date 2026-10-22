@@ -1,0 +1,8 @@
+[package]
+name = "parangsae-signals"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+parangsae-core = { path = "../core", features = ["driver-clock"] }

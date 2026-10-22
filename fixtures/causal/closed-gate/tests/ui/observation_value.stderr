@@ -1,0 +1,10 @@
+error[E0624]: method `value` is private
+  --> tests/ui/observation_value.rs:14:22
+   |
+14 |     let _value = row.value();
+   |                      ^^^^^ private method
+   |
+  ::: $PARANGSAE_CORE/src/causal.rs
+   |
+   |     pub(crate) const fn value(&self) -> &T {
+   |     -------------------------------------- private method defined here

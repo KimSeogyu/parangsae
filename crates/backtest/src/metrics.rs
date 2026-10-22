@@ -84,7 +84,11 @@ pub fn max_drawdown(equity: &[Cash]) -> Result<Ratio, SimError> {
 /// sample standard deviation yields `None` rather than 0 or infinity.
 ///
 /// The allow is the only float arithmetic in this crate.
-#[allow(clippy::float_arithmetic, clippy::cast_precision_loss)]
+#[allow(
+    clippy::float_arithmetic,
+    clippy::cast_precision_loss,
+    reason = "Sharpe converts integer daily returns; it is the only float arithmetic in this crate"
+)]
 pub fn sharpe_f64(levels_ticks: &[i64]) -> Result<(Option<f64>, Option<f64>), SimError> {
     let returns = level_returns(levels_ticks)?;
     if returns.len() < 2 {

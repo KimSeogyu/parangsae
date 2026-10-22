@@ -1,0 +1,11 @@
+error[E0599]: no associated function or constant named `for_test` found for struct `Observation<T>` in the current scope
+ --> tests/ui/observation_for_test.rs:4:29
+  |
+4 |     let _row = Observation::for_test(
+  |                             ^^^^^^^^ associated function or constant not found in `Observation<_>`
+  |
+note: if you're trying to build a new `Observation<_>`, consider using `Observation::<T>::from_source` which returns `Result<Observation<_>, ObservationError>`
+ --> $PARANGSAE_CORE/src/causal.rs
+  |
+  |     pub fn from_source(timestamps: Timestamps, value: T) -> Result<Self, ObservationError> {
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

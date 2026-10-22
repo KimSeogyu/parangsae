@@ -1,0 +1,5 @@
+error[E0599]: no method named `with_value` found for struct `Observation<T>` in the current scope
+  --> tests/ui/observation_with_value.rs:14:22
+   |
+14 |     let _other = row.with_value(2_i64);
+   |                      ^^^^^^^^^^ method not found in `Observation<i64>`

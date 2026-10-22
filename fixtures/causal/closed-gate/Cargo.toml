@@ -1,0 +1,19 @@
+# Separate workspace so `cargo test --workspace` cannot unify
+# `parangsae-sim`'s `driver-clock` feature onto `parangsae-core`.
+# trybuild is dev-only here: these compile-fail crates are not a normal
+# dependency of any production crate.
+[workspace]
+resolver = "2"
+members = ["."]
+
+[package]
+name = "closed-gate"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+parangsae-core = { path = "../../../crates/core" }
+
+[dev-dependencies]
+trybuild = "=1.0.122"

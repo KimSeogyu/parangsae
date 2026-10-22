@@ -126,7 +126,7 @@ pub fn workspace(root: &Path) -> Result<Vec<String>, String> {
     let mut violations = check(&meta, &policy);
     let members: BTreeSet<&str> = meta.workspace_members.iter().map(String::as_str).collect();
     let names = member_names(&meta, &members);
-    violations.extend(test_support_in_non_test_builds(
+    violations.extend(sealed_features_in_non_test_builds(
         &root.join("Cargo.toml"),
         &names,
     )?);
@@ -136,15 +136,20 @@ pub fn workspace(root: &Path) -> Result<Vec<String>, String> {
 /// Workspace `cargo metadata` and `cargo tree --workspace` unify dev-dependency
 /// features into every member. A non-test build is that package's own tree
 /// with dev edges removed (`-e no-dev,features --target all`).
-fn test_support_in_non_test_builds(
+/// `test-support` is off for every member. `driver-clock` is off except on
+/// `parangsae-sim`, whose normal dependency is the paper clock.
+fn sealed_features_in_non_test_builds(
     manifest: &Path,
     packages: &BTreeSet<&str>,
 ) -> Result<Vec<String>, String> {
     let mut violations = Vec::new();
     for name in packages {
         let tree = cargo_tree(manifest, name, "no-dev,features")?;
-        if enables_test_support(&tree) {
+        if enables_feature(&tree, "test-support") {
             violations.push(format!("{name} non-test build enables test-support"));
+        }
+        if *name != "parangsae-sim" && enables_feature(&tree, "driver-clock") {
+            violations.push(format!("{name} non-test build enables driver-clock"));
         }
     }
     Ok(violations)
@@ -180,12 +185,12 @@ fn cargo_tree(manifest: &Path, package: &str, edges: &str) -> Result<String, Str
     Ok(text)
 }
 
-fn enables_test_support(tree: &str) -> bool {
+fn enables_feature(tree: &str, name: &str) -> bool {
     tree.lines().any(|line| {
         let Some((pkg, feats)) = line.split_once('|') else {
             return false;
         };
-        feature_edge(pkg, "test-support") || feats.split(',').any(|feat| feat == "test-support")
+        feature_edge(pkg, name) || feats.split(',').any(|feat| feat == name)
     })
 }
 
@@ -695,7 +700,7 @@ mod tests {
         let manifest = fixture_manifest("test-support-normal")?;
         let names = package_names(&manifest)?;
         let view: BTreeSet<&str> = names.iter().map(String::as_str).collect();
-        let violations = test_support_in_non_test_builds(&manifest, &view)?;
+        let violations = sealed_features_in_non_test_builds(&manifest, &view)?;
         if violations.iter().any(|item| {
             item.contains("parangsae-signals")
                 && item.contains("non-test build enables test-support")
@@ -711,7 +716,7 @@ mod tests {
         let manifest = fixture_manifest("test-support-dev")?;
         let names = package_names(&manifest)?;
         let view: BTreeSet<&str> = names.iter().map(String::as_str).collect();
-        let violations = test_support_in_non_test_builds(&manifest, &view)?;
+        let violations = sealed_features_in_non_test_builds(&manifest, &view)?;
         if !violations.is_empty() {
             return Err(violations.join("\n"));
         }
@@ -722,7 +727,7 @@ mod tests {
             );
         }
         let dev_tree = cargo_tree(&manifest, "parangsae-signals", "features")?;
-        if enables_test_support(&dev_tree) {
+        if enables_feature(&dev_tree, "test-support") {
             Ok(())
         } else {
             Err("dev-including tree did not show test-support".to_owned())
@@ -735,12 +740,14 @@ mod tests {
 parangsae-core v0.0.0|test-support-extra
 parangsae-core feature \"test-support-extra\"|
 ";
-        assert!(!enables_test_support(tree));
-        assert!(enables_test_support(
-            "parangsae-core v0.0.0|default,test-support\n"
+        assert!(!enables_feature(tree, "test-support"));
+        assert!(enables_feature(
+            "parangsae-core v0.0.0|default,test-support\n",
+            "test-support"
         ));
-        assert!(enables_test_support(
-            "parangsae-core feature \"test-support\"|\n"
+        assert!(enables_feature(
+            "parangsae-core feature \"test-support\"|\n",
+            "test-support"
         ));
     }
 
@@ -849,6 +856,40 @@ parangsae-core feature \"test-support-extra\"|
             .iter()
             .filter_map(|feature| feature.as_str().map(str::to_owned))
             .collect())
+    }
+
+    #[test]
+    fn a_normal_dependency_enabling_driver_clock_outside_sim_fails() -> Result<(), String> {
+        let manifest = fixture_manifest("driver-clock-other")?;
+        let names = package_names(&manifest)?;
+        let view: BTreeSet<&str> = names.iter().map(String::as_str).collect();
+        let violations = sealed_features_in_non_test_builds(&manifest, &view)?;
+        if violations
+            .iter()
+            .any(|item| item.contains("parangsae-signals") && item.contains("enables driver-clock"))
+        {
+            Ok(())
+        } else {
+            Err(format!("{violations:?}"))
+        }
+    }
+
+    #[test]
+    fn sim_alone_enables_driver_clock_in_its_non_test_build() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let manifest = root.join("Cargo.toml");
+        let sim = cargo_tree(&manifest, "parangsae-sim", "no-dev,features")?;
+        if !enables_feature(&sim, "driver-clock") {
+            return Err("parangsae-sim non-test build does not enable driver-clock".to_owned());
+        }
+        if enables_feature(&sim, "test-support") {
+            return Err("parangsae-sim non-test build enables test-support".to_owned());
+        }
+        let signals = cargo_tree(&manifest, "parangsae-signals", "no-dev,features")?;
+        if enables_feature(&signals, "driver-clock") || enables_feature(&signals, "test-support") {
+            return Err(signals);
+        }
+        Ok(())
     }
 
     #[test]
