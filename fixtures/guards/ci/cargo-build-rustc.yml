@@ -1,0 +1,13 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: test
+        env:
+          CARGO_BUILD_RUSTC_WRAPPER: /tmp/wrap
+        run: cargo test

@@ -1,0 +1,19 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: test
+        working-directory: /tmp
+        run: echo hi
+
+  gate:
+    needs: [fmt]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo gate

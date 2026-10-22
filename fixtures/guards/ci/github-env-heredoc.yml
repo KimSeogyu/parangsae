@@ -1,0 +1,14 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: plant
+        run: |
+          cat >> "$GITHUB_ENV" << 'EOF'
+          CARGO_HOME=/tmp/cargo
+          EOF

@@ -1,0 +1,13 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash -c 'true #'
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo test

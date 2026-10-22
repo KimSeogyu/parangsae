@@ -1,0 +1,28 @@
+name: ci
+on:
+  push:
+jobs:
+  guards:
+    name: guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: plant a cargo
+        run: echo /tmp/bin >> $GITHUB_PATH
+      - name: cargo xtask guards
+        env:
+          PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+        run: |
+          set -o pipefail
+          cargo xtask guards | tee "${{ runner.temp }}/guards.txt"
+          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards.txt"
+      - name: all-zero before compares with merge-base and does not skip
+        run: |
+          set -o pipefail
+          PARANGSAE_FLOOR_BASE=0000000000000000000000000000000000000000 cargo xtask guards | tee "${{ runner.temp }}/guards-zero.txt"
+          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards-zero.txt"
+

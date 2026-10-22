@@ -197,6 +197,26 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
+      - name: cargo xtask guards
+        env:
+          PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+        run: |
+          set -o pipefail
+          cargo xtask guards | tee "${{ runner.temp }}/guards.txt"
+          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards.txt"
+      - name: all-zero before compares with merge-base and does not skip
+        run: |
+          set -o pipefail
+          PARANGSAE_FLOOR_BASE=0000000000000000000000000000000000000000 cargo xtask guards | tee "${{ runner.temp }}/guards-zero.txt"
+          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards-zero.txt"
+
+  guard-fixtures:
+    name: guard-fixtures
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
       - name: rustc is 1.98.0
         run: |
           expected="rustc 1.98.0 (88d9e12ae 2026-08-18)"
@@ -206,14 +226,6 @@ jobs:
             exit 1
           fi
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
-      - name: cargo xtask guards
-        env:
-          PARANGSAE_FLOOR_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          PARANGSAE_ON_MAIN: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
-        run: |
-          set -o pipefail
-          cargo xtask guards | tee "${{ runner.temp }}/guards.txt"
-          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards.txt"
       - name: unowned feature fails
         run: |
           set +e
@@ -267,11 +279,6 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$output" | grep -q 'unreadable'
-      - name: all-zero before compares with merge-base and does not skip
-        run: |
-          set -o pipefail
-          PARANGSAE_FLOOR_BASE=0000000000000000000000000000000000000000 cargo xtask guards | tee "${{ runner.temp }}/guards-zero.txt"
-          grep -qx 'guards ran 12 passed 12' "${{ runner.temp }}/guards-zero.txt"
       - name: direct push without a floors file fails closed
         run: |
           set +e
@@ -535,16 +542,16 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Fetch TLC 2.19 (TLA+ 1.7.4)
-        working-directory: specs/tla
         run: |
+          cd specs/tla
           curl -fsSL -o tla2tools.jar -L \
             https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
           echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  tla2tools.jar" | sha256sum -c -
       - name: Model-check IngestSegment
-        working-directory: specs/tla
         # One worker: TLC 2.19 can miss a liveness counterexample with several workers.
         # A violated invariant or property makes TLC exit non-zero.
         run: |
+          cd specs/tla
           set -o pipefail
           java -XX:+UseParallelGC -Xmx512m -cp tla2tools.jar tlc2.TLC \
             -workers 1 \
@@ -553,8 +560,8 @@ jobs:
             IngestSegment.tla | tee "${{ runner.temp }}/tlc-ingest.txt"
           cargo xtask guards tlc-output --model IngestSegment --file "${{ runner.temp }}/tlc-ingest.txt"
       - name: Model-check ManifestWrite
-        working-directory: specs/tla
         run: |
+          cd specs/tla
           set -o pipefail
           java -XX:+UseParallelGC -Xmx512m -cp tla2tools.jar tlc2.TLC \
             -workers 1 \
@@ -671,7 +678,7 @@ jobs:
 
   gate:
     name: gate
-    needs: [fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, tla, kani, deny]
+    needs: [fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, guard-fixtures, tla, kani, deny]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,12 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: skip
+        ïf: false
+        run: echo skipped

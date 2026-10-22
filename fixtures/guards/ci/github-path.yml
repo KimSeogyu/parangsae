@@ -1,0 +1,13 @@
+name: ci
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - name: plant
+        run: echo /tmp/bin >> $GITHUB_PATH
+      - name: deny
+        run: cargo deny check
