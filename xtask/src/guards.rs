@@ -9005,10 +9005,7 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
 
     fn pipeline_ends_early(part: &str) -> bool {
         let stages = split_outside_quotes(part, true);
-        stages.len() >= 2
-            && stages
-                .last()
-                .is_some_and(|stage| command_exits_early(stage))
+        stages.len() >= 2 && stages.iter().any(|stage| command_exits_early(stage))
     }
 
     fn script_early_exits(script: &str) -> Vec<String> {
@@ -9074,17 +9071,35 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         if !pipeline_ends_early("printf '%s\\n' \"$v\" | head -n 1") {
             return Err("detector missed head".to_owned());
         }
+        if !pipeline_ends_early("printf '%s\\n' \"$v\" | grep -q 'bad' | cat") {
+            return Err("detector missed a middle grep -q".to_owned());
+        }
+        if !pipeline_ends_early("if printf '%s\\n' \"$v\" | grep -q 'bad' | cat; then exit 1; fi") {
+            return Err("detector missed a middle grep -q before cat".to_owned());
+        }
+        if !pipeline_ends_early("printf '%s\\n' \"$v\" | head -n 1 | cat") {
+            return Err("detector missed a middle head".to_owned());
+        }
+        if !pipeline_ends_early("printf '%s\\n' \"$v\" | grep -m 1 lit | cat") {
+            return Err("detector missed a middle grep -m".to_owned());
+        }
         if pipeline_ends_early("grep -qF -- 'lit' file")
             || pipeline_ends_early("cargo test | tee out")
         {
             return Err("detector flagged a file grep or tee".to_owned());
         }
-        let sample = "        run: |\n          set -euo pipefail\n          printf '%s\\n' \"$v\" | grep -q hit\n        run: |\n          printf '%s\\n' \"$v\" | head -n 1\n        run: |\n          set -o pipefail\n          cargo xtask guards | tee out\n          grep -qx 'guards ran 12 passed 12' out\n";
+        let sample = "        run: |\n          set -euo pipefail\n          printf '%s\\n' \"$v\" | grep -q hit\n          if printf '%s\\n' \"$v\" | grep -q 'bad' | cat; then exit 1; fi\n          printf '%s\\n' \"$v\" | head -n 1 | cat\n        run: |\n          printf '%s\\n' \"$v\" | head -n 1\n        run: |\n          set -o pipefail\n          cargo xtask guards | tee out\n          grep -qx 'guards ran 12 passed 12' out\n";
         let sample_hits = run_scripts(sample)
             .into_iter()
             .flat_map(|script| script_early_exits(&script))
             .collect::<Vec<_>>();
-        if sample_hits.len() != 1 || !sample_hits[0].contains("grep -q hit") {
+        if sample_hits.len() != 3
+            || !sample_hits.iter().any(|hit| hit.contains("grep -q hit"))
+            || !sample_hits.iter().any(|hit| hit.contains("grep -q 'bad'"))
+            || !sample_hits
+                .iter()
+                .any(|hit| hit.contains("head -n 1 | cat"))
+        {
             return Err(format!("sample hits: {sample_hits:?}"));
         }
         let root = crate::workspace_root()?;
@@ -9096,6 +9111,254 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
                 let hits = run_scripts(&text)
                     .iter()
                     .flat_map(|script| script_early_exits(script))
+                    .collect::<Vec<_>>();
+                if !hits.is_empty() {
+                    return Err(format!("{}: {hits:?}", path.display()));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn trim_token(word: &str) -> &str {
+        word.trim_matches(|ch: char| matches!(ch, '"' | '\'' | '(' | ')' | '`'))
+    }
+
+    fn command_at(stage: &str) -> Option<(String, Vec<String>)> {
+        let words: Vec<String> = shell_words(stage)
+            .into_iter()
+            .map(|word| trim_token(word).to_owned())
+            .collect();
+        let mut idx = 0usize;
+        while idx < words.len() {
+            if matches!(
+                words[idx].as_str(),
+                "env"
+                    | "-i"
+                    | "command"
+                    | "exec"
+                    | "\\"
+                    | "if"
+                    | "elif"
+                    | "while"
+                    | "until"
+                    | "!"
+                    | "then"
+                    | "do"
+                    | "{"
+                    | "time"
+            ) || assignment_name(&words[idx]).is_some()
+            {
+                idx += 1;
+                continue;
+            }
+            break;
+        }
+        let name = words.get(idx)?.rsplit('/').next()?.to_owned();
+        let args = words.iter().skip(idx + 1).cloned().collect();
+        Some((name, args))
+    }
+
+    fn args_are_quiet_grep(args: &[String]) -> bool {
+        for arg in args {
+            if arg == "--" {
+                break;
+            }
+            if let Some(long) = arg.strip_prefix("--") {
+                if long == "quiet" {
+                    return true;
+                }
+                continue;
+            }
+            if let Some(short) = arg.strip_prefix('-') {
+                if !short.is_empty() && short.contains('q') {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn is_printf_grep_q(part: &str) -> bool {
+        let stages = split_outside_quotes(part, true);
+        if stages.len() < 2 {
+            return false;
+        }
+        let mut printf = false;
+        let mut quiet = false;
+        for stage in stages {
+            let Some((name, args)) = command_at(&stage) else {
+                continue;
+            };
+            if name == "printf" {
+                printf = true;
+            }
+            if name == "grep" && args_are_quiet_grep(&args) {
+                quiet = true;
+            }
+        }
+        printf && quiet
+    }
+
+    fn statement_has_printf_grep_q(text: &str) -> bool {
+        split_outside_quotes(text, false)
+            .iter()
+            .any(|part| is_printf_grep_q(part))
+    }
+
+    fn updates_errexit(part: &str) -> Option<bool> {
+        let words: Vec<&str> = part.split_whitespace().collect();
+        if words.first().copied() != Some("set") {
+            return None;
+        }
+        let mut result = None;
+        for word in words.iter().skip(1) {
+            if let Some(flags) = word.strip_prefix('+') {
+                if flags.contains('e') {
+                    result = Some(false);
+                }
+                continue;
+            }
+            if let Some(flags) = word.strip_prefix('-') {
+                if flags.contains('e') {
+                    result = Some(true);
+                }
+            }
+        }
+        result
+    }
+
+    fn note_grep_q_statement(statement: &str, errexit: &mut bool, hits: &mut Vec<String>) {
+        if statement.trim().is_empty() {
+            return;
+        }
+        if let Some(enabled) = updates_errexit(statement) {
+            *errexit = enabled;
+            return;
+        }
+        if !(*errexit) && statement_has_printf_grep_q(statement) {
+            hits.push(statement.trim().to_owned());
+        }
+    }
+
+    fn grep_q_statement_violations(script: &str) -> Vec<String> {
+        let chars: Vec<char> = script.chars().collect();
+        let mut hits = Vec::new();
+        let mut errexit = true;
+        let mut quote = None;
+        let mut quote_stack = Vec::new();
+        let mut depth = 0usize;
+        let mut outer = String::new();
+        let mut inners: Vec<String> = Vec::new();
+        let mut idx = 0usize;
+        while idx < chars.len() {
+            let ch = chars[idx];
+            let in_double = quote == Some('"');
+            if quote.is_some() && !(in_double && ch == '$' && chars.get(idx + 1) == Some(&'(')) {
+                if depth == 0 {
+                    outer.push(ch);
+                } else if let Some(buf) = inners.last_mut() {
+                    buf.push(ch);
+                }
+                if Some(ch) == quote {
+                    quote = None;
+                }
+                idx += 1;
+                continue;
+            }
+            if ch == '$' && chars.get(idx + 1) == Some(&'(') {
+                depth += 1;
+                quote_stack.push(quote);
+                quote = None;
+                inners.push(String::new());
+                idx += 2;
+                continue;
+            }
+            if ch == ')' && depth > 0 {
+                depth -= 1;
+                quote = quote_stack.pop().unwrap_or(None);
+                let inner = inners.pop().unwrap_or_default();
+                if statement_has_printf_grep_q(&inner) {
+                    hits.push(inner.trim().to_owned());
+                }
+                idx += 1;
+                continue;
+            }
+            if ch == '\'' || ch == '"' {
+                quote = Some(ch);
+                if depth == 0 {
+                    outer.push(ch);
+                } else if let Some(buf) = inners.last_mut() {
+                    buf.push(ch);
+                }
+                idx += 1;
+                continue;
+            }
+            let separator = depth == 0
+                && (ch == '\n'
+                    || ch == ';'
+                    || (ch == '&' && chars.get(idx + 1) == Some(&'&'))
+                    || (ch == '|' && chars.get(idx + 1) == Some(&'|')));
+            if separator {
+                note_grep_q_statement(&outer, &mut errexit, &mut hits);
+                outer.clear();
+                if ch == '&' || ch == '|' {
+                    idx += 2;
+                } else {
+                    idx += 1;
+                }
+                continue;
+            }
+            if depth == 0 {
+                outer.push(ch);
+            } else if let Some(buf) = inners.last_mut() {
+                buf.push(ch);
+            }
+            idx += 1;
+        }
+        note_grep_q_statement(&outer, &mut errexit, &mut hits);
+        hits
+    }
+
+    #[test]
+    fn printf_grep_q_statement_requires_set_e() -> Result<(), String> {
+        let top = "printf '%s\\n' \"$v\" | grep -q 'bad'\n";
+        let top_hits = grep_q_statement_violations(top);
+        if !top_hits.is_empty() {
+            return Err(format!(
+                "bash -e rejected a top-level grep -q: {top_hits:?}"
+            ));
+        }
+        let disabled = "set +e\nprintf '%s\\n' \"$v\" | grep -q 'bad'\n";
+        let disabled_hits = grep_q_statement_violations(disabled);
+        if disabled_hits.len() != 1 || !disabled_hits[0].contains("grep -q") {
+            return Err(format!("set +e: {disabled_hits:?}"));
+        }
+        let nested = "set -e\nhit=$(printf '%s\\n' \"$v\" | grep -q 'bad')\n";
+        let nested_hits = grep_q_statement_violations(nested);
+        if nested_hits.len() != 1 || !nested_hits[0].contains("grep -q") {
+            return Err(format!("command substitution: {nested_hits:?}"));
+        }
+        let restored = "set +e\noutput=$(printf '%s\\n' \"$v\")\nset -e\nprintf '%s\\n' \"$output\" | grep -q 'bad'\n";
+        let restored_hits = grep_q_statement_violations(restored);
+        if !restored_hits.is_empty() {
+            return Err(format!("restored set -e: {restored_hits:?}"));
+        }
+        let conditional =
+            "set -e\nif ! printf '%s\\n' \"$output\" | grep -q \"$lint\"; then\n  exit 1\nfi\n";
+        let conditional_hits = grep_q_statement_violations(conditional);
+        if !conditional_hits.is_empty() {
+            return Err(format!("if grep -q: {conditional_hits:?}"));
+        }
+        let root = crate::workspace_root()?;
+        for dir in [".github/workflows", "fixtures"] {
+            let mut paths = Vec::new();
+            collect_yml(&root.join(dir), &mut paths)?;
+            for path in paths {
+                let text = read(&path)?;
+                let hits = run_scripts(&text)
+                    .iter()
+                    .flat_map(|script| grep_q_statement_violations(script))
                     .collect::<Vec<_>>();
                 if !hits.is_empty() {
                     return Err(format!("{}: {hits:?}", path.display()));
