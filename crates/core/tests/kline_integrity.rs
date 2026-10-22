@@ -15,6 +15,7 @@ struct KlineWorld {
     opens: Vec<UtcMicros>,
     span_open: Option<UtcMicros>,
     span_close: Option<UtcMicros>,
+    unit: Option<TimeUnit>,
 }
 
 #[given(regex = r"^the raw timestamp (\d+)$")]
@@ -25,12 +26,14 @@ fn raw_timestamp(world: &mut KlineWorld, raw: i64) {
 #[when("it is read as milliseconds")]
 fn read_millis(world: &mut KlineWorld) {
     let raw = world.raw.expect("Given the raw timestamp");
+    world.unit = Some(TimeUnit::Millis);
     world.read = Some(require_declared_unit(raw, TimeUnit::Millis).map_err(|err| err.to_string()));
 }
 
 #[when("it is read as microseconds")]
 fn read_micros(world: &mut KlineWorld) {
     let raw = world.raw.expect("Given the raw timestamp");
+    world.unit = Some(TimeUnit::Micros);
     world.read = Some(require_declared_unit(raw, TimeUnit::Micros).map_err(|err| err.to_string()));
 }
 
@@ -48,7 +51,8 @@ fn close_time_is(world: &mut KlineWorld, expected: i64) {
         Some(Ok(timestamp)) => *timestamp,
         other => panic!("expected a normalized open time, got {other:?}"),
     };
-    let close = expected_close(open, Interval::ONE_MINUTE).expect("close time fits");
+    let unit = world.unit.expect("declared unit");
+    let close = expected_close(open, Interval::ONE_MINUTE, unit).expect("close time fits");
     assert_eq!(close.micros(), expected);
 }
 
@@ -100,11 +104,21 @@ fn span_close(world: &mut KlineWorld, close: i64) {
     world.span_close = Some(UtcMicros::from_micros(close));
 }
 
+#[given(regex = r"^the declared close tick is (milliseconds|microseconds)$")]
+fn declared_tick(world: &mut KlineWorld, text: String) {
+    world.unit = Some(match text.as_str() {
+        "milliseconds" => TimeUnit::Millis,
+        "microseconds" => TimeUnit::Micros,
+        _ => panic!("declared close tick {text}"),
+    });
+}
+
 fn span(world: &KlineWorld) -> KlineSpan {
     KlineSpan {
         open_time: world.span_open.expect("opening timestamp"),
         close_time: world.span_close.expect("closing timestamp"),
         interval: Interval::ONE_MINUTE,
+        unit: world.unit.expect("declared close tick"),
     }
 }
 

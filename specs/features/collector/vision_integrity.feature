@@ -28,14 +28,33 @@ Feature: Vision archive integrity
     When the kline rows are checked
     Then there is no row fault
 
-  Scenario: spot microseconds on 2025-01-01 fail the millisecond close-time rule
+  Scenario: spot microseconds on 2025-01-01 pass the declared one-microsecond close tick
     Given the kline fixture "spot_kline_2025-01-01_us.csv" as spot on 2025-01-01
     When the kline rows are checked
+    Then there is no row fault
+
+  Scenario: the 2025-01-01 spot close fails when the close tick is declared as one millisecond
+    Given the kline fixture "spot_kline_2025-01-01_us.csv" as spot on 2025-01-01
+    When the kline rows are checked as a one-millisecond close tick
+    Then the first fault is "close_time"
+
+  Scenario: the 2024-12-31 spot close fails when the close tick is declared as one microsecond
+    Given the kline fixture "spot_kline_2024-12-31_ms.csv" as spot on 2024-12-31
+    When the kline rows are checked as a one-microsecond close tick
     Then the first fault is "close_time"
 
   Scenario: a microsecond spot file read as milliseconds fails the declared unit
     Given the kline fixture "spot_kline_2025-01-01_us.csv" as USD-M milliseconds
     Then parsing fails the "timestamp_unit" check
+
+  Scenario: a millisecond spot file read as microseconds fails the declared unit
+    Given the kline fixture "spot_kline_2024-12-31_ms.csv" as spot microseconds
+    Then parsing fails the "timestamp_unit" check
+
+  Scenario: taker buy quote above quote volume fails
+    Given the kline fixture "um_kline_bad_taker_quote.csv" as USD-M milliseconds
+    When the kline rows are checked
+    Then the first fault is "taker_buy_quote"
 
   Scenario: a part file name is quarantined and a daily kline name is an archive
     Given the listing fixture "listing_with_part.xml"

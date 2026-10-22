@@ -4,6 +4,8 @@ Small slices used by the collector checks. They are not a market-data archive.
 
 CSV files are unmodified line ranges from public `data.binance.vision` objects, plus rows edited only where the name says `bad`, `missing`, `off`, or `duplicate`. The edited cells are the ones the scenario is about.
 
+`um_kline_bad_taker_quote.csv` is the first line of `um_kline_2021-06-01_headerless.csv` with `taker_buy_quote_volume` set to `99999999.00000000`, above `quote_volume`. The other cells are unchanged.
+
 `um_kline_slice.zip` is a zip of `um_kline_2021-06-01_headerless.csv` packed in this repo. It is not the Vision zip, and its sha256 is not the Vision digest. The Vision digest for `BTCUSDT-1m-2021-06-01.zip` observed while cutting the slice was `fc949a2cdb72753faafbed1eb93a3a1847b3ba77056b6360a3a87e93a9f37141`.
 
 `listing_with_part.xml` uses the real daily kline key and size `67872` for `BTCUSDT-1m-2021-06-01.zip`. The `part-00000-example-c000.zip` key is synthetic. It exists so the filename allow-list has a name to quarantine.

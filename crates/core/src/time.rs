@@ -31,7 +31,7 @@ impl fmt::Display for UtcMicros {
     }
 }
 
-/// Unit declared for one source. Spot klines are microseconds. USD-M klines are milliseconds.
+/// Unit declared for one source and period. The caller names it. A timestamp's width is checked against that declaration and never chooses it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimeUnit {
     Millis,
@@ -115,8 +115,16 @@ fn decimal_digits(n: u64) -> u32 {
     digits
 }
 
-/// One millisecond, in microseconds. Kline `close_time` ends one millisecond before the next open.
+/// One millisecond, in microseconds.
 pub const MICROS_PER_MILLIS: i64 = 1_000;
+
+/// Width of one declared source tick, in microseconds.
+pub fn source_tick_us(unit: TimeUnit) -> i64 {
+    match unit {
+        TimeUnit::Millis => MICROS_PER_MILLIS,
+        TimeUnit::Micros => 1,
+    }
+}
 
 /// Positive bar width in microseconds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -140,25 +148,32 @@ impl Interval {
     }
 }
 
-/// Open, close, and declared interval of one kline.
+/// Open, close, interval, and the declared source tick of one kline.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KlineSpan {
     pub open_time: UtcMicros,
     pub close_time: UtcMicros,
     pub interval: Interval,
+    pub unit: TimeUnit,
 }
 
-/// `close_time = open_time + interval - 1ms`.
-pub fn expected_close(open: UtcMicros, interval: Interval) -> Result<UtcMicros, TimeError> {
+/// `close_time = open_time + interval - 1 source tick`.
+///
+/// The tick is `unit`: 1ms or 1µs. A close that uses the other tick fails.
+pub fn expected_close(
+    open: UtcMicros,
+    interval: Interval,
+    unit: TimeUnit,
+) -> Result<UtcMicros, TimeError> {
     let end = open
         .checked_add_micros(interval.micros())
         .ok_or(TimeError::Overflow)?;
-    end.checked_add_micros(-MICROS_PER_MILLIS)
+    end.checked_add_micros(-source_tick_us(unit))
         .ok_or(TimeError::Overflow)
 }
 
 pub fn validate_close_time(span: KlineSpan) -> Result<(), TimeError> {
-    let expected = expected_close(span.open_time, span.interval)?;
+    let expected = expected_close(span.open_time, span.interval, span.unit)?;
     if span.close_time != expected {
         Err(TimeError::CloseTime {
             expected,

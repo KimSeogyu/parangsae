@@ -16,7 +16,8 @@ pub use causal::{Causal, DecisionTime, Observation};
 pub use fixed::{notional, Amount, FixedError, Notional, Price, Qty, Ratio, SCALE};
 pub use symbol::{Symbol, SymbolError};
 pub use time::{
-    expected_close, require_declared_unit, require_regular_grid, validate_close_time, Interval,
-    KlineSpan, TimeError, TimeUnit, UnitError, UtcMicros, MICROS_PER_MILLIS,
+    expected_close, require_declared_unit, require_regular_grid, source_tick_us,
+    validate_close_time, Interval, KlineSpan, TimeError, TimeUnit, UnitError, UtcMicros,
+    MICROS_PER_MILLIS,
 };
 pub use timestamps::{AvailableTs, EventTs, ReceivedTs, Timestamps};

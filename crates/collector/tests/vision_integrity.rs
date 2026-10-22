@@ -12,7 +12,7 @@ use parangsae_collector::vision::{
     FundingFact, Gap, KlineFact, MetricsFact, TickDomain, VisionDataset, BOOK_GAP_LIMIT_US,
 };
 use parangsae_collector::Error;
-use parangsae_core::{Amount, AvailableTs, EventTs, Qty, ReceivedTs, Symbol, UtcMicros};
+use parangsae_core::{Amount, AvailableTs, EventTs, Qty, ReceivedTs, Symbol, TimeUnit, UtcMicros};
 
 #[derive(Debug, Default)]
 enum Loaded {
@@ -37,6 +37,7 @@ struct VisionWorld {
     conflicts: u64,
     gap_fails: Option<bool>,
     day: Option<CivilDay>,
+    close_unit: Option<TimeUnit>,
 }
 
 fn symbol() -> Symbol {
@@ -69,6 +70,7 @@ fn note_error(world: &mut VisionWorld, err: Error) {
 
 #[given(regex = r#"^the kline fixture "([^"]+)" as USD-M milliseconds$"#)]
 fn given_um(world: &mut VisionWorld, name: String) {
+    world.close_unit = Some(TimeUnit::Millis);
     match parse_klines(
         &fixture(&name),
         &symbol(),
@@ -84,6 +86,7 @@ fn given_um(world: &mut VisionWorld, name: String) {
 #[given(regex = r#"^the kline fixture "([^"]+)" as spot on (\d{4}-\d{2}-\d{2})$"#)]
 fn given_spot(world: &mut VisionWorld, name: String, day_text: String) {
     let day = parse_day(&day_text).expect("day");
+    world.close_unit = Some(parangsae_collector::normalize::spot_kline_clock(day).expected());
     match parse_klines(
         &fixture(&name),
         &symbol(),
@@ -96,18 +99,48 @@ fn given_spot(world: &mut VisionWorld, name: String, day_text: String) {
     }
 }
 
-#[when("the kline rows are checked")]
-fn check_klines(world: &mut VisionWorld) {
+#[given(regex = r#"^the kline fixture "([^"]+)" as spot microseconds$"#)]
+fn given_spot_micros(world: &mut VisionWorld, name: String) {
+    world.close_unit = Some(TimeUnit::Micros);
+    match parse_klines(
+        &fixture(&name),
+        &symbol(),
+        parangsae_collector::normalize::SPOT_KLINE_CLOCK,
+        TickDomain::Price,
+        received(),
+    ) {
+        Ok(parsed) => world.loaded = Loaded::Klines(parsed.rows),
+        Err(err) => note_error(world, err),
+    }
+}
+
+fn check_with(world: &mut VisionWorld, unit: TimeUnit) {
     let Loaded::Klines(rows) = &world.loaded else {
         panic!(
             "expected kline rows, check {}",
             world.check.as_deref().unwrap_or("none")
         );
     };
-    world.faults = kline_row_faults(rows)
+    world.faults = kline_row_faults(rows, unit)
         .into_iter()
         .map(|fault| fault.name.to_owned())
         .collect();
+}
+
+#[when("the kline rows are checked")]
+fn check_klines(world: &mut VisionWorld) {
+    let unit = world.close_unit.expect("declared close tick");
+    check_with(world, unit);
+}
+
+#[when("the kline rows are checked as a one-millisecond close tick")]
+fn check_millis_tick(world: &mut VisionWorld) {
+    check_with(world, TimeUnit::Millis);
+}
+
+#[when("the kline rows are checked as a one-microsecond close tick")]
+fn check_micros_tick(world: &mut VisionWorld) {
+    check_with(world, TimeUnit::Micros);
 }
 
 #[then("there is no row fault")]

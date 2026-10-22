@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use parangsae_core::{validate_close_time, Interval, KlineSpan, UtcMicros};
+use parangsae_core::{validate_close_time, Interval, KlineSpan, TimeUnit, UtcMicros};
 
 use super::rows::{BookFact, FundingFact, KlineFact, MetricsFact};
 use crate::civil::{CivilDay, YearMonth};
@@ -121,7 +121,7 @@ where
     Ok(out.into_iter().map(|(_, row)| row).collect())
 }
 
-pub fn kline_row_faults(rows: &[KlineFact]) -> Vec<FaultReport> {
+pub fn kline_row_faults(rows: &[KlineFact], unit: TimeUnit) -> Vec<FaultReport> {
     let mut faults = Vec::new();
     for (index, row) in rows.iter().enumerate() {
         if row.interval_us != ONE_MINUTE_US || row.open_time.micros() % ONE_MINUTE_US != 0 {
@@ -134,6 +134,7 @@ pub fn kline_row_faults(rows: &[KlineFact]) -> Vec<FaultReport> {
             open_time: row.open_time,
             close_time: row.close_time,
             interval: Interval::ONE_MINUTE,
+            unit,
         };
         if let Err(err) = validate_close_time(span) {
             faults.push(FaultReport {
@@ -159,6 +160,16 @@ pub fn kline_row_faults(rows: &[KlineFact]) -> Vec<FaultReport> {
                     "row {index} taker_buy {} > volume {}",
                     row.taker_buy_volume.ticks(),
                     row.volume.ticks()
+                ),
+            });
+        }
+        if row.taker_buy_quote_volume.ticks() > row.quote_volume.ticks() {
+            faults.push(FaultReport {
+                name: "taker_buy_quote",
+                detail: format!(
+                    "row {index} taker_buy_quote {} > quote_volume {}",
+                    row.taker_buy_quote_volume.ticks(),
+                    row.quote_volume.ticks()
                 ),
             });
         }
@@ -533,7 +544,7 @@ mod tests {
     use crate::normalize::{spot_kline_clock, UM_KLINE_CLOCK};
     use crate::vision::parse::{parse_book, parse_funding, parse_klines, parse_metrics};
     use crate::vision::{KlineFact, MetricsFact, TickDomain};
-    use parangsae_core::{ReceivedTs, Symbol};
+    use parangsae_core::{ReceivedTs, Symbol, TimeUnit};
 
     fn symbol() -> Symbol {
         Symbol::new("BTCUSDT").unwrap()
@@ -561,7 +572,7 @@ mod tests {
             received(),
         )
         .unwrap();
-        assert!(kline_row_faults(&ok.rows).is_empty());
+        assert!(kline_row_faults(&ok.rows, TimeUnit::Millis).is_empty());
         let bad_close = parse_klines(
             &fixture("um_kline_bad_close.csv"),
             &symbol(),
@@ -570,7 +581,10 @@ mod tests {
             received(),
         )
         .unwrap();
-        assert_eq!(kline_row_faults(&bad_close.rows)[0].name, "close_time");
+        assert_eq!(
+            kline_row_faults(&bad_close.rows, TimeUnit::Millis)[0].name,
+            "close_time"
+        );
         let bad_ohlc = parse_klines(
             &fixture("um_kline_bad_ohlc.csv"),
             &symbol(),
@@ -579,7 +593,10 @@ mod tests {
             received(),
         )
         .unwrap();
-        assert_eq!(kline_row_faults(&bad_ohlc.rows)[0].name, "ohlc");
+        assert_eq!(
+            kline_row_faults(&bad_ohlc.rows, TimeUnit::Millis)[0].name,
+            "ohlc"
+        );
         let bad_taker = parse_klines(
             &fixture("um_kline_bad_taker.csv"),
             &symbol(),
@@ -588,11 +605,26 @@ mod tests {
             received(),
         )
         .unwrap();
-        assert_eq!(kline_row_faults(&bad_taker.rows)[0].name, "taker_buy");
+        assert_eq!(
+            kline_row_faults(&bad_taker.rows, TimeUnit::Millis)[0].name,
+            "taker_buy"
+        );
+        let bad_quote = parse_klines(
+            &fixture("um_kline_bad_taker_quote.csv"),
+            &symbol(),
+            UM_KLINE_CLOCK,
+            TickDomain::Price,
+            received(),
+        )
+        .unwrap();
+        assert_eq!(
+            kline_row_faults(&bad_quote.rows, TimeUnit::Millis)[0].name,
+            "taker_buy_quote"
+        );
     }
 
     #[test]
-    fn spot_microsecond_close_fails_the_millisecond_rule() {
+    fn spot_close_uses_the_declared_source_tick() {
         let day = CivilDay::new(2025, 1, 1).unwrap();
         let parsed = parse_klines(
             &fixture("spot_kline_2025-01-01_us.csv"),
@@ -602,7 +634,11 @@ mod tests {
             received(),
         )
         .unwrap();
-        assert_eq!(kline_row_faults(&parsed.rows)[0].name, "close_time");
+        assert!(kline_row_faults(&parsed.rows, TimeUnit::Micros).is_empty());
+        assert_eq!(
+            kline_row_faults(&parsed.rows, TimeUnit::Millis)[0].name,
+            "close_time"
+        );
         let earlier = CivilDay::new(2024, 12, 31).unwrap();
         let millis = parse_klines(
             &fixture("spot_kline_2024-12-31_ms.csv"),
@@ -612,7 +648,11 @@ mod tests {
             received(),
         )
         .unwrap();
-        assert!(kline_row_faults(&millis.rows).is_empty());
+        assert!(kline_row_faults(&millis.rows, TimeUnit::Millis).is_empty());
+        assert_eq!(
+            kline_row_faults(&millis.rows, TimeUnit::Micros)[0].name,
+            "close_time"
+        );
     }
 
     #[test]

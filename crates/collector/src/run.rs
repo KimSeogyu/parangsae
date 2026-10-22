@@ -493,7 +493,7 @@ fn ingest_klines(
     };
     object.schema_version = parsed.schema_version;
     object.row_count = parsed.rows.len() as u64;
-    let faults = kline_row_faults(&parsed.rows);
+    let faults = kline_row_faults(&parsed.rows, clock.expected());
     if !faults.is_empty() {
         reject_faults(
             request, &item.key, object, previous, manifest, summary, &faults,
@@ -1088,7 +1088,7 @@ fn verify_archive(
             if parsed.rows.len() as u64 != object.row_count {
                 summary.note_fault(format!("manifest_row_count {}", object.path));
             }
-            let faults = kline_row_faults(&parsed.rows);
+            let faults = kline_row_faults(&parsed.rows, clock.expected());
             if !faults.is_empty() {
                 summary.note_fault(format!("{} {}", object.path, faults[0].name));
                 return Ok(());
