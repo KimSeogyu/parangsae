@@ -43,7 +43,8 @@ pub fn unzip_csv(bytes: &[u8]) -> Result<String, Error> {
             .by_index(index)
             .map_err(|err| Error::Zip(err.to_string()))?
             .name()
-            .to_owned();
+            .map_err(|err| Error::Zip(err.to_string()))?
+            .into_owned();
         if name.ends_with('/') {
             continue;
         }

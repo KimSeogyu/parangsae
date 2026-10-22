@@ -30,3 +30,7 @@ harness = false
 [[test]]
 name = "instrument_rules"
 harness = false
+
+[[test]]
+name = "feature_reject"
+harness = false

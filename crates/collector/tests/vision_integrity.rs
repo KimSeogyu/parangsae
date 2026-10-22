@@ -1,11 +1,16 @@
 //! Cucumber runner for `specs/features/collector`. A failed step returns `Err`.
 
+#[path = "../../core/tests/support/feature_floors.rs"]
+mod feature_floors;
+#[path = "../../core/tests/support/feature_run.rs"]
+mod feature_run;
+
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use cucumber::{given, then, when, World as _};
+use cucumber::{given, then, when};
 use parangsae_collector::civil::{parse_day, CivilDay, DayRange, YearMonth};
 use parangsae_collector::fetch::MapBlob;
 use parangsae_collector::run::{self, RunRequest, VerifyFilter, VerifyReport};
@@ -883,8 +888,15 @@ fn bar(open: i64, close: i64, price: i64) -> Result<KlineFact, String> {
     })
 }
 
+const FEATURE_GLOB: &str = "specs/features/collector/**/*.feature";
+
 #[tokio::main]
-async fn main() {
-    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs/features/collector");
-    VisionWorld::cucumber().run_and_exit(features).await;
+async fn main() -> Result<(), String> {
+    let files = feature_floors::expand_feature_glob(FEATURE_GLOB)?;
+    let mut passed_steps = 0usize;
+    for path in &files {
+        let counts = feature_run::run_feature::<VisionWorld>(path).await?;
+        passed_steps += counts.passed_steps;
+    }
+    feature_floors::enforce_floors("vision", &files, passed_steps)
 }

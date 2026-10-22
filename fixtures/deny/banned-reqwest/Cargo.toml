@@ -1,0 +1,10 @@
+[workspace]
+
+[package]
+name = "banned-reqwest"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+reqwest = { version = "=0.12.28", default-features = false, features = ["rustls-tls"] }

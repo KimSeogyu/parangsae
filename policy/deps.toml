@@ -449,6 +449,12 @@ features = ["macros", "rt-multi-thread"]
 name = "xtask"
 
 [[crate.edge]]
+name = "gherkin"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
 name = "serde"
 kind = "normal"
 source = "crates.io"

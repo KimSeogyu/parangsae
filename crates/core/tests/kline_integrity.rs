@@ -1,8 +1,11 @@
-//! Cucumber runner for `specs/features`. A failed step returns `Err`.
+//! Cucumber runner for `specs/features/kline_integrity.feature`. A failed step returns `Err`.
 
-use std::path::PathBuf;
+#[path = "support/feature_floors.rs"]
+mod feature_floors;
+#[path = "support/feature_run.rs"]
+mod feature_run;
 
-use cucumber::{gherkin::Step, given, then, when, World as _};
+use cucumber::{gherkin::Step, given, then, when};
 use parangsae_core::{
     expected_close, require_declared_unit, require_regular_grid, validate_close_time, Interval,
     KlineSpan, TimeUnit, UtcMicros,
@@ -157,9 +160,15 @@ fn span_rejects(world: &mut KlineWorld) -> Result<(), String> {
     }
 }
 
+const FEATURE_GLOB: &str = "specs/features/kline_integrity.feature";
+
 #[tokio::main]
-async fn main() {
-    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../specs/features/kline_integrity.feature");
-    KlineWorld::cucumber().run_and_exit(features).await;
+async fn main() -> Result<(), String> {
+    let files = feature_floors::expand_feature_glob(FEATURE_GLOB)?;
+    let mut passed_steps = 0usize;
+    for path in &files {
+        let counts = feature_run::run_feature::<KlineWorld>(path).await?;
+        passed_steps += counts.passed_steps;
+    }
+    feature_floors::enforce_floors("kline", &files, passed_steps)
 }

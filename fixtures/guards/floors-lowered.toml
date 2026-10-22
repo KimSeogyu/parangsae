@@ -1,0 +1,16 @@
+# Mutant: kline scenario floor lowered from 12 to 11.
+cucumber.kline.scenarios=11
+cucumber.kline.steps=41
+cucumber.kline.max_skipped=0
+cucumber.vision.scenarios=27
+cucumber.vision.steps=89
+cucumber.vision.max_skipped=0
+tlc.IngestSegment.distinct_states=21
+tlc.ManifestWrite.distinct_states=10
+kani.min_harnesses=6
+kani.name=widening_mul_fits_in_i128
+kani.name=notional_matches_below_one_million
+kani.name=notional_overflow_does_not_wrap
+kani.name=notional_production_widening
+kani.name=notional_uneven_boundary
+kani.name=notional_rejects_negative

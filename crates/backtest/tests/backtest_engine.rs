@@ -2,10 +2,12 @@
 
 #[path = "support.rs"]
 mod support;
+#[path = "../../core/tests/support/feature_floors.rs"]
+mod feature_floors;
+#[path = "../../core/tests/support/feature_run.rs"]
+mod feature_run;
 
-use std::path::PathBuf;
-
-use cucumber::{then, when, World as _};
+use cucumber::{then, when};
 use parangsae_backtest::{max_drawdown, sharpe_f64, EngineError, Report, FEE_GRID_BPS};
 use parangsae_core::UtcMicros;
 use parangsae_sim::{Cash, Side};
@@ -263,9 +265,15 @@ fn dropped(world: &mut EngineWorld, n: u64) {
     assert_eq!(world.report().dropped_orders, n);
 }
 
+const FEATURE_GLOB: &str = "specs/features/backtest_engine.feature";
+
 #[tokio::main]
-async fn main() {
-    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../specs/features/backtest_engine.feature");
-    EngineWorld::cucumber().run_and_exit(features).await;
+async fn main() -> Result<(), String> {
+    let files = feature_floors::expand_feature_glob(FEATURE_GLOB)?;
+    let mut passed_steps = 0usize;
+    for path in &files {
+        let counts = feature_run::run_feature::<EngineWorld>(path).await?;
+        passed_steps += counts.passed_steps;
+    }
+    feature_floors::enforce_floors("backtest", &files, passed_steps)
 }
