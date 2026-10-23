@@ -1,0 +1,25 @@
+# venue doc behavior: CANCELED/EXPIRED orders with no fills stop being found after 3 days (-2013); the venue forgets them, so v3's QueryNotFound -> same-ID retry resubmits a CID that already existed
+--- OrderLifecycle.tla
++++ findings/F2_ArchivedOrderNotFound_DuplicateSubmit/OrderLifecycle.tla
+@@ -258,6 +258,12 @@
+   /\ fresh' = FALSE
+   /\ UNCHANGED <<halted, flag, riskHalted, epoch, killed, lpos, pos, foreign, last>>
+ 
++VForget(i) ==   \* Query Order: CANCELED/EXPIRED, no fill, created + 3 days < now -> not found
++  /\ o[i].vst \in {"canceled", "expired"} /\ o[i].vcum = 0
++  /\ o' = [o EXCEPT ![i].vst = "none"]
++  /\ fresh' = FALSE
++  /\ UNCHANGED <<halted, flag, riskHalted, epoch, killed, lpos, pos, foreign, last>>
++
+ VCancel(i) ==
+   /\ o[i].cxl
+   /\ o' = [o EXCEPT ![i].cxl = FALSE,
+@@ -480,7 +486,7 @@
+        \/ \E t \in -MaxQty..MaxQty : Plan(i, t)
+        \/ DispatchAck(i) \/ DispatchRej(i) \/ DispatchRefuse(i) \/ Tick(i)
+        \/ \E how \in {"landed", "inflight", "dropped"} : DispatchTimeout(i, how)
+-       \/ VLand(i) \/ VDrop(i) \/ VFill(i) \/ VExpire(i) \/ VCancel(i)
++       \/ VLand(i) \/ VDrop(i) \/ VFill(i) \/ VExpire(i) \/ VCancel(i) \/ VForget(i)
+        \/ DAck(i) \/ DRej(i) \/ DFill(i) \/ DCresp(i) \/ DExpire(i)
+        \/ QFilled(i) \/ QCanceled(i) \/ QNotFound(i)
+        \/ TimeoutEnv(i) \/ SpurFill(i)
