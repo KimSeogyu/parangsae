@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "checked_date_utc": "2026-10-23",
+  "research_source_count": 12,
+  "completion_claim": "partial_collection_not_entire_corpus_complete",
+  "counting_rules_ko": [
+    "열거·본문 읽기·그림 검수·주장 검증·실행을 구분한다.",
+    "U09는U08에 포함되는 동일 글로 총 게시글 수에 중복 가산하지 않는다.",
+    "dnpquant 사용자 업로드파일과 공개웹 접근 범위는 분리한다.",
+    "본문 전문·이미지·토큰을 저장소에 포함하지 않는다."
+  ],
+  "sources": [
+    {
+      "id": "U01",
+      "kind": "book",
+      "title": "Investment Strategies: A Practical Approach to Enhancing Investor Returns",
+      "authors": [
+        "Bill Jiang"
+      ],
+      "user_url": "https://www.amazon.co.jp/-/en/Bill-Jiang/dp/3030827100",
+      "canonical_url": "https://link.springer.com/book/10.1007/978-3-030-82711-3",
+      "note_file": "books.md",
+      "coverage_status": "public_preview_complete_book_body_unread",
+      "read_scope_ko": "공식 소개·16장 색인·16장 공개 초록 전부. 구독 본문은 0장.",
+      "remaining_or_limits_ko": "저작권 있는 전체 도서의 미러 없음. 정확한 구현식 확인은 합법적 본문 접근 필요.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false,
+      "chapter_inventory_count": 16,
+      "public_abstracts_reviewed_count": 16,
+      "full_chapters_reviewed_count": 0
+    },
+    {
+      "id": "U02",
+      "kind": "book",
+      "title": "Quantitative Momentum: A Practitioner’s Guide to Building a Momentum-Based Stock Selection System",
+      "authors": [
+        "Wesley R. Gray",
+        "Jack R. Vogel"
+      ],
+      "user_url": "https://www.amazon.com/Quantitative-Momentum-Practitioners-Momentum-Based-Selection/dp/111923719X",
+      "canonical_url": "https://www.wiley.com/en-fr/Edition-p-9781119237259",
+      "note_file": "books.md",
+      "coverage_status": "official_excerpt_reviewed_remainder_unread",
+      "read_scope_ko": "공식 소개·목차 및 1장 발췌 11쪽. 2–9장·부록 및 정오표 본문 미검토.",
+      "remaining_or_limits_ko": "정식 책 본문이나 공식 추가 발췌 없이는 규칙을 추정해 채우지 않음.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false
+    },
+    {
+      "id": "U03",
+      "kind": "paper",
+      "title": "Value and Momentum Everywhere",
+      "authors": [
+        "Clifford S. Asness",
+        "Tobias J. Moskowitz",
+        "Lasse Heje Pedersen"
+      ],
+      "user_url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2174501",
+      "canonical_url": "https://doi.org/10.1111/jofi.12021",
+      "note_file": "papers.md",
+      "coverage_status": "canonical_paper_selected_sections_reviewed",
+      "read_scope_ko": "SSRN 403. 저자 공개 최종판의 초록·신호/포트폴리오·비용/강건성 주요 절. 전체 표·부록 재현 없음.",
+      "remaining_or_limits_ko": "원논문 데이터와 업데이트 데이터의 구분만 확인; 파일 다운로드·검산 없음.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false
+    },
+    {
+      "id": "U04",
+      "kind": "open_web_book",
+      "title": "Machine Learning for Factor Investing",
+      "authors": [
+        "Guillaume Coqueret",
+        "Tony Guida"
+      ],
+      "user_url": "https://www.mlfactor.com/",
+      "canonical_url": "https://www.mlfactor.com/",
+      "note_file": "mlfactor.md",
+      "coverage_status": "all_19_chapter_texts_reviewed",
+      "read_scope_ko": "19장 본문 텍스트·표시 수식/표·코드/출력 정적 검토. 모든 그림 픽셀 검수 및 연결된 참고문헌 전수 읽기는 아님.",
+      "remaining_or_limits_ko": "Python 색인15링크만 확인; 노트북 본문·실행 미검토. 확인한 서문/공식 저장소 루트/README에서 재배포 라이선스 미확인.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false,
+      "chapter_inventory_count": 19,
+      "chapter_text_reviewed_count": 19,
+      "official_python_links_count": 15,
+      "python_notebooks_content_reviewed_count": 0
+    },
+    {
+      "id": "U05",
+      "kind": "official_technical_blog",
+      "title": "Amazon OpenSearch Service의 검색 엔진으로서의 기능 설명",
+      "authors": [
+        "Sewoong Kim"
+      ],
+      "user_url": "https://aws.amazon.com/ko/blogs/tech/amazon-opensearch-services-vector-database-capabilities-explained/",
+      "canonical_url": "https://aws.amazon.com/ko/blogs/tech/amazon-opensearch-services-vector-database-capabilities-explained/",
+      "note_file": "infrastructure-and-job.md",
+      "coverage_status": "public_text_reviewed_with_current_docs_crosscheck",
+      "read_scope_ko": "지정 글 본문과 현재 공식 엔진·거리점수·필터링 문서 대조.",
+      "remaining_or_limits_ko": "관리형 서비스의 실제 배포 버전과 이용 조건은 구현 전에 별도 확인.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false
+    },
+    {
+      "id": "U06",
+      "kind": "job_posting",
+      "title": "***REMOVED*** Greenhouse job ***REMOVED*** — 제목 미확인",
+      "authors": [],
+      "user_url": "https://job-boards.greenhouse.io/***REMOVED***/jobs/***REMOVED***",
+      "canonical_url": "https://job-boards.greenhouse.io/***REMOVED***/jobs/***REMOVED***",
+      "note_file": "infrastructure-and-job.md",
+      "coverage_status": "unavailable_404",
+      "read_scope_ko": "지정 공고 및 회사 보드 404. 직무명·작성일·본문 미확인.",
+      "remaining_or_limits_ko": "사용자가 합법적 보관본·스크린샷 또는 새 공식 URL을 제공하면 재검토.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false
+    },
+    {
+      "id": "U07",
+      "kind": "blog_and_user_provided_archive",
+      "title": "dnpquant — 두부",
+      "authors": [
+        "두부"
+      ],
+      "user_url": "https://blog.naver.com/dnpquant",
+      "canonical_url": "https://blog.naver.com/dnpquant",
+      "note_file": "investor-dnpquant/README.md",
+      "coverage_status": "public_blog_unavailable_all_175_supplied_artifacts_read",
+      "read_scope_ko": "공개웹 열거0·본문0. 사용자 업로드175파일 전수 확인: 식별 본문173, 본문 없음2, 명확한 부분본문2.",
+      "remaining_or_limits_ko": "전체 블로그 역사/완전 원문 확보는 아님. 5동일 합본에서5ID 복구; 말미결손 의심2·상대날짜1·이미지0검수 등은 archive coverage 참조.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false,
+      "archive_coverage_file": "investor-dnpquant/coverage.json",
+      "uploaded_artifacts_reviewed": 175,
+      "identified_post_bodies": 173,
+      "missing_post_bodies": 2,
+      "confirmed_partial_bodies": 2,
+      "unique_raw_file_contents": 171,
+      "public_web_posts_reviewed": 0
+    },
+    {
+      "id": "U08",
+      "kind": "blog_category",
+      "title": "nomore_bet — 금융공학 우회도로(categoryNo=1)",
+      "authors": [
+        "nomore 노모벳"
+      ],
+      "user_url": "https://m.blog.naver.com/nomore_bet?categoryNo=1&tab=1",
+      "canonical_url": "https://blog.naver.com/PostList.naver?blogId=nomore_bet&categoryNo=1",
+      "note_file": "naver-sources.md",
+      "coverage_status": "inventory_complete_per_post_text_review_in_progress",
+      "read_scope_ko": "공식 24페이지에서714 unique 글ID 열거(표시712와 불일치). 개별 읽기·요약은 별도 배치 ledger로 추적.",
+      "remaining_or_limits_ko": "전체 블로그2116개와 구분. 일반 공개 접근만 사용; 이미지/외부링크·주장 검증은 별도 상태.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false,
+      "displayed_category_count": 712,
+      "enumerated_unique_post_count": 714,
+      "inventory_pages": 24,
+      "inventory_file": "naver-nomore-inventory.md",
+      "notes_directory": "naver-nomore-post-notes",
+      "duplicate_designated_source": "U09",
+      "per_post_notes_present_count": 230,
+      "notes_count_is_not_total_blog_count": true
+    },
+    {
+      "id": "U09",
+      "kind": "blog_post",
+      "title": "재테크 입문자가 경제 기사 읽기 보다 먼저 해야할 일 - 숫자에 대한 감 #1",
+      "authors": [
+        "nomore 노모벳"
+      ],
+      "user_url": "https://m.blog.naver.com/nomore_bet/221378598745?referrerCode=1",
+      "canonical_url": "https://blog.naver.com/nomore_bet/221378598745",
+      "note_file": "naver-sources.md",
+      "coverage_status": "public_text_reviewed",
+      "read_scope_ko": "지정 글 본문 텍스트 확인. U08의 inventory index264와 동일 글로 중복 합산하지 않음.",
+      "remaining_or_limits_ko": "이미지·외부 기사와 당시 수치의 독립 검증은 미수행.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false
+    },
+    {
+      "id": "U10",
+      "kind": "paper",
+      "title": "Empirical Asset Pricing via Machine Learning",
+      "authors": [
+        "Shihao Gu",
+        "Bryan Kelly",
+        "Dacheng Xiu"
+      ],
+      "user_url": null,
+      "canonical_url": "https://doi.org/10.1093/rfs/hhaa009",
+      "note_file": "papers.md",
+      "coverage_status": "canonical_paper_selected_sections_reviewed",
+      "read_scope_ko": "만료 가능 토큰 URL은 미보관. 저자 공개 게재본 초록·방법·데이터/분할·권리 고지 확인.",
+      "remaining_or_limits_ko": "CC BY-NC-ND 4.0 표시. 전체 PDF 미러·Internet Appendix 전수 검토·코드/표 재현 없음.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false
+    },
+    {
+      "id": "U11",
+      "kind": "book",
+      "title": "금융의 연금술 (한국어 전자책)",
+      "authors": [
+        "George Soros",
+        "송이루(번역)"
+      ],
+      "user_url": "https://www.yes24.com/product/goods/169867275",
+      "canonical_url": "https://www.yes24.com/product/goods/169867275",
+      "note_file": "books.md",
+      "coverage_status": "metadata_toc_reviewed_drm_body_unread",
+      "read_scope_ko": "공식 상품정보·19장 목차·소개, 저자 공식 도서 안내와 별도 공개 글. DRM 본문0장.",
+      "remaining_or_limits_ko": "별도 저자 글을 책 본문으로 혼동하지 않음. 정식 접근과 재배포 허가는 별개.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false
+    },
+    {
+      "id": "U12",
+      "kind": "blog_post_with_primary_paper_crosscheck",
+      "title": "[퀀트논문 리뷰 #3] 오늘 주식이 올랐던 시간대에 내일도 오른다? Intraday Patterns in the Cross-section of Stock Returns",
+      "authors": [
+        "도전하는아이"
+      ],
+      "user_url": "https://m.blog.naver.com/PostView.naver?blogId=ansrl23&logNo=223572435384&navType=by",
+      "canonical_url": "https://blog.naver.com/ansrl23/223572435384",
+      "note_file": "naver-sources.md",
+      "coverage_status": "public_text_reviewed_primary_paper_selected_sections",
+      "read_scope_ko": "지정 글 본문 텍스트, Heston·Korajczyk·Sadka 원논문 서론·방법·관련 결론 대조.",
+      "remaining_or_limits_ko": "횡단면30분구간 연구와 단일 종목 방향 예측을 구분. 그림 픽셀·전표·실행 미검토.",
+      "execution_or_performance_reproduction": false,
+      "raw_content_in_repository": false
+    }
+  ],
+  "excluded": [
+    {
+      "id": "U13",
+      "kind": "personal_calendar_link",
+      "reason_ko": "연구자료로 확인되지 않은 개인 일정 링크. 접근·수집 제외, 사용자 명확화 필요.",
+      "url_stored": false
+    }
+  ]
+}
