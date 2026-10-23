@@ -42,12 +42,16 @@ enum SpecCmd {
         #[arg(long)]
         check: bool,
     },
-    /// Run DEP, MUT, CALL, EFFECT, FLOAT, and GEN. PATH runs with --diff and --as.
+    /// Run DEP, MUT, CALL, EFFECT, FLOAT, and GEN.
+    /// `--diff` also runs PATH. `--as` names the bot. Without `--as`, every
+    /// changed path must have exactly one owner.
     Enforce {
-        /// Git diff range, for example main..HEAD.
+        /// Git diff range, for example main..HEAD. Renames are compared with
+        /// `--no-renames`, so both sides are checked.
         #[arg(long)]
         diff: Option<String>,
-        /// Bot name from Owners. Required with --diff.
+        /// Bot name from Owners. With `--diff`, the diff must stay inside that
+        /// bot's globs. Omit it to fail only unowned or ambiguous paths.
         #[arg(long = "as")]
         as_bot: Option<String>,
     },
@@ -111,9 +115,9 @@ fn dispatch(manifest: &std::path::Path, action: SpecCmd) -> Result<String, RunEr
             }
         }
         SpecCmd::Enforce { diff, as_bot } => {
-            if diff.is_some() != as_bot.is_some() {
+            if as_bot.is_some() && diff.is_none() {
                 return Err(RunError::Tool(xtask::ToolError::tool(
-                    "--diff and --as must be passed together",
+                    "--as requires --diff",
                 )));
             }
             let diags = enforce(&EnforceOptions {

@@ -2,8 +2,12 @@
 //! These tests do not run SANY or TLC. `spec validate` is the CI job.
 
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
-use xtask::{enforce, generate, parse_policy, path_diags_for, EnforceOptions};
+use xtask::{
+    absolutize_jar, diff_names, enforce, generate, parse_policy, path_diags_for,
+    unowned_path_diags, EnforceOptions,
+};
 
 fn fixture(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -83,13 +87,22 @@ fn call_from_allowed_module_is_empty() {
 #[test]
 fn call_through_reexport() {
     let diags = enforce_at(&fixture("call_reexport_bad"));
-    assert_eq!(ids(&diags), ["ARCH-CALL-001"], "{diags:?}");
     assert!(
-        diags[0].symbol.contains("network_order_submit"),
-        "{}",
-        diags[0].symbol
+        diags.iter().any(|diag| diag.rule_id == "ARCH-CALL-001"
+            && diag.file.contains("bad/")
+            && diag.symbol.contains("network_order_submit")),
+        "{diags:?}"
     );
-    assert!(diags[0].file.contains("bad/"), "{}", diags[0].file);
+    assert!(
+        diags
+            .iter()
+            .any(|diag| diag.rule_id == "ARCH-CALL-001" && diag.file.contains("mid/")),
+        "{diags:?}"
+    );
+    assert!(
+        diags.iter().all(|diag| diag.rule_id == "ARCH-CALL-001"),
+        "{diags:?}"
+    );
     assert!(diags[0].allowed.contains("exec"), "{}", diags[0].allowed);
 }
 
@@ -233,6 +246,145 @@ fn every_tracked_file_has_one_owner() {
 }
 
 #[test]
+fn float_literals_and_f64_methods_outside_float_allowed() {
+    let diags = enforce_at(&fixture("float_literal_bad"));
+    let symbols: Vec<&str> = diags.iter().map(|diag| diag.symbol.as_str()).collect();
+    for symbol in ["0.5", "3.0", "1e-3", "1.5", "as_secs_f64"] {
+        assert!(
+            symbols.contains(&symbol),
+            "{symbol} missing from {symbols:?}"
+        );
+    }
+    assert!(diags
+        .iter()
+        .all(|diag| diag.rule_id == "ARCH-FLOAT-001" && diag.file.contains("money/")));
+}
+
+#[test]
+fn effect_probes_are_env_and_fs_write() {
+    let diags = enforce_at(&fixture("effect_probes_bad"));
+    assert!(diags
+        .iter()
+        .any(|diag| { diag.rule_id == "ARCH-EFFECT-001" && diag.message.contains("env") }));
+    assert!(diags
+        .iter()
+        .any(|diag| { diag.rule_id == "ARCH-EFFECT-001" && diag.message.contains("fs_write") }));
+    assert!(diags
+        .iter()
+        .all(|diag| diag.rule_id == "ARCH-EFFECT-001" && diag.file.contains("money/")));
+}
+
+#[test]
+fn call_mentions_flag_every_probe() {
+    let root = fixture("call_mentions_bad");
+    let diags = enforce_at(&root);
+    let text = std::fs::read_to_string(root.join("bad/src/lib.rs")).unwrap();
+    for marker in [
+        "probe: use-alias",
+        "probe: alias-call",
+        "probe: mod-alias",
+        "probe: typed",
+        "probe: typed-call",
+        "probe: argument",
+        "probe: paren",
+        "probe: vec",
+        "probe: macro_rules",
+    ] {
+        let line = line_of(&text, marker);
+        assert!(
+            diags.iter().any(|diag| {
+                diag.line == line
+                    && diag.file.contains("bad/")
+                    && diag.rule_id.starts_with("ARCH-CALL")
+            }),
+            "{marker} at {line} not in {diags:#?}"
+        );
+    }
+    assert!(
+        diags.iter().all(|diag| diag.file.contains("bad/")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn path_dep_outside_the_workspace_is_an_unknown_crate() {
+    let diags = enforce_at(&fixture("dep_outside_bad"));
+    assert!(
+        diags.iter().any(|diag| {
+            diag.rule_id == "ARCH-DEP-001"
+                && diag.symbol == "a -> outside"
+                && diag.message.contains("unknown")
+        }),
+        "{diags:#?}"
+    );
+    assert!(diags
+        .iter()
+        .any(|diag| { diag.rule_id == "ARCH-FLOAT-001" && diag.file.contains("outside/") }));
+    assert!(diags.iter().any(|diag| {
+        diag.rule_id == "ARCH-EFFECT-001"
+            && diag.message.contains("outside")
+            && diag.message.contains("env")
+    }));
+}
+
+#[test]
+fn rename_diff_lists_both_paths() {
+    let dir = std::env::temp_dir().join(format!("arch-rename-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let git = |args: &[&str]| {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(&dir)
+            .env("GIT_AUTHOR_NAME", "Test")
+            .env("GIT_AUTHOR_EMAIL", "test@example.com")
+            .env("GIT_COMMITTER_NAME", "Test")
+            .env("GIT_COMMITTER_EMAIL", "test@example.com")
+            .status()
+            .unwrap();
+        assert!(status.success(), "{args:?}");
+    };
+    git(&["init", "-b", "main"]);
+    std::fs::write(dir.join("old.rs"), "fn old() {}\n").unwrap();
+    git(&["add", "old.rs"]);
+    git(&["commit", "-m", "add"]);
+    git(&["mv", "old.rs", "new.rs"]);
+    git(&["commit", "-m", "move"]);
+    let names = diff_names(&dir, "HEAD~1..HEAD").unwrap();
+    assert!(names.iter().any(|name| name == "old.rs"), "{names:?}");
+    assert!(names.iter().any(|name| name == "new.rs"), "{names:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn diff_without_a_bot_fails_a_path_with_no_owner() {
+    let policy = parse_policy(
+        "path.tla",
+        &policy_text(
+            &[
+                ("crates/sim/**", "Risk/Portfolio"),
+                ("crates/**", "Ops/Release"),
+            ],
+            &["Risk/Portfolio", "Ops/Release"],
+        ),
+    )
+    .unwrap();
+    let owned = unowned_path_diags(&policy, &["crates/sim/src/ledger.rs".to_owned()]);
+    assert!(owned.is_empty(), "{owned:?}");
+    let missing = unowned_path_diags(&policy, &["notes/unowned.md".to_owned()]);
+    assert_eq!(ids(&missing), ["ARCH-PATH-001"]);
+    assert!(missing[0].message.contains("no PathOwners"));
+}
+
+#[test]
+fn jar_flag_is_resolved_from_the_workspace_root() {
+    let relative = absolutize_jar(Path::new("/repo"), Path::new("specs/tla/tla2tools.jar"));
+    assert_eq!(relative, PathBuf::from("/repo/specs/tla/tla2tools.jar"));
+    let absolute = absolutize_jar(Path::new("/repo"), Path::new("/opt/tla2tools.jar"));
+    assert_eq!(absolute, PathBuf::from("/opt/tla2tools.jar"));
+}
+
+#[test]
 fn explain_covers_the_stable_ids() {
     for id in [
         "ARCH-DEP-001",
@@ -254,6 +406,13 @@ fn explain_covers_the_stable_ids() {
         assert!(text.starts_with(id), "{text}");
     }
     assert!(xtask::explain("ARCH-NOPE").is_err());
+}
+
+fn line_of(text: &str, marker: &str) -> u32 {
+    text.lines()
+        .position(|line| line.contains(marker))
+        .unwrap_or_else(|| panic!("missing {marker}")) as u32
+        + 1
 }
 
 fn policy_text(paths: &[(&str, &str)], owners: &[&str]) -> String {

@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use cargo_metadata::{DependencyKind, MetadataCommand};
+use cargo_metadata::{DependencyKind, MetadataCommand, NodeDep};
 
 use crate::effects::{
     dep_effect, effect_diags, effects_in_source, float_diags, float_tokens, package_rs_files, Hit,
@@ -69,8 +69,14 @@ pub fn enforce(opts: &EnforceOptions<'_>) -> Result<Vec<Diagnostic>, ToolError> 
     let targets = target_roots(&metadata, &root);
     scan_ast(&root, &targets, &policy, &mut diags)?;
     diags.extend(package_effects(&metadata, &policy, &root)?);
-    if let (Some(range), Some(bot)) = (opts.diff, opts.as_bot) {
-        diags.extend(path_diags(&root, &policy, range, bot)?);
+    if let Some(range) = opts.diff {
+        match opts.as_bot {
+            Some(bot) => diags.extend(path_diags(&root, &policy, range, bot)?),
+            None => {
+                let files = diff_names(&root, range)?;
+                diags.extend(unowned_path_diags(&policy, &files));
+            }
+        }
     }
     diags.sort_by(|a, b| {
         (a.rule_id, &a.file, a.line, &a.symbol).cmp(&(b.rule_id, &b.file, b.line, &b.symbol))
@@ -269,19 +275,31 @@ pub fn validate(manifest: &Path, jar: Option<&Path>) -> Result<String, ToolError
 }
 
 fn resolve_jar(root: &Path, flag: Option<&Path>) -> Result<PathBuf, ToolError> {
-    if let Some(path) = flag {
-        return Ok(path.to_path_buf());
+    let raw = if let Some(path) = flag {
+        path.to_path_buf()
+    } else if let Ok(env) = std::env::var("TLA2TOOLS_JAR") {
+        PathBuf::from(env)
+    } else {
+        PathBuf::from("specs/tla/tla2tools.jar")
+    };
+    let absolute = absolutize_jar(root, &raw);
+    if absolute.is_file() {
+        return Ok(absolute);
     }
-    if let Ok(env) = std::env::var("TLA2TOOLS_JAR") {
-        return Ok(PathBuf::from(env));
+    Err(ToolError::tool(format!(
+        "tla2tools.jar not found at {}. Pass --jar, set TLA2TOOLS_JAR, or download the pinned jar into specs/tla/tla2tools.jar",
+        absolute.display()
+    )))
+}
+
+/// A relative jar path is rooted at the workspace, not at `spec/arch` where
+/// SANY and TLC run.
+pub fn absolutize_jar(root: &Path, raw: &Path) -> PathBuf {
+    if raw.is_absolute() {
+        raw.to_path_buf()
+    } else {
+        root.join(raw)
     }
-    let candidate = root.join("specs/tla/tla2tools.jar");
-    if candidate.is_file() {
-        return Ok(candidate);
-    }
-    Err(ToolError::tool(
-        "tla2tools.jar not found. Pass --jar, set TLA2TOOLS_JAR, or download the pinned jar into specs/tla/tla2tools.jar",
-    ))
 }
 
 fn tail(stdout: &[u8], stderr: &[u8]) -> String {
@@ -337,33 +355,53 @@ fn dep_diags(
     policy: &Policy,
     root: &Path,
 ) -> Result<Vec<Diagnostic>, ToolError> {
+    let Some(resolve) = &metadata.resolve else {
+        return Err(ToolError::tool(
+            "cargo metadata returned no resolve graph; dependency edges cannot be checked",
+        ));
+    };
     let members: BTreeSet<_> = metadata.workspace_members.iter().cloned().collect();
-    let by_name: BTreeMap<_, _> = metadata
-        .packages
-        .iter()
-        .filter(|pkg| members.contains(&pkg.id))
-        .map(|pkg| (pkg.name.as_str(), pkg))
-        .collect();
+    let by_id: BTreeMap<_, _> = metadata.packages.iter().map(|pkg| (&pkg.id, pkg)).collect();
     let mut edges = Vec::new();
+    let mut seen = BTreeSet::new();
     let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for pkg in by_name.values() {
+    for node in &resolve.nodes {
+        let Some(pkg) = by_id.get(&node.id) else {
+            return Err(ToolError::tool(format!(
+                "resolve node {} has no package",
+                node.id
+            )));
+        };
+        if pkg.source.is_some() {
+            continue;
+        }
         graph.entry(pkg.name.to_string()).or_default();
         let manifest = std::fs::read_to_string(pkg.manifest_path.as_str()).unwrap_or_default();
-        for dep in &pkg.dependencies {
-            if dep.kind != DependencyKind::Normal {
+        for dep in &node.deps {
+            if !is_normal_dep(dep) {
                 continue;
             }
-            let Some(target) = by_name.get(dep.name.as_str()) else {
-                continue;
+            let Some(target) = by_id.get(&dep.pkg) else {
+                return Err(ToolError::tool(format!(
+                    "resolve edge from {} to {} has no package",
+                    pkg.name, dep.name
+                )));
             };
+            if target.source.is_some() {
+                continue;
+            }
             let from = pkg.name.to_string();
             let to = target.name.to_string();
+            if !seen.insert((from.clone(), to.clone())) {
+                continue;
+            }
             graph.entry(from.clone()).or_default().insert(to.clone());
             edges.push(Edge {
                 from,
                 to,
                 file: rel_path(root, Path::new(pkg.manifest_path.as_str())),
-                line: manifest_line(&manifest, &dep.name),
+                line: manifest_line(&manifest, &target.name),
+                outside: !members.contains(&pkg.id) || !members.contains(&target.id),
             });
         }
     }
@@ -374,6 +412,22 @@ fn dep_diags(
         .collect();
     let mut diags = Vec::new();
     for edge in &edges {
+        if edge.outside {
+            diags.push(Diagnostic {
+                rule_id: DEP_DIRECT,
+                message: format!(
+                    "path dependency {} -> {} is an unknown crate outside the workspace",
+                    edge.from, edge.to
+                ),
+                symbol: format!("{} -> {}", edge.from, edge.to),
+                file: edge.file.clone(),
+                line: edge.line,
+                allowed: allowed_from(&allowed, &edge.from),
+                spec_file: policy.file.clone(),
+                spec_line: policy.line_of("AllowedDependencies"),
+            });
+            continue;
+        }
         if allowed.contains(&(edge.from.clone(), edge.to.clone())) {
             continue;
         }
@@ -428,11 +482,20 @@ fn dep_diags(
     Ok(diags)
 }
 
+fn is_normal_dep(dep: &NodeDep) -> bool {
+    dep.dep_kinds.is_empty()
+        || dep
+            .dep_kinds
+            .iter()
+            .any(|kind| kind.kind == DependencyKind::Normal)
+}
+
 struct Edge {
     from: String,
     to: String,
     file: String,
     line: u32,
+    outside: bool,
 }
 
 fn allowed_from(allowed: &BTreeSet<(String, String)>, from: &str) -> String {
@@ -530,11 +593,10 @@ fn package_effects(
     policy: &Policy,
     root: &Path,
 ) -> Result<Vec<Diagnostic>, ToolError> {
-    let members: BTreeSet<_> = metadata.workspace_members.iter().cloned().collect();
     let mut diags = Vec::new();
     let mut float_hits = Vec::new();
     for pkg in &metadata.packages {
-        if !members.contains(&pkg.id) {
+        if pkg.source.is_some() {
             continue;
         }
         let mut hits = Vec::new();
@@ -561,8 +623,27 @@ fn package_effects(
         diags.extend(effect_diags(policy, &pkg.name, &hits));
     }
     diags.extend(float_diags(policy, &float_hits));
-    let _ = root;
     Ok(diags)
+}
+
+pub fn diff_names(root: &Path, range: &str) -> Result<Vec<String>, ToolError> {
+    let output = Command::new("git")
+        .args(["diff", "--name-only", "--no-renames", range])
+        .current_dir(root)
+        .output()
+        .map_err(|err| ToolError::tool(format!("git diff: {err}")))?;
+    if !output.status.success() {
+        return Err(ToolError::tool(format!(
+            "git diff --no-renames {range} failed\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    Ok(text
+        .lines()
+        .map(|line| line.trim().to_owned())
+        .filter(|line| !line.is_empty())
+        .collect())
 }
 
 pub fn path_diags(
@@ -574,24 +655,38 @@ pub fn path_diags(
     if !policy.owners.contains_key(bot) {
         return Err(ToolError::tool(format!("{bot} is not in Owners")));
     }
-    let output = Command::new("git")
-        .args(["diff", "--name-only", range])
-        .current_dir(root)
-        .output()
-        .map_err(|err| ToolError::tool(format!("git diff: {err}")))?;
-    if !output.status.success() {
-        return Err(ToolError::tool(format!(
-            "git diff {range} failed\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        )));
-    }
-    let text = String::from_utf8_lossy(&output.stdout);
-    let files: Vec<String> = text
-        .lines()
-        .map(|line| line.trim().to_owned())
-        .filter(|line| !line.is_empty())
-        .collect();
+    let files = diff_names(root, range)?;
     Ok(path_diags_for(policy, &files, bot))
+}
+
+pub fn unowned_path_diags(policy: &Policy, files: &[String]) -> Vec<Diagnostic> {
+    let mut diags = Vec::new();
+    for file in files {
+        match owner_of(policy, file) {
+            OwnerMatch::One(_) => {}
+            OwnerMatch::None => diags.push(Diagnostic {
+                rule_id: PATH,
+                message: format!("{file} has no PathOwners entry"),
+                symbol: file.clone(),
+                file: file.clone(),
+                line: 1,
+                allowed: "(one owner)".to_owned(),
+                spec_file: policy.file.clone(),
+                spec_line: policy.line_of("PathOwners"),
+            }),
+            OwnerMatch::Ambiguous(left, right) => diags.push(Diagnostic {
+                rule_id: PATH_AMBIG,
+                message: format!("{file} matches {left} and {right}"),
+                symbol: file.clone(),
+                file: file.clone(),
+                line: 1,
+                allowed: format!("{left}, {right}"),
+                spec_file: policy.file.clone(),
+                spec_line: policy.line_of("PathOwners"),
+            }),
+        }
+    }
+    diags
 }
 
 pub fn path_diags_for(policy: &Policy, files: &[String], bot: &str) -> Vec<Diagnostic> {

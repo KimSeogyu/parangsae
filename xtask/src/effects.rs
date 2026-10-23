@@ -3,12 +3,14 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
+use proc_macro2::TokenStream;
 use syn::visit::Visit;
 use syn::{Expr, Type, UseTree};
 
 use crate::error::{Diagnostic, EFFECT, FLOAT};
 use crate::parse::Policy;
 use crate::scan::rel_path;
+use crate::tokens::{ident_paths, macro_expr};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Effect {
@@ -29,6 +31,7 @@ impl Effect {
     }
 }
 
+#[derive(Debug)]
 pub struct Hit {
     pub effect: Effect,
     pub symbol: String,
@@ -134,11 +137,11 @@ pub fn float_tokens(rel: &str, text: &str) -> Vec<Hit> {
         }
         if c.is_ascii_digit() {
             let start_line = line;
-            let (next, suffix) = scan_number(bytes, index);
-            if suffix == Some("f64") || suffix == Some("f32") {
+            let (next, symbol) = scan_number(bytes, index);
+            if let Some(symbol) = symbol {
                 hits.push(Hit {
                     effect: Effect::Net,
-                    symbol: suffix.unwrap_or("f64").to_owned(),
+                    symbol,
                     file: rel.to_owned(),
                     line: start_line,
                 });
@@ -153,7 +156,10 @@ pub fn float_tokens(rel: &str, text: &str) -> Vec<Hit> {
                 index += 1;
             }
             let ident = &text[start..index];
-            if ident == "f64" || ident == "f32" {
+            let float_method = (ident.ends_with("_f64") || ident.ends_with("_f32"))
+                && (prev_non_ws(bytes, start) == Some(b'.')
+                    || next_non_ws(bytes, index) == Some(b'('));
+            if ident == "f64" || ident == "f32" || float_method {
                 hits.push(Hit {
                     effect: Effect::Net,
                     symbol: ident.to_owned(),
@@ -253,13 +259,26 @@ impl Visit<'_> for UseCollector<'_> {
     fn visit_item_use(&mut self, item: &syn::ItemUse) {
         let mut flat = Vec::new();
         flatten(&item.tree, &[], &mut flat);
-        for (alias, path) in flat {
+        for (alias, path, is_glob) in flat {
+            if is_glob {
+                continue;
+            }
             self.aliases.insert(alias, path);
         }
     }
+
+    fn visit_item_extern_crate(&mut self, item: &syn::ItemExternCrate) {
+        let crate_name = item.ident.to_string();
+        let alias = item
+            .rename
+            .as_ref()
+            .map(|(_, name)| name.to_string())
+            .unwrap_or_else(|| crate_name.clone());
+        self.aliases.insert(alias, vec![crate_name]);
+    }
 }
 
-fn flatten(tree: &UseTree, prefix: &[String], out: &mut Vec<(String, Vec<String>)>) {
+fn flatten(tree: &UseTree, prefix: &[String], out: &mut Vec<(String, Vec<String>, bool)>) {
     match tree {
         UseTree::Path(path) => {
             let mut next = prefix.to_vec();
@@ -269,20 +288,20 @@ fn flatten(tree: &UseTree, prefix: &[String], out: &mut Vec<(String, Vec<String>
         UseTree::Name(name) => {
             if name.ident == "self" {
                 if let Some(alias) = prefix.last() {
-                    out.push((alias.clone(), prefix.to_vec()));
+                    out.push((alias.clone(), prefix.to_vec(), false));
                 }
             } else {
                 let mut path = prefix.to_vec();
                 path.push(name.ident.to_string());
-                out.push((name.ident.to_string(), path));
+                out.push((name.ident.to_string(), path, false));
             }
         }
         UseTree::Rename(rename) => {
             let mut path = prefix.to_vec();
             path.push(rename.ident.to_string());
-            out.push((rename.rename.to_string(), path));
+            out.push((rename.rename.to_string(), path, false));
         }
-        UseTree::Glob(_) => {}
+        UseTree::Glob(_) => out.push((String::new(), prefix.to_vec(), true)),
         UseTree::Group(group) => {
             for item in &group.items {
                 flatten(item, prefix, out);
@@ -299,23 +318,36 @@ struct PathWalker<'a> {
 
 impl PathWalker<'_> {
     fn note_path(&mut self, segments: &[String], line: usize) {
+        self.note_classified(segments, line, false);
+    }
+
+    fn note_classified(&mut self, segments: &[String], line: usize, unparsed: bool) {
         if segments.is_empty() {
             return;
         }
-        let expanded = if let Some(prefix) = self.aliases.get(&segments[0]) {
-            let mut full = prefix.clone();
-            full.extend(segments.iter().skip(1).cloned());
-            full
+        let expanded = expand_alias(self.aliases, segments);
+        let found = if unparsed {
+            effect_of_unparsed(&expanded)
         } else {
-            segments.to_vec()
+            classify(&expanded)
         };
-        if let Some((effect, symbol)) = classify(&expanded) {
+        if let Some((effect, symbol)) = found {
             self.hits.push(Hit {
                 effect,
                 symbol,
                 file: self.rel.to_owned(),
                 line: u32::try_from(line).unwrap_or(u32::MAX),
             });
+        }
+    }
+
+    fn scan_macro(&mut self, tokens: &TokenStream, line: usize) {
+        if let Some(expr) = macro_expr(tokens) {
+            self.visit_expr(&expr);
+            return;
+        }
+        for path in ident_paths(tokens) {
+            self.note_classified(&path, line, true);
         }
     }
 }
@@ -363,15 +395,62 @@ impl<'ast> Visit<'ast> for PathWalker<'_> {
         let mut flat = Vec::new();
         flatten(&item.tree, &[], &mut flat);
         let line = item.use_token.span.start().line;
-        for (_alias, path) in flat {
+        for (_alias, path, is_glob) in flat {
+            if is_glob {
+                let expanded = expand_alias(self.aliases, &path);
+                if let Some(effect) = effect_module(&expanded) {
+                    self.hits.push(Hit {
+                        effect,
+                        symbol: format!("{}::*", expanded.join("::")),
+                        file: self.rel.to_owned(),
+                        line: u32::try_from(line).unwrap_or(u32::MAX),
+                    });
+                }
+                continue;
+            }
             self.note_path(&path, line);
         }
         syn::visit::visit_item_use(self, item);
     }
+
+    fn visit_macro(&mut self, mac: &'ast syn::Macro) {
+        let line = mac
+            .path
+            .segments
+            .first()
+            .map(|seg| seg.ident.span().start().line)
+            .unwrap_or(1);
+        self.scan_macro(&mac.tokens, line);
+    }
+}
+
+fn expand_alias(aliases: &BTreeMap<String, Vec<String>>, segments: &[String]) -> Vec<String> {
+    let mut current = segments.to_vec();
+    for _ in 0..8 {
+        let Some(first) = current.first() else {
+            break;
+        };
+        let Some(prefix) = aliases.get(first) else {
+            break;
+        };
+        if prefix.len() == 1 && prefix[0] == *first {
+            break;
+        }
+        let mut full = prefix.clone();
+        full.extend(current.iter().skip(1).cloned());
+        if full == current {
+            break;
+        }
+        current = full;
+    }
+    current
 }
 
 fn classify(segs: &[String]) -> Option<(Effect, String)> {
     let symbol = segs.join("::");
+    if is_os_symlink(segs) {
+        return Some((Effect::FsWrite, symbol));
+    }
     let head = segs.first().map(String::as_str)?;
     if head == "reqwest" || head == "hyper" || head == "tungstenite" {
         return Some((Effect::Net, symbol));
@@ -413,14 +492,53 @@ fn fs_effect(rest: &[String]) -> Option<Effect> {
         return Some(Effect::FsWrite);
     }
     if name == "File"
-        && rest
-            .get(1)
-            .map(String::as_str)
-            .is_some_and(|method| method == "create" || method == "create_new")
+        && rest.get(1).map(String::as_str).is_some_and(|method| {
+            method == "create" || method == "create_new" || method == "options"
+        })
     {
         return Some(Effect::FsWrite);
     }
     None
+}
+
+fn is_os_symlink(segs: &[String]) -> bool {
+    segs.len() >= 5
+        && segs[0] == "std"
+        && segs[1] == "os"
+        && (segs[2] == "unix" || segs[2] == "windows")
+        && segs[3] == "fs"
+        && matches!(segs[4].as_str(), "symlink" | "symlink_file" | "symlink_dir")
+}
+
+/// A glob, or an unparsed macro body, names an effect module. The specific
+/// function is not visible, so the module itself is the effect.
+fn effect_module(segs: &[String]) -> Option<Effect> {
+    match segs {
+        [std, env, ..] if std == "std" && env == "env" => Some(Effect::Env),
+        [std, fs, ..] if std == "std" && fs == "fs" => Some(Effect::FsWrite),
+        [std, net, ..] if std == "std" && net == "net" => Some(Effect::Net),
+        [std, process, ..] if std == "std" && process == "process" => Some(Effect::Process),
+        [tokio, net, ..] if tokio == "tokio" && net == "net" => Some(Effect::Net),
+        [std, os, family, fs, ..]
+            if std == "std"
+                && os == "os"
+                && (family == "unix" || family == "windows")
+                && fs == "fs" =>
+        {
+            Some(Effect::FsWrite)
+        }
+        [head, ..] if head == "reqwest" || head == "hyper" || head == "tungstenite" => {
+            Some(Effect::Net)
+        }
+        _ => None,
+    }
+}
+
+fn effect_of_unparsed(segs: &[String]) -> Option<(Effect, String)> {
+    if let Some(found) = classify(segs) {
+        return Some(found);
+    }
+    effect_module(segs).map(|effect| (effect, segs.join("::")))
 }
 
 fn process_effect(rest: &[String]) -> Option<Effect> {
@@ -448,17 +566,24 @@ fn is_ident_continue(c: u8) -> bool {
     c.is_ascii_alphanumeric() || c == b'_'
 }
 
-fn scan_number(bytes: &[u8], start: usize) -> (usize, Option<&str>) {
+fn scan_number(bytes: &[u8], start: usize) -> (usize, Option<String>) {
     let mut index = start;
+    let mut is_float = false;
     while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'_') {
         index += 1;
     }
-    if index < bytes.len()
-        && bytes[index] == b'.'
-        && bytes.get(index + 1).is_some_and(|c| c.is_ascii_digit())
-    {
-        index += 1;
-        while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'_') {
+    if index < bytes.len() && bytes[index] == b'.' {
+        let next = bytes.get(index + 1).copied();
+        if next.is_some_and(|c| c.is_ascii_digit()) {
+            is_float = true;
+            index += 1;
+            while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'_') {
+                index += 1;
+            }
+        } else if next.is_none_or(|c| c != b'.' && c != b'_' && !is_ident_start(c)) {
+            // `1.` is a float. `1..2` is a range and `0.checked_add` is a
+            // tuple field followed by a method, not a float literal.
+            is_float = true;
             index += 1;
         }
     }
@@ -468,22 +593,54 @@ fn scan_number(bytes: &[u8], start: usize) -> (usize, Option<&str>) {
             probe += 1;
         }
         if bytes.get(probe).is_some_and(|c| c.is_ascii_digit()) {
+            is_float = true;
             index = probe;
             while index < bytes.len() && (bytes[index].is_ascii_digit() || bytes[index] == b'_') {
                 index += 1;
             }
         }
     }
-    let suffix_start = index;
+    let suffix_at = index;
     if index < bytes.len() && is_ident_start(bytes[index]) {
         index += 1;
         while index < bytes.len() && is_ident_continue(bytes[index]) {
             index += 1;
         }
-        let suffix = std::str::from_utf8(&bytes[suffix_start..index]).unwrap_or("");
-        return (index, Some(suffix));
+        let suffix = std::str::from_utf8(&bytes[suffix_at..index]).unwrap_or("");
+        if suffix == "f32" || suffix == "f64" {
+            return (index, Some(suffix.to_owned()));
+        }
+    }
+    if is_float {
+        let literal = std::str::from_utf8(&bytes[start..suffix_at]).unwrap_or("float");
+        return (index, Some(literal.to_owned()));
     }
     (index, None)
+}
+
+fn prev_non_ws(bytes: &[u8], index: usize) -> Option<u8> {
+    let mut cursor = index;
+    while cursor > 0 {
+        cursor -= 1;
+        let c = bytes[cursor];
+        if c == b' ' || c == b'\t' || c == b'\n' || c == b'\r' {
+            continue;
+        }
+        return Some(c);
+    }
+    None
+}
+
+fn next_non_ws(bytes: &[u8], mut index: usize) -> Option<u8> {
+    while index < bytes.len() {
+        let c = bytes[index];
+        if c == b' ' || c == b'\t' || c == b'\n' || c == b'\r' {
+            index += 1;
+            continue;
+        }
+        return Some(c);
+    }
+    None
 }
 
 fn skip_string(bytes: &[u8], mut index: usize, line: &mut u32) -> usize {
@@ -605,5 +762,77 @@ fn walk_rs(dir: &Path, root: &Path, out: &mut Vec<(String, String)>) {
             let text = std::fs::read_to_string(&path).unwrap_or_default();
             out.push((rel, text));
         }
+    }
+}
+
+#[cfg(test)]
+mod probes {
+    use super::{effects_in_source, float_tokens, Effect};
+
+    fn line_of(text: &str, marker: &str) -> u32 {
+        text.lines()
+            .position(|line| line.contains(marker))
+            .unwrap_or_else(|| panic!("missing {marker}")) as u32
+            + 1
+    }
+
+    #[test]
+    fn every_effect_probe_hits_its_line() {
+        let text = include_str!("../../tests/fixtures/arch/effect_probes_bad/money/src/lib.rs");
+        let hits = effects_in_source("money/src/lib.rs", text).unwrap();
+        for marker in [
+            "probe: glob",
+            "probe: println",
+            "probe: vec",
+            "probe: macro_rules",
+            "probe: extern",
+            "probe: options",
+            "probe: symlink",
+            "probe: unparsed-read",
+        ] {
+            let line = line_of(text, marker);
+            assert!(
+                hits.iter().any(|hit| hit.line == line),
+                "{marker} at {line} missing from {hits:?}"
+            );
+        }
+        assert!(hits.iter().any(|hit| hit.effect == Effect::Env));
+        assert!(hits
+            .iter()
+            .any(|hit| hit.effect == Effect::FsWrite && hit.symbol.contains("symlink")));
+        assert!(hits
+            .iter()
+            .any(|hit| hit.effect == Effect::FsWrite && hit.symbol.contains("read")));
+    }
+
+    #[test]
+    fn parsed_fs_read_is_not_a_write() {
+        let hits = effects_in_source(
+            "a.rs",
+            r#"fn f() { let _ = std::fs::read("a"); let _ = std::fs::File::open("a"); }"#,
+        )
+        .unwrap();
+        assert!(hits.is_empty(), "{hits:?}");
+    }
+
+    #[test]
+    fn tuple_fields_ranges_and_strings_are_not_floats() {
+        let text = r#"
+            fn f(cash: (i64,)) {
+                let _ = cash.0;
+                let _ = cash.0.checked_add(1);
+                let _ = 0.into();
+                let _ = 1..2;
+                let _ = 1.;
+                let _ = "0.5";
+                let _ = 1e18;
+                // 3.0
+            }
+        "#;
+        let symbols: Vec<String> = float_tokens("a.rs", text)
+            .into_iter()
+            .map(|hit| hit.symbol)
+            .collect();
+        assert_eq!(symbols, vec!["1.".to_owned(), "1e18".to_owned()]);
     }
 }

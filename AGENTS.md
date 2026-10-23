@@ -75,6 +75,9 @@ cargo test --workspace
 cargo xtask spec validate --jar specs/tla/tla2tools.jar
 cargo xtask spec generate --check
 cargo xtask spec enforce
+# CI also runs `spec enforce --diff <merge-base with the default branch>..HEAD`
+# with no `--as`. A changed path with no single owner fails. `--no-renames`
+# checks both sides of a move.
 ```
 
 TLC and Kani are the `tla` and `kani` jobs in `.github/workflows/ci.yml`. Architecture policy is the `spec-arch` job. `spec validate` uses the same `tla2tools.jar` as the `tla` job.

@@ -104,10 +104,12 @@ pub fn explain_rule(id: &str) -> Option<&'static str> {
     Some(match id {
         DEP_DIRECT => {
             "ARCH-DEP-001\n\
-             A direct workspace dependency edge is not in AllowedDependencies.\n\
-             symbol is `from -> to`. source is the depending crate's Cargo.toml line.\n\
-             allowed lists the edges AllowedDependencies grants that crate.\n\
-             spec is the AllowedDependencies operator."
+             A direct dependency edge between local packages is not in\n\
+             AllowedDependencies, or one end is a path package outside the\n\
+             workspace (an unknown crate). The check walks the cargo resolve\n\
+             graph, not only workspace members. symbol is `from -> to`.\n\
+             source is the depending crate's Cargo.toml line. Dev-dependencies\n\
+             are not edges. Registry crates are not edges."
         }
         DEP_TRANSITIVE => {
             "ARCH-DEP-002\n\
@@ -130,31 +132,38 @@ pub fn explain_rule(id: &str) -> Option<&'static str> {
         }
         CALL => {
             "ARCH-CALL-001\n\
-             A call resolves to a function whose name is in Capabilities, and the\n\
-             caller's package is not paired with that capability in\n\
-             AllowedCapabilityCallers. Resolution follows `use` aliases and `pub use`\n\
-             re-exports. symbol is `alias -> function`."
+             A path mentions a function whose name is in Capabilities, and the\n\
+             package is not paired with that capability in AllowedCapabilityCallers.\n\
+             A mention is a call, a `use` or `pub use`, an alias (`y::safe` when `y`\n\
+             is the function), a function passed as a value, a typed function pointer,\n\
+             or the same path inside a macro. symbol is `path -> function`."
         }
         CALL_UNRESOLVED => {
             "ARCH-CALL-002\n\
-             A use or call names a capability function and the path did not resolve.\n\
-             The check fails instead of ignoring the call."
+             A path, `use`, or macro token names a capability and the path did not\n\
+             resolve to that function. The check fails instead of ignoring it."
         }
         EFFECT => {
             "ARCH-EFFECT-001\n\
-             A crate uses an effect the engine knows (net, fs_write, process, env)\n\
-             without an AllowedEffects pair. net is reqwest, hyper, tungstenite,\n\
+             A local package uses an effect the engine knows (net, fs_write, process,\n\
+             env) without an AllowedEffects pair. net is reqwest, hyper, tungstenite,\n\
              socket2, tokio's net or default features, std::net, and tokio::net.\n\
-             fs_write is the std::fs write and remove APIs, OpenOptions, and\n\
-             File::create. process is std::process::{Command, Child, exit, Stdio,\n\
-             Output}. env is the std::env readers and writers, including args.\n\
-             ExitCode is not process. File::open and read APIs are not fs_write."
+             fs_write is the std::fs write and remove APIs, OpenOptions,\n\
+             File::create, File::options, and std::os::{unix,windows}::fs::symlink.\n\
+             process is std::process::{Command, Child, exit, Stdio, Output}. env is\n\
+             the std::env readers and writers, including args. A glob of one of those\n\
+             modules is the effect. extern crate aliases are expanded. Macro token\n\
+             streams are parsed as expressions when they can be, and otherwise any\n\
+             effect-module path in the tokens fails closed. ExitCode is not process.\n\
+             A parsed File::open or read is not fs_write."
         }
         FLOAT => {
             "ARCH-FLOAT-001\n\
-             An f64 or f32 identifier, or a numeric literal with an f64 or f32 suffix,\n\
-             appears outside FloatAllowed. Comments and string literals are not\n\
-             tokens of those types. `#[allow]` does not suppress the token."
+             A float outside FloatAllowed: an f64 or f32 identifier, a float literal\n\
+             (decimal point or exponent, with or without an f32/f64 suffix), or a\n\
+             method or call whose name ends in _f64 or _f32. Comments and string\n\
+             literals are not tokens. `#[allow]` does not suppress the token.\n\
+             Crates outside FloatAllowed also deny clippy::float_arithmetic."
         }
         GEN => {
             "ARCH-GEN-001\n\
@@ -164,8 +173,10 @@ pub fn explain_rule(id: &str) -> Option<&'static str> {
         }
         PATH => {
             "ARCH-PATH-001\n\
-             A path in the diff is outside the globs PathOwners grants the named bot.\n\
-             The most specific matching glob wins. An unowned path matches no bot."
+             A changed path is outside the globs PathOwners grants the named bot, or\n\
+             `--diff` was given without `--as` and the path has no owner. git diff\n\
+             uses --no-renames, so a move is checked on both sides. The most specific\n\
+             matching glob wins."
         }
         PATH_AMBIG => {
             "ARCH-PATH-002\n\

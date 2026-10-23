@@ -15,6 +15,7 @@ use syn::{
 
 use crate::error::{Diagnostic, ToolError, CALL, CALL_UNRESOLVED, MUT, MUT_UNRESOLVED};
 use crate::parse::Policy;
+use crate::tokens::{ident_paths, macro_expr};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Kind {
@@ -777,43 +778,76 @@ impl<'a> Walker<'a> {
         }
     }
 
-    fn note_call(&mut self, path: &syn::Path, line: u32) {
-        let segs: Vec<String> = path
-            .segments
-            .iter()
-            .map(|seg| seg.ident.to_string())
-            .collect();
-        let fn_name = if segs.len() == 1 {
-            match self.lookup_val(&segs[0]) {
-                Some(Val::Fn(name)) => Some(name),
-                _ => match self.lookup_kind(&segs[0]) {
-                    Some(Kind::Fn { name }) => Some(name),
-                    _ => None,
-                },
-            }
-        } else {
-            match self.resolve_kind(&segs) {
-                Some(Kind::Fn { name }) => Some(name),
-                _ => None,
-            }
-        };
-        let Some(fn_name) = fn_name else {
-            if segs
-                .last()
-                .is_some_and(|seg| self.policy.capabilities.contains_key(seg))
-            {
-                self.diags.push(unresolved_call(
-                    self.policy,
-                    self.rel,
-                    line,
-                    segs.last().unwrap(),
-                ));
-            }
-            return;
-        };
-        if !self.policy.capabilities.contains_key(&fn_name) {
+    fn note_capability_segs(&mut self, segs: &[String], line: u32) {
+        if segs.is_empty() {
             return;
         }
+        if let Some(fn_name) = self.capability_of(segs) {
+            self.emit_call(fn_name, segs, line);
+            return;
+        }
+        if let Some(name) = segs
+            .iter()
+            .rev()
+            .find(|seg| self.policy.capabilities.contains_key(seg.as_str()))
+        {
+            self.diags
+                .push(unresolved_call(self.policy, self.rel, line, name));
+        }
+    }
+
+    fn capability_of(&self, segs: &[String]) -> Option<String> {
+        if let Some(name) = self.fn_from_segs(segs) {
+            if self.policy.capabilities.contains_key(&name) {
+                return Some(name);
+            }
+            return None;
+        }
+        let first = segs.first()?;
+        let name = self.fn_binding(first)?;
+        self.policy.capabilities.contains_key(&name).then_some(name)
+    }
+
+    fn fn_from_segs(&self, segs: &[String]) -> Option<String> {
+        if segs.len() == 1 {
+            return self.fn_binding(&segs[0]);
+        }
+        match self.resolve_kind(segs) {
+            Some(Kind::Fn { name }) => Some(name),
+            _ => None,
+        }
+    }
+
+    fn fn_binding(&self, name: &str) -> Option<String> {
+        if let Some(Val::Fn(name)) = self.lookup_val(name) {
+            return Some(name);
+        }
+        match self.lookup_kind(name) {
+            Some(Kind::Fn { name }) => Some(name),
+            _ => None,
+        }
+    }
+
+    fn fn_name_of_expr(&self, expr: &syn::Expr) -> Option<String> {
+        match expr {
+            syn::Expr::Path(path) => {
+                let segs: Vec<String> = path
+                    .path
+                    .segments
+                    .iter()
+                    .map(|seg| seg.ident.to_string())
+                    .collect();
+                self.fn_from_segs(&segs)
+            }
+            syn::Expr::Paren(inner) => self.fn_name_of_expr(&inner.expr),
+            syn::Expr::Group(inner) => self.fn_name_of_expr(&inner.expr),
+            syn::Expr::Reference(inner) => self.fn_name_of_expr(&inner.expr),
+            syn::Expr::Cast(inner) => self.fn_name_of_expr(&inner.expr),
+            _ => None,
+        }
+    }
+
+    fn emit_call(&mut self, fn_name: String, segs: &[String], line: u32) {
         let allowed: Vec<&str> = self
             .policy
             .capability_callers
@@ -838,10 +872,7 @@ impl<'a> Walker<'a> {
         };
         self.diags.push(Diagnostic {
             rule_id: CALL,
-            message: format!(
-                "capability {fn_name} is called from {}",
-                self.target.package
-            ),
+            message: format!("capability {fn_name} is used from {}", self.target.package),
             symbol: shown,
             file: self.rel.to_owned(),
             line,
@@ -853,6 +884,20 @@ impl<'a> Walker<'a> {
             spec_file: self.policy.file.clone(),
             spec_line,
         });
+    }
+
+    fn path_segs(path: &syn::Path) -> (Vec<String>, u32) {
+        let segs: Vec<String> = path
+            .segments
+            .iter()
+            .map(|seg| seg.ident.to_string())
+            .collect();
+        let line = path
+            .segments
+            .first()
+            .map(|seg| line_of_span(seg.ident.span()))
+            .unwrap_or(1);
+        (segs, line)
     }
 
     fn bind_pat(&mut self, pat: &Pat, ty: Option<TypeRef>, slot: &mut HashMap<String, Val>) {
@@ -994,11 +1039,9 @@ impl<'ast> Visit<'ast> for Walker<'_> {
             syn::Expr::Reference(reference) if reference.mutability.is_some() => {
                 self.check_place(&reference.expr);
             }
-            syn::Expr::Call(call) => {
-                if let syn::Expr::Path(path) = &*call.func {
-                    let line = line_of_span(path.path.span());
-                    self.note_call(&path.path, line);
-                }
+            syn::Expr::Path(path) => {
+                let (segs, line) = Self::path_segs(&path.path);
+                self.note_capability_segs(&segs, line);
             }
             syn::Expr::MethodCall(call) => {
                 let name = call.method.to_string();
@@ -1065,24 +1108,48 @@ impl<'ast> Visit<'ast> for Walker<'_> {
         }
         syn::visit::visit_expr(self, expr);
     }
+
+    fn visit_type(&mut self, ty: &'ast Type) {
+        if let Type::Path(path) = ty {
+            let (segs, line) = Self::path_segs(&path.path);
+            self.note_capability_segs(&segs, line);
+        }
+        syn::visit::visit_type(self, ty);
+    }
+
+    fn visit_item_use(&mut self, item: &'ast syn::ItemUse) {
+        let mut flat = Vec::new();
+        flatten_use(&item.tree, &[], &mut flat);
+        let line = line_of_span(item.use_token.span());
+        for (_alias, path, is_glob) in flat {
+            if is_glob {
+                continue;
+            }
+            self.note_capability_segs(&path, line);
+        }
+        syn::visit::visit_item_use(self, item);
+    }
+
+    fn visit_macro(&mut self, mac: &'ast syn::Macro) {
+        let line = line_of_span(mac.path.span());
+        if let Some(expr) = macro_expr(&mac.tokens) {
+            self.visit_expr(&expr);
+            return;
+        }
+        for path in ident_paths(&mac.tokens) {
+            self.note_capability_segs(&path, line);
+        }
+    }
 }
 
 impl Walker<'_> {
     fn visit_local(&mut self, local: &Local) {
         if let Some(init) = &local.init {
             self.visit_expr(&init.expr);
-            if let syn::Expr::Path(path) = &*init.expr {
-                let segs: Vec<String> = path
-                    .path
-                    .segments
-                    .iter()
-                    .map(|seg| seg.ident.to_string())
-                    .collect();
-                if let Some(Kind::Fn { name }) = self.resolve_kind(&segs) {
-                    if let Pat::Ident(ident) = &local.pat {
-                        if let Some(frame) = self.value_stack.last_mut() {
-                            frame.insert(ident.ident.to_string(), Val::Fn(name));
-                        }
+            if let Some(name) = self.fn_name_of_expr(&init.expr) {
+                if let Some(ident) = pat_ident(&local.pat) {
+                    if let Some(frame) = self.value_stack.last_mut() {
+                        frame.insert(ident, Val::Fn(name));
                     }
                 }
             }
@@ -1116,6 +1183,16 @@ impl Walker<'_> {
                 }
             }
         }
+    }
+}
+
+fn pat_ident(pat: &Pat) -> Option<String> {
+    match pat {
+        Pat::Ident(ident) => Some(ident.ident.to_string()),
+        Pat::Type(inner) => pat_ident(&inner.pat),
+        Pat::Reference(inner) => pat_ident(&inner.pat),
+        Pat::Paren(inner) => pat_ident(&inner.pat),
+        _ => None,
     }
 }
 
