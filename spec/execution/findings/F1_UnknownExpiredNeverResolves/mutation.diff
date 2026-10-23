@@ -1,0 +1,13 @@
+# an Unknown order the venue EXPIRED (IOC/GTX/market expiry, EXPIRED_IN_MATCH) has no resolving v3 event
+--- OrderLifecycle.tla
++++ findings/F1_UnknownExpiredNeverResolves/OrderLifecycle.tla
+@@ -568,6 +568,9 @@
+   [][ (halted /\ ~halted') \/ (flag /\ ~flag') \/ (riskHalted /\ ~riskHalted')
+         => OperatorReset ]_vars
+ 
++UnknownExpiredResolves ==
++  \A i \in Intents : (o[i].st = "Unknown" /\ o[i].vst = "expired") ~> (o[i].st # "Unknown")
++
+ KillEventuallyFlatOrFlagged ==
+   killed ~> (KillDone \/ (halted /\ flag))
+ 
