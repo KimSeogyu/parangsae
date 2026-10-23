@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Abstracted lifecycle graph from transitions.json (itself generated from TLC output).
-Nodes: the 9 v3 states plus one IllegalTransition sink. Edges, one per (cell, result):
-  solid black  = legal result reached in the full TLC state graph
+Nodes: the order states plus one IllegalTransition sink. Edges, one per (cell, result):
+  solid black  = legal result reached during the TLC run (REACHED lines)
   dashed grey  = legal in Allowed but not reached under the pinned constants
-  red          = cell v3 marks illegal, reached by a venue-consistent report sequence
-Unreached illegal cells (the rest of the 79) are not drawn."""
+  red          = cell the v3.1 matrix marks illegal, reached by a venue-consistent report sequence
+Unreached illegal cells  are not drawn."""
 import json, sys
 src = sys.argv[1] if len(sys.argv) > 1 else "transitions.json"
 out = sys.argv[2] if len(sys.argv) > 2 else "lifecycle.dot"

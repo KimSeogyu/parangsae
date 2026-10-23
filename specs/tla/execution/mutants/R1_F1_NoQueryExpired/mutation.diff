@@ -1,0 +1,13 @@
+# F1 regression: remove the QueryExpired resolution (v3 had no such event)
+--- OrderLifecycle.tla
++++ mutants/R1_F1_NoQueryExpired/OrderLifecycle.tla
+@@ -435,7 +435,8 @@
+   /\ fresh' = FALSE
+   /\ UNCHANGED <<v, ap, gh, halted, flag, riskHalted, kills, killed, pos, foreign>>
+ 
+-QExpired(i) ==   \* F1: EXPIRED / EXPIRED_IN_MATCH resolves Unknown
++QExpired(i) ==   \* REGRESSION: v3 has no QueryExpired
++  /\ FALSE
+   /\ o[i].st = "Unknown" /\ V(i).vst = "expired"
+   /\ o' = [o EXCEPT ![i].st = "Expired", ![i].cum = V(i).vcum, ![i].el = 0]
+   /\ lpos' = lpos + o[i].side * (V(i).vcum - o[i].cum)

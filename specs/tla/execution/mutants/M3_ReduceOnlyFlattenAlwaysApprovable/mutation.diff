@@ -1,9 +1,9 @@
 # risk::check vetoes everything while halted, including the reduce-only flatten
 --- OrderLifecycle.tla
 +++ mutants/M3_ReduceOnlyFlattenAlwaysApprovable/OrderLifecycle.tla
-@@ -138,7 +138,7 @@
- \* abstract risk::check for a new intent at exposure x (EL decision: a strictly
- \* reducing reduce-only order is always approvable, even while halted)
+@@ -175,7 +175,7 @@
+ \* abstract risk::check (EL decision: a strictly reducing reduce-only order is always
+ \* approvable, even while halted)
  RiskApproves(ro, side, qty, x) ==
 -  IF ro /\ Abs(x + side * qty) < Abs(x) /\ Sign(x + side * qty) * Sign(x) >= 0
 +  IF FALSE

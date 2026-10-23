@@ -1,0 +1,12 @@
+# F2 regression: after a definitive NotFound the retry reuses the same ClientOrderId (v3 behavior); the venue purged the old CANCELED/EXPIRED unfilled order, so the same id is sent twice
+--- OrderLifecycle.tla
++++ mutants/R2_F2_SameIdRetryAfterPurge/OrderLifecycle.tla
+@@ -451,7 +451,7 @@
+   /\ o[i].st = "Unknown" /\ V(i).vst = "none" /\ o[i].cum = 0
+   /\ o[i].el > Bound
+   /\ IF o[i].att + 1 < MaxAttempts
+-     THEN /\ o' = [o EXCEPT ![i].st = "PendingNew", ![i].att = @ + 1, ![i].sent = FALSE,
++     THEN /\ o' = [o EXCEPT ![i].st = "PendingNew", ![i].att = @, ![i].sent = FALSE,
+                      ![i].resp = "none", ![i].cxl = FALSE, ![i].cresp = "none",
+                      ![i].el = 0, ![i].acked = FALSE]
+           /\ last' = <<"Unknown", "QueryNotFound", "PendingNew">>

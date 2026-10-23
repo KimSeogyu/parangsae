@@ -1,0 +1,12 @@
+# F8 regression: halts do not bump halt_epoch (approvals survive halt + OperatorReset)
+--- OrderLifecycle.tla
++++ mutants/M9_ApprovalsNotUsedAcrossHalt/OrderLifecycle.tla
+@@ -142,7 +142,7 @@
+ -------------------------------------------------------------------------------
+ \* Halt, halt_epoch and ghosts
+ 
+-Bump == ap' = [j \in Intents |-> FALSE]                 \* F8: every halt bumps the epoch
++Bump == UNCHANGED ap                 \* F8: every halt bumps the epoch
+ MarkHalt(g) == [j \in Intents |-> [g[j] EXCEPT !.ph = TRUE]]
+ GhSubmit(g, i) == [g EXCEPT ![i].ks = @ \/ g[i].pk, ![i].xs = @ \/ g[i].ph, ![i].ph = FALSE]
+ 

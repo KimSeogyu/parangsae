@@ -1,0 +1,12 @@
+# dispatch gate ignores the halt latch, epoch bump intact. EXPECTED TO SURVIVE: every halt invalidates pre-halt approvals (F8) and risk::check refuses non-reduce re-approval while halted, so no non-reduce order is sent after a halt even without the gate (defense in depth)
+--- OrderLifecycle.tla
++++ findings/S1_GateOnlyMaskedByEpoch/OrderLifecycle.tla
+@@ -169,7 +169,7 @@
+ 
+ GateOK(i) ==
+   /\ ApprovalFresh(i)
+-  /\ \/ (~halted /\ ~riskHalted)
++  /\ \/ TRUE
+      \/ (o[i].ro /\ StrictReduce(i) /\ ExposureKnown)
+ 
+ \* abstract risk::check (EL decision: a strictly reducing reduce-only order is always

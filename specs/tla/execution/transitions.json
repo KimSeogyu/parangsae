@@ -1,35 +1,34 @@
 {
- "model": "OrderLifecycle.tla",
+ "model": "OrderLifecycle.tla (v3.1)",
  "sources": {
   "tlc_log": "tlc.log",
-  "dot": "states.dot",
-  "tlc_log_sha256": "891fe919528419be387753ca3ba2c1fd6b740bf09c73518b4473b4c298b8957e"
+  "tlc_log_sha256": "645d829070a6e1a834ce5561661ee4607a57f3cb2b7b810b8c0ca87539f350a9"
  },
- "derivation": "Generate transitions.json for OrderLifecycle from TLC output only.\n\nInputs (both written by TLC 2.19 on the pinned OrderLifecycle.tla/.cfg):\n  tlc.log     -- TLC evaluates `ASSUME PrintMatrix`, printing one\n                 <<\"CELL\", state, event, Allowed(state, event)>> line per cell.\n                 This is the model's own 9x12 table.\n  states.dot  -- `-dump dot,colorize,actionlabels`. Every node label contains\n                 `last = <<from, event, result>>`, the lifecycle cell taken by the\n                 step into that node. Edge labels name the TLA+ action.\n\nOutput: transitions.json with all (state, event) cells, the model's allowed set,\nthe v3 expected set, which outcomes the full state graph actually reached and by\nwhich actions, plus checks: count == 108, cells unique, model == v3 per cell.\nV3_TABLE below is the reference transcription of the v3 markdown table\n(reports/execution-v0-spec.md, \"Venue and state machine\"); it is NOT read from TLC\nand is used only for the comparison.",
+ "derivation": "Generate transitions.json (v3.1) for OrderLifecycle from TLC output only.\n\nInput: tlc.log of the pinned run (TLC 2.19, OrderLifecycle.tla/.cfg), which has\n  * <<\"CELL\", state, event, Allowed(state, event)>> for every cell, printed by TLC\n    while evaluating `ASSUME PrintMatrix` (the model's own 9 x 13 table), and\n  * <<\"REACHED\", from, event, result>> printed by the RecordReachedCells invariant\n    the first time a reachable state records that lifecycle cell result in `last`\n    (result \"IllegalV\" = an illegal cell hit by a venue-consistent report).\nThe full state graph is too large for a -dump dot at the pinned constants, so\nreachability comes from the REACHED lines (results only, no action names).\n\nOutputs: transitions.json (all cells, allowed sets, v3 and v3.1-expected sets,\nreached results, checks) and transitions-v3-to-v3.1.md (every cell added, removed\nor changed vs v3, with its reason). V3_TABLE / V31_CHANGES below are hand\ntranscriptions used ONLY for comparison; they are not read from TLC.",
  "checks": {
-  "matrix_lines_printed_by_tlc": 108,
+  "tlc_completed_without_error": true,
+  "matrix_lines_printed_by_tlc": 117,
   "duplicate_matrix_lines": [],
-  "cell_count": 108,
-  "cell_count_is_108": true,
+  "states": 9,
+  "events": 13,
+  "cell_count": 117,
+  "expected_cell_count": 117,
+  "cell_count_ok": true,
   "cells_unique": true,
-  "all_cells_match_v3": true,
-  "mismatched_cells": [],
-  "legal_cells": 29,
-  "illegal_cells": 79,
-  "triple_count": 113,
+  "all_cells_match_v31_expected": true,
+  "mismatched_cells_vs_v31_expected": [],
+  "legal_cells": 30,
+  "illegal_cells": 87,
+  "cells_vs_v3": {
+   "added": 9,
+   "changed": 3,
+   "removed": 0
+  },
+  "triple_count": 126,
   "triples_unique": true,
-  "dot_nodes": 708408,
-  "dot_edges": 3247866,
-  "cells_reached_in_state_graph": 44,
+  "reached_lines": 53,
+  "cells_reached": 41,
   "illegal_cells_hit_by_venue_consistent_runs": [
-   [
-    "PendingNew",
-    "CancelDenied"
-   ],
-   [
-    "Acked",
-    "Reject"
-   ],
    [
     "Filled",
     "Ack"
@@ -49,10 +48,6 @@
    [
     "Canceled",
     "CancelConfirmed"
-   ],
-   [
-    "Rejected",
-    "CancelDenied"
    ],
    [
     "Expired",
@@ -89,8 +84,19 @@
   ],
   "legal_cells_unreachable": [
    [
+    "Acked",
+    "Ack"
+   ],
+   [
     "PendingCancel",
     "CancelRequested"
+   ]
+  ],
+  "legal_results_unreached": [
+   [
+    "PartiallyFilled",
+    "Fill",
+    "PartiallyFilled"
    ]
   ]
  },
@@ -99,26 +105,33 @@
    "state": "PendingNew",
    "event": "Ack",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Acked"
+   ],
+   "v31_expected": [
     "Acked"
    ],
    "model_allowed": [
     "Acked"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Acked": [
-     "DAck"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Acked"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "Fill",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Filled",
+    "PartiallyFilled"
+   ],
+   "v31_expected": [
     "Filled",
     "PartiallyFilled"
    ],
@@ -126,195 +139,239 @@
     "Filled",
     "PartiallyFilled"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Filled": [
-     "DFill"
-    ],
-    "PartiallyFilled": [
-     "DFill"
-    ],
-    "PayloadError": [
-     "SpurFill"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Filled",
+    "PartiallyFilled",
+    "PayloadError"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "CancelRequested",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "PendingCancel"
+   ],
+   "v31_expected": [
+    "Canceled",
     "PendingCancel"
    ],
    "model_allowed": [
+    "Canceled",
     "PendingCancel"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "PendingCancel": [
-     "KillCancel"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "changed",
+   "reason": "F9",
+   "reached_results": [
+    "Canceled",
+    "PendingCancel"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "CancelDenied",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DCresp"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
-   ]
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "CancelConfirmed",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "Reject",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Rejected"
+   ],
+   "v31_expected": [
     "Rejected"
    ],
    "model_allowed": [
     "Rejected"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Rejected": [
-     "DRej",
-     "DispatchRefuse"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Rejected"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "Expire",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Expired"
+   ],
+   "v31_expected": [
     "Expired"
    ],
    "model_allowed": [
     "Expired"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Expired": [
-     "DExpire"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Expired"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "Timeout",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Unknown"
+   ],
+   "v31_expected": [
     "Unknown"
    ],
    "model_allowed": [
     "Unknown"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Unknown": [
-     "DispatchTimeout",
-     "TimeoutEnv"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Unknown"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "QueryFilled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "QueryCanceled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
+  },
+  {
+   "state": "PendingNew",
+   "event": "QueryExpired",
+   "kind": "IllegalTransition",
+   "v3": null,
+   "v31_expected": [],
+   "model_allowed": [],
+   "matches_v31_expected": true,
+   "vs_v3": "added",
+   "reason": "F1",
+   "reached_results": [],
+   "unreached_allowed_results": [],
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "QueryNotFound",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingNew",
    "event": "RaceFill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "Ack",
    "kind": "no-op (stay)",
-   "v3_expected": [
+   "v3": [
+    "Acked"
+   ],
+   "v31_expected": [
     "Acked"
    ],
    "model_allowed": [
     "Acked"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Acked": [
-     "DAck"
-    ]
-   },
-   "unreached_allowed_results": [],
-   "findings": []
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
+   "unreached_allowed_results": [
+    "Acked"
+   ],
+   "notes": [
+    "legal but unreachable in the model"
+   ]
   },
   {
    "state": "Acked",
    "event": "Fill",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Filled",
+    "PartiallyFilled"
+   ],
+   "v31_expected": [
     "Filled",
     "PartiallyFilled"
    ],
@@ -322,185 +379,226 @@
     "Filled",
     "PartiallyFilled"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Filled": [
-     "DFill"
-    ],
-    "PartiallyFilled": [
-     "DFill"
-    ],
-    "PayloadError": [
-     "SpurFill"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Filled",
+    "PartiallyFilled",
+    "PayloadError"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "CancelRequested",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "PendingCancel"
+   ],
+   "v31_expected": [
     "PendingCancel"
    ],
    "model_allowed": [
     "PendingCancel"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "PendingCancel": [
-     "KillCancel"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "PendingCancel"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "CancelDenied",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "CancelConfirmed",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "Reject",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DRej"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
-   ]
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "Expire",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Expired"
+   ],
+   "v31_expected": [
     "Expired"
    ],
    "model_allowed": [
     "Expired"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Expired": [
-     "DExpire"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Expired"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "Timeout",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Unknown"
+   ],
+   "v31_expected": [
     "Unknown"
    ],
    "model_allowed": [
     "Unknown"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Unknown": [
-     "TimeoutEnv"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Unknown"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "QueryFilled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "QueryCanceled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
+  },
+  {
+   "state": "Acked",
+   "event": "QueryExpired",
+   "kind": "IllegalTransition",
+   "v3": null,
+   "v31_expected": [],
+   "model_allowed": [],
+   "matches_v31_expected": true,
+   "vs_v3": "added",
+   "reason": "F1",
+   "reached_results": [],
+   "unreached_allowed_results": [],
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "QueryNotFound",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Acked",
    "event": "RaceFill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "Ack",
    "kind": "no-op (stay)",
-   "v3_expected": [
+   "v3": [
+    "PartiallyFilled"
+   ],
+   "v31_expected": [
     "PartiallyFilled"
    ],
    "model_allowed": [
     "PartiallyFilled"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "PartiallyFilled": [
-     "DAck"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "PartiallyFilled"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "Fill",
    "kind": "transition or stay",
-   "v3_expected": [
+   "v3": [
+    "Filled",
+    "PartiallyFilled"
+   ],
+   "v31_expected": [
     "Filled",
     "PartiallyFilled"
    ],
@@ -508,322 +606,417 @@
     "Filled",
     "PartiallyFilled"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Filled": [
-     "DFill"
-    ],
-    "PayloadError": [
-     "SpurFill"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Filled",
+    "PayloadError"
+   ],
    "unreached_allowed_results": [
     "PartiallyFilled"
    ],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "CancelRequested",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "PendingCancel"
+   ],
+   "v31_expected": [
     "PendingCancel"
    ],
    "model_allowed": [
     "PendingCancel"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "PendingCancel": [
-     "KillCancel"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "PendingCancel"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "CancelDenied",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "CancelConfirmed",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "Reject",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "Expire",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Expired"
+   ],
+   "v31_expected": [
     "Expired"
    ],
    "model_allowed": [
     "Expired"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Expired": [
-     "DExpire"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Expired"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "Timeout",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Unknown"
+   ],
+   "v31_expected": [
     "Unknown"
    ],
    "model_allowed": [
     "Unknown"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Unknown": [
-     "TimeoutEnv"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Unknown"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "QueryFilled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "QueryCanceled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
+  },
+  {
+   "state": "PartiallyFilled",
+   "event": "QueryExpired",
+   "kind": "IllegalTransition",
+   "v3": null,
+   "v31_expected": [],
+   "model_allowed": [],
+   "matches_v31_expected": true,
+   "vs_v3": "added",
+   "reason": "F1",
+   "reached_results": [],
+   "unreached_allowed_results": [],
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "QueryNotFound",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PartiallyFilled",
    "event": "RaceFill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "Ack",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DAck"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Filled",
    "event": "Fill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "CancelRequested",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "CancelDenied",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DCresp"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Filled",
    "event": "CancelConfirmed",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "Reject",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "Expire",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "Timeout",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "QueryFilled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "QueryCanceled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
+  },
+  {
+   "state": "Filled",
+   "event": "QueryExpired",
+   "kind": "IllegalTransition",
+   "v3": null,
+   "v31_expected": [],
+   "model_allowed": [],
+   "matches_v31_expected": true,
+   "vs_v3": "added",
+   "reason": "F1",
+   "reached_results": [],
+   "unreached_allowed_results": [],
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "QueryNotFound",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Filled",
    "event": "RaceFill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "Ack",
    "kind": "no-op (stay)",
-   "v3_expected": [
+   "v3": [
+    "PendingCancel"
+   ],
+   "v31_expected": [
     "PendingCancel"
    ],
    "model_allowed": [
     "PendingCancel"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "PendingCancel": [
-     "DAck"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "PendingCancel"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "Fill",
    "kind": "transition or stay",
-   "v3_expected": [
+   "v3": [
+    "Filled",
+    "PendingCancel"
+   ],
+   "v31_expected": [
     "Filled",
     "PendingCancel"
    ],
@@ -831,823 +1024,1051 @@
     "Filled",
     "PendingCancel"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Filled": [
-     "DFill"
-    ],
-    "PayloadError": [
-     "SpurFill"
-    ],
-    "PendingCancel": [
-     "DFill"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Filled",
+    "PayloadError",
+    "PendingCancel"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "CancelRequested",
    "kind": "no-op (stay)",
-   "v3_expected": [
+   "v3": [
+    "PendingCancel"
+   ],
+   "v31_expected": [
     "PendingCancel"
    ],
    "model_allowed": [
     "PendingCancel"
    ],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [
     "PendingCancel"
    ],
-   "findings": [
-    "legal in v3 but unreachable in the model"
+   "notes": [
+    "legal but unreachable in the model"
    ]
   },
   {
    "state": "PendingCancel",
    "event": "CancelDenied",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
     "Acked",
     "PartiallyFilled"
+   ],
+   "v31_expected": [
+    "Acked",
+    "PartiallyFilled",
+    "Unknown"
    ],
    "model_allowed": [
     "Acked",
-    "PartiallyFilled"
+    "PartiallyFilled",
+    "Unknown"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Acked": [
-     "DCresp"
-    ],
-    "PartiallyFilled": [
-     "DCresp"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "changed",
+   "reason": "F5",
+   "reached_results": [
+    "Acked",
+    "PartiallyFilled",
+    "Unknown"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "CancelConfirmed",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Canceled"
+   ],
+   "v31_expected": [
     "Canceled"
    ],
    "model_allowed": [
     "Canceled"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Canceled": [
-     "DCresp"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Canceled"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "Reject",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DRej"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "PendingCancel",
    "event": "Expire",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Expired"
+   ],
+   "v31_expected": [
     "Expired"
    ],
    "model_allowed": [
     "Expired"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Expired": [
-     "DExpire"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Expired"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "Timeout",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Unknown"
+   ],
+   "v31_expected": [
     "Unknown"
    ],
    "model_allowed": [
     "Unknown"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Unknown": [
-     "TimeoutEnv"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Unknown"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "QueryFilled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "QueryCanceled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
+  },
+  {
+   "state": "PendingCancel",
+   "event": "QueryExpired",
+   "kind": "IllegalTransition",
+   "v3": null,
+   "v31_expected": [],
+   "model_allowed": [],
+   "matches_v31_expected": true,
+   "vs_v3": "added",
+   "reason": "F1",
+   "reached_results": [],
+   "unreached_allowed_results": [],
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "QueryNotFound",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "PendingCancel",
    "event": "RaceFill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "Ack",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DAck"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Canceled",
    "event": "Fill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "CancelRequested",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "CancelDenied",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "CancelConfirmed",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DCresp"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Canceled",
    "event": "Reject",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "Expire",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "Timeout",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "QueryFilled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "QueryCanceled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
+  },
+  {
+   "state": "Canceled",
+   "event": "QueryExpired",
+   "kind": "IllegalTransition",
+   "v3": null,
+   "v31_expected": [],
+   "model_allowed": [],
+   "matches_v31_expected": true,
+   "vs_v3": "added",
+   "reason": "F1",
+   "reached_results": [],
+   "unreached_allowed_results": [],
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "QueryNotFound",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Canceled",
    "event": "RaceFill",
    "kind": "no-op (stay)",
-   "v3_expected": [
+   "v3": [
+    "Canceled"
+   ],
+   "v31_expected": [
     "Canceled"
    ],
    "model_allowed": [
     "Canceled"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Canceled": [
-     "DFill"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Canceled"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "Ack",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "Fill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "CancelRequested",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "CancelDenied",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DCresp"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
-   ]
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "CancelConfirmed",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "Reject",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "Expire",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "Timeout",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "QueryFilled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "QueryCanceled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
+  },
+  {
+   "state": "Rejected",
+   "event": "QueryExpired",
+   "kind": "IllegalTransition",
+   "v3": null,
+   "v31_expected": [],
+   "model_allowed": [],
+   "matches_v31_expected": true,
+   "vs_v3": "added",
+   "reason": "F1",
+   "reached_results": [],
+   "unreached_allowed_results": [],
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "QueryNotFound",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Rejected",
    "event": "RaceFill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "Ack",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DAck"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Expired",
    "event": "Fill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "CancelRequested",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "CancelDenied",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DCresp"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Expired",
    "event": "CancelConfirmed",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "Reject",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "Expire",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "Timeout",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "QueryFilled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "QueryCanceled",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
+  },
+  {
+   "state": "Expired",
+   "event": "QueryExpired",
+   "kind": "IllegalTransition",
+   "v3": null,
+   "v31_expected": [],
+   "model_allowed": [],
+   "matches_v31_expected": true,
+   "vs_v3": "added",
+   "reason": "F1",
+   "reached_results": [],
+   "unreached_allowed_results": [],
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "QueryNotFound",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Expired",
    "event": "RaceFill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Unknown",
    "event": "Ack",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DAck"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Unknown",
    "event": "Fill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DFill"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Unknown",
    "event": "CancelRequested",
    "kind": "no-op (stay)",
-   "v3_expected": [
+   "v3": [
+    "Unknown"
+   ],
+   "v31_expected": [
     "Unknown"
    ],
    "model_allowed": [
     "Unknown"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Unknown": [
-     "KillCancel"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Unknown"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Unknown",
    "event": "CancelDenied",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DCresp"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Unknown",
    "event": "CancelConfirmed",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DCresp"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Unknown",
    "event": "Reject",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DRej"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Unknown",
    "event": "Expire",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {
-    "IllegalV": [
-     "DExpire"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "IllegalV"
+   ],
    "unreached_allowed_results": [],
-   "findings": [
-    "v3 rejects this cell but a venue-consistent run reaches it"
+   "notes": [
+    "illegal cell hit by a venue-consistent report (halt + alert; known limit F4)"
    ]
   },
   {
    "state": "Unknown",
    "event": "Timeout",
    "kind": "no-op (stay)",
-   "v3_expected": [
+   "v3": [
+    "Unknown"
+   ],
+   "v31_expected": [
     "Unknown"
    ],
    "model_allowed": [
     "Unknown"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Unknown": [
-     "TimeoutEnv"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Unknown"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Unknown",
    "event": "QueryFilled",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Filled"
+   ],
+   "v31_expected": [
     "Filled"
    ],
    "model_allowed": [
     "Filled"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Filled": [
-     "QFilled"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Filled"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Unknown",
    "event": "QueryCanceled",
    "kind": "transition",
-   "v3_expected": [
+   "v3": [
+    "Canceled"
+   ],
+   "v31_expected": [
     "Canceled"
    ],
    "model_allowed": [
     "Canceled"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "Canceled": [
-     "QCanceled"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [
+    "Canceled"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
+  },
+  {
+   "state": "Unknown",
+   "event": "QueryExpired",
+   "kind": "transition",
+   "v3": null,
+   "v31_expected": [
+    "Expired"
+   ],
+   "model_allowed": [
+    "Expired"
+   ],
+   "matches_v31_expected": true,
+   "vs_v3": "added",
+   "reason": "F1",
+   "reached_results": [
+    "Expired"
+   ],
+   "unreached_allowed_results": [],
+   "notes": []
   },
   {
    "state": "Unknown",
    "event": "QueryNotFound",
-   "kind": "transition",
-   "v3_expected": [
+   "kind": "transition or stay",
+   "v3": [
     "PendingNew"
+   ],
+   "v31_expected": [
+    "PendingNew",
+    "Rejected",
+    "Unknown"
    ],
    "model_allowed": [
-    "PendingNew"
+    "PendingNew",
+    "Rejected",
+    "Unknown"
    ],
-   "matches_v3": true,
-   "reached_results": {
-    "PendingNew": [
-     "QNotFound"
-    ]
-   },
+   "matches_v31_expected": true,
+   "vs_v3": "changed",
+   "reason": "F2/F3/F7",
+   "reached_results": [
+    "PendingNew",
+    "Rejected",
+    "Unknown"
+   ],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   },
   {
    "state": "Unknown",
    "event": "RaceFill",
    "kind": "IllegalTransition",
-   "v3_expected": [],
+   "v3": [],
+   "v31_expected": [],
    "model_allowed": [],
-   "matches_v3": true,
-   "reached_results": {},
+   "matches_v31_expected": true,
+   "vs_v3": "unchanged",
+   "reason": null,
+   "reached_results": [],
    "unreached_allowed_results": [],
-   "findings": []
+   "notes": []
   }
  ],
  "triples": [
@@ -1693,6 +2114,11 @@
   },
   {
    "state": "Acked",
+   "event": "QueryExpired",
+   "next": "IllegalTransition"
+  },
+  {
+   "state": "Acked",
    "event": "QueryFilled",
    "next": "IllegalTransition"
   },
@@ -1749,6 +2175,11 @@
   {
    "state": "Canceled",
    "event": "QueryCanceled",
+   "next": "IllegalTransition"
+  },
+  {
+   "state": "Canceled",
+   "event": "QueryExpired",
    "next": "IllegalTransition"
   },
   {
@@ -1813,6 +2244,11 @@
   },
   {
    "state": "Expired",
+   "event": "QueryExpired",
+   "next": "IllegalTransition"
+  },
+  {
+   "state": "Expired",
    "event": "QueryFilled",
    "next": "IllegalTransition"
   },
@@ -1869,6 +2305,11 @@
   {
    "state": "Filled",
    "event": "QueryCanceled",
+   "next": "IllegalTransition"
+  },
+  {
+   "state": "Filled",
+   "event": "QueryExpired",
    "next": "IllegalTransition"
   },
   {
@@ -1934,6 +2375,11 @@
   {
    "state": "PartiallyFilled",
    "event": "QueryCanceled",
+   "next": "IllegalTransition"
+  },
+  {
+   "state": "PartiallyFilled",
+   "event": "QueryExpired",
    "next": "IllegalTransition"
   },
   {
@@ -1983,6 +2429,11 @@
   },
   {
    "state": "PendingCancel",
+   "event": "CancelDenied",
+   "next": "Unknown"
+  },
+  {
+   "state": "PendingCancel",
    "event": "CancelRequested",
    "next": "PendingCancel"
   },
@@ -2004,6 +2455,11 @@
   {
    "state": "PendingCancel",
    "event": "QueryCanceled",
+   "next": "IllegalTransition"
+  },
+  {
+   "state": "PendingCancel",
+   "event": "QueryExpired",
    "next": "IllegalTransition"
   },
   {
@@ -2049,6 +2505,11 @@
   {
    "state": "PendingNew",
    "event": "CancelRequested",
+   "next": "Canceled"
+  },
+  {
+   "state": "PendingNew",
+   "event": "CancelRequested",
    "next": "PendingCancel"
   },
   {
@@ -2069,6 +2530,11 @@
   {
    "state": "PendingNew",
    "event": "QueryCanceled",
+   "next": "IllegalTransition"
+  },
+  {
+   "state": "PendingNew",
+   "event": "QueryExpired",
    "next": "IllegalTransition"
   },
   {
@@ -2133,6 +2599,11 @@
   },
   {
    "state": "Rejected",
+   "event": "QueryExpired",
+   "next": "IllegalTransition"
+  },
+  {
+   "state": "Rejected",
    "event": "QueryFilled",
    "next": "IllegalTransition"
   },
@@ -2193,6 +2664,11 @@
   },
   {
    "state": "Unknown",
+   "event": "QueryExpired",
+   "next": "Expired"
+  },
+  {
+   "state": "Unknown",
    "event": "QueryFilled",
    "next": "Filled"
   },
@@ -2200,6 +2676,16 @@
    "state": "Unknown",
    "event": "QueryNotFound",
    "next": "PendingNew"
+  },
+  {
+   "state": "Unknown",
+   "event": "QueryNotFound",
+   "next": "Rejected"
+  },
+  {
+   "state": "Unknown",
+   "event": "QueryNotFound",
+   "next": "Unknown"
   },
   {
    "state": "Unknown",

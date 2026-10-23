@@ -1,7 +1,16 @@
-# dispatch gate ignores the halt latch (checks only epoch and age)
+# dispatch gate ignores the halt latch AND halts do not bump halt_epoch (the gate-only mutant is masked by F8: see S1)
 --- OrderLifecycle.tla
 +++ mutants/M2_NoNewOrderAfterHalt/OrderLifecycle.tla
-@@ -132,7 +132,7 @@
+@@ -142,7 +142,7 @@
+ -------------------------------------------------------------------------------
+ \* Halt, halt_epoch and ghosts
+ 
+-Bump == ap' = [j \in Intents |-> FALSE]                 \* F8: every halt bumps the epoch
++Bump == UNCHANGED ap                 \* F8: every halt bumps the epoch
+ MarkHalt(g) == [j \in Intents |-> [g[j] EXCEPT !.ph = TRUE]]
+ GhSubmit(g, i) == [g EXCEPT ![i].ks = @ \/ g[i].pk, ![i].xs = @ \/ g[i].ph, ![i].ph = FALSE]
+ 
+@@ -169,7 +169,7 @@
  
  GateOK(i) ==
    /\ ApprovalFresh(i)
@@ -9,4 +18,4 @@
 +  /\ \/ TRUE
       \/ (o[i].ro /\ StrictReduce(i) /\ ExposureKnown)
  
- \* abstract risk::check for a new intent at exposure x (EL decision: a strictly
+ \* abstract risk::check (EL decision: a strictly reducing reduce-only order is always
