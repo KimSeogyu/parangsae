@@ -32,14 +32,16 @@ mod leaky_fail_first {
         let (bars, decision) = tsmom_prod_witness();
         let direct = leaky_next_bar_signal(&signal, &bars, decision, H1_US);
         assert!(direct.is_ok(), "{direct:?}");
-        let err = check_bar_truncation(
+        let err = match check_bar_truncation(
             TSMOM_REGRESSION,
             BarInterval::H1,
             &bars,
             decision,
             |rows, d| leaky_next_bar_signal(&signal, rows, d, H1_US),
-        )
-        .expect_err("next-bar leak");
+        ) {
+            Err(err) => err,
+            Ok(_) => support::fail_test("next-bar leak"),
+        };
         assert_real_mismatch(&err);
     }
 
@@ -49,14 +51,16 @@ mod leaky_fail_first {
         let (bars, decision) = volregime_prod_witness();
         let direct = leaky_next_bar_feature(&feature, &bars, decision, H1_US);
         assert!(direct.is_ok(), "{direct:?}");
-        let err = check_bar_truncation(
+        let err = match check_bar_truncation(
             VOLREGIME_REGRESSION,
             BarInterval::H1,
             &bars,
             decision,
             |rows, d| leaky_next_bar_feature(&feature, rows, d, H1_US),
-        )
-        .expect_err("next-bar leak");
+        ) {
+            Err(err) => err,
+            Ok(_) => support::fail_test("next-bar leak"),
+        };
         assert_real_mismatch(&err);
     }
 
@@ -76,14 +80,16 @@ mod leaky_fail_first {
         let (bars, funding, decision) = funding_prod_witness();
         let direct = drive_event_gate(&signal, &bars, &funding, decision);
         assert!(direct.is_ok(), "{direct:?}");
-        let err = check_funding_truncation(
+        let err = match check_funding_truncation(
             FUNDING_REGRESSION,
             &bars,
             &funding,
             decision,
             |bars, funding, d| drive_event_gate(&signal, bars, funding, d),
-        )
-        .expect_err("event gate leak");
+        ) {
+            Err(err) => err,
+            Ok(_) => support::fail_test("event gate leak"),
+        };
         assert_real_mismatch(&err);
     }
 }
