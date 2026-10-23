@@ -1,0 +1,12 @@
+# dispatch gate ignores the halt latch (checks only epoch and age)
+--- OrderLifecycle.tla
++++ mutants/M2_NoNewOrderAfterHalt/OrderLifecycle.tla
+@@ -132,7 +132,7 @@
+ 
+ GateOK(i) ==
+   /\ ApprovalFresh(i)
+-  /\ \/ (~halted /\ ~riskHalted)
++  /\ \/ TRUE
+      \/ (o[i].ro /\ StrictReduce(i) /\ ExposureKnown)
+ 
+ \* abstract risk::check for a new intent at exposure x (EL decision: a strictly
