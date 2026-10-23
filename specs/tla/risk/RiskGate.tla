@@ -26,11 +26,12 @@
 
 EXTENDS Integers, FiniteSets
 
-CONSTANTS Intents, MaxOrderQty, PositionLimit, NotionalLimit,
+CONSTANTS Intents, MaxRequestQty, MaxOrderQty, PositionLimit, NotionalLimit,
           Prices, MaxDailyLoss, MaxObservedLoss
 
 ASSUME /\ IsFiniteSet(Intents) /\ Intents # {}
        /\ MaxOrderQty \in Nat \ {0}
+       /\ MaxRequestQty \in Nat /\ MaxRequestQty > MaxOrderQty
        /\ PositionLimit \in Nat \ {0}
        /\ NotionalLimit \in Nat \ {0}
        /\ IsFiniteSet(Prices) /\ Prices # {} /\ Prices \subseteq Nat \ {0}
@@ -40,7 +41,9 @@ ASSUME /\ IsFiniteSet(Intents) /\ Intents # {}
 Abs(x) == IF x < 0 THEN -x ELSE x
 Min(x, y) == IF x < y THEN x ELSE y
 Max(x, y) == IF x > y THEN x ELSE y
-Deltas == (-MaxOrderQty..MaxOrderQty) \ {0}
+\* Exploration includes quantities above the admission limit, on both sides.
+\* Keep this bound independent: invalid requests must reach the actual gate.
+Deltas == (-MaxRequestQty..MaxRequestQty) \ {0}
 Phases == {"new", "pending", "approved", "rejected", "submitted",
            "filled", "canceled", "refused"}
 Reserved == {"approved", "submitted"}
@@ -89,6 +92,7 @@ StrictReduce(lo, hi, d) ==
 \* own token on a dispatch recheck. Reduce-only is a restriction, not a label
 \* that permits an increase below the normal limits.
 RiskAllows(i) ==
+    /\ Abs(intent[i].delta) <= MaxOrderQty
     /\ PositionFits(LowExcept(i), HighExcept(i), intent[i].delta)
     /\ NotionalFits(LowExcept(i), HighExcept(i), intent[i].delta)
     /\ IF intent[i].reduceOnly
@@ -220,6 +224,9 @@ TypeOK ==
     /\ \A i \in Intents : phase[i] # "new" => intent[i].delta \in Deltas
 
 PositionBound == /\ Abs(Low) <= PositionLimit /\ Abs(High) <= PositionLimit
+\* Check issuance history as well as currently held/submitted approvals.
+ApprovedQuantityBound ==
+    \A i \in Intents : approval[i].present => Abs(intent[i].delta) <= MaxOrderQty
 NotionalBound == /\ Abs(Low) * price <= NotionalLimit
                  /\ Abs(High) * price <= NotionalLimit
 DailyLossTripsHalt == dailyLoss >= MaxDailyLoss => dailyHalted
@@ -234,10 +241,12 @@ EveryFillSubsetWithinLimits ==
 ReduceOnlyRemainsApprovable ==
     \A i \in Intents :
        (phase[i] = "pending" /\ intent[i].reduceOnly
+        /\ Abs(intent[i].delta) <= MaxOrderQty
         /\ StrictReduce(LowExcept(i), HighExcept(i), intent[i].delta))
        => RiskAllows(i)
 
 SafeProof(p, i) ==
+    /\ Abs(intent[i].delta) <= MaxOrderQty
     /\ PositionFits(p.low, p.high, intent[i].delta)
     /\ NotionalFits(p.low, p.high, intent[i].delta)
     /\ (intent[i].reduceOnly => StrictReduce(p.low, p.high, intent[i].delta))

@@ -1,108 +1,103 @@
-Risk v0 verification — 2026-10-23 KST
+Risk v0 reviewer revision — 2026-10-24 KST
 
-RESULT: NOT A GREEN TLC CHECK. No Rust implementation or order transport added.
-The main RiskGate.cfg checks 13 invariants, four temporal safety properties,
-and three liveness properties. No state constraints or symmetry reduction.
-Bounds: two intent ids, qty 1..2 each side, position limit 2, notional limit 3,
-fixed price in {1,2}, current daily loss 0..3, daily loss trip at >= 2.
-All 8 valid initial (position, price) pairs are explored by the safety run.
-Opposite reservations do not net; every possible subset of fills is checked.
-Loss recovery is modeled; no session reset/day rollover is modeled.
-Fresh strictly reducing reduce-only orders remain possible during halt/kill,
-consistent with the existing execution model. Cancel is definitive in this
-abstraction. The gate does not promise flattening or undo fills already sent.
+Outcome: quantity admission fixed and safety model checking COMPLETE.
+Requested full BFS plus liveness remains BLOCKED by sandbox socket policy.
+No passing liveness result is claimed.
 
-TLC 2.19 / TLA+ 1.7.4; OpenJDK 21.0.12.1; one worker.
-JAR SHA256: 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
-JAR used locally: /workspace/builder/tools/tla2tools.jar
-Run these commands from specs/tla/risk (substitute the local JAR path):
+Changes:
+- MaxRequestQty bounds exploration independently of MaxOrderQty. ASSUME requires
+  the request bound to exceed the order limit, keeping oversized requests in play.
+- RiskAllows explicitly checks Abs(delta) <= MaxOrderQty before issuance and
+  again on dispatch. ApprovedQuantityBound checks immutable issuance history.
+- SafeProof also checks quantity. ReduceOnlyRemainsApprovable requires a quantity
+  within the hard order cap; reduce-only cannot bypass that cap.
+- Main config keeps two concurrent intents and all properties, using request
+  bound 2, order/position/notional limits 1, price {1}, loss threshold 1 and
+  observations 0..1. This includes signed oversized requests, trip and recovery.
+- Main price-1 caps coincide. RiskGateQuantity.cfg separately retains independent
+  position/notional caps (2/3, prices {1,2}) and request qty 3 above order cap 2,
+  using one intent. It retains every invariant and temporal property.
+- Neither config uses state constraints, symmetry reduction, disabled deadlock
+  checks, nor weaker fairness. Main/supplemental full configs each check
+  14 invariants, four temporal safety properties and three liveness properties.
+
+Reproduction before fix:
+- Temporary original model with Deltas = (-3..3) minus {0}, one intent, original
+  limits and a new ApprovedQuantityBound invariant: TLC -dfid 4 exits 12.
+- Trace: position -2, price 1, requested delta +3, MaxOrderQty 2; Check minted
+  an approval. ApprovedQuantityBound failed (266 distinct / 456 generated).
+- Negative control after fix: remove ONLY the quantity conjunct from RiskAllows,
+  use supplemental bounds and -dfid 4. Exit 12, ApprovedQuantityBound fails
+  (196 distinct / 318 generated). Production invariant remains unchanged.
+
+Verification commands (from specs/tla/risk; substitute local JAR path):
+JAR used: /workspace/builder/tools/tla2tools.jar
+SHA256: 936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88
+TLC 2.19 / TLA+ 1.7.4, OpenJDK 21.0.12.1; one worker, 512 MiB heap.
 
 java -cp /path/to/tla2tools.jar tla2sany.SANY RiskGate.tla
-PASS: parsing and semantic analysis, exit 0.
+PASS, exit 0, parsing and semantic processing complete.
 
 java -XX:+UseParallelGC -Xmx512m -cp /path/to/tla2tools.jar tlc2.TLC \
-  -workers 1 -metadir /tmp/risk-bfs -config RiskGate.cfg RiskGate.tla
-BLOCKED: exit 255; local RMI fingerprint store cannot bind a socket in sandbox.
-No model-checking completion; liveness is not proven.
-
-java -XX:+UseParallelGC -Xmx512m -cp /path/to/tla2tools.jar tlc2.TLC \
-  -dfid 1000 -workers 1 -metadir /tmp/risk-dfid \
+  -dfid 1000 -workers 1 -metadir /tmp/risk-review-main-safety \
   -config RiskGateSafety.cfg RiskGate.tla
-INCOMPLETE: exit 255; internal ArithmeticException (division by zero).
-6,742,230 generated / 249,204 distinct states; no invariant counterexample
-reported before the tool exception. This is NOT a passing or complete proof.
-RiskGateSafety.cfg has the same bounds and all 13 invariants, omitting only
-PROPERTIES because TLC DFID explicitly does not support temporal properties.
+PASS, exit 0, "Model checking completed. No error has been found."
+521,793 generated / 21,272 distinct states; 3 initial states; 6 seconds.
+The safety config is the main config with only PROPERTIES omitted, because TLC
+DFID cannot check temporal properties. All 14 invariants and constants match.
 
-Experimental liveness simulation was also attempted with the main config:
-java -XX:+UseParallelGC -Xmx512m \
-  -Dtlc2.tool.Simulator.experimentalLiveness=true \
-  -cp /path/to/tla2tools.jar tlc2.TLC -simulate num=1000 -depth 100 \
-  -seed 17 -workers 1 -metadir /tmp/risk-sim \
+Supplemental safety check:
+Copy RiskGate.tla to a temporary directory. Copy RiskGateQuantity.cfg up to
+(but excluding) its PROPERTIES section as RiskGate.cfg, then run:
+java -XX:+UseParallelGC -Xmx512m -cp /path/to/tla2tools.jar tlc2.TLC \
+  -dfid 1000 -workers 1 -metadir /tmp/risk-review-qty-after/states \
   -config RiskGate.cfg RiskGate.tla
-FAILED: exit 1, internal EOFException in TableauDiskGraph.makeNodePtrTbl.
-No simulation evidence is counted as a proof.
+PASS, exit 0, "Model checking completed. No error has been found."
+31,836 generated / 2,404 distinct states; 8 initial states; under 1 second.
+All 14 invariants checked, including the previously failing quantity regression.
 
-Negative controls (temporary model copies, production invariants unchanged):
-Use the safety config, TLC -dfid 10 for the first three controls; -dfid 8
-and Intents={i1} for kill/stale/raw/reduce; -dfid 7, two ids for reservation.
-Every control below exits 12 with the named invariant counterexample.
- - Remove PositionFits conjunct in RiskAllows -> PositionBound.
- - Remove NotionalFits conjunct in RiskAllows -> NotionalBound.
- - Replace dailyHalted OR threshold assignment with threshold alone
-   -> EpochTracksLatches (recovery incorrectly clears the halt).
- - Replace Halted == dailyHalted OR killed with dailyHalted
-   -> NoIncreaseAfterKill.
- - Remove approval[i].epoch = epoch in GateAllows
-   -> OnlyApprovedOrderSubmits.
- - Remove credential = "ApprovedOrder" in GateAllows
-   -> OnlyApprovedOrderSubmits (raw intent admitted).
- - Change RiskAllows' reduce-only branch to TRUE
-   -> ApprovalsRespectLimits (reduce-only crosses zero/increases exposure).
- - Change Reserved to {"submitted"}, dropping approved reservations
-   -> EveryFillSubsetWithinLimits (two concurrent approvals overbook exposure).
-Initial model check also caught an unparenthesized Boolean assignment that
-allowed loss >= threshold with dailyHalted=FALSE. Fixed the assignment,
-retained the invariant; no check was weakened.
+Full BFS plus liveness attempts (both exit 255 before state exploration):
+java -XX:+UseParallelGC -Xmx512m -cp /path/to/tla2tools.jar tlc2.TLC \
+  -workers 1 -metadir /tmp/risk-review-main-bfs \
+  -config RiskGate.cfg RiskGate.tla
+java -XX:+UseParallelGC -Xmx512m -cp /path/to/tla2tools.jar tlc2.TLC \
+  -workers 1 -metadir /tmp/risk-review-quantity-bfs \
+  -config RiskGateQuantity.cfg RiskGate.tla
+Both parse, then fail opening the local RMI fingerprint store:
+java.rmi.server.ExportException: Listen failed on port: 0
+java.net.SocketException: Operation not permitted
+A separate local IPv4 loopback bind also fails with errno 1. Smaller constants
+fix the previous safety runtime failure; they cannot lift this socket restriction.
+The lead/Ops must run the two full configs outside this restricted executor.
 
 Repository checks:
- - cargo fmt --all -- --check: PASS.
- - git diff --cached --check: PASS.
- - cargo --offline xtask spec inspect Ledger.position: cannot build xtask;
-   cached dependencies missing initially, then rustc 1.85.1 < required 1.88.
- - Existing /tmp/ev-target/debug/xtask with CARGO_HOME=/tmp/execution-cargo:
-   spec inspect Ledger.position: PASS (writer parangsae-sim).
-   spec generate --check: PASS.
-   spec enforce: PASS.
- - spec validate --jar /workspace/builder/tools/tla2tools.jar: FAIL, architecture
-   SANY succeeds but TLC hits the same sandbox RMI/socket denial.
- - Cucumber: cargo --offline test -p parangsae-core --test kline_integrity:
-   BLOCKED, rustc 1.85.1 < required 1.88. No scenario result claimed.
- - Kani: CARGO_NET_OFFLINE=true cargo kani -p parangsae-core:
-   BLOCKED, offline metadata needs unavailable camino 1.2.6. No proof claimed.
+- Cached xtask + CARGO_HOME=/tmp/execution-cargo:
+  spec inspect Ledger.position: PASS (writer parangsae-sim).
+  spec generate --check: PASS. spec enforce: PASS.
+- cargo fmt --all -- --check and git diff --check: PASS.
+- Kani and cucumber: not rerun for this TLA-only revision. Previous attempts
+  were BLOCKED by missing offline camino 1.2.6 (Kani) and rustc 1.85.1 below
+  dependency minimum 1.88 (cucumber); no Rust verification result claimed.
 
-Integration flags for Engineering Lead / Ops:
- - Current CI tla job names three existing models explicitly; it DOES NOT run
-   RiskGate.cfg yet. Ops must wire the normal BFS command into the required job.
- - specs/** is currently owned by Ops/Release, with no risk-specific override.
-   Bot-attributed --as Risk/Portfolio rejects this assigned path. No ownership
-   policy or protected file is edited; the lead explicitly assigned this spec.
- - No protected paths changed. No network order path, real keys, holdout, Rust,
-   crate manifests, required checks, or architecture policy changed.
- - Sandbox denies writes to the original clone's .git. Commit is made in a
-   local clone /tmp/risk-v0-spec on risk/v0-spec, based on
-   973cff653cde011b6fd7a5a58496a8802e2918f3. The spec files are also copied back
-   into /tmp/cx/risk/specs/tla/risk. Fetch the local clone to acquire the branch.
+Integration/scope:
+- Only specs/tla/risk/** changed. No protected paths, Rust implementation,
+  live-order path, keys, holdout, CI checks or architecture policy changed.
+- Ops owns specs/** under the existing policy; the lead explicitly assigned
+  this spec. CI does not yet invoke RiskGate.cfg or RiskGateQuantity.cfg.
+- Local branch risk/v0-spec in /tmp/risk-v0-spec, parent
+  7eff4878158d4b344bdead20d1a63f94d954484f. Original clone .git is read-only;
+  spec files are copied back to /tmp/cx/risk/specs/tla/risk after commit.
 
-Input SHA256:
-7fb69ef9b17a31d87e4f608544e7eb65942a8b6c1aee68a1a0d379fbc84b9de1  RiskGate.tla
-2e2f6537a6a1a4e67eae01122f1916e1863a30205c57abe183e1dd6ffdbc7633  RiskGate.cfg
-6202e4eba87169eece1aac53fd645551fb54faad6f2c88383a88d81644557033  RiskGateSafety.cfg
+Inputs (SHA256):
+f565d7d45088d0476f1fc0c0612ca0a688445211b5c301d6c2be260102487291  RiskGate.tla
+028e86384eb34f211d9f8ca42fb294529707368a3159319332767a3f5314b6b1  RiskGate.cfg
+fa43c8a095dc4e9181100e2b987aebcffb557030c3cac0988cd9ac96f88c0ccf  RiskGateSafety.cfg
+072f939611421af9bfb31358928659a171219ed77dd839ede07e2667b2b56248  RiskGateQuantity.cfg
 
-Full final safety-run output:
-[0.001s][warning][perf,memops] Cannot use file /tmp/hsperfdata_box/5 because it is locked by another process (errno = 11)
+Main safety complete output:
+[0.001s][warning][perf,memops] Cannot use file /tmp/hsperfdata_box/6 because it is locked by another process (errno = 11)
 TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
-Running depth-first search Model-Checking with fp 118 and seed 2308175899803847490 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 5] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64).
+Running depth-first search Model-Checking with fp 66 and seed 3013100563587281399 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 6] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64).
 Parsing file /tmp/risk-v0-spec/specs/tla/risk/RiskGate.tla
 Parsing file /tmp/Integers.tla
 Parsing file /tmp/FiniteSets.tla
@@ -113,36 +108,62 @@ Semantic processing of module Integers
 Semantic processing of module Sequences
 Semantic processing of module FiniteSets
 Semantic processing of module RiskGate
-Starting... (2026-10-23 22:51:11)
+Starting... (2026-10-24 00:46:00)
+Finished computing initial states: 3 states generated, with 3 of them distinct.
+Starting level 2: 3 states generated, 3 distinct states found.
+Starting level 3: 57 states generated, 57 distinct states found.
+Starting level 4: 840 states generated, 399 distinct states found.
+Starting level 5: 4968 states generated, 1398 distinct states found.
+Starting level 6: 16703 states generated, 3314 distinct states found.
+Starting level 7: 40446 states generated, 6250 distinct states found.
+Starting level 8: 79415 states generated, 9938 distinct states found.
+Starting level 9: 133742 states generated, 13722 distinct states found.
+Starting level 10: 200761 states generated, 17158 distinct states found.
+Starting level 11: 276336 states generated, 19578 distinct states found.
+Starting level 12: 356645 states generated, 20906 distinct states found.
+Starting level 13: 439036 states generated, 21272 distinct states found.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 5.8E-10
+  based on the actual fingerprints:  val = .013
+521793 states generated, 21272 distinct states found.
+Finished in 06s at (2026-10-24 00:46:06)
+
+Supplemental safety complete output:
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running depth-first search Model-Checking with fp 80 and seed 8660616212711468555 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 6] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64).
+Parsing file /tmp/risk-review-qty-after/RiskGate.tla
+Parsing file /tmp/Integers.tla
+Parsing file /tmp/FiniteSets.tla
+Parsing file /tmp/Naturals.tla
+Parsing file /tmp/Sequences.tla
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module RiskGate
+Starting... (2026-10-24 00:46:00)
 Finished computing initial states: 8 states generated, with 8 of them distinct.
 Starting level 2: 8 states generated, 8 distinct states found.
-Starting level 3: 168 states generated, 168 distinct states found.
-Starting level 4: 2880 states generated, 1360 distinct states found.
-Starting level 5: 20688 states generated, 5824 distinct states found.
-Starting level 6: 85424 states generated, 16750 distinct states found.
-Starting level 7: 247112 states generated, 37220 distinct states found.
-Starting level 8: 565352 states generated, 69408 distinct states found.
-Starting level 9: 1095060 states generated, 111912 distinct states found.
-Progress: 1781257 states generated, 157934 distinct states found.
-Starting level 10: 1863220 states generated, 161586 distinct states found.
-Progress: 2599566 states generated, 196338 distinct states found.
-Starting level 11: 2870728 states generated, 210658 distinct states found.
-Progress: 3652417 states generated, 233188 distinct states found.
-Starting level 12: 4081170 states generated, 241272 distinct states found.
-Progress: 4978227 states generated, 246942 distinct states found.
-Starting level 13: 5399802 states generated, 249204 distinct states found.
-Progress: 5785848 states generated, 249204 distinct states found.
-Error: TLC threw an unexpected exception.
-This was probably caused by an error in the spec or model.
-See the User Output or TLC Console for clues to what happened.
-The exception was a java.lang.ArithmeticException
-: Division by zero
-6742230 states generated, 249204 distinct states found.
-Finished in 19min 45s at (2026-10-23 23:10:57)
+Starting level 3: 120 states generated, 120 distinct states found.
+Starting level 4: 928 states generated, 424 distinct states found.
+Starting level 5: 3064 states generated, 900 distinct states found.
+Starting level 6: 6832 states generated, 1480 distinct states found.
+Starting level 7: 12084 states generated, 1976 distinct states found.
+Starting level 8: 18300 states generated, 2300 distinct states found.
+Starting level 9: 25016 states generated, 2404 distinct states found.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 3.8E-12
+  based on the actual fingerprints:  val = 4.5E-4
+31836 states generated, 2404 distinct states found.
+Finished in 00s at (2026-10-24 00:46:00)
 
-Full final breadth-first attempt output:
+Main BFS blocked output:
 TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
-Running breadth-first search Model-Checking with fp 101 and seed 2596788539167111521 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 5] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Running breadth-first search Model-Checking with fp 90 and seed -2071726023011103539 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 5] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
 Parsing file /tmp/risk-v0-spec/specs/tla/risk/RiskGate.tla
 Parsing file /tmp/Integers.tla
 Parsing file /tmp/FiniteSets.tla
@@ -153,7 +174,7 @@ Semantic processing of module Integers
 Semantic processing of module Sequences
 Semantic processing of module FiniteSets
 Semantic processing of module RiskGate
-Starting... (2026-10-23 23:34:12)
+Starting... (2026-10-24 00:46:00)
 Implied-temporal checking--satisfiability problem has 5 branches.
 Error: TLC threw an unexpected exception.
 This was probably caused by an error in the spec or model.
@@ -161,4 +182,4 @@ See the User Output or TLC Console for clues to what happened.
 The exception was a java.util.concurrent.ExecutionException
 : java.rmi.server.ExportException: Listen failed on port: 0; nested exception is:
 	java.net.SocketException: Operation not permitted
-Finished in 00s at (2026-10-23 23:34:12)
+Finished in 00s at (2026-10-24 00:46:00)
