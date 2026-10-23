@@ -8,6 +8,8 @@
 
 use libm::trunc;
 
+use crate::real::fmul;
+
 /// 1.0 position, in ticks.
 pub const TARGET_SCALE: i64 = 100_000_000;
 
@@ -26,7 +28,7 @@ impl Target {
             return Err(TargetError::NonFinite);
         }
         let clamped = value.clamp(-1.0, 1.0);
-        let truncated = trunc(clamped * TARGET_SCALE_F);
+        let truncated = trunc(fmul(clamped, TARGET_SCALE_F));
         let ticks = trunc_to_i64(truncated)?;
         if !(-TARGET_SCALE..=TARGET_SCALE).contains(&ticks) {
             return Err(TargetError::NonFinite);

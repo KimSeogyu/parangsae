@@ -3,6 +3,8 @@
 #[path = "support/mod.rs"]
 mod support;
 
+pub use support::Must;
+
 use std::cmp::Ordering;
 
 use parangsae_core::{BarInterval, Ratio, ReceivedTs};
@@ -24,7 +26,7 @@ fn classify_funding(got: Result<Option<SignalOutput>, SignalError>) -> &'static 
             Decision::Flat(FlatReason::FundingStale) => "stale",
             Decision::Flat(FlatReason::FundingSlotMissing) => "missing",
         },
-        Err(err) => panic!("emit-every-bar returned {err:?}"),
+        Err(err) => support::fail_test(&format!("emit-every-bar returned {err:?}")),
     }
 }
 
@@ -33,11 +35,11 @@ mod warmup_emit {
 
     #[test]
     fn prod_params_match_the_registered_grid() {
-        let tsmom_h1 = Tsmom::<24>::new(BarInterval::H1, 0.05).unwrap();
-        let tsmom_h4 = Tsmom::<42>::new(BarInterval::H4, 0.10).unwrap();
-        let vol_h1 = VolRegime::<24, 168>::new(BarInterval::H1).unwrap();
-        let vol_h4 = VolRegime::<42, 180>::new(BarInterval::H4).unwrap();
-        let funding = FundingZ::<90>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
+        let tsmom_h1 = Tsmom::<24>::new(BarInterval::H1, 0.05).must();
+        let tsmom_h4 = Tsmom::<42>::new(BarInterval::H4, 0.10).must();
+        let vol_h1 = VolRegime::<24, 168>::new(BarInterval::H1).must();
+        let vol_h4 = VolRegime::<42, 180>::new(BarInterval::H4).must();
+        let funding = FundingZ::<90>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).must();
         assert_eq!(tsmom_h1.n(), 24);
         assert_eq!(tsmom_h4.n(), 42);
         assert_eq!(tsmom_h1.r_scale().partial_cmp(&0.05), Some(Ordering::Equal));
@@ -66,9 +68,9 @@ mod warmup_emit {
             .filter(|slot| !matches!(slot, 92..=94))
             .map(|slot| fund_obs(T0 + slot * SLOT_US, slot * 1_000 - 5_000, 8))
             .collect();
-        let tsmom = Tsmom::<24>::new(BarInterval::H1, 0.05).unwrap();
-        let vol = VolRegime::<24, 168>::new(BarInterval::H1).unwrap();
-        let funding_z = FundingZ::<90>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
+        let tsmom = Tsmom::<24>::new(BarInterval::H1, 0.05).must();
+        let vol = VolRegime::<24, 168>::new(BarInterval::H1).must();
+        let funding_z = FundingZ::<90>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).must();
         let mut tsmom_some = 0_i64;
         let mut vol_some = 0_i64;
         let mut funding_none = 0_i64;
@@ -77,7 +79,7 @@ mod warmup_emit {
         let mut funding_missing = 0_i64;
         for bar in 1..=800 {
             let decision = at(hour(bar));
-            match drive(&tsmom, &bars, decision).unwrap() {
+            match drive(&tsmom, &bars, decision).must() {
                 Some(out) => {
                     assert!(bar >= 25, "bar {bar}");
                     assert!(matches!(out.decision, Decision::Target(_)));
@@ -85,7 +87,7 @@ mod warmup_emit {
                 }
                 None => assert!(bar < 25, "bar {bar}"),
             }
-            match drive_feature(&vol, &bars, decision).unwrap() {
+            match drive_feature(&vol, &bars, decision).must() {
                 Some(out) => {
                     assert!(bar >= 193, "bar {bar}");
                     assert!((0..=100_000_000).contains(&out.value.ticks()));
@@ -99,7 +101,7 @@ mod warmup_emit {
                 (713..=736, "target") => funding_target += 1,
                 (737..=760, "stale") => funding_stale += 1,
                 (761..=800, "missing") => funding_missing += 1,
-                _ => panic!("bar {bar} classified as {class}"),
+                _ => support::fail_test(&format!("bar {bar} classified as {class}")),
             }
         }
         assert_eq!(tsmom_some, 776);
@@ -119,9 +121,9 @@ mod warmup_emit {
             .filter(|slot| !matches!(slot, 100..=102))
             .map(|slot| fund_obs(T0 + slot * SLOT_US, slot * 1_000 - 5_000, 8))
             .collect();
-        let tsmom = Tsmom::<42>::new(BarInterval::H4, 0.10).unwrap();
-        let vol = VolRegime::<42, 180>::new(BarInterval::H4).unwrap();
-        let funding_z = FundingZ::<90>::new(BarInterval::H4, 2.0, PROD_MAX_AGE_US).unwrap();
+        let tsmom = Tsmom::<42>::new(BarInterval::H4, 0.10).must();
+        let vol = VolRegime::<42, 180>::new(BarInterval::H4).must();
+        let funding_z = FundingZ::<90>::new(BarInterval::H4, 2.0, PROD_MAX_AGE_US).must();
         let mut tsmom_some = 0_i64;
         let mut vol_some = 0_i64;
         let mut funding_none = 0_i64;
@@ -130,14 +132,14 @@ mod warmup_emit {
         let mut funding_missing = 0_i64;
         for bar in 1..=228 {
             let decision = at(T0 + bar * H4_US);
-            match drive(&tsmom, &bars, decision).unwrap() {
+            match drive(&tsmom, &bars, decision).must() {
                 Some(_) => {
                     assert!(bar >= 43, "bar {bar}");
                     tsmom_some += 1;
                 }
                 None => assert!(bar < 43, "bar {bar}"),
             }
-            match drive_feature(&vol, &bars, decision).unwrap() {
+            match drive_feature(&vol, &bars, decision).must() {
                 Some(_) => {
                     assert!(bar >= 223, "bar {bar}");
                     vol_some += 1;
@@ -150,7 +152,7 @@ mod warmup_emit {
                 (179..=200, "target") => funding_target += 1,
                 (201..=206, "stale") => funding_stale += 1,
                 (207..=228, "missing") => funding_missing += 1,
-                _ => panic!("bar {bar} classified as {class}"),
+                _ => support::fail_test(&format!("bar {bar} classified as {class}")),
             }
         }
         assert_eq!(tsmom_some, 186);
@@ -163,7 +165,7 @@ mod warmup_emit {
 
     #[test]
     fn a_gap_inside_the_lookback_is_an_error() {
-        let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).unwrap();
+        let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).must();
         let bars = vec![
             bar_obs(hour(0), BarInterval::H1, usdt_ticks(40_000)),
             bar_obs(hour(1), BarInterval::H1, usdt_ticks(40_100)),
@@ -180,7 +182,7 @@ mod warmup_emit {
 
     #[test]
     fn mismatched_funding_decision_is_rejected() {
-        let signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
+        let signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).must();
         let bars = vec![bar_ending_at(hour(25), BarInterval::H1, usdt_ticks(40_000))];
         let funding = toy_funding();
         let bar_decision = at(hour(25));
@@ -194,10 +196,10 @@ mod warmup_emit {
             .filter_map(|row| row.causal_at(funding_decision))
             .collect();
         let bars_window = CausalWindow::from_views(bar_decision, FundingZ::<4>::BAR_CAP, bar_views)
-            .expect("bar window");
+            .must_because("bar window");
         let funding_window =
             CausalWindow::from_views(funding_decision, FundingZ::<4>::FUNDING_CAP, fund_views)
-                .expect("funding window");
+                .must_because("funding window");
         let got = signal.evaluate(&bars_window, &funding_window);
         assert_eq!(got, Err(SignalError::DecisionMismatch));
         let same = drive_funding_z(&signal, &bars, &funding, bar_decision);
@@ -211,7 +213,7 @@ mod warmup_emit {
 
     #[test]
     fn decision_off_the_bar_is_not_a_trigger() {
-        let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).unwrap();
+        let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).must();
         let bars = contiguous_bars(BarInterval::H1, 6, |_| usdt_ticks(40_000));
         assert_eq!(
             drive(&signal, &bars, at(hour(6) - 1)),
@@ -221,7 +223,7 @@ mod warmup_emit {
 
     #[test]
     fn clock_mismatch_is_rejected() {
-        let signal = Tsmom::<1>::new(BarInterval::H1, 0.05).unwrap();
+        let signal = Tsmom::<1>::new(BarInterval::H1, 0.05).must();
         let bar = bar_obs(hour(0), BarInterval::H1, usdt_ticks(40_000));
         let shifted = restamp(&bar, hour(0), hour(1) - 1);
         assert_eq!(
@@ -232,7 +234,7 @@ mod warmup_emit {
 
     #[test]
     fn interval_mismatch_beats_warmup() {
-        let signal = Tsmom::<24>::new(BarInterval::H1, 0.05).unwrap();
+        let signal = Tsmom::<24>::new(BarInterval::H1, 0.05).must();
         let bar = bar_obs(T0, BarInterval::H4, usdt_ticks(40_000));
         assert_eq!(
             drive(&signal, &[bar], at(T0 + H4_US)),
@@ -242,7 +244,7 @@ mod warmup_emit {
 
     #[test]
     fn duplicate_bar_is_rejected() {
-        let signal = Tsmom::<1>::new(BarInterval::H1, 0.05).unwrap();
+        let signal = Tsmom::<1>::new(BarInterval::H1, 0.05).must();
         let bar = bar_obs(hour(0), BarInterval::H1, usdt_ticks(40_000));
         assert_eq!(
             drive(&signal, &[bar.clone(), bar], at(hour(1))),
@@ -252,7 +254,7 @@ mod warmup_emit {
 
     #[test]
     fn duplicate_funding_time_is_rejected() {
-        let signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
+        let signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).must();
         let row = fund_obs(hour(0), 10_000, 8);
         let bars = vec![bar_ending_at(hour(1), BarInterval::H1, usdt_ticks(40_000))];
         assert_eq!(
@@ -268,7 +270,7 @@ mod warmup_emit {
 
     #[test]
     fn non_positive_close_is_invalid() {
-        let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).unwrap();
+        let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).must();
         let bar = bar_obs(hour(0), BarInterval::H1, 0);
         assert_eq!(
             drive(&signal, &[bar], at(hour(1))),
@@ -278,7 +280,7 @@ mod warmup_emit {
 
     #[test]
     fn price_above_2_pow_53_is_invalid_and_the_bound_is_allowed() {
-        let signal = Tsmom::<1>::new(BarInterval::H1, 0.05).unwrap();
+        let signal = Tsmom::<1>::new(BarInterval::H1, 0.05).must();
         let too_big = (1_i64 << 53) + 1;
         let bar = bar_obs(hour(0), BarInterval::H1, too_big);
         assert_eq!(
@@ -290,9 +292,11 @@ mod warmup_emit {
             bar_obs(hour(0), BarInterval::H1, exact),
             bar_obs(hour(1), BarInterval::H1, exact),
         ];
-        let got = drive(&signal, &bars, at(hour(2))).unwrap();
+        let got = drive(&signal, &bars, at(hour(2))).must();
         assert_eq!(
-            got.expect("exact mantissa emits").decision.target_ticks(),
+            got.must_because("exact mantissa emits")
+                .decision
+                .target_ticks(),
             0
         );
     }
@@ -343,12 +347,12 @@ mod warmup_emit {
             8,
             ReceivedTs::from_micros(us(0)),
         );
-        assert_eq!(overflow, Err(SignalError::Overflow));
+        assert!(matches!(overflow, Err(SignalError::Overflow)));
     }
 
     #[test]
     fn volregime_depends_on_the_oldest_in_window_bar_only() {
-        let feature = VolRegime::<2, 3>::new(BarInterval::H1).unwrap();
+        let feature = VolRegime::<2, 3>::new(BarInterval::H1).must();
         // Index 0 is outside the cap. Indices 1..=6 repeat two returns so the
         // oldest in-window close is the only thing tying one reference RV.
         let base = vec![
@@ -365,25 +369,25 @@ mod warmup_emit {
                 .iter()
                 .enumerate()
                 .map(|(index, ticks)| {
-                    bar_obs(hour(i64::try_from(index).unwrap()), BarInterval::H1, *ticks)
+                    bar_obs(hour(i64::try_from(index).must()), BarInterval::H1, *ticks)
                 })
                 .collect::<Vec<_>>()
         };
         let decision = at(hour(7));
         let original = drive_feature(&feature, &bars(&base), decision)
-            .unwrap()
-            .expect("in window");
+            .must()
+            .must_because("in window");
         let mut outside = base.clone();
         outside[0] += 5_000_000_000;
         let untouched = drive_feature(&feature, &bars(&outside), decision)
-            .unwrap()
-            .expect("outside the cap");
+            .must()
+            .must_because("outside the cap");
         assert_eq!(untouched, original);
         let mut inside = base.clone();
         inside[1] += 5_000_000_000;
         let changed = drive_feature(&feature, &bars(&inside), decision)
-            .unwrap()
-            .expect("oldest in window");
+            .must()
+            .must_because("oldest in window");
         assert_ne!(changed.value.ticks(), original.value.ticks());
     }
 }

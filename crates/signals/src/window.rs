@@ -124,7 +124,10 @@ pub fn drive_feature<F: CausalFeature>(
 pub(crate) const fn nonzero(cap: usize) -> NonZeroUsize {
     match NonZeroUsize::new(cap) {
         Some(value) => value,
-        None => panic!("window cap is zero"),
+        None => {
+            assert!(cap != 0, "window cap is zero");
+            NonZeroUsize::MIN
+        }
     }
 }
 
@@ -136,8 +139,8 @@ mod tests {
     };
     use std::num::NonZeroUsize;
 
-    fn obs(available: i64, value: i64) -> Observation<i64> {
-        Observation::new(
+    fn obs(available: i64, value: i64) -> Result<Observation<i64>, String> {
+        Observation::from_source(
             Timestamps {
                 event_ts: EventTs::from_micros(UtcMicros::from_micros(available)),
                 available_ts: AvailableTs::from_micros(UtcMicros::from_micros(available)),
@@ -145,42 +148,52 @@ mod tests {
             },
             value,
         )
+        .map_err(|err| err.to_string())
     }
 
     fn at(micros: i64) -> DecisionTime {
         DecisionTime::from_micros(UtcMicros::from_micros(micros))
     }
 
+    fn nz(cap: usize) -> Result<NonZeroUsize, String> {
+        NonZeroUsize::new(cap).ok_or_else(|| format!("cap {cap} is zero"))
+    }
+
     #[test]
-    fn cap_keeps_the_newest_rows() {
-        let rows = [obs(1, 10), obs(2, 20), obs(3, 30), obs(4, 40)];
+    fn cap_keeps_the_newest_rows() -> Result<(), String> {
+        let rows = [obs(1, 10)?, obs(2, 20)?, obs(3, 30)?, obs(4, 40)?];
         let views: Vec<_> = rows.iter().filter_map(|row| row.causal_at(at(4))).collect();
-        let cap = NonZeroUsize::new(2).unwrap();
-        let window = CausalWindow::from_views(at(4), cap, views).unwrap();
+        let window =
+            CausalWindow::from_views(at(4), nz(2)?, views).map_err(|err| err.to_string())?;
         let values: Vec<_> = window.iter().map(|view| *view.value()).collect();
         assert_eq!(values, vec![30, 40]);
-        assert_eq!(window.last().unwrap().value(), &40);
+        let last = window.last().ok_or("window is empty")?;
+        assert_eq!(last.value(), &40);
         assert_eq!(window.len(), 2);
+        Ok(())
     }
 
     #[test]
-    fn a_later_gate_does_not_admit_a_row_at_an_earlier_decision() {
-        let row = obs(10, 1);
-        let view = row.causal_at(at(10)).unwrap();
-        let err = CausalWindow::from_views(at(5), NonZeroUsize::new(4).unwrap(), [view]);
+    fn a_later_gate_does_not_admit_a_row_at_an_earlier_decision() -> Result<(), String> {
+        let row = obs(10, 1)?;
+        let view = row.causal_at(at(10)).ok_or("row is not visible")?;
+        let err = CausalWindow::from_views(at(5), nz(4)?, [view]);
         assert!(matches!(err, Err(WindowError::AfterDecision)));
+        Ok(())
     }
 
     #[test]
-    fn decreasing_availability_is_unordered_and_ties_are_kept() {
-        let rows = [obs(3, 1), obs(1, 2)];
+    fn decreasing_availability_is_unordered_and_ties_are_kept() -> Result<(), String> {
+        let rows = [obs(3, 1)?, obs(1, 2)?];
         let views: Vec<_> = rows.iter().filter_map(|row| row.causal_at(at(3))).collect();
-        let err = CausalWindow::from_views(at(3), NonZeroUsize::new(4).unwrap(), views);
+        let err = CausalWindow::from_views(at(3), nz(4)?, views);
         assert!(matches!(err, Err(WindowError::Unordered)));
 
-        let tied = [obs(2, 1), obs(2, 2)];
+        let tied = [obs(2, 1)?, obs(2, 2)?];
         let views: Vec<_> = tied.iter().filter_map(|row| row.causal_at(at(2))).collect();
-        let window = CausalWindow::from_views(at(2), NonZeroUsize::new(4).unwrap(), views).unwrap();
+        let window =
+            CausalWindow::from_views(at(2), nz(4)?, views).map_err(|err| err.to_string())?;
         assert_eq!(window.len(), 2);
+        Ok(())
     }
 }

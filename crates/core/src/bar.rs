@@ -136,81 +136,96 @@ mod tests {
     use crate::fixed::Price;
     use proptest::prelude::*;
 
-    fn px(ticks: i64) -> Price {
-        Price::from_ticks(ticks).unwrap()
+    fn px(ticks: i64) -> Result<Price, String> {
+        Price::from_ticks(ticks).map_err(|err| err.to_string())
     }
 
-    fn flat(open: i64, interval: BarInterval, ticks: i64) -> Result<ResampledBar, BarError> {
-        let price = px(ticks);
-        ResampledBar::new(
+    fn flat(
+        open: i64,
+        interval: BarInterval,
+        ticks: i64,
+    ) -> Result<Result<ResampledBar, BarError>, String> {
+        let price = px(ticks)?;
+        Ok(ResampledBar::new(
             UtcMicros::from_micros(open),
             interval,
             price,
             price,
             price,
             price,
-        )
+        ))
+    }
+
+    fn built(open: i64, interval: BarInterval, ticks: i64) -> Result<ResampledBar, String> {
+        flat(open, interval, ticks)?.map_err(|err| err.to_string())
     }
 
     #[test]
-    fn one_hour_close_is_one_millisecond_before_the_next_open() {
-        let bar = flat(0, BarInterval::H1, 1).unwrap();
+    fn one_hour_close_is_one_millisecond_before_the_next_open() -> Result<(), String> {
+        let bar = built(0, BarInterval::H1, 1)?;
         assert_eq!(bar.close_time().micros(), 3_600_000_000 - 1_000);
         assert_eq!(bar.interval(), BarInterval::H1);
+        Ok(())
     }
 
     #[test]
-    fn four_hour_opens_fall_on_the_utc_epoch_grid() {
+    fn four_hour_opens_fall_on_the_utc_epoch_grid() -> Result<(), String> {
         for hour in [0_i64, 4, 8, 12, 16, 20] {
             let open = hour * 3_600_000_000;
-            assert!(flat(open, BarInterval::H4, 10).is_ok(), "hour {hour}");
+            built(open, BarInterval::H4, 10).map_err(|err| format!("hour {hour}: {err}"))?;
         }
         for hour in [1_i64, 2, 3, 5, 6, 7, 21, 23] {
             let open = hour * 3_600_000_000;
-            assert_eq!(
-                flat(open, BarInterval::H4, 10),
-                Err(BarError::Misaligned),
-                "hour {hour}"
-            );
+            match flat(open, BarInterval::H4, 10)? {
+                Err(BarError::Misaligned) => {}
+                other => return Err(format!("hour {hour}: {other:?}")),
+            }
         }
+        Ok(())
     }
 
     #[test]
-    fn misaligned_open_is_rejected_before_ohlc() {
+    fn misaligned_open_is_rejected_before_ohlc() -> Result<(), String> {
         let err = ResampledBar::new(
             UtcMicros::from_micros(1),
             BarInterval::H1,
-            px(5),
-            px(1),
-            px(9),
-            px(5),
+            px(5)?,
+            px(1)?,
+            px(9)?,
+            px(5)?,
         );
         assert_eq!(err, Err(BarError::Misaligned));
+        Ok(())
     }
 
     #[test]
-    fn ohlc_must_bracket_open_and_close() {
+    fn ohlc_must_bracket_open_and_close() -> Result<(), String> {
         let open = UtcMicros::from_micros(0);
         assert_eq!(
-            ResampledBar::new(open, BarInterval::H1, px(10), px(10), px(11), px(10)),
+            ResampledBar::new(open, BarInterval::H1, px(10)?, px(10)?, px(11)?, px(10)?),
             Err(BarError::OhlcOrder)
         );
         assert_eq!(
-            ResampledBar::new(open, BarInterval::H1, px(10), px(12), px(10), px(13)),
+            ResampledBar::new(open, BarInterval::H1, px(10)?, px(12)?, px(10)?, px(13)?),
             Err(BarError::OhlcOrder)
         );
-        let bar = ResampledBar::new(open, BarInterval::H1, px(10), px(14), px(8), px(12)).unwrap();
+        let bar = ResampledBar::new(open, BarInterval::H1, px(10)?, px(14)?, px(8)?, px(12)?)
+            .map_err(|err| err.to_string())?;
         assert_eq!(bar.low().ticks(), 8);
         assert_eq!(bar.high().ticks(), 14);
+        Ok(())
     }
 
     #[test]
-    fn close_time_overflow_is_rejected() {
+    fn close_time_overflow_is_rejected() -> Result<(), String> {
         let width = BarInterval::H1.micros();
         let remainder = i64::MAX % width;
         let open = i64::MAX - remainder;
         assert_eq!(open % width, 0);
-        assert_eq!(flat(open, BarInterval::H1, 1), Err(BarError::Overflow));
+        match flat(open, BarInterval::H1, 1)? {
+            Err(BarError::Overflow) => Ok(()),
+            other => Err(format!("{other:?}")),
+        }
     }
 
     // These generators sample the constructor. They are not a proof.
@@ -233,12 +248,12 @@ mod tests {
             let bar = ResampledBar::new(
                 UtcMicros::from_micros(open_us),
                 interval,
-                px(open_px),
-                px(high_ticks),
-                px(low_ticks),
-                px(close_px),
+                px(open_px).map_err(TestCaseError::fail)?,
+                px(high_ticks).map_err(TestCaseError::fail)?,
+                px(low_ticks).map_err(TestCaseError::fail)?,
+                px(close_px).map_err(TestCaseError::fail)?,
             )
-            .unwrap();
+            .map_err(|err| TestCaseError::fail(err.to_string()))?;
             prop_assert_eq!(bar.open_time().micros(), open_us);
             prop_assert_eq!(bar.close_time().micros(), open_us + interval.micros() - 1_000);
             prop_assert!(bar.low().ticks() <= bar.open().ticks().min(bar.close().ticks()));
@@ -249,7 +264,8 @@ mod tests {
         fn unaligned_opens_are_misaligned(open in 1i64..5_000_000_000_000i64, h4 in any::<bool>()) {
             let interval = if h4 { BarInterval::H4 } else { BarInterval::H1 };
             prop_assume!(open % interval.micros() != 0);
-            prop_assert_eq!(flat(open, interval, 1), Err(BarError::Misaligned));
+            let built = flat(open, interval, 1).map_err(TestCaseError::fail)?;
+            prop_assert_eq!(built, Err(BarError::Misaligned));
         }
     }
 }

@@ -175,6 +175,32 @@ kind = "dev"
 source = "path"
 default_features = true
 
+[[crate.edge]]
+name = "libm"
+kind = "normal"
+source = "crates.io"
+default_features = false
+features = ["force-soft-floats"]
+
+[[crate.edge]]
+name = "cucumber"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "proptest"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "tokio"
+kind = "dev"
+source = "crates.io"
+default_features = true
+features = ["macros", "rt-multi-thread"]
+
 [[crate]]
 name = "parangsae-regime"
 

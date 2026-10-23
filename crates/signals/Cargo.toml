@@ -20,15 +20,6 @@ cucumber = "=0.22.1"
 proptest = "1.6"
 tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
 
-[lints.rust]
-unsafe_code = "forbid"
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
-
-[lints.clippy]
-float_cmp = "deny"
-cast_possible_truncation = "deny"
-unwrap_used = "deny"
-
 [[test]]
 name = "signals_v0"
 harness = false

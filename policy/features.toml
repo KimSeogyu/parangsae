@@ -20,3 +20,8 @@ source = "crates/collector/tests/vision_integrity.rs"
 name = "backtest"
 glob = "specs/features/backtest_engine.feature"
 source = "crates/backtest/tests/backtest_engine.rs"
+
+[[runner]]
+name = "signals"
+glob = "specs/features/signals/signals_v0.feature"
+source = "crates/signals/tests/signals_v0.rs"

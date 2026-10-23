@@ -17,6 +17,48 @@ use parangsae_signals::{
 use proptest::prelude::*;
 use proptest::test_runner::{Config, FileFailurePersistence, TestCaseError, TestError, TestRunner};
 
+pub fn fail_test<T>(message: &str) -> T {
+    assert!(message.len() != message.len(), "{message}");
+    std::process::abort()
+}
+
+pub trait Must<T> {
+    fn must(self) -> T;
+    fn must_because(self, message: &str) -> T;
+}
+
+impl<T, E: fmt::Debug> Must<T> for Result<T, E> {
+    fn must(self) -> T {
+        match self {
+            Ok(value) => value,
+            Err(err) => fail_test(&format!("{err:?}")),
+        }
+    }
+
+    fn must_because(self, message: &str) -> T {
+        match self {
+            Ok(value) => value,
+            Err(err) => fail_test(&format!("{message}: {err:?}")),
+        }
+    }
+}
+
+impl<T> Must<T> for Option<T> {
+    fn must(self) -> T {
+        match self {
+            Some(value) => value,
+            None => fail_test("expected Some"),
+        }
+    }
+
+    fn must_because(self, message: &str) -> T {
+        match self {
+            Some(value) => value,
+            None => fail_test(message),
+        }
+    }
+}
+
 pub const T0: i64 = 1_704_067_200_000_000;
 pub const H1_US: i64 = 3_600_000_000;
 pub const H4_US: i64 = 14_400_000_000;
@@ -53,14 +95,32 @@ pub fn usdt_ticks(usdt: i64) -> i64 {
 }
 
 pub fn observation<T>(event: i64, available: i64, value: T) -> Observation<T> {
-    Observation::new(
+    match Observation::from_source(
         Timestamps {
             event_ts: EventTs::from_micros(us(event)),
             available_ts: AvailableTs::from_micros(us(available)),
             received_ts: ReceivedTs::from_micros(us(available)),
         },
         value,
-    )
+    ) {
+        Ok(row) => row,
+        Err(err) => fail_test(&format!("observation timestamps: {err}")),
+    }
+}
+
+pub fn row_value<T>(row: &Observation<T>) -> &T {
+    let decision = DecisionTime::from_micros(row.timestamps().available_ts.micros());
+    match row.causal_at(decision) {
+        Some(view) => view.value(),
+        None => fail_test("row is not visible at its available_ts"),
+    }
+}
+
+pub fn with_value<T, U>(row: &Observation<T>, value: U) -> Observation<U> {
+    match Observation::from_source(row.timestamps(), value) {
+        Ok(row) => row,
+        Err(err) => fail_test(&format!("observation timestamps: {err}")),
+    }
 }
 
 pub fn avail_us<T>(row: &Observation<T>) -> i64 {
@@ -68,13 +128,13 @@ pub fn avail_us<T>(row: &Observation<T>) -> i64 {
 }
 
 pub fn restamp<T: Copy>(row: &Observation<T>, event: i64, available: i64) -> Observation<T> {
-    observation(event, available, *row.value())
+    observation(event, available, *row_value(row))
 }
 
 pub fn bar_obs(open_us: i64, interval: BarInterval, close_ticks: i64) -> Observation<ResampledBar> {
-    let price = Price::from_ticks(close_ticks).expect("price ticks");
-    let bar =
-        ResampledBar::new(us(open_us), interval, price, price, price, price).expect("aligned bar");
+    let price = Price::from_ticks(close_ticks).must_because("price ticks");
+    let bar = ResampledBar::new(us(open_us), interval, price, price, price, price)
+        .must_because("aligned bar");
     observation(open_us, open_us + interval.micros(), bar)
 }
 
@@ -93,7 +153,7 @@ pub fn fund_obs(funding_us: i64, rate_ticks: i64, interval_hours: u8) -> Observa
         interval_hours,
         ReceivedTs::from_micros(us(funding_us)),
     )
-    .expect("funding visibility fits")
+    .must_because("funding visibility fits")
 }
 
 pub fn fund_custom(
@@ -116,7 +176,7 @@ pub fn toy_tsmom_bars() -> Vec<Observation<ResampledBar>> {
         .into_iter()
         .enumerate()
         .map(|(index, px)| {
-            let open = hour(i64::try_from(index).expect("index"));
+            let open = hour(i64::try_from(index).must_because("index"));
             bar_obs(open, BarInterval::H1, usdt_ticks(px))
         })
         .collect()
@@ -127,7 +187,7 @@ pub fn toy_vol_bars(close_ticks: &[i64]) -> Vec<Observation<ResampledBar>> {
         .iter()
         .enumerate()
         .map(|(index, ticks)| {
-            let open = hour(i64::try_from(index).expect("index"));
+            let open = hour(i64::try_from(index).must_because("index"));
             bar_obs(open, BarInterval::H1, *ticks)
         })
         .collect()
@@ -232,12 +292,12 @@ pub fn expect_target(got: Result<Option<SignalOutput>, SignalError>, ticks: i64)
             );
             match out.decision {
                 Decision::Target(target) => assert_eq!(target.ticks(), ticks, "{out:?}"),
-                Decision::Flat(reason) => {
-                    panic!("expected target {ticks}, got flat {reason:?}: {out:?}")
-                }
+                Decision::Flat(reason) => fail_test(&format!(
+                    "expected target {ticks}, got flat {reason:?}: {out:?}"
+                )),
             }
         }
-        other => panic!("expected target {ticks}, got {other:?}"),
+        other => fail_test(&format!("expected target {ticks}, got {other:?}")),
     }
 }
 
@@ -247,7 +307,7 @@ pub fn expect_flat(got: Result<Option<SignalOutput>, SignalError>, reason: FlatR
             assert_eq!(out.decision, Decision::Flat(reason), "{out:?}");
             assert_eq!(out.decision.target_ticks(), 0);
         }
-        other => panic!("expected flat {reason:?}, got {other:?}"),
+        other => fail_test(&format!("expected flat {reason:?}, got {other:?}")),
     }
 }
 
@@ -264,7 +324,7 @@ pub fn expect_feature(got: Result<Option<FeatureOutput>, SignalError>, ticks: i6
             );
             assert_eq!(out.value.ticks(), ticks, "{out:?}");
         }
-        other => panic!("expected rank {ticks}, got {other:?}"),
+        other => fail_test(&format!("expected rank {ticks}, got {other:?}")),
     }
 }
 
@@ -311,7 +371,7 @@ impl Rng {
 
 fn runner(path: &'static str) -> TestRunner {
     if let Some(parent) = std::path::Path::new(path).parent() {
-        std::fs::create_dir_all(parent).expect("regression directory");
+        std::fs::create_dir_all(parent).must_because("regression directory");
     }
     TestRunner::new(Config {
         cases: case_count(),
@@ -364,18 +424,20 @@ fn truncate<T: Clone>(rows: &[Observation<T>], decision_us: i64) -> Vec<Observat
 
 fn sort_bars(bars: &mut [Observation<ResampledBar>]) {
     bars.sort_by(|left, right| {
-        avail_us(left)
-            .cmp(&avail_us(right))
-            .then_with(|| left.value().open_time().cmp(&right.value().open_time()))
+        avail_us(left).cmp(&avail_us(right)).then_with(|| {
+            row_value(left)
+                .open_time()
+                .cmp(&row_value(right).open_time())
+        })
     });
 }
 
 fn sort_funding(rows: &mut [Observation<FundingRow>]) {
     rows.sort_by(|left, right| {
         avail_us(left).cmp(&avail_us(right)).then_with(|| {
-            left.value()
+            row_value(left)
                 .funding_time()
-                .cmp(&right.value().funding_time())
+                .cmp(&row_value(right).funding_time())
         })
     });
 }
@@ -388,7 +450,7 @@ fn append_bar(
     let step = interval.micros();
     let mut open = bars
         .iter()
-        .map(|row| row.value().open_time().micros())
+        .map(|row| row_value(row).open_time().micros())
         .max()
         .map_or(T0, |last| last + step);
     while open + step <= decision_us {
@@ -400,7 +462,7 @@ fn append_bar(
 fn append_funding(rows: &[Observation<FundingRow>], decision_us: i64) -> Observation<FundingRow> {
     let mut funding_time = rows
         .iter()
-        .map(|row| row.value().funding_time().micros())
+        .map(|row| row_value(row).funding_time().micros())
         .max()
         .map_or(T0, |last| last + SLOT_US);
     let remainder = funding_time % SLOT_US;
@@ -431,10 +493,10 @@ where
 
     if let Some(index) = future {
         let mut modified = bars.to_vec();
-        let current = *modified[index].value();
+        let current = *row_value(&modified[index]);
         let ticks = current.close().ticks();
         let next = if ticks > 1 { ticks - 1 } else { ticks + 1 };
-        let price = Price::from_ticks(next).expect("bumped price");
+        let price = Price::from_ticks(next).must_because("bumped price");
         let rebuilt = ResampledBar::new(
             current.open_time(),
             current.interval(),
@@ -443,8 +505,8 @@ where
             price,
             price,
         )
-        .expect("rebuilt bar");
-        modified[index] = modified[index].with_value(rebuilt);
+        .must_because("rebuilt bar");
+        modified[index] = with_value(&modified[index], rebuilt);
         sort_bars(&mut modified);
         finish(
             "ModifyFuture",
@@ -480,8 +542,9 @@ where
     )?;
 
     let mut late = bars.to_vec();
-    let price = Price::from_ticks(1_000_000_000).expect("late price");
-    let bar = ResampledBar::new(us(T0), interval, price, price, price, price).expect("late bar");
+    let price = Price::from_ticks(1_000_000_000).must_because("late price");
+    let bar =
+        ResampledBar::new(us(T0), interval, price, price, price, price).must_because("late bar");
     late.push(observation(decision_us, decision_us + 1, bar));
     sort_bars(&mut late);
     finish(
@@ -529,14 +592,14 @@ where
 
     if let Some(index) = future {
         let mut modified = funding.to_vec();
-        let row = *modified[index].value();
+        let row = *row_value(&modified[index]);
         let ticks = row.rate().ticks();
         let bumped = if ticks == i64::MAX {
             ticks - 1
         } else {
             ticks + 1
         };
-        modified[index] = modified[index].with_value(row.with_rate(Ratio::from_ticks(bumped)));
+        modified[index] = with_value(&modified[index], row.with_rate(Ratio::from_ticks(bumped)));
         sort_funding(&mut modified);
         finish(
             "ModifyFuture",
@@ -612,8 +675,8 @@ fn gen_bars(seed: u64, interval: BarInterval) -> (Vec<Observation<ResampledBar>>
     let mut bars = Vec::new();
     for index in 0..count {
         close = (close + rng.below(1_000_000) + 1).min((1 << 53) - 1);
-        let open = T0 + i64::try_from(index).expect("index") * interval.micros();
-        let ticks = i64::try_from(close).expect("close ticks");
+        let open = T0 + i64::try_from(index).must_because("index") * interval.micros();
+        let ticks = i64::try_from(close).must_because("close ticks");
         bars.push(bar_obs(open, interval, ticks));
     }
     let decision = pick_decision(&bars, &mut rng, interval);
@@ -629,14 +692,15 @@ fn pick_decision(
         return at(T0);
     }
     let kind = rng.below(10);
-    let index = usize::try_from(rng.below(u64::try_from(bars.len()).expect("len"))).expect("index");
+    let index = usize::try_from(rng.below(u64::try_from(bars.len()).must_because("len")))
+        .must_because("index");
     let available = avail_us(&bars[index]);
     let choice = match kind {
         0..=5 => available,
         6 => available - 1,
         7 => available + 1,
         8 => avail_us(&bars[0]) - 1,
-        _ => avail_us(bars.last().expect("last bar")) + interval.micros(),
+        _ => avail_us(bars.last().must_because("last bar")) + interval.micros(),
     };
     at(choice)
 }
@@ -663,8 +727,8 @@ fn gen_funding(
             _ => SLOT_US,
         };
         let interval_hours: u8 = if rng.below(100) == 0 { 4 } else { 8 };
-        let rate = i64::try_from(rng.below(2_000_001)).expect("rate") - 1_000_000;
-        let funding_time = T0 + i64::try_from(slot).expect("slot") * SLOT_US;
+        let rate = i64::try_from(rng.below(2_000_001)).must_because("rate") - 1_000_000;
+        let funding_time = T0 + i64::try_from(slot).must_because("slot") * SLOT_US;
         funding.push(fund_custom(funding_time, rate, interval_hours, lag));
     }
     sort_funding(&mut funding);
@@ -689,9 +753,9 @@ fn run_seeds(
         Ok(()) => Ok(()),
         Err(TestError::Fail(_, _)) => match caught.borrow_mut().take() {
             Some(mismatch) => Err(mismatch),
-            None => panic!("proptest reported a failure without a mismatch"),
+            None => fail_test("proptest reported a failure without a mismatch"),
         },
-        Err(other) => panic!("proptest aborted: {other:?}"),
+        Err(other) => fail_test(&format!("proptest aborted: {other:?}")),
     }
 }
 

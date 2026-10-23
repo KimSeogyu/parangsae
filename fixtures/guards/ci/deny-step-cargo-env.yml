@@ -98,7 +98,7 @@ jobs:
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum Cargo.lock)"
           lock_got="${lock_line%% *}"
-          if [ "$lock_got" != "591639e88c7dfd0a420fbcea67aa82502b7f70e35e2bf2557052c494ff1c8827" ]; then
+          if [ "$lock_got" != "038015cc0004dbdf95d5725e69afbedb7b337008bbd65086988e3fc73a58f56c" ]; then
             echo "Cargo.lock sha256 does not match"
             exit 1
           fi
@@ -134,7 +134,7 @@ jobs:
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum)"
           manifest_got="${manifest_line%% *}"
-          if [ "$manifest_got" != "61423b75d59d2e685ca205a80c947abe0fa1f3c4d10c04711f75bf7efe0238bb" ]; then
+          if [ "$manifest_got" != "3e42ce0c4748f26e92513bd7efbdee4ad94b5a3d11db84c6475363d7687e432d" ]; then
             echo "cargo manifests sha256 does not match"
             exit 1
           fi

@@ -6,6 +6,7 @@ use std::num::NonZeroUsize;
 
 use crate::bars::prepare;
 use crate::output::{ParamError, SignalError, SignalOutput};
+use crate::real::fdiv;
 use crate::target::Target;
 use crate::window::{nonzero, CausalSignal, CausalWindow};
 
@@ -57,11 +58,11 @@ impl<const N: u16> CausalSignal for Tsmom<N> {
         };
         let oldest = prepared.closes[0];
         let newest = prepared.closes[prepared.closes.len() - 1];
-        let momentum = log(newest / oldest);
+        let momentum = log(fdiv(newest, oldest));
         if !momentum.is_finite() {
             return Err(SignalError::InvalidFeature);
         }
-        let scaled = momentum / self.r_scale;
+        let scaled = fdiv(momentum, self.r_scale);
         if !scaled.is_finite() {
             return Err(SignalError::InvalidFeature);
         }

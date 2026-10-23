@@ -19,6 +19,10 @@ cucumber.backtest.scenarios=12
 cucumber.backtest.steps=50
 cucumber.backtest.max_skipped=0
 
+cucumber.signals.scenarios=13
+cucumber.signals.steps=43
+cucumber.signals.max_skipped=0
+
 # TLC "N distinct states found", one worker.
 # IngestSegment at Max=4 is 21.
 # ManifestWrite with Values={v1,v2,v3} is 10. `committed` stays equal to `stored`.

@@ -164,7 +164,7 @@ fn check_workspace(root: &Path) -> Result<(), String> {
 }
 
 /// Reviewer-protected. Bootstrap applies only when the resolved base equals this commit.
-const BOOTSTRAP_BASE: &str = "35d34ae25a782bbaf5182ae951c936b8bbbcceea";
+const BOOTSTRAP_BASE: &str = "9c34170564e1155428e5afbb6b8ce71b48ac9e18";
 
 /// Reviewer-protected. The only `uses:` targets. Kani is installed with cargo, not an action.
 const ALLOWED_ACTIONS: &[&str] = &[
@@ -175,7 +175,7 @@ const ALLOWED_ACTIONS: &[&str] = &[
 
 /// Reviewer-protected. Raw sha256 of `regressions/floors.toml` on the bootstrap path.
 const BOOTSTRAP_FLOORS_SHA256: &str =
-    "f06d25d07cb336c64c432d644585ba5388ad01e3c3e1ac2cd8578fbb8bdad7ad";
+    "0ef9b7db19c2dd575c100cf84984489e233ae6f0afc1ecd8f84fa3229955c3f4";
 
 /// Reviewer-protected. Non-ratchet guards plus the ratchet.
 const EXPECTED_GUARD_RUNS: usize = 12;
@@ -454,7 +454,7 @@ const RUST_TOOLCHAIN_SHA256: &str =
 /// Reviewer-protected. sha256 of `deny.toml`, re-checked in the deny job.
 const DENY_TOML_SHA256: &str = "d8cec209fc719185e615794935ce8fecae69bf27e0f123ad85211d17857194c3";
 /// Reviewer-protected. sha256 of `Cargo.lock`, re-checked in the deny job.
-const CARGO_LOCK_SHA256: &str = "591639e88c7dfd0a420fbcea67aa82502b7f70e35e2bf2557052c494ff1c8827";
+const CARGO_LOCK_SHA256: &str = "038015cc0004dbdf95d5725e69afbedb7b337008bbd65086988e3fc73a58f56c";
 
 /// Reviewer-protected. cargo-deny release the deny job downloads.
 const DENY_VERSION: &str = "0.20.2";
@@ -477,7 +477,7 @@ const CARGO_MANIFESTS: &[&str] = &[
 ];
 /// Reviewer-protected. sha256 of the `sha256sum` text for `CARGO_MANIFESTS`.
 const CARGO_MANIFESTS_SHA256: &str =
-    "61423b75d59d2e685ca205a80c947abe0fa1f3c4d10c04711f75bf7efe0238bb";
+    "3e42ce0c4748f26e92513bd7efbdee4ad94b5a3d11db84c6475363d7687e432d";
 
 /// Reviewer-protected. Exact non-job preamble of `.github/workflows/ci.yml`.
 const CI_HEADER: &str = include_str!("pinned_jobs/ci.header");
@@ -539,7 +539,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "74c91042500997fda090e8c7e0b48817bd5e3eb872d84c7bb24cc5343941ac10",
+        "90a84069abd1be41d3631525404c1e3eaa4236a96491ec2dd55021dc1260d071",
     ),
     (
         "gate",

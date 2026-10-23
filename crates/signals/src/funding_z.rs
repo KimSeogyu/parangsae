@@ -12,6 +12,7 @@ use std::num::NonZeroUsize;
 use crate::bars::{trigger, BarTiming};
 use crate::funding::FundingRow;
 use crate::output::{FlatReason, ParamError, SignalError, SignalOutput, WindowError};
+use crate::real::{fadd, fdiv, fmul, fneg, fsub};
 use crate::target::Target;
 use crate::tsmom::scale_ok;
 use crate::window::{nonzero, CausalWindow};
@@ -176,15 +177,15 @@ impl<const M: u16> FundingZ<M> {
         let width = f64::from(M);
         let mut sum = 0.0;
         for value in &values {
-            sum += value;
+            sum = fadd(sum, *value);
         }
-        let mean = sum / width;
+        let mean = fdiv(sum, width);
         let mut squares = 0.0;
         for value in &values {
-            let deviation = value - mean;
-            squares += deviation * deviation;
+            let deviation = fsub(*value, mean);
+            squares = fadd(squares, fmul(deviation, deviation));
         }
-        let sigma = sqrt(squares / width);
+        let sigma = sqrt(fdiv(squares, width));
         if !mean.is_finite() || !sigma.is_finite() {
             return Err(SignalError::InvalidFeature);
         }
@@ -192,8 +193,8 @@ impl<const M: u16> FundingZ<M> {
             return Ok(Some(self.target(timing, Target::FLAT)));
         }
         let last = values[values.len() - 1];
-        let z = (last - mean) / sigma;
-        let scaled = -z / self.z_scale;
+        let z = fdiv(fsub(last, mean), sigma);
+        let scaled = fdiv(fneg(z), self.z_scale);
         if !scaled.is_finite() {
             return Err(SignalError::InvalidFeature);
         }
