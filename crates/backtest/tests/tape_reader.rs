@@ -375,6 +375,19 @@ fn h1_holdout_date_is_refused_before_the_poison_file_is_read() {
 }
 
 #[test]
+fn a_kline_file_without_count_is_refused() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut spec = Day::good();
+    spec.omit_count = true;
+    write_day(dir.path(), &spec).unwrap();
+    let err = Tape::load(dir.path(), &symbol(), day(), day(), &load_cfg(dir.path())).unwrap_err();
+    assert!(
+        matches!(err, TapeError::MissingColumn { ref name } if name == "count"),
+        "{err:?}"
+    );
+}
+
+#[test]
 fn o1_overlay_row_replaces_the_stored_row() {
     let dir = tempfile::tempdir().unwrap();
     let scale = 100_000_000;

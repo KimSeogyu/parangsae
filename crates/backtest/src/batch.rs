@@ -15,10 +15,10 @@
 //! `config_id` is the lowercase sha256 of the canonical config. Anything else
 //! is refused before a trial line is written.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::panic::{self, AssertUnwindSafe};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use parangsae_core::{notional, FixedError, Ratio, UtcMicros, SCALE};
 use parangsae_sim::{Cash, Costs, FeeBps, SimError};
@@ -52,6 +52,9 @@ pub struct TrialMetrics {
     pub turnover: Ratio,
     pub flat_bars: FlatBars,
     pub net_return: [Ratio; 4],
+    pub n_refused_fills: u64,
+    /// Holds `Hold::arm` refused because they would end after 2025-09-30 23:59 UTC.
+    pub n_dropped_entries: u64,
 }
 
 /// One config in a batch, plus the trial identity written before compute.
@@ -84,6 +87,8 @@ pub struct ResultRow {
     pub net_return_ticks: Option<[i64; 4]>,
     pub slippage_bps: u32,
     pub fee_grid_bps: [u32; 4],
+    pub n_refused_fills: Option<u64>,
+    pub n_dropped_entries: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -142,11 +147,22 @@ impl std::error::Error for BatchError {}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SweepPins {
     pinned_root: String,
+    objects: BTreeSet<PathBuf>,
+    sha256: BTreeMap<PathBuf, String>,
 }
 
 impl SweepPins {
     pub fn pinned_root(&self) -> &str {
         &self.pinned_root
+    }
+
+    /// True when `path` is one of the hashed objects. A docs path can be pinned and still be refused by the reader.
+    pub fn allows(&self, path: &Path) -> bool {
+        self.objects.contains(path)
+    }
+
+    pub fn sha256(&self, path: &Path) -> Option<&str> {
+        self.sha256.get(path).map(String::as_str)
     }
 
     pub fn load(path: &Path) -> Result<Self, BatchError> {
@@ -162,6 +178,8 @@ impl SweepPins {
         }
         let base = path.parent().unwrap_or(Path::new("."));
         let mut objects = Vec::with_capacity(file.objects.len());
+        let mut stored = BTreeSet::new();
+        let mut sha256 = BTreeMap::new();
         for object in file.objects {
             if object.path.is_empty() || !is_lower_hex64(&object.sha256) {
                 return Err(BatchError::Pins(
@@ -182,6 +200,8 @@ impl SweepPins {
                     got,
                 });
             }
+            stored.insert(full.clone());
+            sha256.insert(full, object.sha256.clone());
             objects.push((object.path, object.sha256));
         }
         objects.sort_by(|left, right| left.0.cmp(&right.0));
@@ -189,7 +209,11 @@ impl SweepPins {
             return Err(BatchError::Pins("duplicate pin path".to_owned()));
         }
         let pinned_root = sha256_hex(pin_preimage(&objects).as_bytes());
-        Ok(Self { pinned_root })
+        Ok(Self {
+            pinned_root,
+            objects: stored,
+            sha256,
+        })
     }
 }
 
@@ -376,6 +400,8 @@ pub fn metrics_from_grid(
         turnover: turnover_ratio(sum_notional(headline)?, &daily)?,
         flat_bars,
         net_return,
+        n_refused_fills: headline.n_refused_fills,
+        n_dropped_entries: 0,
     })
 }
 
@@ -394,7 +420,7 @@ fn sum_notional(report: &Report) -> Result<i128, SimError> {
     Ok(sum)
 }
 
-fn with_headline(
+pub(crate) fn with_headline(
     metrics: TrialMetrics,
     initial: Cash,
     headline: &Report,
@@ -414,6 +440,8 @@ fn with_headline(
         turnover: turnover_ratio(sum_notional(headline)?, &daily)?,
         flat_bars: metrics.flat_bars,
         net_return: metrics.net_return,
+        n_refused_fills: headline.n_refused_fills,
+        n_dropped_entries: metrics.n_dropped_entries,
     })
 }
 
@@ -466,10 +494,12 @@ pub fn metrics_preimage(metrics: &TrialMetrics) -> String {
         None => "null".to_owned(),
     };
     format!(
-        "{{\"flat_funding_slot_missing\":{},\"flat_funding_stale\":{},\"max_drawdown_ticks\":{},\"net_2\":{},\"net_4\":{},\"net_5\":{},\"net_6\":{},\"sharpe_annual_ticks\":{sharpe},\"total_return_ticks\":{},\"turnover_ticks\":{}}}",
+        "{{\"flat_funding_slot_missing\":{},\"flat_funding_stale\":{},\"max_drawdown_ticks\":{},\"n_dropped_entries\":{},\"n_refused_fills\":{},\"net_2\":{},\"net_4\":{},\"net_5\":{},\"net_6\":{},\"sharpe_annual_ticks\":{sharpe},\"total_return_ticks\":{},\"turnover_ticks\":{}}}",
         metrics.flat_bars.funding_slot_missing,
         metrics.flat_bars.funding_stale,
         metrics.max_drawdown.ticks(),
+        metrics.n_dropped_entries,
+        metrics.n_refused_fills,
         metrics.net_return[0].ticks(),
         metrics.net_return[1].ticks(),
         metrics.net_return[2].ticks(),
@@ -528,10 +558,53 @@ pub fn run_batch<R: TargetRunner>(
     costs: &Costs,
     runner: &mut R,
 ) -> Result<Vec<ResultRow>, BatchError> {
+    run_recorded(
+        specs,
+        pins,
+        trials_path,
+        Recorded::Results(results_path),
+        costs,
+        runner,
+    )
+}
+
+/// Ledger plus one digest line per config. The line has no performance numbers.
+pub(crate) fn run_batch_digest<R: TargetRunner>(
+    specs: &[TrialSpec],
+    pins: &SweepPins,
+    trials_path: &Path,
+    digest_path: &Path,
+    costs: &Costs,
+    runner: &mut R,
+) -> Result<Vec<ResultRow>, BatchError> {
+    run_recorded(
+        specs,
+        pins,
+        trials_path,
+        Recorded::Digest(digest_path),
+        costs,
+        runner,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum Recorded<'a> {
+    Results(&'a Path),
+    Digest(&'a Path),
+}
+
+fn run_recorded<R: TargetRunner>(
+    specs: &[TrialSpec],
+    pins: &SweepPins,
+    trials_path: &Path,
+    recorded: Recorded<'_>,
+    costs: &Costs,
+    runner: &mut R,
+) -> Result<Vec<ResultRow>, BatchError> {
     let log = TrialLog::new(trials_path);
     let mut rows = Vec::with_capacity(specs.len());
     for spec in specs {
-        rows.push(drive(spec, pins, &log, results_path, costs, runner)?);
+        rows.push(drive(spec, pins, &log, recorded, costs, runner)?);
     }
     for spec in specs {
         if let Some(reason) = gate(spec) {
@@ -545,7 +618,7 @@ fn drive<R: TargetRunner>(
     spec: &TrialSpec,
     pins: &SweepPins,
     log: &TrialLog,
-    results_path: &Path,
+    recorded: Recorded<'_>,
     costs: &Costs,
     runner: &mut R,
 ) -> Result<ResultRow, BatchError> {
@@ -571,7 +644,7 @@ fn drive<R: TargetRunner>(
     if let Some(reason) = gate(spec) {
         log.abort(&spec.run_id, reason).map_err(map_trial)?;
         let row = aborted_row(spec, &id, reason, slippage_bps);
-        write_row(results_path, spec, &row, pins.pinned_root(), None)?;
+        record(recorded, spec, &row, pins.pinned_root(), None)?;
         return Ok(row);
     }
     let computed = panic::catch_unwind(AssertUnwindSafe(|| runner.run_targets(costs, &spec.run)));
@@ -593,9 +666,11 @@ fn drive<R: TargetRunner>(
                 net_return_ticks: Some(metrics.net_return.map(Ratio::ticks)),
                 slippage_bps,
                 fee_grid_bps: FEE_GRID_BPS,
+                n_refused_fills: Some(metrics.n_refused_fills),
+                n_dropped_entries: Some(metrics.n_dropped_entries),
             };
-            write_row(
-                results_path,
+            record(
+                recorded,
                 spec,
                 &row,
                 pins.pinned_root(),
@@ -607,13 +682,13 @@ fn drive<R: TargetRunner>(
             let reason = err.to_string();
             log.abort(&spec.run_id, &reason).map_err(map_trial)?;
             let row = aborted_row(spec, &id, &reason, slippage_bps);
-            write_row(results_path, spec, &row, pins.pinned_root(), None)?;
+            record(recorded, spec, &row, pins.pinned_root(), None)?;
             Ok(row)
         }
         Err(payload) => {
             let _ = log.abort(&spec.run_id, "panic");
             let row = aborted_row(spec, &id, "panic", slippage_bps);
-            let _ = write_row(results_path, spec, &row, pins.pinned_root(), None);
+            let _ = record(recorded, spec, &row, pins.pinned_root(), None);
             panic::resume_unwind(payload);
         }
     }
@@ -660,6 +735,8 @@ fn aborted_row(spec: &TrialSpec, trial_id: &str, reason: &str, slippage_bps: u32
         net_return_ticks: None,
         slippage_bps,
         fee_grid_bps: FEE_GRID_BPS,
+        n_refused_fills: None,
+        n_dropped_entries: None,
     }
 }
 
@@ -688,6 +765,8 @@ struct RowJson<'a> {
     net_return_ticks: Option<NetJson>,
     slippage_bps: u32,
     fee_grid_bps: &'a [u32],
+    n_refused_fills: Option<u64>,
+    n_dropped_entries: Option<u64>,
     metrics_digest: Option<&'a str>,
 }
 
@@ -709,6 +788,36 @@ struct NetJson {
     bps_5: i64,
     #[serde(rename = "6")]
     bps_6: i64,
+}
+
+fn record(
+    recorded: Recorded<'_>,
+    spec: &TrialSpec,
+    row: &ResultRow,
+    pinned_root: &str,
+    metrics_digest: Option<&str>,
+) -> Result<(), BatchError> {
+    match recorded {
+        Recorded::Results(path) => write_row(path, spec, row, pinned_root, metrics_digest),
+        Recorded::Digest(path) => write_digest(path, spec, row, metrics_digest),
+    }
+}
+
+fn write_digest(
+    path: &Path,
+    spec: &TrialSpec,
+    row: &ResultRow,
+    metrics_digest: Option<&str>,
+) -> Result<(), BatchError> {
+    let value = serde_json::json!({
+        "run_id": row.run_id,
+        "config_id": spec.config_id,
+        "status": row.status,
+        "reason": row.reason,
+        "metrics_digest": metrics_digest,
+    });
+    let line = serde_json::to_string(&value).map_err(|err| BatchError::Append(err.to_string()))?;
+    append_fsync(path, &line).map_err(map_trial)
 }
 
 fn write_row(
@@ -745,6 +854,8 @@ fn write_row(
         net_return_ticks: nets,
         slippage_bps: row.slippage_bps,
         fee_grid_bps: &row.fee_grid_bps,
+        n_refused_fills: row.n_refused_fills,
+        n_dropped_entries: row.n_dropped_entries,
         metrics_digest,
     };
     let line = serde_json::to_string(&json).map_err(|err| BatchError::Append(err.to_string()))?;
@@ -847,14 +958,16 @@ mod tests {
                 Ratio::from_ticks(3),
                 Ratio::from_ticks(4),
             ],
+            n_refused_fills: 7,
+            n_dropped_entries: 9,
         };
         assert_eq!(
             metrics_preimage(&metrics),
-            "{\"flat_funding_slot_missing\":2,\"flat_funding_stale\":3,\"max_drawdown_ticks\":0,\"net_2\":1,\"net_4\":2,\"net_5\":3,\"net_6\":4,\"sharpe_annual_ticks\":5,\"total_return_ticks\":3,\"turnover_ticks\":6}"
+            "{\"flat_funding_slot_missing\":2,\"flat_funding_stale\":3,\"max_drawdown_ticks\":0,\"n_dropped_entries\":9,\"n_refused_fills\":7,\"net_2\":1,\"net_4\":2,\"net_5\":3,\"net_6\":4,\"sharpe_annual_ticks\":5,\"total_return_ticks\":3,\"turnover_ticks\":6}"
         );
         assert_eq!(
             metrics_digest(&metrics),
-            "82eee788c3d38f931950de091bc8d3975abe2deee4c341c8827c79710e794048"
+            "8849b2186b505f478890bf669ff4c67ac3759676af23bc1653610f3877ff4a2e"
         );
     }
 

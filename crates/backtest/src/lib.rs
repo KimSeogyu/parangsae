@@ -26,6 +26,7 @@ mod metrics;
 mod report;
 mod signal;
 mod sizing;
+mod sweep;
 mod tape;
 mod trial_log;
 mod walkforward;
@@ -42,10 +43,12 @@ pub use error::{EngineError, TapeError};
 pub use metrics::{max_drawdown, sharpe_ticks};
 pub use report::{Metrics, Report, RoundTrip};
 pub use signal::{
-    funding_visible, Decision, FlatReason, FundingObs, SignalOutput, Target, TargetSignal,
+    funding_visible, BookState, Decision, FlatReason, FundingObs, SignalOutput, Target,
+    TargetSignal,
 };
 pub use sizing::{abs_notional_ticks, target_qty};
-pub use tape::{funding_available, AppliedOverlay, Overlay, TapeConfig};
+pub use sweep::{run_sweep, FoldRunner, SweepRequest, WindowConfig, WindowOutput};
+pub use tape::{funding_available, planned_paths, AppliedOverlay, Overlay, TapeConfig};
 pub use trial_log::{finish_trial, trial_id, TrialError};
 pub use walkforward::{
     btcusdt_schedule, check_window_result, daily_return_tick, fold_schedule, forced_flat_at,

@@ -184,6 +184,51 @@ impl Tape {
     }
 }
 
+/// Paths [`Tape::load`] will open for this range, including overlays.
+///
+/// The check does not read the files. A caller can refuse a path that is not pinned
+/// before `load` opens anything.
+pub fn planned_paths(
+    root: &Path,
+    symbol: &Symbol,
+    start: UtcDate,
+    end_inclusive: UtcDate,
+    cfg: &TapeConfig,
+) -> Result<Vec<PathBuf>, TapeError> {
+    if end_inclusive < start {
+        return Err(TapeError::Range);
+    }
+    let sample = sample_start();
+    let mut day = start;
+    loop {
+        if day.start_us() < sample {
+            return Err(TapeError::BeforeSampleRequested);
+        }
+        if day.start_us() >= cfg.holdout_start {
+            return Err(TapeError::HoldoutRequested);
+        }
+        if day == end_inclusive {
+            break;
+        }
+        day = day.next();
+    }
+    let mut paths = Vec::new();
+    let mut day = start;
+    loop {
+        paths.push(part_path(root, UM_KLINE, symbol, day));
+        paths.push(part_path(root, MARK_KLINE, symbol, day));
+        paths.push(part_path(&cfg.funding_root, FUNDING, symbol, day));
+        if day == end_inclusive {
+            break;
+        }
+        day = day.next();
+    }
+    for overlay in &cfg.overlays {
+        paths.push(overlay.path.clone());
+    }
+    Ok(paths)
+}
+
 /// First in-sample instant. Rows and requested days before this are refused.
 pub(crate) fn sample_start() -> UtcMicros {
     UtcDate::parse("2020-12-18")
@@ -252,11 +297,7 @@ fn read_klines(
     let volume = read_i64(&batches, "volume_ticks")?;
     let schema = read_u32(&batches, "schema_version")?;
     let rows = symbols.len();
-    let count = match read_i64(&batches, "count") {
-        Ok(values) => values,
-        Err(TapeError::MissingColumn { .. }) => vec![1; rows],
-        Err(err) => return Err(err),
-    };
+    let count = read_i64(&batches, "count")?;
     same_len("interval_us", interval.len(), rows)?;
     same_len("open_time_us", open_time.len(), rows)?;
     same_len("close_time_us", close_time.len(), rows)?;

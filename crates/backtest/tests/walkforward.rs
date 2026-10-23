@@ -657,6 +657,7 @@ impl TargetSignal for Bias {
         &mut self,
         view: Causal<'_, &[parangsae_core::ResampledBar]>,
         _funding: Causal<'_, &[parangsae_backtest::FundingObs]>,
+        _book: parangsae_backtest::BookState,
     ) -> Option<SignalOutput> {
         let hour = view.value().last()?;
         let decision_ts = hour.close_time().checked_add_micros(1_000)?;
@@ -665,6 +666,7 @@ impl TargetSignal for Bias {
             bar_close_time_us: hour.close_time(),
             interval: hour.interval(),
             decision: Decision::Target(self.target),
+            accept: 0,
         })
     }
 }
@@ -1065,6 +1067,7 @@ impl TargetSignal for Spike {
         &mut self,
         view: Causal<'_, &[parangsae_core::ResampledBar]>,
         _funding: Causal<'_, &[parangsae_backtest::FundingObs]>,
+        _book: parangsae_backtest::BookState,
     ) -> Option<SignalOutput> {
         let hour = view.value().last()?;
         let decision_ts = hour.close_time().checked_add_micros(1_000)?;
@@ -1078,6 +1081,7 @@ impl TargetSignal for Spike {
             bar_close_time_us: hour.close_time(),
             interval: hour.interval(),
             decision: Decision::Target(target),
+            accept: 0,
         })
     }
 }

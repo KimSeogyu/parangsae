@@ -53,12 +53,17 @@ impl Decision {
 }
 
 /// One target decision for one closed bar.
+///
+/// `accept` counts rebalances the emitter accepted. S01 increments it when the
+/// deadband passes, including when the clipped target ticks stay the same.
+/// Other emitters leave it at 0. The engine resizes when it changes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SignalOutput {
     pub decision_ts: DecisionTime,
     pub bar_close_time_us: UtcMicros,
     pub interval: BarInterval,
     pub decision: Decision,
+    pub accept: u64,
 }
 
 impl SignalOutput {
@@ -73,6 +78,7 @@ impl SignalOutput {
             bar_close_time_us,
             interval,
             decision: Decision::Target(target),
+            accept: 0,
         }
     }
 
@@ -87,6 +93,7 @@ impl SignalOutput {
             bar_close_time_us,
             interval,
             decision: Decision::Flat(reason),
+            accept: 0,
         }
     }
 }

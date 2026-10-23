@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use parangsae_backtest::{
-    run_targets, FundingObs, MarkAbsence, Overlay, Report, RunConfig, Tape, TapeConfig,
+    run_targets, BookState, FundingObs, MarkAbsence, Overlay, Report, RunConfig, Tape, TapeConfig,
     TargetSignal, UtcDate, FEE_GRID_BPS,
 };
 use parangsae_core::{
@@ -247,6 +247,7 @@ impl<const N: u16> TargetSignal for TsmomAdapter<N> {
         &mut self,
         bars: Causal<'_, &[ResampledBar]>,
         _funding: Causal<'_, &[FundingObs]>,
+        _book: BookState,
     ) -> Option<SignalOutput> {
         if self.error.is_some() {
             return None;
@@ -292,6 +293,7 @@ impl<const M: u16> TargetSignal for FundingAdapter<M> {
         &mut self,
         bars: Causal<'_, &[ResampledBar]>,
         funding: Causal<'_, &[FundingObs]>,
+        _book: BookState,
     ) -> Option<SignalOutput> {
         if self.error.is_some() {
             return None;

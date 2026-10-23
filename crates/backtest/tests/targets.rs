@@ -13,9 +13,31 @@ use proptest::prelude::*;
 use support::{at, px, TICK};
 
 use crate::cases::{
-    before_sample, e1, f1, f2, ff1, ff2, h2, on, p7_base, p7_run, sample_open, stale, t1_flip,
-    t1_repeat, t2_abort, t2_warmup, t3, t5, t5_flags, t7, z1, z2, z3_bars,
+    before_sample, count_zero_print, e1, f1, f2, ff1, ff2, h2, moving_price, on, p7_base, p7_run,
+    sample_open, stale, t1_flip, t1_repeat, t2_abort, t2_warmup, t3, t5, t5_flags, t7, z1, z2,
+    z3_bars,
 };
+
+#[test]
+fn moving_price_keeps_the_sized_quantity() {
+    let report = moving_price();
+    assert_eq!(report.fills.len(), 1);
+    assert_eq!(report.fills[0].side, Side::Buy);
+    assert_eq!(report.fills[0].qty.ticks(), 10_000_000);
+    assert_eq!(report.fills[0].price, px(100_000));
+    assert_eq!(report.fills[0].ts.micros(), at(13, 0));
+    assert_eq!(report.n_refused_fills, 0);
+    assert_eq!(report.signal_outputs.len(), 2);
+}
+
+#[test]
+fn count_zero_defers_when_the_minute_is_not_flat() {
+    let report = count_zero_print();
+    assert_eq!(report.n_refused_fills, 1);
+    assert_eq!(report.fills[0].ts.micros(), at(13, 1));
+    assert_eq!(report.fills[0].price, px(111));
+    assert_ne!(report.fills[0].ts.micros(), at(13, 0));
+}
 
 #[test]
 fn t1_repeated_target_is_one_fill() {
@@ -193,6 +215,7 @@ fn f2_flat_matches_target_zero() {
 #[test]
 fn z1_filler_fill_moves_to_the_next_open() {
     let report = z1();
+    assert_eq!(report.n_refused_fills, 1);
     assert_eq!(report.fills[0].ts.micros(), at(13, 1));
     assert_eq!(report.fills[0].price, px(111));
     assert_ne!(report.fills[0].ts.micros(), at(13, 0));
@@ -201,6 +224,8 @@ fn z1_filler_fill_moves_to_the_next_open() {
 #[test]
 fn z2_two_fillers_fill_on_the_third() {
     let report = z2();
+    assert_eq!(report.n_refused_fills, 1);
+    assert_eq!(report.fills.len(), 1);
     assert_eq!(report.fills[0].ts.micros(), at(13, 2));
     assert_eq!(report.fills[0].price, px(111));
 }
@@ -241,6 +266,29 @@ fn e1_sample_end_flattens_at_2359() {
     assert_eq!(report.fills[1].side, Side::Sell);
     assert_eq!(report.fills[1].qty.ticks(), TICK);
     assert!(report.trades.iter().all(|trade| trade.close_ts.is_some()));
+}
+
+#[test]
+fn e1_zero_count_at_2359_flattens_on_the_previous_open() {
+    let start = on("2025-09-30", 22, 0);
+    let mut bars = cases::hours(start, 2, 100);
+    let last = bars.len() - 1;
+    assert_eq!(bars[last].open_time.micros(), on("2025-09-30", 23, 59));
+    bars[last].count = 0;
+    let report = cases::execute(
+        bars.clone(),
+        bars,
+        Vec::new(),
+        vec![Some(cases::tgt(1.0)), Some(cases::stale())],
+        100,
+        Vec::new(),
+        Vec::new(),
+    )
+    .expect("flat on the last tradable minute");
+    assert_eq!(report.0.fills.len(), 2);
+    assert_eq!(report.0.fills[1].ts.micros(), on("2025-09-30", 23, 58));
+    assert_eq!(report.0.fills[1].side, Side::Sell);
+    assert!(report.0.trades.iter().all(|trade| trade.close_ts.is_some()));
 }
 
 #[test]

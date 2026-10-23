@@ -31,8 +31,9 @@ pub struct Day {
     pub funding_time_us: Option<i64>,
     /// Per-row `volume_ticks`. `None` writes `2 * 10^8` on every row.
     pub volumes: Option<Vec<i64>>,
-    /// Per-row `count`. `None` omits the column (the reader treats that as 1).
+    /// Per-row `count`. `None` writes 1 on every row unless `omit_count`.
     pub counts: Option<Vec<i64>>,
+    pub omit_count: bool,
 }
 
 impl Day {
@@ -54,6 +55,7 @@ impl Day {
             funding_time_us: None,
             volumes: None,
             counts: None,
+            omit_count: false,
         }
     }
 }
@@ -174,8 +176,9 @@ fn write_klines(
         .clone()
         .unwrap_or_else(|| vec![2 * 100_000_000; n as usize]);
     push_i64(&mut fields, &mut columns, "volume_ticks", volumes, false);
-    if let Some(counts) = &day.counts {
-        push_i64(&mut fields, &mut columns, "count", counts.clone(), false);
+    if !day.omit_count {
+        let counts = day.counts.clone().unwrap_or_else(|| vec![1; n as usize]);
+        push_i64(&mut fields, &mut columns, "count", counts, false);
     }
     push_u32(
         &mut fields,
