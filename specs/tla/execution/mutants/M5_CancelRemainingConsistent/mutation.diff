@@ -1,11 +1,11 @@
 # Cancelled{remaining} emitted before evidenced racing fills drain
 --- OrderLifecycle.tla
 +++ mutants/M5_CancelRemainingConsistent/OrderLifecycle.tla
-@@ -462,7 +462,6 @@
+@@ -579,7 +579,6 @@
  \* Cancelled{remaining} is emitted only after all evidenced racing fills drained.
  EmitCancelled(i) ==
    /\ o[i].st \in {"Canceled", "Expired"} /\ o[i].rem = -1
--  /\ o[i].cum = o[i].vcum
+-  /\ o[i].cum = V(i).vcum
    /\ o' = [o EXCEPT ![i].rem = o[i].qty - o[i].cum]
-   /\ UNCHANGED <<halted, flag, riskHalted, epoch, killed, lpos, pos, foreign, fresh, last>>
- 
+   /\ UNCHANGED <<v, ap, gh, halted, flag, riskHalted, kills, killed, lpos, pos, foreign,
+                  fresh, last>>

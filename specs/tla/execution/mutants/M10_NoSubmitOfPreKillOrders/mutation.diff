@@ -1,0 +1,12 @@
+# F9 regression: kill does not bump halt_epoch, so a pre-kill reduce-only order can still be dispatched
+--- OrderLifecycle.tla
++++ mutants/M10_NoSubmitOfPreKillOrders/OrderLifecycle.tla
+@@ -532,7 +532,7 @@
+ Kill ==
+   /\ ~killed /\ kills < MaxEpoch
+   /\ killed' = TRUE /\ halted' = TRUE /\ kills' = kills + 1
+-  /\ Bump
++  /\ UNCHANGED ap
+   /\ gh' = [j \in Intents |-> [gh[j] EXCEPT !.ph = TRUE, !.pk = @ \/ (o[j].st \in {"PendingNew", "Unknown"})]]
+   /\ UNCHANGED <<o, v, flag, riskHalted, lpos, pos, foreign, fresh, last>>
+ 

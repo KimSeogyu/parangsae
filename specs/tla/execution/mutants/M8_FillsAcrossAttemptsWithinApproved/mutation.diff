@@ -1,0 +1,22 @@
+# an Unknown order found EXPIRED (possibly partially filled) is retried for its full qty under a fresh id
+--- OrderLifecycle.tla
++++ mutants/M8_FillsAcrossAttemptsWithinApproved/OrderLifecycle.tla
+@@ -435,11 +435,13 @@
+   /\ fresh' = FALSE
+   /\ UNCHANGED <<v, ap, gh, halted, flag, riskHalted, kills, killed, pos, foreign>>
+ 
+-QExpired(i) ==   \* F1: EXPIRED / EXPIRED_IN_MATCH resolves Unknown
+-  /\ o[i].st = "Unknown" /\ V(i).vst = "expired"
+-  /\ o' = [o EXCEPT ![i].st = "Expired", ![i].cum = V(i).vcum, ![i].el = 0]
+-  /\ lpos' = lpos + o[i].side * (V(i).vcum - o[i].cum)
+-  /\ last' = <<"Unknown", "QueryExpired", "Expired">>
++QExpired(i) ==   \* MUTANT: expired treated as absent, full-qty retry
++  /\ o[i].st = "Unknown" /\ V(i).vst = "expired" /\ o[i].att + 1 < MaxAttempts
++  /\ o' = [o EXCEPT ![i].st = "PendingNew", ![i].att = @ + 1, ![i].sent = FALSE, ![i].cum = 0,
++                    ![i].resp = "none", ![i].cxl = FALSE, ![i].cresp = "none",
++                    ![i].el = 0, ![i].acked = FALSE]
++  /\ lpos' = lpos
++  /\ last' = <<"Unknown", "QueryExpired", "PendingNew">>
+   /\ fresh' = FALSE
+   /\ UNCHANGED <<v, ap, gh, halted, flag, riskHalted, kills, killed, pos, foreign>>
+ 

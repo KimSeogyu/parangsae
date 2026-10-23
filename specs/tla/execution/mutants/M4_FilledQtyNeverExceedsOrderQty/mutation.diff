@@ -1,17 +1,17 @@
 # Fill payload validation removed: an unevidenced overfilling report is applied
 --- OrderLifecycle.tla
 +++ mutants/M4_FilledQtyNeverExceedsOrderQty/OrderLifecycle.tla
-@@ -383,9 +383,10 @@
+@@ -486,9 +486,10 @@
  \* validation (Overfill/MissingEvidence) rejects it before the transition.
  SpurFill(i) ==
    /\ o[i].st \in States /\ Legal(o[i].st, "Fill")
--  /\ Halt
+-  /\ HaltG
 -  /\ last' = <<o[i].st, "Fill", "PayloadError">>
--  /\ UNCHANGED <<o, riskHalted, epoch, killed, lpos, pos, foreign, fresh>>
+-  /\ UNCHANGED <<o, v, riskHalted, kills, killed, lpos, pos, foreign, fresh>>
 +  /\ o' = [o EXCEPT ![i].cum = o[i].qty + 1, ![i].st = "Filled"]
 +  /\ lpos' = lpos + o[i].side * (o[i].qty + 1 - o[i].cum)
 +  /\ last' = <<o[i].st, "Fill", "Filled">>
-+  /\ UNCHANGED <<halted, flag, riskHalted, epoch, killed, pos, foreign, fresh>>
++  /\ UNCHANGED <<v, ap, gh, halted, flag, riskHalted, kills, killed, pos, foreign, fresh>>
  
  RiskHalt ==
    /\ ~riskHalted

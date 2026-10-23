@@ -1,12 +1,12 @@
-# QueryNotFound treated as authoritative while the original NEW may still be in flight
+# ClientOrderId ignores the attempt number: a retry reuses the id of an order the venue already received
 --- OrderLifecycle.tla
 +++ mutants/M1_NoDuplicateSubmitPerClientOrderId/OrderLifecycle.tla
-@@ -358,7 +358,7 @@
- \* -2013 is authoritative absence only when no NEW for this CID can still land
- \* (~infl) and nothing was accepted or filled. The latch is NOT cleared.
- QNotFound(i) ==
--  /\ o[i].st = "Unknown" /\ o[i].vst = "none" /\ ~o[i].infl /\ o[i].cum = 0
-+  /\ o[i].st = "Unknown" /\ o[i].vst = "none" /\ o[i].cum = 0
-   /\ o' = [o EXCEPT ![i].st = "PendingNew", ![i].sent = FALSE, ![i].resp = "none"]
-   /\ last' = <<"Unknown", "QueryNotFound", "PendingNew">>
-   /\ fresh' = FALSE
+@@ -69,7 +69,7 @@
+ 
+ Att   == 0..(MaxAttempts - 1)
+ Bound == RecvWindow + Margin                 \* F3: NotFound authority bound
+-CID(i, a) == <<i, a>>                        \* F7: fresh id per attempt
++CID(i, a) == <<i, 0>>                        \* F7: fresh id per attempt
+ 
+ Sign(x) == IF x > 0 THEN 1 ELSE IF x < 0 THEN -1 ELSE 0
+ Abs(x)  == IF x < 0 THEN -x ELSE x
