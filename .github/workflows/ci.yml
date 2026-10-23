@@ -14,7 +14,7 @@ env:
 jobs:
   changes:
     name: changes
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     outputs:
       kani: ${{ steps.filter.outputs.kani }}
       tla: ${{ steps.filter.outputs.tla }}
@@ -93,7 +93,7 @@ jobs:
 
   fmt:
     name: fmt
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -104,7 +104,7 @@ jobs:
 
   clippy:
     name: clippy
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -116,17 +116,19 @@ jobs:
 
   test:
     name: test
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: cargo fetch (all targets, for offline cargo metadata)
+        run: cargo fetch --locked
       - name: cargo test (unit, proptest, cucumber, execution lock)
         run: cargo test --workspace
 
   cucumber:
     name: cucumber
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -140,7 +142,7 @@ jobs:
     name: tla
     needs: changes
     if: needs.changes.outputs.tla == 'true'
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -185,7 +187,7 @@ jobs:
     name: kani
     needs: changes
     if: needs.changes.outputs.kani == 'true'
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -201,7 +203,7 @@ jobs:
 
   spec-arch:
     name: spec-arch
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -218,6 +220,8 @@ jobs:
           curl -fsSL -o tla2tools.jar -L \
             https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
           echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  tla2tools.jar" | sha256sum -c -
+      - name: cargo fetch (all targets, for offline cargo metadata)
+        run: cargo fetch --locked
       - name: validate, generate --check, enforce
         run: |
           cargo xtask spec validate --jar specs/tla/tla2tools.jar
@@ -233,7 +237,7 @@ jobs:
     name: gate
     if: always()
     needs: [changes, fmt, clippy, test, cucumber, tla, kani, spec-arch]
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     steps:
       - name: Fail if any needed job failed or was cancelled (skipped counts as passing)
         env:

@@ -558,3 +558,21 @@ pub fn delayed_interior_minute() -> EngineError {
     )
     .unwrap_err()
 }
+
+pub fn delayed_funding_prefix(rate: i64) -> Script {
+    let bars = hours(at(7, 0), 11, 100);
+    execute(
+        bars.clone(),
+        bars,
+        vec![
+            stamp_at(at(8, 0), at(20, 0), rate),
+            stamp_at(at(16, 0), at(16, 1), 100),
+        ],
+        vec![Some(tgt(0.0)); 11],
+        10_000,
+        Vec::new(),
+        Vec::new(),
+    )
+    .expect("delayed funding keeps a causal prefix")
+    .1
+}

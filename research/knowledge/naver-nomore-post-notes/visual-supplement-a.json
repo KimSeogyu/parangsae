@@ -1,0 +1,453 @@
+[
+  {
+    "id": "221034201132",
+    "title": "세계 100대 기업 × 매출과 순이익에 관한 훌륭한 데이터 비주얼",
+    "date": "2017. 6. 22.",
+    "url": "https://blog.naver.com/nomore_bet/221034201132",
+    "inventory_index": 375,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 2,
+    "visual_scope_ko": "공개 페이지의 선정 매체 2건을 표시 해상도로 재검토했다. 표지·장식 이미지도 배치 수에 포함한다.",
+    "visual_summary_ko": "기업별 바깥 원과 내부 원으로 매출·순이익을 비교하고 업종을 색으로 구분한다.",
+    "visual_developer_note_ko": "원 면적과 반지름을 혼동하지 말고, 손실 표시·기준연도·정확한 비교값을 별도로 제공한다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "selected_media_only_not_all_external_material"
+    ],
+    "recovery": {
+      "method": "public_media_rereview_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New summary after public media rereview; original wording was not recoverable. Historical review scope is not a claim of byte-identical restoration.",
+      "original_manifest_source_document_sha256": "bb4ecd70353797f121313d2fd26a2c1fd304db73b8c04a5fd40e8ce6cd7d76ea",
+      "reread_document_sha256": "28cbdfda6fc4c40ac6210775d6f007624fa00c9c64e75a93fbf3f6e151701611",
+      "reread_matches_recorded_hash": false,
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "rereviewed_assets": [
+        {
+          "placement_ordinal": 1,
+          "media_sha256": "e11cfcaba6723fdf965f2a825b646befe7a9ced1e7f454c438b99bae2e05f202",
+          "display_dimensions": [
+            800,
+            473
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 2,
+          "media_sha256": "3cc22785abd6b565623ab4220079dece4b748de59eccd29e5fe102df4751a0f7",
+          "display_dimensions": [
+            800,
+            631
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        }
+      ]
+    }
+  },
+  {
+    "id": "220818968062",
+    "title": "금융공학 채용 - 신영증권, 금융공학전공 우대",
+    "date": "2016. 9. 27.",
+    "url": "https://blog.naver.com/nomore_bet/220818968062",
+    "inventory_index": 449,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 2,
+    "visual_scope_ko": "공개 페이지의 선정 매체 2건을 표시 해상도로 재검토했다. 표지·장식 이미지도 배치 수에 포함한다.",
+    "visual_summary_ko": "2016년 하반기 신입 공고에서 금융공학 등 관련 전공 우대를 확인했다.",
+    "visual_developer_note_ko": "당시 우대 조건이지 현재 채용이나 특정 퀀트 업무의 필수 조건으로 일반화하지 않는다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "selected_media_only_not_all_external_material"
+    ],
+    "recovery": {
+      "method": "public_media_rereview_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New summary after public media rereview; original wording was not recoverable. Historical review scope is not a claim of byte-identical restoration.",
+      "original_manifest_source_document_sha256": "89f6d177b9821a93452fa9bcf6f064faa65bba57dff6b3c5a936c5cd8ef1e585",
+      "reread_document_sha256": "40d350fd143b7a4aefa549fe0d464175b5c62f23845eb22025517019a721d501",
+      "reread_matches_recorded_hash": false,
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "rereviewed_assets": [
+        {
+          "placement_ordinal": 1,
+          "media_sha256": "29025ab9027f542c30fee17dd85d7921ac1aa3ea19b7fcd89ce05ebed38b0ec2",
+          "display_dimensions": [
+            800,
+            272
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 2,
+          "media_sha256": "1af6c7021b83172e8aeae65d40df1dcf8f9ad9843b49af31f97b34865fcc69e9",
+          "display_dimensions": [
+            800,
+            555
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        }
+      ]
+    }
+  },
+  {
+    "id": "220810733266",
+    "title": "금융공학채용 - 금융감독원, 금융공학 분야",
+    "date": "2016. 9. 12.",
+    "url": "https://blog.naver.com/nomore_bet/220810733266",
+    "inventory_index": 451,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 2,
+    "visual_scope_ko": "공개 페이지의 선정 매체 2건을 표시 해상도로 재검토했다. 표지·장식 이미지도 배치 수에 포함한다.",
+    "visual_summary_ko": "금융감독원 채용표에 금융공학이 별도 모집 분야로 포함돼 있다.",
+    "visual_developer_note_ko": "채용 분야 분류와 실제 순환 직무를 구분한다. 현재 인력 수요의 증거로 사용하지 않는다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "selected_media_only_not_all_external_material"
+    ],
+    "recovery": {
+      "method": "public_media_rereview_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New summary after public media rereview; original wording was not recoverable. Historical review scope is not a claim of byte-identical restoration.",
+      "original_manifest_source_document_sha256": "d954a687d8604a2feef08e74f9455998f5cef0bec5251fed497ffb2698809796",
+      "reread_document_sha256": "a73d454cb3e7fa97fc82e75731c5234bf1247ca05eb54c963345b760b3aaf272",
+      "reread_matches_recorded_hash": false,
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "rereviewed_assets": [
+        {
+          "placement_ordinal": 1,
+          "media_sha256": "661a367c1b9d6d09885f87d66d7153247ad355c75fbd85ae9d2fcbe3038f1a29",
+          "display_dimensions": [
+            653,
+            152
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 2,
+          "media_sha256": "dd2c8b529eac699569d184884a3d67a741cd1dc4480e358754647fbf5fdd2f13",
+          "display_dimensions": [
+            800,
+            430
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        }
+      ]
+    }
+  },
+  {
+    "id": "220772814962",
+    "title": "금융공학채용 - SK트레이딩인터내셔널",
+    "date": "2016. 7. 28.",
+    "url": "https://blog.naver.com/nomore_bet/220772814962",
+    "inventory_index": 461,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 2,
+    "visual_scope_ko": "공개 페이지의 선정 매체 2건을 표시 해상도로 재검토했다. 표지·장식 이미지도 배치 수에 포함한다.",
+    "visual_summary_ko": "시장위험 직무가 VaR 운영·가격 데이터베이스·평가모형·통계 보고를 함께 요구한다.",
+    "visual_developer_note_ko": "모형 개발뿐 아니라 데이터 관리·한도 보고·검증 업무를 구분하는 설계 점검표로 참고한다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "selected_media_only_not_all_external_material"
+    ],
+    "recovery": {
+      "method": "public_media_rereview_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New summary after public media rereview; original wording was not recoverable. Historical review scope is not a claim of byte-identical restoration.",
+      "original_manifest_source_document_sha256": "43aa3c668d1fe37d38a3b43d9a01e8c6fc9ea19fcac5c0f887e1c92601764bd9",
+      "reread_document_sha256": "f4a9e5b14288e31ca620cca078dfb796d51c3a90996f9753d089229db8982196",
+      "reread_matches_recorded_hash": false,
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "rereviewed_assets": [
+        {
+          "placement_ordinal": 1,
+          "media_sha256": "3ccc5f14dd95602c1d400e12d42b2ce824f9ff3b41806ddc57d65ccdc1bd7850",
+          "display_dimensions": [
+            717,
+            362
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 2,
+          "media_sha256": "e18221cd668258ec8bf9820ac585742741ef84612e02510bf9c2e0131cdad623",
+          "display_dimensions": [
+            543,
+            499
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        }
+      ]
+    }
+  },
+  {
+    "id": "220754048716",
+    "title": "금융공학자료 × 직관적으로 블랙숄즈 이해하기",
+    "date": "2016. 7. 5.",
+    "url": "https://blog.naver.com/nomore_bet/220754048716",
+    "inventory_index": 469,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 5,
+    "visual_scope_ko": "공개 페이지의 선정 매체 5건을 표시 해상도로 재검토했다. 표지·장식 이미지도 배치 수에 포함한다.",
+    "visual_summary_ko": "교육용 화면은 가격 경로·분포·옵션 지급액과 확률 가중 현재가치를 시각화한다.",
+    "visual_developer_note_ko": "위험중립 평가와 실제 수익 예측을 구별한다. 정지 화면만으로 할인율·측도·구현의 타당성을 확정하지 않는다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "selected_media_only_not_all_external_material"
+    ],
+    "recovery": {
+      "method": "public_media_rereview_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New summary after public media rereview; original wording was not recoverable. Historical review scope is not a claim of byte-identical restoration.",
+      "original_manifest_source_document_sha256": "999e5ffe37aad143430d483347d2119166710f178030799413e1c3540f820a82",
+      "reread_document_sha256": "b3d7328ed7ab7a01a44c8ea4f00229aa144615d6acb0fa28e2e24a4519db6259",
+      "reread_matches_recorded_hash": false,
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "rereviewed_assets": [
+        {
+          "placement_ordinal": 1,
+          "media_sha256": "f0be0a42543d9d1514c08cf09fa0290a91417eccafddc66d5d6b8ec0e8863972",
+          "display_dimensions": [
+            680,
+            391
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 2,
+          "media_sha256": "e8abf1df3259d0cf72161696eac74a34704c10ab9fab29c7ecffb7297993f09d",
+          "display_dimensions": [
+            800,
+            371
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 3,
+          "media_sha256": "1542ccec94687de0edd5bd7390fafa91cc0943a8bb51ab4633986abe36d83b3c",
+          "display_dimensions": [
+            800,
+            372
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 4,
+          "media_sha256": "5e2f7e85716766ba1461beb5d5a1abeae3aa040f360ac76b004cd84da565a302",
+          "display_dimensions": [
+            800,
+            372
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 5,
+          "media_sha256": "297d6962466e7937ddf39635fa658bae88ad1113863a22635813183fc40fe27b",
+          "display_dimensions": [
+            800,
+            372
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        }
+      ]
+    }
+  },
+  {
+    "id": "220683064624",
+    "title": "금융공학 우대 채용 - KB국민은행 데이터 분석/마케팅 경력직",
+    "date": "2016. 4. 15.",
+    "url": "https://blog.naver.com/nomore_bet/220683064624",
+    "inventory_index": 487,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 2,
+    "visual_scope_ko": "공개 페이지의 선정 매체 2건을 표시 해상도로 재검토했다. 표지·장식 이미지도 배치 수에 포함한다.",
+    "visual_summary_ko": "데이터 분석·마케팅 공고는 고객 모델링과 의사결정 지원을 제시하며 금융공학 전공을 우대한다.",
+    "visual_developer_note_ko": "역량의 적용 분야가 넓다는 사례일 뿐, 해당 직무를 매매 전략 개발과 동일시하지 않는다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "selected_media_only_not_all_external_material"
+    ],
+    "recovery": {
+      "method": "public_media_rereview_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New summary after public media rereview; original wording was not recoverable. Historical review scope is not a claim of byte-identical restoration.",
+      "original_manifest_source_document_sha256": "be8126b50efd9372bf5dd81d320f84ed2a0493ef3a45706f3971ccc1a89598c6",
+      "reread_document_sha256": "741f5b43745be1ec447b17df614263d6d023ab76a6b27675a56145ae0c05efdd",
+      "reread_matches_recorded_hash": false,
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "rereviewed_assets": [
+        {
+          "placement_ordinal": 1,
+          "media_sha256": "07793b9147d4c302f271dd6c634becb01d3c6206128a4ab7b9a3a8268d41e608",
+          "display_dimensions": [
+            800,
+            274
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 2,
+          "media_sha256": "4198a95c7229d9f3dc0d24a859b5438d2c09a1cc27ba01cfc89f2953c04a33ed",
+          "display_dimensions": [
+            659,
+            735
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        }
+      ]
+    }
+  },
+  {
+    "id": "220673470648",
+    "title": "금융공학에서 맨날 얘기하는 모델",
+    "date": "2016. 4. 4.",
+    "url": "https://blog.naver.com/nomore_bet/220673470648",
+    "inventory_index": 490,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 2,
+    "visual_scope_ko": "공개 페이지의 선정 매체 2건을 표시 해상도로 재검토했다. 표지·장식 이미지도 배치 수에 포함한다.",
+    "visual_summary_ko": "원재료를 유형화하는 삽화와 책 표지가 모델의 추상화라는 본문을 보조한다.",
+    "visual_developer_note_ko": "삽화를 수학적 가격모형이나 예측력 검증으로 해석하지 않는다. 책 내용 전체를 검토한 것은 아니다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "selected_media_only_not_all_external_material"
+    ],
+    "recovery": {
+      "method": "public_media_rereview_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New summary after public media rereview; original wording was not recoverable. Historical review scope is not a claim of byte-identical restoration.",
+      "original_manifest_source_document_sha256": "59f9a3fe3ca33e5f889e401f7ad2e7d2c0e2dd2ecc6567a2e57693ba8484aa77",
+      "reread_document_sha256": "c10c6b89fb9c2e7f2ba306af1266a8d4c00246b1486895ae1f8d3adba90c1d94",
+      "reread_matches_recorded_hash": false,
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "rereviewed_assets": [
+        {
+          "placement_ordinal": 1,
+          "media_sha256": "c042adb98dc6e965c7eee96136cc35a34c0d81684330d6ce6fdca65193233582",
+          "display_dimensions": [
+            466,
+            289
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        },
+        {
+          "placement_ordinal": 2,
+          "media_sha256": "e1877cc34429c38b3b2837493a83957419766285012f73372c74fd94ba3ed495",
+          "display_dimensions": [
+            150,
+            222
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        }
+      ]
+    }
+  },
+  {
+    "id": "220648249126",
+    "title": "Expected shortfall vs VaR",
+    "date": "2016. 3. 7.",
+    "url": "https://blog.naver.com/nomore_bet/220648249126",
+    "inventory_index": 498,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 1,
+    "visual_scope_ko": "공개 페이지의 선정 매체 1건을 표시 해상도로 재검토했다. 표지·장식 이미지도 배치 수에 포함한다.",
+    "visual_summary_ko": "롤러코스터 그림이 VaR 경계와 그 너머 손실 영역의 대비를 표현한다.",
+    "visual_developer_note_ko": "직관용 비유다. 신뢰수준·손실 부호·꼬리 평균 정의와 이산분포 처리를 별도 검증한다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "selected_media_only_not_all_external_material"
+    ],
+    "recovery": {
+      "method": "public_media_rereview_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New summary after public media rereview; original wording was not recoverable. Historical review scope is not a claim of byte-identical restoration.",
+      "original_manifest_source_document_sha256": "37fb6b411cc7429377827a03f74a75ad744de09ff3e540d699348834ee0508d5",
+      "reread_document_sha256": "1324000f23f131e80ac90b673f10c66b3efdcbfa39d18427d22cb51e811a4b83",
+      "reread_matches_recorded_hash": false,
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "rereviewed_assets": [
+        {
+          "placement_ordinal": 1,
+          "media_sha256": "d22aa9f76983508c77a413ca2792a084d6d02856b970bdd3e3d384c63e0373ac",
+          "display_dimensions": [
+            460,
+            290
+          ],
+          "reviewed_frames": 1,
+          "scope": "static image"
+        }
+      ]
+    }
+  },
+  {
+    "id": "220377708936",
+    "title": "마켓데이터(Market rate), 할인계수(Discount factor) 그리고 무이표채금리(Zero rate)간의 관계도",
+    "date": "2015. 6. 5.",
+    "url": "https://blog.naver.com/nomore_bet/220377708936",
+    "inventory_index": 597,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 1,
+    "visual_scope_ko": "공개 페이지의 선정 매체 1건을 표시 해상도로 재검토했다. 게시 MP4는 1프레임임을 확인하고 해당 도식을 읽었다.",
+    "visual_summary_ko": "단일 프레임은 금리·할인계수·입력이 NPV 변화와 연결되는 개념도를 보여준다.",
+    "visual_developer_note_ko": "그림에는 부트스트래핑이나 복리 변환식이 없다. 곡선 구축·현금흐름 시점·금리 관례의 수치 검증에 대신 쓰지 않는다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "selected_media_only_not_all_external_material"
+    ],
+    "recovery": {
+      "method": "public_media_rereview_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New summary after public media rereview; original wording was not recoverable. Historical review scope is not a claim of byte-identical restoration.",
+      "original_manifest_source_document_sha256": "c57ee915e1e5f80b4ccb709f664b03b633a351e44480b445e21b623b6c469558",
+      "reread_document_sha256": "8aae9e4a191ead60448367d290ab2dc9dff5b6d171b948858c4a30267da45da1",
+      "reread_matches_recorded_hash": false,
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "rereviewed_assets": [
+        {
+          "placement_ordinal": 1,
+          "media_sha256": "c53b14d216fbfa7496390cdc8fd131e408335f3c3ba6bbfa70c7cd2b941fd170",
+          "display_dimensions": [
+            360,
+            140
+          ],
+          "reviewed_frames": 1,
+          "scope": "single-frame MP4 diagram"
+        }
+      ]
+    }
+  }
+]

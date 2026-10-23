@@ -407,3 +407,11 @@ fn delayed_interior_minute_never_reaches_the_signal() {
         EngineError::Resample(parangsae_core::ResampleError::Available { .. })
     ));
 }
+
+#[test]
+fn delayed_funding_does_not_leak_when_a_later_slot_is_available() {
+    let first = cases::delayed_funding_prefix(1_000);
+    let mutated = cases::delayed_funding_prefix(9_999);
+    assert_eq!(first.funding_seen, mutated.funding_seen);
+    assert!(first.funding_seen.iter().all(Vec::is_empty));
+}

@@ -1,0 +1,868 @@
+[
+  {
+    "id": "220542690288",
+    "title": "채권 포지션 × 신용리스크",
+    "date": "2015. 11. 18.",
+    "url": "https://blog.naver.com/nomore_bet/220542690288",
+    "inventory_index": 541,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채권",
+      "신용위험",
+      "헤지"
+    ],
+    "summary_ko": "저자는 2015년 미국 딜러의 장기 회사채 매도 보도를 유동성 위축과 신용헤지 수단 부족에 연결한다. 동일한 표면금리라도 금리위험과 신용위험의 구성은 다를 수 있다는 관점을 제시한다.",
+    "developer_note_ko": "추론: 채권 분석에서 수익률 하나로 위험을 비교하지 말고 금리민감도, 신용스프레드, 유동성, 헤지 가능성을 나눠 저장한다. 인용 통계와 원인 설명은 당시 자료에 대한 저자의 해석이다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "67d0340c40246abf8ad61285ab7a5e4d2152271fed880572bedff3c0611be823"
+  },
+  {
+    "id": "220541692857",
+    "title": "트레이딩룸 속 고객, 세일즈 그리고 딜러",
+    "date": "2015. 11. 18.",
+    "url": "https://blog.naver.com/nomore_bet/220541692857",
+    "inventory_index": 542,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "딜링룸",
+      "세일즈",
+      "고객플로우"
+    ],
+    "summary_ko": "저자는 딜러가 내부 가격을 만들고 세일즈가 고객 접점을 맡는 딜링룸 구조를 유통업에 빗댄다. 대형 기관과의 관계가 반복적인 거래수익을 만드는 자산이라는 견해를 제시한다.",
+    "developer_note_ko": "추론: 거래 데이터에 고객·세일즈·딜러·내부가격·고객가격을 구분하면 마진과 헤지비용의 귀속을 분석하기 쉽다. 특정 인물의 보상과 고객 규모는 본문에 인용된 역사적 사례다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "7dab27cff2e3136c9d0f664aa19f47e169b67c3661e91b45e7486b39109ca50e"
+  },
+  {
+    "id": "220537165823",
+    "title": "딜링룸 FICC 부서 보수 감소와 금융공학의 미래",
+    "date": "2015. 11. 13.",
+    "url": "https://blog.naver.com/nomore_bet/220537165823",
+    "inventory_index": 543,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "FICC",
+      "금융공학수요",
+      "직무동향"
+    ],
+    "summary_ko": "2015년 보수 전망 기사를 바탕으로 FICC와 일부 신용 관련 부문의 약세를 정리한다. 저자는 이를 금융공학 인력 수요에 불리한 신호로 해석한다.",
+    "developer_note_ko": "추론: 금융공학 수요의 장기 추세를 판단할 때 단일 연도의 보수 설문을 채용·수익·규제 자료와 분리해 보관한다. 당시 전망을 현재 노동시장 사실로 사용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "b5f0b0a5ce897ba41c38a9827ccc518a681b2caa99122a53309844bba649060c"
+  },
+  {
+    "id": "220530854106",
+    "title": "각 은행 딜링룸 동향",
+    "date": "2015. 11. 13.",
+    "url": "https://blog.naver.com/nomore_bet/220530854106",
+    "inventory_index": 544,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "딜링룸손익",
+      "시장조성",
+      "기업플로우"
+    ],
+    "summary_ko": "은행별 딜링룸 동향을 소개하며 수익을 방향성 거래, 호가 스프레드, 고객 거래로 나눈다. 저자는 고객 기반과 상품 역량이 다른 조직의 결합 효과를 설명하고 헤지·운영비를 차감한 순수익을 강조한다.",
+    "developer_note_ko": "추론: 손익 귀속 체계를 전략수익·스프레드·고객마진·비용으로 분리한다. 항목 간 중복 집계와 내부거래를 제거해야 하며, 본문의 상품 정의와 은행별 평가는 별도 검증이 필요하다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "f4d262d42017d0fd5c2623022f3a5d5f814e37011af5e67aef3e738000b93d44"
+  },
+  {
+    "id": "220527711188",
+    "title": "금융공학 관련 기사에 빨간펜을 - 한맥증권 주문 실수로 본 오퍼레이션 리스크",
+    "date": "2015. 11. 9.",
+    "url": "https://blog.naver.com/nomore_bet/220527711188",
+    "inventory_index": 545,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "운영위험",
+      "주문검증",
+      "수치계산"
+    ],
+    "summary_ko": "한맥증권 주문 사고 기사에 나온 잘못된 분모 입력을 검토한다. 저자는 비정상 할인값이 옵션 이론가를 낮추고 대량 매도를 촉발했을 가능성을 추측하지만 실제 계산 경로는 알 수 없다고 밝힌다.",
+    "developer_note_ko": "추론: 영분모·극단값·NaN·무한값을 주문 전에 차단하고 이론가 범위, 주문속도, 누적손실에 독립 한도를 둔다. 본문의 영분모 설명과 사고 재구성을 검증된 시스템 동작으로 채택하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "50e9d8a5812f95efa3d14ff4f925b35ed9d92786a95e173b3cf6ee11c387cc2c"
+  },
+  {
+    "id": "220526802524",
+    "title": "애널리스트 × 토러스 증권",
+    "date": "2015. 11. 5.",
+    "url": "https://blog.naver.com/nomore_bet/220526802524",
+    "inventory_index": 546,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "리서치",
+      "금융직무",
+      "산업변화"
+    ],
+    "summary_ko": "리서치센터 축소 기사를 계기로 애널리스트 직업의 위상과 수익모델 변화에 관해 논평한다. 저자는 빠르게 변하는 업황 때문에 과거의 인기 직무만으로 진로를 권하기 어렵다고 말한다.",
+    "developer_note_ko": "추론: 직무 정보에 관찰 시점과 고용기관의 사업모델을 함께 기록한다. 특정 회사의 구조조정 사례를 전체 업계의 현재 수요나 개인의 진로 결론으로 일반화하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "c5fef11ae473babb312649d11d702ccc045eb847ad5fd87327f89f89730815d7"
+  },
+  {
+    "id": "220526628895",
+    "title": "금융공학 기사에 빨간펜을 - 주식 투자자의 거액 주문 실수, 내년부터 봐준다",
+    "date": "2015. 11. 4.",
+    "url": "https://blog.naver.com/nomore_bet/220526628895",
+    "inventory_index": 547,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "오주문",
+      "운영위험",
+      "거래취소"
+    ],
+    "summary_ko": "2015년 보도된 대규모 오주문 사후구제 계획을 소개한다. 저자는 기관 간 관계에 따른 거래 철회 경험과 한맥 사례를 비교하며 자동매매 확대가 주문 실수의 파급을 키울 수 있다고 우려한다.",
+    "developer_note_ko": "추론: 사후 취소 가능성에 기대지 않고 사전 가격·수량 검증, 즉시 중단, 감사로그를 설계한다. 구제 요건과 처리 절차는 당시 기사와 구분하여 적용 시장의 유효 규칙을 확인해야 한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "8e33ca6023c67818101d1a72cec6701af22b27ed166fb57aacec5bac0d746d73"
+  },
+  {
+    "id": "220522768824",
+    "title": "금융공학기사에 빨간펜을 - 노르웨이 공적기금 스캔들로 본 공무원들의 무지와 무책임",
+    "date": "2015. 10. 29.",
+    "url": "https://blog.naver.com/nomore_bet/220522768824",
+    "inventory_index": 548,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "파생상품위험",
+      "꼬리위험",
+      "계약분석"
+    ],
+    "summary_ko": "노르웨이 지방 공적기금 손실 사례를 통해 추가 수익의 대가와 계약상 손실 의무를 이해해야 한다고 주장한다. 저자는 평균적인 기대수익보다 드문 극단 손실과 최악의 계약 시나리오를 확인하라고 강조한다.",
+    "developer_note_ko": "추론: 계약별 최대지급액·조건부 의무·스트레스 현금흐름을 명시한다. 본문의 위험·수익 등가 비유와 확률 예시는 단순화된 설명이므로 가격모형이나 실제 발생확률의 근거로 쓰지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "41557525a05b9725759aa589d6e8d304bd21e69e95ce7ff0d1002eea4be1f433"
+  },
+  {
+    "id": "220506676707",
+    "title": "금융공학 기사에 빨간펜을 - 파생금융상품의 민낯, 투자자도 판매자도 '깜깜'",
+    "date": "2015. 10. 27.",
+    "url": "https://blog.naver.com/nomore_bet/220506676707",
+    "inventory_index": 549,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "페이오프",
+      "상품설명",
+      "불완전판매"
+    ],
+    "summary_ko": "저자는 파생상품의 내부 설계 원리 자체보다 시장 상황별 지급액을 이해하는 것이 투자자에게 중요하다고 주장한다. 상품 설명 부족과 기초자산 가격에 대한 부당한 개입을 별개 문제로 비판한다.",
+    "developer_note_ko": "추론: 사용자 화면에 시나리오별 현금흐름과 손실조건을 보여주되 가격모형·경로의존성·상대방 위험을 숨기는 근거로 삼지 않는다. 버핏 발언과 과거 사건에 관한 본문의 설명은 독립 확인하지 않았다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "31ec9e440a44c098e95d8254b98d324fdc25f45e716d0a689910f0d65d07b26f"
+  },
+  {
+    "id": "220520008772",
+    "title": "금융공학분야 채용 - 신영증권 파생 퀀트",
+    "date": "2015. 10. 26.",
+    "url": "https://blog.naver.com/nomore_bet/220520008772",
+    "inventory_index": 550,
+    "review_status": "minimal_text_only",
+    "topic_tags": [
+      "채용기록",
+      "짧은본문"
+    ],
+    "summary_ko": "확인 가능한 본문은 파생 퀀트 경력 채용을 보았다는 저자의 짧은 관찰과 해당 회사의 인력 투자에 대한 인상뿐이다. 상세 채용 요건은 텍스트에서 확인되지 않는다.",
+    "developer_note_ko": "추론: 2015년 채용 관련 언급으로만 색인한다. 이미지나 연결 공고를 확인하기 전에는 자격요건·직무·접수기간을 보완하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "aeebea3acf6d3dd821387c2e4031e8f943d392e7d816dd1a6840358489dcf7c1"
+  },
+  {
+    "id": "220512863162",
+    "title": "금융공학 기사에 빨간펜을 - 면죄부 판매와 금융공학의 관계?",
+    "date": "2015. 10. 26.",
+    "url": "https://blog.naver.com/nomore_bet/220512863162",
+    "inventory_index": 551,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융공학용어",
+      "언론비평"
+    ],
+    "summary_ko": "면죄부 판매를 금융공학으로 표현한 기사를 비판한다. 저자는 공학을 가치중립적인 분석·설계와 무관한 술수의 동의어로 사용하는 언론 표현에 반대한다.",
+    "developer_note_ko": "추론: 자료 분류 시 실제 수리금융 기법과 비유적 용례를 구분하면 검색 잡음을 줄일 수 있다. 본문에 등장하는 종교개혁 관련 역사 해석을 금융공학의 정의 근거로 채택하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "936452b3b96fa526943f0936e437e2cf2c8bbe889ff8929c4cbc10f8cf4c67b1"
+  },
+  {
+    "id": "220515977871",
+    "title": "금융공학기사에 빨간펜을 - 국내 최초 인버스2X ETF는 어디?",
+    "date": "2015. 10. 22.",
+    "url": "https://blog.naver.com/nomore_bet/220515977871",
+    "inventory_index": 552,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "레버리지ETF",
+      "복리",
+      "경로의존성"
+    ],
+    "summary_ko": "일일 배수형 ETF의 누적 수익이 기초지수 누적 수익의 단순 배수가 아님을 수익률 곱셈 예시로 설명한다. 저자는 인버스 배수 상품을 이해할 때 가격 경로와 변동을 살펴야 한다고 강조한다.",
+    "developer_note_ko": "추론: 백테스트는 일별 재설정 수익률을 누적하고 비용·추적오차를 별도로 반영한다. 본문에 인용된 손실 배율과 연간 수익 예시는 가정 의존적이므로 보편적 공식처럼 고정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "eeb47f47703eb1f37b9a337c4d2db05da3dff78e22f8b9354aec3fa8adfc142e"
+  },
+  {
+    "id": "220515925252",
+    "title": "금융공학분야 채용 - 신한생명보험 상품개발 및 계리",
+    "date": "2015. 10. 22.",
+    "url": "https://blog.naver.com/nomore_bet/220515925252",
+    "inventory_index": 553,
+    "review_status": "minimal_text_only",
+    "topic_tags": [
+      "채용기록",
+      "짧은본문"
+    ],
+    "summary_ko": "확인된 짧은 본문은 보험 상품개발·계리의 관련 전공에 통계학, 수학과 함께 금융공학이 포함되었다는 언급이다. 외부 채용 페이지의 상세 내용은 검토하지 않았다.",
+    "developer_note_ko": "추론: 역사적 직무·전공 연결 정보로만 활용한다. 채용 여부, 학위 조건, 세부 업무, 모집기간은 이 텍스트만으로 확정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "0c0fcfe6db6721ff14af1a528bf522f5c716a4af819340c2633c6e81aa82db44"
+  },
+  {
+    "id": "220510271436",
+    "title": "금융공학 기사에 빨간펜을 - 로이드 블랭크페인 골드만삭스 CEO에 대한 기사를 보며",
+    "date": "2015. 10. 21.",
+    "url": "https://blog.naver.com/nomore_bet/220510271436",
+    "inventory_index": 554,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "모형위험",
+      "리스크관리",
+      "금융IT"
+    ],
+    "summary_ko": "블랭크페인 소개 기사를 읽으며 기술 인력 투자, 다양한 경력, 적응력을 논평한다. 저자는 골드만삭스의 위기 대응을 모형에 대한 맹신을 피하고 위험관리 조직을 중시한 사례로 해석한다.",
+    "developer_note_ko": "추론: 모형 결과와 별개로 가정 검토, 반례 시나리오, 위험담당자의 이견 기록을 남긴다. 인물의 역량이 위기 대응 성과를 설명한다는 본문의 서사는 인과관계가 검증된 결론이 아니다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "340b4178f4625c4e47294a4273039e97f16c87aada8a43414f640ed1bdba199f"
+  },
+  {
+    "id": "220513310953",
+    "title": "워런 버핏의 가치투자를 너무 과소평가 하고 있는 것은 아닐런지 #6 - 파생상품편",
+    "date": "2015. 10. 19.",
+    "url": "https://blog.naver.com/nomore_bet/220513310953",
+    "inventory_index": 555,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "옵션프리미엄",
+      "평가손익",
+      "담보유동성"
+    ],
+    "summary_ko": "주사위 게임 비유로 옵션의 권리와 프리미엄, 현금과 평가값을 설명한 뒤 버크셔의 장기 풋옵션 매도 사례로 연결한다. 저자는 계약의 담보 조건이 손실 자체와 별도로 자금 압박을 좌우한다고 강조한다.",
+    "developer_note_ko": "추론: 프리미엄 수취를 곧바로 순이익으로 처리하지 말고 옵션 부채 평가, 정산, 담보 현금흐름을 분리한다. 본문의 손익 부호와 비유는 구현식으로 복사하지 말고 포지션별 단위 테스트로 재정의한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "1714e0a2fc42a445fa47860d056d3e7a6e6e7c335e4391c2467dfa34e4b3fdb4"
+  },
+  {
+    "id": "220510454631",
+    "title": "브라질 채권, 떨어지는 칼날을 받을까 말까 그것이 문제로다",
+    "date": "2015. 10. 16.",
+    "url": "https://blog.naver.com/nomore_bet/220510454631",
+    "inventory_index": 556,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "브라질채권",
+      "환위험",
+      "평가손익"
+    ],
+    "summary_ko": "저자는 2015년 브라질 채권 하락기에 만기보유를 고려했던 개인적 생각을 밝힌다. 평가손실과 실제 현금흐름을 구별하면서도 환율·국가부도·정치 위험과 기관의 강제 매도 가능성을 우려한다.",
+    "developer_note_ko": "추론: 채권 백테스트에 현지통화 현금흐름과 원화 환산손익, 중도매각, 회수율 시나리오를 분리한다. 만기보유가 손실을 없앤다고 가정하지 않으며 당시 세금·등급·매수 관점은 현재 적용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "ac33349a6cf532ec55b494812cd9d03bb9d5e5afe0d5e7c1750de67adac76417"
+  },
+  {
+    "id": "220509725213",
+    "title": " 워런 버핏의 가치투자를 너무 과소평가 하고 있는 것은 아닐런지 #5",
+    "date": "2015. 10. 15.",
+    "url": "https://blog.naver.com/nomore_bet/220509725213",
+    "inventory_index": 557,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "위험중립",
+      "옵션가격",
+      "기댓값"
+    ],
+    "summary_ko": "동전 게임의 참가비를 통해 기대지급액과 옵션 프리미엄의 관계를 소개한다. 저자는 위험중립적 관점을 설명하기 위해 베팅 규모가 달라도 같은 기대값을 동등하게 보는 단순화된 비유를 사용한다.",
+    "developer_note_ko": "추론: 구현에서는 실제확률과 가격결정용 확률, 할인율, 복제·무차익 조건을 명시적으로 구분한다. 사람의 위험성향을 동일하게 만든다는 비유만으로 위험중립 가격결정을 정의하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "a9bccdc1d5086a61e2ea1c365b172e9213edcc124694008c88ce32237fa2caf1"
+  },
+  {
+    "id": "220509330984",
+    "title": "금융공학분야 채용 - 수협중앙회 신용사업(은행부문)",
+    "date": "2015. 10. 15.",
+    "url": "https://blog.naver.com/nomore_bet/220509330984",
+    "inventory_index": 558,
+    "review_status": "minimal_text_only",
+    "topic_tags": [
+      "채용기록",
+      "짧은본문"
+    ],
+    "summary_ko": "본문에서 확인되는 정보는 은행부문 채용 우대사항에 금융공학 석사 이상 학위가 있다는 짧은 언급이다. 연결된 수협 채용 페이지의 전체 조건은 확인하지 않았다.",
+    "developer_note_ko": "추론: 해당 시점의 채용 관찰로만 저장한다. 현행 공고나 전 직군 공통 자격요건으로 확대하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "87e3de229f88bb11235a60a74c321552d49535f327a4d31b6faf6d41b7c0e399"
+  },
+  {
+    "id": "220509311518",
+    "title": "워런 버핏의 버크셔가 보유한 파생상품 규모 추정 그리고 금융공학을 공부한다면",
+    "date": "2015. 10. 15.",
+    "url": "https://blog.naver.com/nomore_bet/220509311518",
+    "inventory_index": 559,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "파생상품명목액",
+      "담보규제",
+      "가치투자"
+    ],
+    "summary_ko": "과거 버크셔 파생계약 규제 보도를 읽고 보유 규모와 담보 부담에 주목한다. 저자는 가치투자와 금융공학을 대립적으로만 보지 말고 파생상품의 자금조달 활용도 연구할 가치가 있다고 주장한다.",
+    "developer_note_ko": "추론: 명목액·시장가치·순익스포저·담보 요구액을 서로 다른 필드로 관리한다. 본문의 규모 비교나 바이사이드 구분을 실제 위험량으로 대체하지 않고 계약 상계와 만기 구조를 추가 검토한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "19c487a3ff7f2ad02dd2ca40856c4aa6742e8c9b6c65b26eedf2f1b49d762c56"
+  },
+  {
+    "id": "220506384771",
+    "title": "미국의 정신없는 대외정책을 하나의 플로우 차트로",
+    "date": "2015. 10. 14.",
+    "url": "https://blog.naver.com/nomore_bet/220506384771",
+    "inventory_index": 560,
+    "review_status": "public_text_sparse_needs_visual_review",
+    "topic_tags": [
+      "시각자료",
+      "검토대기"
+    ],
+    "summary_ko": "본문에서 확인된 문장은 그림을 보라는 취지의 짧은 안내뿐이다. 도식의 항목·연결·결론은 텍스트에 없으며 이미지도 검토하지 않았다.",
+    "developer_note_ko": "추론: 제목에서 정책 논리를 만들어 요약하지 않는다. 시각자료 확인 전까지 내용 지식노트로 사용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "d248973488e3e3d1f4d6bc38bd3c2a591a5040a61a2e3e22aceae39e75b68764"
+  },
+  {
+    "id": "220507658968",
+    "title": "하나멤버스, 금융 리버스 엔지니어링 관점으로 본 차익거래(아비트라지) 가능성",
+    "date": "2015. 10. 13.",
+    "url": "https://blog.naver.com/nomore_bet/220507658968",
+    "inventory_index": 561,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "상품설계",
+      "전환제약",
+      "차익거래가설"
+    ],
+    "summary_ko": "저자는 당시 포인트와 상품권 전환 연결에서 가격차 활용 가능성을 생각했지만 적격 상품권 부족과 낮은 할인율 때문에 실행하지 못했다고 기록한다. 이론적 경로와 실제 조달 가능성 사이의 차이가 핵심이다.",
+    "developer_note_ko": "추론: 전환 경로 분석에 발행조건·재고·수수료·한도·결제시차를 포함하고 이론상 차익과 실행가능 차익을 구분한다. 본문의 합법성 주장이나 전환 조건을 현재 서비스 규칙으로 간주하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "52276bd678eb19f62d0c6c718edc865f7debc58691e380455e78c444e655e695"
+  },
+  {
+    "id": "220503061648",
+    "title": "금융공학 기사에 빨간펜을 - '실용과 위험사이...파생상품의 양면성'",
+    "date": "2015. 10. 13.",
+    "url": "https://blog.naver.com/nomore_bet/220503061648",
+    "inventory_index": 562,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "상품분류",
+      "페이오프",
+      "금융용어"
+    ],
+    "summary_ko": "파생상품 소개 기사의 정의와 분류를 항목별로 비판한다. 저자는 증권·신탁·펀드, 가격·가치, 지급구조와 발생확률을 구별하며 모든 파생거래를 단순한 투기나 무자금 거래로 묶는 설명에 반대한다.",
+    "developer_note_ko": "추론: 상품 스키마에 법적 포장, 기초변수, 현금흐름, 지급조건, 위험요인을 따로 둔다. 저자의 수정 설명도 단순화되어 있으므로 공식 상품 문서와 정의를 검증하기 전 기준 사전으로 채택하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "d6d1d65492992f3f66b12416110270f1f36f266bc5ec8852d4d1dddb2b120bdf"
+  },
+  {
+    "id": "220501207847",
+    "title": "금융공학분야 채용 - 한화 생명",
+    "date": "2015. 10. 6.",
+    "url": "https://blog.naver.com/nomore_bet/220501207847",
+    "inventory_index": 563,
+    "review_status": "minimal_text_only",
+    "topic_tags": [
+      "채용기록",
+      "짧은본문"
+    ],
+    "summary_ko": "확인 가능한 본문은 금융공학 전공자를 상품계리와 자산운용에서 찾는다는 짧은 관찰이다. 링크와 이미지의 세부 채용 조건은 검토하지 않았다.",
+    "developer_note_ko": "추론: 2015년의 직무 연결 단서로만 보존한다. 채용 규모·자격·마감이나 현재 수요를 덧붙이지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "99ab4db68de7237377230d51968a54f598ad50cecbe773a3584981fe9a41cf6d"
+  },
+  {
+    "id": "220501277127",
+    "title": "워런 버핏의 가치투자를 너무 과소평가 하고 있는 것은 아닐런지 #4",
+    "date": "2015. 10. 6.",
+    "url": "https://blog.naver.com/nomore_bet/220501277127",
+    "inventory_index": 564,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "이연법인세",
+      "감가상각",
+      "자금조달"
+    ],
+    "summary_ko": "회계와 세무상 감가상각 시점 차이가 세금 지급을 늦추는 구조를 설명한다. 저자는 버크셔의 인프라 투자를 기업 선택뿐 아니라 이연세금과 재투자 재원의 결합으로 해석한다.",
+    "developer_note_ko": "추론: 투자모형에서 회계이익·과세소득·현금납부세금·이연세금 잔액을 구분한다. 본문의 역사·세제 설명과 버핏의 투자 동기 추정은 검증하지 않았으며, 당시 제도를 현재 세무 규칙으로 구현하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "1fbe90c8a1a1e8fff90f904fe661794a7ae2720312e8bace6fa220a211ea071b"
+  },
+  {
+    "id": "220500760326",
+    "title": "환율 페그제 폐지의 역사 × 투자 전략",
+    "date": "2015. 10. 6.",
+    "url": "https://blog.naver.com/nomore_bet/220500760326",
+    "inventory_index": 565,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "환율제도",
+      "레짐전환",
+      "스트레스테스트"
+    ],
+    "summary_ko": "스위스·태국·영국의 환율제도 변화 사례를 묶어 제도 유지 가정이 깨질 때의 충격을 논한다. 저자는 페그 폐지에 대한 비대칭 베팅에 관심을 보이면서 반대 견해와 개인의 접근 비용도 소개한다.",
+    "developer_note_ko": "추론: FX 모형에 제도 전환, 급격한 가격 공백, 유동성 부족을 별도 스트레스로 둔다. 제한된 손실과 큰 수익이라는 표현은 사용 상품·포지션·비용에 따라 달라지므로 일반적 보장으로 쓰지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "d5dc674907fe2da69bf25d005cdeb01da0c92866083633350f23b53aef445f28"
+  },
+  {
+    "id": "220470210447",
+    "title": "석유와 환율에 관한 인포그래픽스",
+    "date": "2015. 10. 5.",
+    "url": "https://blog.naver.com/nomore_bet/220470210447",
+    "inventory_index": 566,
+    "review_status": "public_text_sparse_needs_visual_review",
+    "topic_tags": [
+      "본문없음",
+      "시각자료검토대기"
+    ],
+    "summary_ko": "수집된 공개 텍스트에는 제목·날짜·블로그 UI만 있고 실질 본문이 없다. 이미지의 수치, 관계, 결론은 확인하지 않았다.",
+    "developer_note_ko": "추론: 제목만으로 석유와 환율의 관계를 생성하지 않는다. 시각자료 검토 전에는 내용 요약이나 분석 근거로 사용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "a5d6b7d1fdd49c60a43a08dec6bc687cbdcac87a0a87ecfa668d64517de1212a"
+  },
+  {
+    "id": "220496651770",
+    "title": "워런 버핏의 가치투자를 너무 과소평가 하고 있는 것은 아닐런지 #3",
+    "date": "2015. 10. 1.",
+    "url": "https://blog.naver.com/nomore_bet/220496651770",
+    "inventory_index": 567,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "보험플로트",
+      "레버리지",
+      "이연법인세"
+    ],
+    "summary_ko": "버크셔의 무배당 정책과 보험 플로트·이연법인세를 재투자 자금원으로 해석한다. 저자는 저렴하고 지속적인 조달이 투자성과를 확대할 수 있어 주식 선정만 따라 하는 방식에는 한계가 있다고 주장한다.",
+    "developer_note_ko": "추론: 수익률을 자산성과·레버리지·조달비용으로 분해하고 조달 만기와 지급 의무를 함께 모형화한다. 플로트나 이연세금을 영구 무상자본으로 고정하는 것은 본문의 단순화 이상을 검증해야 한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "4ea0fdb2225e7648d7e547f3da4ebc1a6ec7d44a9922790fecbad8c4f476f07f"
+  },
+  {
+    "id": "220495227151",
+    "title": "워런 버핏의 가치투자를 너무 과소평가 하고 있는 것 아닐런지 #2",
+    "date": "2015. 9. 30.",
+    "url": "https://blog.naver.com/nomore_bet/220495227151",
+    "inventory_index": 568,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "기업거래구조",
+      "세금이연",
+      "자금조달"
+    ],
+    "summary_ko": "저자는 장기보유의 세금 이연 효과와 버크셔의 WPLG 인수 구조를 설명하며 자산 선택 외에 거래 구조의 중요성을 강조한다. 현금과 주식을 포함한 자회사 교환을 세금 부담을 줄이는 사례로 해석한다.",
+    "developer_note_ko": "추론: 기업거래 분석에서 자산·지분·현금 이동과 과세 시점을 따로 그린다. 본문이 인정한 비전문가적 해석, 용어 대응, 금액·세율은 확정 사실이나 재사용 가능한 세무 설계로 채택하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "db795efffacc065541d2852a65b4a38809622d01f68138e2fbc189a456f7cd24"
+  },
+  {
+    "id": "220494988744",
+    "title": "위안화 평가 절하의 영향 × 인포그래픽스",
+    "date": "2015. 9. 30.",
+    "url": "https://blog.naver.com/nomore_bet/220494988744",
+    "inventory_index": 569,
+    "review_status": "public_text_sparse_needs_visual_review",
+    "topic_tags": [
+      "본문없음",
+      "시각자료검토대기"
+    ],
+    "summary_ko": "수집된 공개 텍스트에는 제목·날짜·블로그 UI 외의 실질 본문이 없다. 이미지에 담긴 영향 경로나 수치는 확인하지 않았다.",
+    "developer_note_ko": "추론: 제목에서 위안화 평가절하의 효과를 추정하지 않는다. 시각자료가 검토되기 전에는 본문 기반 지식으로 인용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "e4bf17e120f8e9d9d85bb909b526e19f8814198d08dfcf966d89d6d9e67572d6"
+  },
+  {
+    "id": "220481031745",
+    "title": "왜 퀀트립을 쓰나",
+    "date": "2015. 9. 28.",
+    "url": "https://blog.naver.com/nomore_bet/220481031745",
+    "inventory_index": 570,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "QuantLib",
+      "독립가격검증",
+      "퀀트개발"
+    ],
+    "summary_ko": "QuantLib의 활용 이유를 셀사이드와 바이사이드 관점으로 나눈다. 저자는 셀사이드에는 독립 가격 비교와 교육, 바이사이드에는 제한된 개발 자원 보완과 제시가격 점검이 유용하다고 설명한다.",
+    "developer_note_ko": "추론: 기존 가격엔진과 QuantLib를 비교하되 캘린더·곡선·관측일·가격관례를 먼저 일치시킨다. 공개 라이브러리의 결과를 정답으로 가정하지 말고 차이를 회귀 테스트와 모형검증 항목으로 관리한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "451ec0a911b5af05afa9330ffd729abc0e02d6cfe661ddc8dddab08adf951c06"
+  },
+  {
+    "id": "220491525171",
+    "title": "국가 부채 측정하는 세 가지 방법",
+    "date": "2015. 9. 25.",
+    "url": "https://blog.naver.com/nomore_bet/220491525171",
+    "inventory_index": 571,
+    "review_status": "public_text_sparse_needs_visual_review",
+    "topic_tags": [
+      "본문없음",
+      "시각자료검토대기"
+    ],
+    "summary_ko": "수집된 텍스트에 제목·날짜·블로그 UI만 있고 국가부채 측정법을 설명하는 실질 본문은 없다. 이미지도 검토하지 않았다.",
+    "developer_note_ko": "추론: 제목의 세 가지 방법을 임의로 채우지 않는다. 정의·단위·범위를 확인할 수 있을 때까지 내용 요약을 보류한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "c403803c3628cfff7a9909ac1a66c204af396c9420fbf52c0a3de833750417ad"
+  },
+  {
+    "id": "220491046744",
+    "title": "워런 버핏의 가치투자를 너무 과소평가 하고 있는 것은 아닐런지 #1",
+    "date": "2015. 9. 24.",
+    "url": "https://blog.naver.com/nomore_bet/220491046744",
+    "inventory_index": 572,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "보험플로트",
+      "자금조달",
+      "가치투자"
+    ],
+    "summary_ko": "버핏의 성과를 자산 선택, 현금조달·절세, 파생상품 활용으로 나눠 바라보자고 제안한다. 첫 글에서는 보험금 지급 전 운용자금인 플로트를 장기 투자와 저비용 조달을 뒷받침하는 요소로 강조한다.",
+    "developer_note_ko": "추론: 보험 인수손익과 투자수익을 분리하고 지급 시점·유동성 충격을 반영한 플로트 비용을 계산한다. 본문의 자기자본 비유나 항상 저비용이라는 인상을 그대로 데이터 모델에 넣지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "7e0b426d88a52b5e74113e74bacd872be4ce063e757415010a4969ff874a6eaf"
+  },
+  {
+    "id": "220488527322",
+    "title": "딜링룸 속 트레이더 세계의 변화 - proprietary electronic trading venues",
+    "date": "2015. 9. 23.",
+    "url": "https://blog.naver.com/nomore_bet/220488527322",
+    "inventory_index": 573,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "전자시장조성",
+      "퀀트직무",
+      "전략개발"
+    ],
+    "summary_ko": "2015년 전자시장조성 회사로 이동하는 금융인력 기사를 논평한다. 저자는 소프트웨어와 수리 역량의 중요성이 커지지만, 직접 거래전략을 만들 수 있는 시장 이해도 여전히 필요하다고 읽는다.",
+    "developer_note_ko": "추론: 퀀트 개발 역량을 언어 사용뿐 아니라 가설·시장데이터·호가·실행·위험 통제를 연결하는 능력으로 평가한다. 당시 회사별 채용과 보상 사례를 현재 직무 구조로 일반화하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "2e745057d7dc659e17e9797bdcb3a7380a1cb7fe8a4e8fcceb56191ab698b5c1"
+  },
+  {
+    "id": "220489502091",
+    "title": "농협 채용으로본 금융공학, 통계학, 수학 석사 우대",
+    "date": "2015. 9. 23.",
+    "url": "https://blog.naver.com/nomore_bet/220489502091",
+    "inventory_index": 574,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용동향",
+      "금융공학교육"
+    ],
+    "summary_ko": "농협 채용 안내에서 수학·통계·금융공학 석사 우대를 보고 금융공학 전공의 채용상 위상이 달라지고 있다는 개인적 인상을 기록한다. 학위 간 우열을 묻는 표현도 저자의 추측이다.",
+    "developer_note_ko": "추론: 채용공고의 실제 문구와 저자의 진로 평가를 분리해 색인한다. 미검토 공고 이미지나 링크를 근거로 학위의 시장가치, 취업 가능성, 현재 우대조건을 확정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "b6ea02a2bf4ad3927d097c85fe76ec6effbc5b560b799b5a169811b32ab3a442"
+  },
+  {
+    "id": "220483943386",
+    "title": "트레이더가 굳이 코딩할 줄 알아야 할까?",
+    "date": "2015. 9. 21.",
+    "url": "https://blog.naver.com/nomore_bet/220483943386",
+    "inventory_index": 575,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "트레이딩코딩",
+      "데이터분석",
+      "퀀트개발"
+    ],
+    "summary_ko": "트레이더에게 코딩이 필요한 이유를 데이터 수집·정리, 분석, 전략 구현과 연결한다. 여러 개발환경 사례를 소개하며 언어 목록보다 문제를 코드로 풀고 실행 과정을 이해하는 역량이 중요하다고 강조한다.",
+    "developer_note_ko": "추론: 학습 과제를 데이터 취득부터 백테스트·주문 시뮬레이션·위험 점검까지 연결한다. 2015년 사례의 언어와 역할 구분을 현재 표준으로 고정하지 말고 재현성과 테스트 가능성을 평가한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "e988f388b378a434cd247f1d434f3cd8f04a587da6f608796910f3e67f173f98"
+  },
+  {
+    "id": "220487435337",
+    "title": "딜링룸 속 트레이더의 진화, 금융공학, 수학, IT의 역습",
+    "date": "2015. 9. 21.",
+    "url": "https://blog.naver.com/nomore_bet/220487435337",
+    "inventory_index": 576,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융IT",
+      "트레이더직무",
+      "시각자료한계"
+    ],
+    "summary_ko": "저자는 트레이딩 업무가 수학과 IT를 더 요구한다는 의견에 동의하고 관련 글과 그림을 소개한다. 그림이 전달하는 세부 변화 단계는 텍스트만으로 확인되지 않는다.",
+    "developer_note_ko": "추론: 확인된 저자의 직무 변화 관찰만 보존한다. 외부 글과 이미지를 읽지 않은 상태에서 인력 구성이나 시대별 변화를 구체화하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "2260c38eac18588d4c0f110fa7e09fb404005e268764c22fc2ac8356b74de38e"
+  },
+  {
+    "id": "220482786807",
+    "title": "금융공학분야 채용 - 삼성금융그룹(생명, 화재, 카드, 증권, 자산운용) 경력사원",
+    "date": "2015. 9. 16.",
+    "url": "https://blog.naver.com/nomore_bet/220482786807",
+    "inventory_index": 577,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용동향",
+      "금융공학교육"
+    ],
+    "summary_ko": "삼성 금융계열사의 해외 학위자 채용 보도를 소개하며 수학·통계·금융공학이 대상 전공으로 언급된 점에 주목한다. 저자는 채용 공고에서 금융공학이라는 표현이 늘었다는 인상을 덧붙인다.",
+    "developer_note_ko": "추론: 당시 모집기사와 저자의 체감 추세를 분리한다. 현재 지원 조건이나 인력 수요를 판단하려면 최신 원공고가 필요하며 연결된 모집 페이지는 검토하지 않았다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "db7b8e7f5fb85bee9ef5803801adc485a50051e5f257cfff9dfdd73f6fed382e"
+  },
+  {
+    "id": "220480941051",
+    "title": "금융공학 분야를 뽑는 금융감독원의 채용 공고",
+    "date": "2015. 9. 14.",
+    "url": "https://blog.naver.com/nomore_bet/220480941051",
+    "inventory_index": 578,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "감독기관채용",
+      "금융공학직무"
+    ],
+    "summary_ko": "금융감독원 채용 기사에서 금융공학이 시험 분야로 포함된 점을 소개한다. 저자는 이를 금융공학이 독립된 분야로 인식되는 변화로 해석한다.",
+    "developer_note_ko": "추론: 시험 분야와 학력·전공 자격을 별도 필드로 저장한다. 본문의 2015년 채용 인원과 예외조건을 현재 공고의 요건으로 적용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "5d396213f6bebd23784d67ebf94f47c124ed1028a4ad55fb2c9fc8d1df3258ca"
+  },
+  {
+    "id": "220470207733",
+    "title": "석유, 천연가스, 석탄 소비와 생산 그래프",
+    "date": "2015. 9. 14.",
+    "url": "https://blog.naver.com/nomore_bet/220470207733",
+    "inventory_index": 579,
+    "review_status": "public_text_sparse_needs_visual_review",
+    "topic_tags": [
+      "본문없음",
+      "시각자료검토대기"
+    ],
+    "summary_ko": "수집된 공개 텍스트는 제목·날짜·블로그 UI뿐이며 실질 본문이 없다. 그래프의 관측기간, 축, 단위, 수치는 확인하지 않았다.",
+    "developer_note_ko": "추론: 제목에서 에너지별 생산·소비 추세를 만들어내지 않는다. 시각자료 확인 전에는 정량 데이터나 결론을 추출하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "4449b5ab04cff9a19989fe8d28e19100fbf5d6cd147a089eadd4255715dc13dc"
+  },
+  {
+    "id": "220455303095",
+    "title": "벌처펀드 비즈니스 모델",
+    "date": "2015. 9. 1.",
+    "url": "https://blog.naver.com/nomore_bet/220455303095",
+    "inventory_index": 580,
+    "review_status": "public_text_sparse_needs_visual_review",
+    "topic_tags": [
+      "본문없음",
+      "시각자료검토대기"
+    ],
+    "summary_ko": "수집된 공개 텍스트에는 제목·날짜·블로그 UI만 있고 비즈니스 모델을 설명하는 실질 본문은 없다. 이미지의 내용은 검토하지 않았다.",
+    "developer_note_ko": "추론: 제목만으로 벌처펀드의 거래 절차나 수익원을 복원하지 않는다. 시각자료 검토 전까지 본문 기반 요약을 보류한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "attachments_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "0c3153e053cc0788db71e7a1603142124db08aeb2cd806d7fffdb78ea02a0dd3"
+  }
+]

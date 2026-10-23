@@ -1,0 +1,251 @@
+[
+  {
+    "id": "220954552131",
+    "title": "수학을 쥐뿔 몰라도 뭐 아는 척 할 수 있게 해주는 영상",
+    "date": "2017. 3. 10.",
+    "url": "https://blog.naver.com/nomore_bet/220954552131",
+    "inventory_index": 398,
+    "visual_review_status": "no_selected_public_images_text_only_reviewed",
+    "reviewed_image_count": 0,
+    "visual_scope_ko": "선정 이미지 0개. 수집 본문만 확인했으며 소개된 동영상의 화면·음성·자막은 열람하지 않았다.",
+    "visual_summary_ko": "본문은 수학 분야의 큰 지도를 알아야 필요한 전문가를 찾을 수 있다는 취지로 영상을 추천한다.",
+    "visual_developer_note_ko": "영상의 수학 분과 구성이나 도식을 복원하지 않는다. The Map of Mathematics의 실제 내용은 미검토다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "no_selected_images_available"
+    ]
+  },
+  {
+    "id": "220901313365",
+    "title": "이자율 스왑을 쉽게 설명한 자료",
+    "date": "2017. 1. 3.",
+    "url": "https://blog.naver.com/nomore_bet/220901313365",
+    "inventory_index": 420,
+    "visual_review_status": "no_selected_public_images_text_only_reviewed",
+    "reviewed_image_count": 0,
+    "visual_scope_ko": "선정 이미지 0개. 수집 본문에 외부 설명자료 제목만 남아 있어 자료 자체와 시각 요소는 확인하지 못했다.",
+    "visual_summary_ko": "수집 텍스트에서 확인되는 것은 Interest Rate Swap Explained라는 자료 소개뿐이며, 스왑의 상세 설명은 없다.",
+    "visual_developer_note_ko": "현금흐름, 거래조건, 예제 수식이 검토됐다고 표시하지 않는다. 링크 대상의 형식과 실제 내용도 미확인이다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "no_selected_images_available"
+    ]
+  },
+  {
+    "id": "220434095721",
+    "title": "감마와 세타의 관계",
+    "date": "2015. 8. 1.",
+    "url": "https://blog.naver.com/nomore_bet/220434095721",
+    "inventory_index": 588,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 1,
+    "visual_scope_ko": "선정 PNG 1개를 원본 크기로 열람. 손익곡선, 시간 구분 범례, 감마·세타 표시를 확인했다. 수학적 독립검증은 하지 않았다.",
+    "visual_summary_ko": "볼록한 손익곡선과 시간 경과에 따른 하향 이동으로 감마와 세타의 관계를 개념적으로 보여준다.",
+    "visual_developer_note_ko": "설명용 개념도로만 참고한다. 시장변수와 헤지 조건이 생략되어 있어 가격 산식이나 수치 검증 기준으로 사용하지 않는다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "mathematical_validation_not_performed"
+    ]
+  },
+  {
+    "id": "220401105327",
+    "title": "수식을 색깔로 쉽게 이해시키는 방법",
+    "date": "2015. 7. 13.",
+    "url": "https://blog.naver.com/nomore_bet/220401105327",
+    "inventory_index": 591,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 1,
+    "visual_scope_ko": "선정 JPEG 1개를 원본 크기로 열람. 합 기호와 복소지수 수식, 색을 맞춘 영문 설명을 확인했다. 수학적 독립검증은 하지 않았다.",
+    "visual_summary_ko": "푸리에 변환 형태의 수식에서 기호와 해설에 같은 색을 부여해 대응관계를 드러낸다. 블랙숄즈 수식 자체는 없다.",
+    "visual_developer_note_ko": "수식 문서화의 시각적 설계 참고로 쓸 수 있다. 색상만으로 의미를 전달하지 않도록 텍스트 설명도 병행한다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "mathematical_validation_not_performed"
+    ]
+  },
+  {
+    "id": "220390373310",
+    "title": "환율을 결정하는 여섯 가지 요소",
+    "date": "2015. 6. 22.",
+    "url": "https://blog.naver.com/nomore_bet/220390373310",
+    "inventory_index": 594,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 1,
+    "visual_scope_ko": "선정 JPEG 1개, 720×5278 전체를 원본 크기로 열람. 여섯 설명 구획과 하단 HIWAYFX 제작 표기·외부 참고목록까지 확인했다. 참고문헌은 열람하지 않았다.",
+    "visual_summary_ko": "통화 수급을 중심으로 정책개입, 물가·금리, 대외수지·국가부채, 투기 기대가 환율에 영향을 준다는 흐름을 그림으로 설명한다.",
+    "visual_developer_note_ko": "거시 변수 분류용 참고로만 사용한다. 국가별 사례와 수치는 과거 설명용이지 현재값이나 보편적 예측 규칙이 아니다. HIWAYFX 표기가 있으며 재배포 허락은 미확인이다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed"
+    ]
+  },
+  {
+    "id": "220380808743",
+    "title": "할인 커브 구성도",
+    "date": "2015. 6. 19.",
+    "url": "https://blog.naver.com/nomore_bet/220380808743",
+    "inventory_index": 595,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 1,
+    "visual_scope_ko": "선정 PNG 1개를 원본 크기로 열람. 입력·계산·보간·결과를 잇는 흐름도를 확인했다. 알고리즘의 정확성은 독립검증하지 않았다.",
+    "visual_summary_ko": "시장금리와 계산 관례를 받아 부트스트래핑 및 보간을 수행하고 금리곡선을 산출하는 구성요소를 연결한다.",
+    "visual_developer_note_ko": "입력 설정, 곡선 계산, 보간 모듈, 결과 출력을 분리하는 설계 참고다. 그림의 금리축은 예시이며 실제 시세나 완성된 구현 명세가 아니다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "mathematical_validation_not_performed"
+    ]
+  },
+  {
+    "id": "220261365288",
+    "title": "데이빗 핀처 × 스타일",
+    "date": "2015. 2. 4.",
+    "url": "https://blog.naver.com/nomore_bet/220261365288",
+    "inventory_index": 605,
+    "visual_review_status": "no_selected_public_images_text_only_reviewed",
+    "reviewed_image_count": 0,
+    "visual_scope_ko": "선정 이미지 0개. 수집 본문만 읽었다. 영상 장면이나 외부 스타일 분석자료는 확보·열람하지 않았다.",
+    "visual_summary_ko": "작성자는 데이빗 핀처의 초기 작품에 대한 선호와 감독의 스타일을 알고 다시 보고 싶다는 감상을 적는다.",
+    "visual_developer_note_ko": "영화의 촬영기법이나 영상 분석 내용을 추정하지 않는다. 본문 감상 이상의 시각적 근거가 없어 퀀트 구현 자료로 확장하지 않는다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "no_selected_images_available"
+    ]
+  },
+  {
+    "id": "220224759874",
+    "title": "마켓 > 우리나라 금융시장의 구조",
+    "date": "2015. 1. 1.",
+    "url": "https://blog.naver.com/nomore_bet/220224759874",
+    "inventory_index": 610,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 3,
+    "visual_scope_ko": "선정 이미지 3개를 모두 원본 크기로 열람: 한국은행 도서 표지, 이미지 준비중 자리표시자, 금융시장 분류도. 실질 구조도는 1개다.",
+    "visual_summary_ko": "금융시장을 전통적 시장, 외환, 파생상품으로 나누고 전통적 시장의 자금·자본 구분을 계층도로 보여준다.",
+    "visual_developer_note_ko": "본문에서 소개한 한국은행 도서의 과거 분류 참고다. 현재 시장체계로 단정하지 않는다. 표지와 자리표시자는 분석자료가 아니며 도서 이미지의 재사용 권리는 미확인이다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed"
+    ]
+  },
+  {
+    "id": "220223736758",
+    "title": "할인커브 > 커브 피팅 방법 > Best fit vs Exact fit",
+    "date": "2014. 12. 30.",
+    "url": "https://blog.naver.com/nomore_bet/220223736758",
+    "inventory_index": 614,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 3,
+    "visual_scope_ko": "선정 JPEG 3개를 원본 크기로 열람: 설명 슬라이드 1개와 손그림 비교 2개. 본문에 QuantLib PDF 링크가 있으나 링크 원문은 미열람이다.",
+    "visual_summary_ko": "매끄러운 함수로 오차를 줄이는 적합과 관측 기준점을 맞추는 적합의 차이를 설명하고 두 곡선을 대비한다.",
+    "visual_developer_note_ko": "재가격 오차와 곡선 평활성을 별도 평가하도록 설계한다. 손그림의 꺾은선을 Exact fit의 필수 형태로 일반화하지 않는다. 외부 슬라이드 이용권과 수학적 정확성은 미검증이다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "mathematical_validation_not_performed"
+    ]
+  },
+  {
+    "id": "70170848181",
+    "title": "[공유] 트레이더들이 광분한 이유- OIS discounting : pricing & risk ",
+    "date": "2013. 7. 3.",
+    "url": "https://blog.naver.com/nomore_bet/70170848181",
+    "inventory_index": 660,
+    "visual_review_status": "no_selected_public_images_text_only_reviewed",
+    "reviewed_image_count": 0,
+    "visual_scope_ko": "선정 이미지 0개. 공유글의 수집 본문과 RiskGiRL 출처 표기만 확인했다. 공유 원문·연결자료·시각 요소는 미열람이다.",
+    "visual_summary_ko": "본문은 OIS 할인과 여러 커브의 실무 활용을 언급하며 관련 학습을 권한다. 당시 설문조사에 관한 작성자 설명도 있다.",
+    "visual_developer_note_ko": "가격·리스크 산식이나 커브 구성을 확인한 기록은 아니다. 2013년의 관찰과 전언을 현재 관행으로 적용하지 않으며 원출처 주장은 검증하지 않았다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "no_selected_images_available"
+    ]
+  },
+  {
+    "id": "70162573928",
+    "title": "금융대학원에서 돈 버는 비법을 배울 수 있나?",
+    "date": "2013. 3. 15.",
+    "url": "https://blog.naver.com/nomore_bet/70162573928",
+    "inventory_index": 674,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 4,
+    "visual_scope_ko": "선정 PNG 4개를 모두 원본 크기로 열람: 금전적 기대 사진, 예측 만평, 도구 모음, 수학에 대한 반감을 표현한 포스터. 연락처는 기록하지 않았다.",
+    "visual_summary_ko": "돈벌이 기대, 예측의 불확실성, 도구 활용, 수학에 대한 반감을 상징하는 삽화들이다. 교육·직무 역량 논지를 보조하며 분석 데이터는 없다.",
+    "visual_developer_note_ko": "정량 검증 자료로 분류하지 않는다. 만평의 Christian Science Monitor 표기는 확인했지만 나머지 제작자와 이미지 이용권은 확인되지 않았다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed"
+    ]
+  },
+  {
+    "id": "70145755058",
+    "title": "트레이딩룸 목적",
+    "date": "2012. 8. 29.",
+    "url": "https://blog.naver.com/nomore_bet/70145755058",
+    "inventory_index": 692,
+    "visual_review_status": "no_selected_public_images_text_only_reviewed",
+    "reviewed_image_count": 0,
+    "visual_scope_ko": "선정 이미지 0개. 수집 본문만 확인했다. 트레이딩룸 조직도나 시스템 화면은 없으며 별도 시각자료를 추정하지 않았다.",
+    "visual_summary_ko": "본문은 트레이딩룸의 손익 추구와 위험 관리 목적에 맞춰 조직·시스템·정책·인력이 구성된다고 설명한다.",
+    "visual_developer_note_ko": "업무 목적의 텍스트 설명으로만 분류한다. 구체적인 조직 구조, 손익 산식, 위험 한도 또는 구현 도식이 검토됐다고 표시하지 않는다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "no_selected_images_available"
+    ]
+  },
+  {
+    "id": "70138410164",
+    "title": "인터폴레이션 예시 - Zero rate 대상, Linear Interpolation",
+    "date": "2012. 5. 18.",
+    "url": "https://blog.naver.com/nomore_bet/70138410164",
+    "inventory_index": 693,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 1,
+    "visual_scope_ko": "선정 JPEG 1개를 원본 크기로 열람. 할인계수와 무이표금리의 변환, 날짜별 구간 가중치, 중간만기 산출 흐름을 확인했다. 계산의 독립검증은 하지 않았다.",
+    "visual_summary_ko": "두 만기의 할인계수를 무이표금리로 바꾼 뒤 날짜 비율로 중간 금리를 보간하고 할인계수로 되돌리는 예시다.",
+    "visual_developer_note_ko": "보간 대상과 복리·날짜 계산 관례를 명시해야 한다. 제시된 과거 날짜·수치는 교육용이며 산술, 연수 환산, 반올림을 별도로 검증해야 한다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "mathematical_validation_not_performed"
+    ]
+  },
+  {
+    "id": "70138186089",
+    "title": "디스카운트 만들기 #5 - 스왑 금리로 디스카운트 팩터 만들기",
+    "date": "2012. 5. 15.",
+    "url": "https://blog.naver.com/nomore_bet/70138186089",
+    "inventory_index": 696,
+    "visual_review_status": "selected_public_images_reviewed",
+    "reviewed_image_count": 3,
+    "visual_scope_ko": "선정 JPEG 3개를 원본 크기로 열람. 예금·스왑 현금흐름 비교와 기존 할인계수로 마지막 할인계수를 구하는 수식을 확인했다. 수식의 독립검증은 하지 않았다.",
+    "visual_summary_ko": "단일 만기 예금과 여러 지급일의 스왑을 비교하고, 알려진 할인계수를 활용해 마지막 만기 값을 역산하는 구조를 설명한다.",
+    "visual_developer_note_ko": "도식의 금리 표기와 분기 쿠폰 금액은 단위·이자계산기간 검증이 필요하다. 예시 수치를 실제 시장값으로 쓰거나 연율을 지급액으로 그대로 구현하지 않는다.",
+    "visual_limitations": [
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified",
+      "visual_assets_not_redistributed",
+      "mathematical_validation_not_performed"
+    ]
+  }
+]
