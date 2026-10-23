@@ -385,3 +385,14 @@ fn qr_sizing_step(world: &mut EngineWorld) {
 fn qr_fill_qty(world: &mut EngineWorld) {
     assert_eq!(world.report().fills[0].qty.ticks(), 5_000_000);
 }
+
+#[when("the fractional-tick drawdown cash curve is measured")]
+fn fractional_drawdown_step(world: &mut EngineWorld) {
+    let curve = [
+        Cash(100_000_000_000_000),
+        Cash(90_000_000_000_000),
+        Cash(71_999_999_999_999),
+        Cash(90_000_000_000_000),
+    ];
+    world.drawdown = Some(parangsae_backtest::max_drawdown(&curve).unwrap().ticks());
+}

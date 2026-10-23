@@ -125,3 +125,7 @@ Feature: Backtest engine v0
     When the target is half equity and the fill price doubles
     Then there are 1 fills
     And the filled quantity is 5000000 ticks
+
+  Scenario: Compounded drawdown rounds a fractional ratio tick upward
+    When the fractional-tick drawdown cash curve is measured
+    Then the max drawdown ticks are 28000001

@@ -1199,4 +1199,33 @@ mod tests {
             crate::walkforward::replay_from_selection::<String>(5, 2, &output.folds).unwrap();
         assert_eq!(replay.max_dd_ticks, 28_000_000);
     }
+    #[test]
+    fn qr7_stitched_drawdown_rounds_up_at_a_fractional_ratio_tick() {
+        let (_, mut output) = qr_fixture("H1");
+        output.folds.truncate(2);
+        let cash = 100_000_000_000_000i64;
+        let first = &mut output.folds[0].test[0];
+        first.equity_ticks = vec![cash, 90_000_000_000_000];
+        first.daily_returns = vec![-10_000_000];
+        first.max_dd_ticks = 10_000_000;
+        first.accounting.equity_range = Some((90_000_000_000_000, cash));
+        let second = &mut output.folds[1].test[0];
+        second.equity_ticks = vec![cash, cash];
+        second.daily_returns = vec![0];
+        second.max_dd_ticks = 20_000_001;
+        second.accounting.equity_range = Some((79_999_999_999_999, cash));
+        let replay =
+            crate::walkforward::replay_from_selection::<String>(5, 2, &output.folds).unwrap();
+        assert_eq!(replay.max_dd_ticks, 28_000_001);
+        let curve = [
+            Cash(cash),
+            Cash(90_000_000_000_000),
+            Cash(71_999_999_999_999),
+            Cash(90_000_000_000_000),
+        ];
+        assert_eq!(
+            replay.max_dd_ticks,
+            crate::metrics::max_drawdown(&curve).unwrap().ticks()
+        );
+    }
 }

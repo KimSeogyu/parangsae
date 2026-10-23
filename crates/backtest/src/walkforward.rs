@@ -1469,12 +1469,13 @@ fn stitched_drawdown<'a, E>(
             .checked_mul(i128::from(hi))
             .ok_or(WalkError::Overflow)?
             / opening;
+        let numerator = (peak - low)
+            .max(0)
+            .checked_mul(SCALE)
+            .ok_or(WalkError::Overflow)?;
         let cross = i64::try_from(
-            (peak - low)
-                .max(0)
-                .checked_mul(SCALE)
-                .ok_or(WalkError::Overflow)?
-                / peak,
+            parangsae_sim::round_against_trader(numerator, peak, true)
+                .map_err(|_| WalkError::Overflow)?,
         )
         .map_err(|_| WalkError::Overflow)?;
         dd = dd.max(cross).max(row.max_dd_ticks);
