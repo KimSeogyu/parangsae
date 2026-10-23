@@ -73,11 +73,7 @@ pub fn assert_prefix(
     bars: &[Observation<ResampledBar>],
 ) {
     let full = replay(family, params, bars).expect("full");
-    let cuts = [0usize, bars.len() / 2, bars.len().saturating_sub(1)];
-    for cut in cuts {
-        if cut >= bars.len() {
-            continue;
-        }
+    for cut in cut_points(bars.len()) {
         let partial = replay(family, params, &bars[..=cut]).expect("prefix");
         let cut_us = bars[cut].timestamps().available_ts.micros().micros();
         let expected: Vec<_> = full
@@ -90,34 +86,92 @@ pub fn assert_prefix(
     if bars.len() < 2 {
         return;
     }
+    let prior = bars[bars.len() - 2]
+        .timestamps()
+        .available_ts
+        .micros()
+        .micros();
+    let before: Vec<_> = full
+        .iter()
+        .filter(|signal| signal.decision_ts.micros().micros() <= prior)
+        .cloned()
+        .collect();
+    for kind in [Mutate::High, Mutate::Low, Mutate::Close] {
+        let mutated = mutate_last(bars, kind);
+        let changed = replay(family, params, &mutated).expect("mutated");
+        let after: Vec<_> = changed
+            .iter()
+            .filter(|signal| signal.decision_ts.micros().micros() <= prior)
+            .cloned()
+            .collect();
+        assert_eq!(before, after, "{family} future {kind:?}");
+    }
+}
+
+fn cut_points(len: usize) -> Vec<usize> {
+    if len == 0 {
+        return Vec::new();
+    }
+    let mut points = vec![
+        0,
+        len / 4,
+        len / 3,
+        len / 2,
+        (3 * len) / 4,
+        len.saturating_sub(2),
+        len - 1,
+    ];
+    points.sort_unstable();
+    points.dedup();
+    points.retain(|cut| *cut < len);
+    points
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Mutate {
+    High,
+    Low,
+    Close,
+}
+
+fn mutate_last(bars: &[Observation<ResampledBar>], kind: Mutate) -> Vec<Observation<ResampledBar>> {
     let mut mutated = bars.to_vec();
     let index = bars.len() - 1;
     let current = *mutated[index].value();
-    let bumped = (current.close().ticks() - 1).max(1);
-    let price = Price::from_ticks(bumped).expect("price");
+    let open = current.open().ticks();
+    let (high, low, close) = match kind {
+        Mutate::High => (
+            current.high().ticks().checked_add(1).expect("high fits"),
+            current.low().ticks(),
+            current.close().ticks(),
+        ),
+        Mutate::Low => (
+            current.high().ticks(),
+            current.low().ticks().checked_sub(1).expect("low fits"),
+            current.close().ticks(),
+        ),
+        Mutate::Close => {
+            let close = current.close().ticks().checked_sub(1).expect("close fits");
+            (
+                current.high().ticks().max(open).max(close),
+                current.low().ticks().min(open).min(close),
+                close,
+            )
+        }
+    };
+    let price = |ticks: i64| Price::from_ticks(ticks).expect("price");
     let rebuilt = ResampledBar::new(
         current.open_time(),
         current.interval(),
-        price,
-        price,
-        price,
-        price,
+        price(open),
+        price(high),
+        price(low),
+        price(close),
     )
     .expect("rebuilt");
+    assert_ne!(rebuilt, current, "mutation {kind:?} did not change the bar");
     mutated[index] = mutated[index].with_value(rebuilt);
-    let changed = replay(family, params, &mutated).expect("mutated");
-    let prior = bars[index - 1].timestamps().available_ts.micros().micros();
-    let left: Vec<_> = full
-        .iter()
-        .filter(|signal| signal.decision_ts.micros().micros() <= prior)
-        .cloned()
-        .collect();
-    let right: Vec<_> = changed
-        .iter()
-        .filter(|signal| signal.decision_ts.micros().micros() <= prior)
-        .cloned()
-        .collect();
-    assert_eq!(left, right, "{family} future mutation");
+    mutated
 }
 
 pub fn walk(interval: BarInterval, count: usize, seed: u64) -> Vec<Observation<ResampledBar>> {

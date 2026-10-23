@@ -7,9 +7,10 @@
 //! `signals`. Targets are built with [`parangsae_signals::Target::from_f64`].
 //!
 //! A bar is closed only when `available_ts` equals `close_time + 1 ms`. The
-//! decision for that bar is that timestamp. `Cursor::admit` calls
+//! decision for that bar is that timestamp. `Cursor::admit` returns the
+//! [`parangsae_core::Causal`] view from
 //! [`parangsae_core::Observation::causal_at`] and rejects anything earlier than
-//! 2020-12-18 00:00 UTC. History buffers have a fixed cap.
+//! 2020-12-18 00:00 UTC. Families read that view. History buffers have a fixed cap.
 //!
 //! # Readings where the prereg left a choice
 //!
@@ -32,8 +33,10 @@
 //!   same-side break. S03 and S05 ignore signals during the hold, including
 //!   opposite breaks.
 //! * **No new hold past 23:59.** An entry whose hold end is after
-//!   2025-09-30 23:59:00 UTC is refused. S02 does the same on a flip: the old
-//!   side is closed and the new side is not opened. S01 has no fixed hold.
+//!   2025-09-30 23:59:00 UTC is refused, and that refusal increments
+//!   [`Strategy::dropped_entries`]. S02 does the same on a flip: the old side
+//!   is closed and the new side is not opened. S01 has no fixed hold. S06 uses
+//!   the same end instant through `hold_fits` and is not part of this count.
 //! * **S03 / S05 rank.** Compared in rank ticks. `θ` and `k` and the quiet
 //!   gate `0.5` are the config's `1e8` ticks. S03 uses `p_{t-1}`. S05 uses
 //!   `p_t`. Both call `VolRegime<24, 168>` through `drive_feature`.
@@ -103,6 +106,16 @@ impl Strategy {
             _ => return Err(StrategyError::Param("family")),
         };
         Ok(Self { inner })
+    }
+
+    /// Holds `Hold::arm` refused because they would end after 2025-09-30 23:59 UTC.
+    pub fn dropped_entries(&self) -> u64 {
+        match &self.inner {
+            Inner::S01(_) | Inner::S06(_) => 0,
+            Inner::S02(strategy) => strategy.dropped_entries(),
+            Inner::S03(strategy) => strategy.dropped_entries(),
+            Inner::S05(strategy) => strategy.dropped_entries(),
+        }
     }
 
     pub fn interval(&self) -> BarInterval {

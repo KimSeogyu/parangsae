@@ -9,8 +9,8 @@ use parangsae_signals::VolRegime;
 use crate::donchian::positive_usize;
 use crate::error::StrategyError;
 use crate::series::{
-    at_least, emitted, log_ratio, price_f64, sample_sd, side_target, sign_of, ticks_to_unit,
-    Cursor, Hold, Ring, WARMUP_30D_US,
+    at_least, decision_micros, emitted, log_ratio, price_f64, sample_sd, side_target, sign_of,
+    ticks_to_unit, Cursor, Hold, Ring, WARMUP_30D_US,
 };
 use crate::vol::rank_of;
 
@@ -58,8 +58,9 @@ impl Fade {
         row: &Observation<ResampledBar>,
         _book: Option<crate::DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
-        let decision_us = self.cursor.admit(row)?;
-        let close = price_f64(row.value().close())?;
+        let view = self.cursor.admit(row)?;
+        let decision_us = decision_micros(&view);
+        let close = price_f64(view.value().close())?;
         if let Some(prev) = self.prev_close {
             self.returns.push_back(log_ratio(close, prev)?);
             if self.returns.len() > SIGMA_BARS {
@@ -76,8 +77,12 @@ impl Fade {
             return Ok(None);
         }
         let signal_side = self.event(rank_ticks);
-        let side = self.hold.step(decision_us, signal_side);
-        Ok(Some(emitted(row.value(), decision_us, side_target(side)?)))
+        let side = self.hold.step(decision_us, signal_side)?;
+        Ok(Some(emitted(view.value(), decision_us, side_target(side)?)))
+    }
+
+    pub(crate) fn dropped_entries(&self) -> u64 {
+        self.hold.dropped()
     }
 
     fn event(&self, rank_ticks: i64) -> i8 {

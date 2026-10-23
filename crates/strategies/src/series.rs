@@ -3,7 +3,9 @@
 use std::collections::VecDeque;
 
 use libm::{fabs, log, sqrt};
-use parangsae_core::{BarInterval, DecisionTime, Observation, Price, ResampledBar, UtcMicros};
+use parangsae_core::{
+    BarInterval, Causal, DecisionTime, Observation, Price, ResampledBar, UtcMicros,
+};
 use parangsae_signals::{Decision, SignalOutput, Target};
 
 use crate::error::StrategyError;
@@ -41,6 +43,7 @@ pub struct Hold {
     exit_us: i64,
     hold_us: i64,
     flip: bool,
+    dropped: u64,
 }
 
 impl Hold {
@@ -56,33 +59,42 @@ impl Hold {
             exit_us: 0,
             hold_us,
             flip,
+            dropped: 0,
         })
     }
 
+    /// Holds `arm` refused because they would end after 2025-09-30 23:59 UTC.
+    pub fn dropped(&self) -> u64 {
+        self.dropped
+    }
+
     /// `signal_side` is the entry direction on this bar, or 0 when there is no event.
-    pub fn step(&mut self, decision_us: i64, signal_side: i8) -> i8 {
+    pub fn step(&mut self, decision_us: i64, signal_side: i8) -> Result<i8, StrategyError> {
         if self.side != 0 && decision_us >= self.exit_us {
             self.side = 0;
         }
         let opening = self.side == 0 && signal_side != 0;
         let flipping = self.side != 0 && self.flip && signal_side == -self.side;
         if opening || flipping {
-            let armed = self.arm(decision_us, signal_side);
+            let armed = self.arm(decision_us, signal_side)?;
             if flipping && !armed {
                 self.side = 0;
             }
         }
-        self.side
+        Ok(self.side)
     }
 
-    fn arm(&mut self, decision_us: i64, side: i8) -> bool {
+    fn arm(&mut self, decision_us: i64, side: i8) -> Result<bool, StrategyError> {
         match decision_us.checked_add(self.hold_us) {
             Some(end) if end <= LAST_TRADABLE_OPEN_US => {
                 self.side = side;
                 self.exit_us = end;
-                true
+                Ok(true)
             }
-            _ => false,
+            _ => {
+                self.dropped = self.dropped.checked_add(1).ok_or(StrategyError::Overflow)?;
+                Ok(false)
+            }
         }
     }
 }
@@ -94,7 +106,7 @@ pub fn hold_fits(decision_us: i64, hold_us: i64) -> bool {
     }
 }
 
-/// Gap and clock checks. Returns the decision time in microseconds.
+/// Gap and clock checks. Returns the causal view of the closed bar.
 pub struct Cursor {
     interval: BarInterval,
     last_open: Option<i64>,
@@ -108,7 +120,10 @@ impl Cursor {
         }
     }
 
-    pub fn admit(&mut self, row: &Observation<ResampledBar>) -> Result<i64, StrategyError> {
+    pub fn admit<'a>(
+        &mut self,
+        row: &'a Observation<ResampledBar>,
+    ) -> Result<Causal<'a, ResampledBar>, StrategyError> {
         let bar = row.value();
         if bar.interval() != self.interval {
             return Err(StrategyError::Interval);
@@ -124,22 +139,24 @@ impl Cursor {
             return Err(StrategyError::Clock);
         }
         let decision = DecisionTime::from_micros(UtcMicros::from_micros(available));
-        if row.causal_at(decision).is_none() {
-            return Err(StrategyError::Clock);
-        }
+        let view = row.causal_at(decision).ok_or(StrategyError::Clock)?;
         if let Some(prev) = self.last_open {
             let next = prev
                 .checked_add(self.interval.micros())
                 .ok_or(StrategyError::Overflow)?;
-            if open != next {
+            if view.value().open_time().micros() != next {
                 return Err(StrategyError::Gap {
                     expected_open: next,
                 });
             }
         }
-        self.last_open = Some(open);
-        Ok(available)
+        self.last_open = Some(view.value().open_time().micros());
+        Ok(view)
     }
+}
+
+pub(crate) fn decision_micros(view: &Causal<'_, ResampledBar>) -> i64 {
+    view.available_ts().micros().micros()
 }
 
 #[derive(Clone, Debug)]

@@ -7,7 +7,9 @@ use parangsae_core::{BarInterval, DecisionTime, Observation, ResampledBar, UtcMi
 use parangsae_signals::{drive, Decision, Target, Tsmom};
 
 use crate::error::StrategyError;
-use crate::series::{emitted, ticks_to_unit, Cursor, DecisionBook, Ring, WARMUP_30D_US};
+use crate::series::{
+    decision_micros, emitted, ticks_to_unit, Cursor, DecisionBook, Ring, WARMUP_30D_US,
+};
 
 const DEADBAND_TICKS: i64 = 25_000_000;
 
@@ -57,7 +59,8 @@ impl TsmomSlow {
         row: &Observation<ResampledBar>,
         book: Option<DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
-        let decision_us = self.cursor.admit(row)?;
+        let view = self.cursor.admit(row)?;
+        let decision_us = decision_micros(&view);
         self.ring.push(row.clone());
         let rows = self.ring.to_vec();
         let decision = DecisionTime::from_micros(UtcMicros::from_micros(decision_us));
@@ -79,7 +82,7 @@ impl TsmomSlow {
         if passes_deadband(current, next.ticks()) {
             self.held = next;
         }
-        Ok(Some(emitted(row.value(), decision_us, self.held)))
+        Ok(Some(emitted(view.value(), decision_us, self.held)))
     }
 }
 

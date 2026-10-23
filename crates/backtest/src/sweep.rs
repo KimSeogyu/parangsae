@@ -6,7 +6,9 @@
 //! It does not print per-config returns.
 //!
 //! Sizing uses equity marked at the decision close. That close stands in for
-//! the next 1m open, which is the fill. `Tape::load` reads the pinned klines,
+//! the next 1m open, which is the fill. A hold that `arm` refuses, because it
+//! would end after 2025-09-30 23:59 UTC, increments `n_dropped_entries` on
+//! the trial row. `Tape::load` reads the pinned klines,
 //! `runs/funding-4db8a75`, and the `um-kline-2023-11-10` overlay. A path that
 //! is not in the pin list is not opened.
 
@@ -96,15 +98,16 @@ impl<'a> FoldRunner<'a> {
             let report = self.run_once(config, start_us, end_us, &scenario)?;
             grid.push((FeeBps(bps), report));
         }
-        let headline = self.run_once(config, start_us, end_us, costs)?;
+        let (headline, dropped) = self.run_counted(config, start_us, end_us, costs)?;
         let flat_bars = FlatBars {
             funding_stale: headline.flat_funding_stale,
             funding_slot_missing: headline.flat_funding_slot_missing,
         };
         let metrics = metrics_from_grid(Cash(config.initial_cash), &grid, flat_bars)
             .map_err(|err| err.to_string())?;
-        let trial = with_headline(metrics, Cash(config.initial_cash), &headline)
+        let mut trial = with_headline(metrics, Cash(config.initial_cash), &headline)
             .map_err(|err| err.to_string())?;
+        trial.n_dropped_entries = dropped;
         let daily: Vec<i64> = headline
             .daily_equity
             .iter()
@@ -124,16 +127,28 @@ impl<'a> FoldRunner<'a> {
         end_us: i64,
         costs: &Costs,
     ) -> Result<Report, String> {
+        self.run_counted(config, start_us, end_us, costs)
+            .map(|(report, _count)| report)
+    }
+
+    fn run_counted(
+        &self,
+        config: &WindowConfig,
+        start_us: i64,
+        end_us: i64,
+        costs: &Costs,
+    ) -> Result<(Report, u64), String> {
         let mut signal = FamilySignal::new(&config.family, &config.params)?;
         let cfg = research_config(config.initial_cash, start_us, end_us, signal.interval)?;
         let tape = self.tape;
         let costs = *costs;
-        match panic::catch_unwind(AssertUnwindSafe(|| {
+        let report = match panic::catch_unwind(AssertUnwindSafe(|| {
             run_targets(tape, &mut signal, &costs, &cfg)
         })) {
-            Ok(result) => result.map_err(|err| err.to_string()),
-            Err(payload) => Err(panic_message(&payload)),
-        }
+            Ok(result) => result.map_err(|err| err.to_string())?,
+            Err(payload) => return Err(panic_message(&payload)),
+        };
+        Ok((report, signal.dropped_entries()))
     }
 }
 
@@ -535,6 +550,10 @@ impl FamilySignal {
             seen: Vec::new(),
         })
     }
+
+    fn dropped_entries(&self) -> u64 {
+        self.strategy.dropped_entries()
+    }
 }
 
 impl TargetSignal for FamilySignal {
@@ -907,6 +926,7 @@ mod tests {
         assert_eq!(rows[0].status, "finished");
         assert_eq!(rows[0].slippage_bps, 2);
         assert_eq!(rows[0].n_refused_fills, Some(0));
+        assert_eq!(rows[0].n_dropped_entries, Some(0));
         assert_eq!(rows[0].fee_grid_bps, [2, 4, 5, 6]);
         let trials = fs::read_to_string(dir.path().join("trials.jsonl")).unwrap();
         assert!(trials.contains("\"kind\":\"RunStarted\""));
@@ -936,5 +956,86 @@ mod tests {
         let results = fs::read_to_string(dir.path().join("results.jsonl")).unwrap();
         assert!(results.contains("\"slippage_bps\":2"));
         assert!(!results.contains("\"slippage_bps\":5"));
+        assert!(results.contains("\"n_dropped_entries\":0"));
+    }
+
+    #[test]
+    fn a_hold_that_crosses_the_holdout_is_counted_on_the_trial() {
+        let holdout = HOLDOUT_START_US;
+        let hour = 3_600_000_000i64;
+        let minute = 60_000_000i64;
+        let start = holdout - 6 * hour;
+        let prices = [100i64, 100, 120, 70];
+        let mut bars = Vec::new();
+        for index in 0..240 {
+            let hour_index = usize::try_from(index / 60).unwrap();
+            let open_us = start + index * minute;
+            let price = Price::from_ticks(prices[hour_index] * 100_000_000).unwrap();
+            bars.push(Bar {
+                open_time: UtcMicros::from_micros(open_us),
+                close_time: UtcMicros::from_micros(open_us + minute - 1_000),
+                available: UtcMicros::from_micros(open_us + minute),
+                open: price,
+                high: price,
+                low: price,
+                close: price,
+                volume: Qty::from_ticks(100_000_000).unwrap(),
+                count: 1,
+            });
+        }
+        let tape = Tape::from_parts(bars.clone(), bars, Vec::new());
+        let mut params = BTreeMap::new();
+        params.insert("hold_h".to_owned(), 2);
+        params.insert("n".to_owned(), 2);
+        let mut spec = TrialSpec {
+            run_id: "pending".to_owned(),
+            config_id: String::new(),
+            family: "S02".to_owned(),
+            params: params.clone(),
+            attempt: 0,
+            ts: UtcMicros::from_micros(start),
+            run: research_config(
+                100_000_000_000_000,
+                start,
+                start + 240 * minute,
+                BarInterval::H1,
+            )
+            .unwrap(),
+        };
+        spec.config_id = canonical_config_id(&spec);
+        spec.run_id = "S02-00-a0".to_owned();
+        let fold = FoldRunner::new(&tape);
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("obj.txt"), b"alpha").unwrap();
+        let pin_path = dir.path().join("sweep-inputs.json");
+        fs::write(
+            &pin_path,
+            "{\"schema\":\"sweep-runner-inputs-v2\",\"objects\":[{\"path\":\"obj.txt\",\"sha256\":\"8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8\"}]}\n",
+        )
+        .unwrap();
+        let pins = SweepPins::load(&pin_path).unwrap();
+        let mut runner = ConfigRunner {
+            fold: &fold,
+            family: "S02".to_owned(),
+            params,
+        };
+        let costs = Costs {
+            taker_fee: FeeBps(5),
+            slippage: SlippageBps(2),
+        };
+        let results_path = dir.path().join("results.jsonl");
+        let rows = run_batch(
+            &[spec],
+            &pins,
+            &dir.path().join("trials.jsonl"),
+            &results_path,
+            &costs,
+            &mut runner,
+        )
+        .unwrap();
+        assert_eq!(rows[0].status, "finished");
+        assert_eq!(rows[0].n_dropped_entries, Some(1));
+        let results = fs::read_to_string(&results_path).unwrap();
+        assert!(results.contains("\"n_dropped_entries\":1"), "{results}");
     }
 }

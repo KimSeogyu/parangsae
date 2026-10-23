@@ -330,6 +330,25 @@ fn s02_refused_flip_goes_flat() {
     assert_eq!(out.iter().map(ticks).collect::<Vec<_>>(), vec![SCALE, 0]);
 }
 
+#[test]
+fn s02_refused_flip_counts_the_dropped_hold() {
+    let spec = params(&[("n", 2), ("hold_h", 2)]);
+    let holdout = 1_759_276_800_000_000i64;
+    let hour = BarInterval::H1.micros();
+    let opens = [
+        holdout - 6 * hour,
+        holdout - 5 * hour,
+        holdout - 4 * hour,
+        holdout - 3 * hour,
+    ];
+    let prices = [usdt(100), usdt(100), usdt(120), usdt(70)];
+    let mut strategy = Strategy::from_params("S02", &spec).unwrap();
+    for (open, px) in opens.iter().zip(prices) {
+        strategy.push(&shift(*open, px).unwrap(), None).unwrap();
+    }
+    assert_eq!(strategy.dropped_entries(), 1);
+}
+
 fn at(index: i64) -> DecisionTime {
     DecisionTime::from_micros(UtcMicros::from_micros(
         T0 + (index + 1) * BarInterval::H1.micros(),

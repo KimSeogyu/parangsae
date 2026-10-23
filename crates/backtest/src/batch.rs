@@ -53,6 +53,8 @@ pub struct TrialMetrics {
     pub flat_bars: FlatBars,
     pub net_return: [Ratio; 4],
     pub n_refused_fills: u64,
+    /// Holds `Hold::arm` refused because they would end after 2025-09-30 23:59 UTC.
+    pub n_dropped_entries: u64,
 }
 
 /// One config in a batch, plus the trial identity written before compute.
@@ -86,6 +88,7 @@ pub struct ResultRow {
     pub slippage_bps: u32,
     pub fee_grid_bps: [u32; 4],
     pub n_refused_fills: Option<u64>,
+    pub n_dropped_entries: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -398,6 +401,7 @@ pub fn metrics_from_grid(
         flat_bars,
         net_return,
         n_refused_fills: headline.n_refused_fills,
+        n_dropped_entries: 0,
     })
 }
 
@@ -437,6 +441,7 @@ pub(crate) fn with_headline(
         flat_bars: metrics.flat_bars,
         net_return: metrics.net_return,
         n_refused_fills: headline.n_refused_fills,
+        n_dropped_entries: metrics.n_dropped_entries,
     })
 }
 
@@ -489,10 +494,11 @@ pub fn metrics_preimage(metrics: &TrialMetrics) -> String {
         None => "null".to_owned(),
     };
     format!(
-        "{{\"flat_funding_slot_missing\":{},\"flat_funding_stale\":{},\"max_drawdown_ticks\":{},\"n_refused_fills\":{},\"net_2\":{},\"net_4\":{},\"net_5\":{},\"net_6\":{},\"sharpe_annual_ticks\":{sharpe},\"total_return_ticks\":{},\"turnover_ticks\":{}}}",
+        "{{\"flat_funding_slot_missing\":{},\"flat_funding_stale\":{},\"max_drawdown_ticks\":{},\"n_dropped_entries\":{},\"n_refused_fills\":{},\"net_2\":{},\"net_4\":{},\"net_5\":{},\"net_6\":{},\"sharpe_annual_ticks\":{sharpe},\"total_return_ticks\":{},\"turnover_ticks\":{}}}",
         metrics.flat_bars.funding_slot_missing,
         metrics.flat_bars.funding_stale,
         metrics.max_drawdown.ticks(),
+        metrics.n_dropped_entries,
         metrics.n_refused_fills,
         metrics.net_return[0].ticks(),
         metrics.net_return[1].ticks(),
@@ -616,6 +622,7 @@ fn drive<R: TargetRunner>(
                 slippage_bps,
                 fee_grid_bps: FEE_GRID_BPS,
                 n_refused_fills: Some(metrics.n_refused_fills),
+                n_dropped_entries: Some(metrics.n_dropped_entries),
             };
             write_row(
                 results_path,
@@ -684,6 +691,7 @@ fn aborted_row(spec: &TrialSpec, trial_id: &str, reason: &str, slippage_bps: u32
         slippage_bps,
         fee_grid_bps: FEE_GRID_BPS,
         n_refused_fills: None,
+        n_dropped_entries: None,
     }
 }
 
@@ -713,6 +721,7 @@ struct RowJson<'a> {
     slippage_bps: u32,
     fee_grid_bps: &'a [u32],
     n_refused_fills: Option<u64>,
+    n_dropped_entries: Option<u64>,
     metrics_digest: Option<&'a str>,
 }
 
@@ -771,6 +780,7 @@ fn write_row(
         slippage_bps: row.slippage_bps,
         fee_grid_bps: &row.fee_grid_bps,
         n_refused_fills: row.n_refused_fills,
+        n_dropped_entries: row.n_dropped_entries,
         metrics_digest,
     };
     let line = serde_json::to_string(&json).map_err(|err| BatchError::Append(err.to_string()))?;
@@ -872,14 +882,15 @@ mod tests {
                 Ratio::from_ticks(4),
             ],
             n_refused_fills: 7,
+            n_dropped_entries: 9,
         };
         assert_eq!(
             metrics_preimage(&metrics),
-            "{\"flat_funding_slot_missing\":2,\"flat_funding_stale\":3,\"max_drawdown_ticks\":0,\"n_refused_fills\":7,\"net_2\":1,\"net_4\":2,\"net_5\":3,\"net_6\":4,\"sharpe_annual_ticks\":5,\"total_return_ticks\":3,\"turnover_ticks\":6}"
+            "{\"flat_funding_slot_missing\":2,\"flat_funding_stale\":3,\"max_drawdown_ticks\":0,\"n_dropped_entries\":9,\"n_refused_fills\":7,\"net_2\":1,\"net_4\":2,\"net_5\":3,\"net_6\":4,\"sharpe_annual_ticks\":5,\"total_return_ticks\":3,\"turnover_ticks\":6}"
         );
         assert_eq!(
             metrics_digest(&metrics),
-            "e7dcff0350065f82763c80e09b5d317cfcd76b3b5890b789491650d10da05e17"
+            "8849b2186b505f478890bf669ff4c67ac3759676af23bc1653610f3877ff4a2e"
         );
     }
 

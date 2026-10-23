@@ -96,6 +96,7 @@ fn zero_metrics() -> TrialMetrics {
         },
         net_return: [zero, zero, zero, zero],
         n_refused_fills: 0,
+        n_dropped_entries: 0,
     }
 }
 

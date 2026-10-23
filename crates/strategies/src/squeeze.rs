@@ -7,7 +7,7 @@ use parangsae_signals::VolRegime;
 
 use crate::donchian::{channel_side, positive_usize};
 use crate::error::StrategyError;
-use crate::series::{emitted, side_target, Cursor, Hold, Ring, WARMUP_30D_US};
+use crate::series::{decision_micros, emitted, side_target, Cursor, Hold, Ring, WARMUP_30D_US};
 use crate::vol::rank_of;
 
 const VOL_CAP: usize = 24 + 168 + 1;
@@ -48,8 +48,9 @@ impl Squeeze {
         row: &Observation<ResampledBar>,
         _book: Option<crate::DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
-        let decision_us = self.cursor.admit(row)?;
-        let bar = row.value();
+        let view = self.cursor.admit(row)?;
+        let decision_us = decision_micros(&view);
+        let bar = view.value();
         let channel_ready = self.prev.len() >= self.n;
         let breakout = channel_side(&self.prev, self.n, bar.close().ticks());
         self.prev.push_back((bar.high().ticks(), bar.low().ticks()));
@@ -71,7 +72,11 @@ impl Squeeze {
         } else {
             0
         };
-        let side = self.hold.step(decision_us, signal_side);
+        let side = self.hold.step(decision_us, signal_side)?;
         Ok(Some(emitted(bar, decision_us, side_target(side)?)))
+    }
+
+    pub(crate) fn dropped_entries(&self) -> u64 {
+        self.hold.dropped()
     }
 }

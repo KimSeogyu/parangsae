@@ -53,14 +53,15 @@ There is no readiness verdict. Research code does not read live fills, balances,
 | --- | --- |
 | No live submit | `crates/execution` has no socket or HTTP client; `tests/no_live_client.rs`; `.cursor/rules/live-gate.mdc` |
 | No lookahead in signals | `Causal<T>` has no public constructor; `crates/signals`; proptest in `causal_gate.rs`; `.cursor/rules/signals-no-lookahead.mdc` |
-| Closed bars only in the first-batch families | `Cursor::admit` requires `available_ts = close + 1 ms` and an open at or after 2020-12-18; truncation proptest per family in `crates/strategies` |
+| Closed bars only in the first-batch families | `Cursor::admit` returns the `Causal` view (`available_ts = close + 1 ms`, open at or after 2020-12-18); families read that view; truncation proptest mutates close, high, and low |
 | Fixed quantity until the target changes | `run_targets` sizes when the target ticks change; the moving-price test in `crates/backtest/tests/targets.rs` |
 | Fixed-point, no silent wrap | `notional` returns `Overflow`; release overflow checks; Kani `widening_mul_fits_in_i128`, `notional_matches_below_one_million`, `notional_overflow_does_not_wrap`; `.cursor/rules/rust-types.mdc` |
 | Kline grid and declared unit | `specs/features/kline_integrity.feature`, cucumber-rs |
 | Gap rejects rows until resync; duplicate id is a no-op | `specs/tla/IngestSegment.tla`, TLC, one worker |
 | Vision fact write keeps the stored payload | `specs/tla/ManifestWrite.tla`, TLC, one worker; `merge_fact` |
 | Format and lints | `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` |
-| no f64 in money path | `deny(clippy::float_arithmetic)` in sim/backtest |
+| no f64 in money path | `deny(clippy::float_arithmetic)` in sim, backtest, and `crates/backtest/src/bin/batch.rs` |
+| Holdout-crossing entries are counted | `Hold::arm` increments the drop count; `ResultRow.n_dropped_entries` |
 | costs explicit | `Costs` has no `Default` |
 | fills at next open | G2 + P7 |
 

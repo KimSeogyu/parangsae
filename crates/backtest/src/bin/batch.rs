@@ -15,6 +15,8 @@
 //! 5 bps fee plus 5 bps slippage case and is not a trial. Returns are not
 //! printed.
 
+#![deny(clippy::float_arithmetic)]
+
 use std::env;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -40,12 +42,15 @@ fn run() -> Result<(), String> {
 }
 
 fn args() -> Result<SweepRequest, String> {
+    parse_args(env::args().skip(1))
+}
+
+fn parse_args(mut raw: impl Iterator<Item = String>) -> Result<SweepRequest, String> {
     let mut inputs = None;
     let mut data_root = None;
     let mut out_dir = None;
     let mut ledger = None;
     let mut slippage_bps = None;
-    let mut raw = env::args().skip(1);
     while let Some(arg) = raw.next() {
         if arg == "--help" {
             return Err(usage());
@@ -89,4 +94,42 @@ fn args() -> Result<SweepRequest, String> {
 fn usage() -> String {
     "usage: batch --inputs <sweep-inputs-v2.json> --data-root <parquet-root> --out <dir> --slippage-bps <u32> [--ledger <trials.jsonl>]"
         .to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::parse_args;
+
+    fn owned(args: &[&str]) -> Vec<String> {
+        args.iter().map(|arg| (*arg).to_owned()).collect()
+    }
+
+    #[test]
+    fn the_ledger_defaults_and_slippage_is_required() {
+        let request = parse_args(
+            owned(&[
+                "--inputs",
+                "in.json",
+                "--data-root",
+                "data",
+                "--out",
+                "out",
+                "--slippage-bps",
+                "2",
+            ])
+            .into_iter(),
+        )
+        .unwrap();
+        assert_eq!(request.ledger, PathBuf::from("research/trials.jsonl"));
+        assert_eq!(request.slippage_bps, 2);
+        assert_eq!(request.inputs, PathBuf::from("in.json"));
+        let err = parse_args(
+            owned(&["--inputs", "in.json", "--data-root", "data", "--out", "out"]).into_iter(),
+        )
+        .map(|_| ())
+        .unwrap_err();
+        assert!(err.contains("missing --slippage-bps"), "{err}");
+    }
 }

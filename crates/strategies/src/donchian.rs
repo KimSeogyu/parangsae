@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, VecDeque};
 use parangsae_core::{BarInterval, Observation, ResampledBar};
 
 use crate::error::StrategyError;
-use crate::series::{emitted, side_target, Cursor, Hold, WARMUP_30D_US};
+use crate::series::{decision_micros, emitted, side_target, Cursor, Hold, WARMUP_30D_US};
 
 pub struct Donchian {
     n: usize,
@@ -31,8 +31,9 @@ impl Donchian {
         row: &Observation<ResampledBar>,
         _book: Option<crate::DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
-        let decision_us = self.cursor.admit(row)?;
-        let bar = row.value();
+        let view = self.cursor.admit(row)?;
+        let decision_us = decision_micros(&view);
+        let bar = view.value();
         let ready = self.prev.len() >= self.n;
         let signal_side = channel_side(&self.prev, self.n, bar.close().ticks());
         self.prev.push_back((bar.high().ticks(), bar.low().ticks()));
@@ -42,8 +43,12 @@ impl Donchian {
         if !ready || decision_us < WARMUP_30D_US {
             return Ok(None);
         }
-        let side = self.hold.step(decision_us, signal_side);
+        let side = self.hold.step(decision_us, signal_side)?;
         Ok(Some(emitted(bar, decision_us, side_target(side)?)))
+    }
+
+    pub(crate) fn dropped_entries(&self) -> u64 {
+        self.hold.dropped()
     }
 }
 

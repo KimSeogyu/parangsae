@@ -8,8 +8,8 @@ use parangsae_core::{BarInterval, Observation, ResampledBar};
 use crate::donchian::positive_usize;
 use crate::error::StrategyError;
 use crate::series::{
-    at_least, emitted, hold_fits, log_ratio, mean_t, price_f64, side_target, sign_of,
-    ticks_to_unit, Cursor, WARMUP_365D_US,
+    at_least, decision_micros, emitted, hold_fits, log_ratio, mean_t, price_f64, side_target,
+    sign_of, ticks_to_unit, Cursor, WARMUP_365D_US,
 };
 
 const BLOCKS: usize = 6;
@@ -48,8 +48,9 @@ impl Season {
         row: &Observation<ResampledBar>,
         _book: Option<crate::DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
-        let decision_us = self.cursor.admit(row)?;
-        let bar = row.value();
+        let view = self.cursor.admit(row)?;
+        let decision_us = decision_micros(&view);
+        let bar = view.value();
         let block = block_index(bar.open_time().micros())?;
         let next = (block + 1) % BLOCKS;
         let ready = self.hist[next].len() >= self.w;
