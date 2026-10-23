@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "sim",
+    "execution",
+]
+
+[patch.crates-io]
+parangsae-execution = { path = "execution" }

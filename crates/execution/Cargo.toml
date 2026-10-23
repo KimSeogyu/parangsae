@@ -6,4 +6,7 @@ publish.workspace = true
 rust-version.workspace = true
 description = "Paper-only execution scaffold. No order transport."
 
+[lints.clippy]
+float_arithmetic = "deny"
+
 [dependencies]

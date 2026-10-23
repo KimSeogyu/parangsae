@@ -11,6 +11,9 @@ description = "Domain types for parangsae. No I/O."
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(kani)"] }
 
+[lints.clippy]
+float_arithmetic = "deny"
+
 [dev-dependencies]
 cucumber = "=0.22.1"
 proptest = "1.6"

@@ -1,4 +1,4 @@
-# parangsae research read path v0.3 (BTCUSDT USD-M) — 2026-10-23
+# parangsae research read path v0.4 (BTCUSDT USD-M) — 2026-10-23
 
 Research window starts 2020-01-01 (pre-2020 is out of scope).
 
@@ -42,6 +42,26 @@ Missing bar open times (UTC, inclusive), which are real source gaps (`mark_1m_ga
 | 2020-12-17 07:32 | 2020-12-17 07:55 | 24 |
 | 2024-08-12 10:02 | 2024-08-12 10:03 | 2 |
 `day_completeness` gives minutes per day for kline_1m and mark_1m.
+
+## Premium index and index price 1m (`premium_1m`, `index_1m`, `premium_1d`, added v0.4 for H5)
+Sources are `parquet/premium-index-kline` and `parquet/index-price-kline`, ingested from the checksum-verified Vision monthly archives. Both cover 2020-01-01..2026-10-21, with a grid of 3,579,840 minutes over 2,486 days.
+- `premium_1m` has 3,579,639/3,579,840 minutes (201 missing in 11 gap records) and is complete on 2,478/2,486 days.
+- `index_1m` has 3,579,780/3,579,840 minutes (60 missing in 4 gap records) and is complete on 2,482/2,486 days.
+- Units: `*_ticks / 1e8`. The premium is a ratio, so 0.0009 means 0.09 %. Availability is open + 60 s on every row (0 exceptions in either view). The source volume and trade columns carry no meaning here and are omitted.
+- `premium_1d` has one row per UTC day and every day is emitted. Its columns are `day_open_us, date, open, high, low, close` (the last present 1m close), `mean_close` (the mean of present 1m closes), `minutes`, `complete` (1440/1440) and `available_ts_us` (the max over members, which is the next day's 00:00 UTC on complete days). Use a row only when available_ts_us ≤ decision_ts.
+- For 2020-12-18..2025-09-30 (2,517,120 minutes, 1,748 days):
+  - premium has 2,517,054/2,517,120 minutes, with 4 incomplete days: 2022-07-12, 2022-07-13, 2023-11-10 and 2024-08-12.
+  - index has 2,517,113/2,517,120 minutes, with 2 incomplete days: 2022-07-12 and 2024-08-12.
+- Source note: 3,633 premium bars are all zero (OHLC = 0), all of them in 2020-01..2020-11 and none in 2020-12-18..2025-09-30. They are present in the Vision source as published; for example, 2020-01 has 7/7 matching rows with the raw CSV. Treat them as missing values, not as a premium of 0.
+
+## Coverage exclusions (`coverage_exclusions`, `coverage_excluded_days`, `coverage-exclusions.csv`, v0.4)
+- There is one row per open real source gap in mark, index and premium 1m: 18 records (mark 3, index 4, premium 11) with 316 missing minutes. kline_1m has none.
+- Columns: `dataset, view_name, date, first_missing_open_us, last_missing_open_us, missing_minutes, source_status`. Missing bar opens are UTC and inclusive.
+- `source_status` is `known_source_absence` on every row: the bars are absent from the checksum-verified Vision monthly archive. The daily archive was checked only for mark 2024-08-12, where the bars are also absent.
+- Gaps stay gaps: nothing is filled or interpolated.
+- `coverage_excluded_days` gives `(view_name, date)` for every UTC day touched by a gap. Totals are mark 3 days, index 4 days and premium 8 days.
+- Within 2020-12-18..2025-09-30 it covers mark 1 day, index 2 days and premium 4 days. A consumer should score a day with an exclusion as excluded instead of aborting.
+- `coverage-exclusions.csv` next to the SQL is the same table, exported for readers without DuckDB.
 
 ## Gaps
 Ledger: `/workspace/data/parangsae/runs/gap-resolutions-2026-10-23.csv` (gap records in the store are not modified).

@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "sim",
+    "execution",
+]
+
+[replace]
+"parangsae-execution:0.0.0" = { path = "execution" }
