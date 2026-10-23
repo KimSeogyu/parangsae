@@ -4,7 +4,8 @@ mod support;
 
 use parangsae_backtest::fixture::{FlipEveryN, Recorder};
 use parangsae_backtest::run;
-use parangsae_core::Price;
+use parangsae_backtest::{funding_visible, FundingObs};
+use parangsae_core::{Price, Ratio, UtcMicros};
 use proptest::prelude::*;
 use support::{at, btc, cfg, costs, series, tape_of};
 
@@ -72,5 +73,31 @@ proptest! {
         let without = run(&tape, &mut free, &costs(0, 0), &cfg(&bars, 1_000_000)).unwrap();
         prop_assert!(!with_fee.fills.is_empty());
         prop_assert!(with_fee.equity_end().unwrap().0 < without.equity_end().unwrap().0);
+    }
+
+    #[test]
+    fn delayed_funding_is_hidden_despite_later_available_rows(
+        delays in prop::collection::vec(0i64..50, 1..20),
+        decision in 0i64..70,
+        future_rate in any::<i64>(),
+    ) {
+        let rows: Vec<_> = delays.into_iter().enumerate().map(|(index, delay)| {
+            let event = i64::try_from(index).unwrap();
+            FundingObs {
+                funding_time: UtcMicros::from_micros(event),
+                available: UtcMicros::from_micros(event + delay),
+                rate: Ratio::from_ticks(100),
+            }
+        }).collect();
+        let decision = UtcMicros::from_micros(decision);
+        let visible = funding_visible(&rows, decision);
+        prop_assert!(visible.iter().all(|row| row.available <= decision));
+        let mut mutated = rows.clone();
+        for row in &mut mutated {
+            if row.available > decision {
+                row.rate = Ratio::from_ticks(future_rate);
+            }
+        }
+        prop_assert_eq!(funding_visible(&mutated, decision), visible);
     }
 }
