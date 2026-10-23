@@ -95,3 +95,24 @@ Feature: Backtest engine v0
     Then the engine error is a missing mark
     When the T7 unlisted gap is run
     Then the engine error is a missing mark
+
+  Scenario: A delayed interior minute cannot reach the hourly signal
+    When an interior minute is unavailable until the next hour
+    Then the engine error is resample availability
+
+  Scenario Outline: A satisfied target cancels the pending entry after a filler hour
+    When a <kind> target follows an untraded hour
+    Then there are 0 fills
+    And refused orders are 1
+    And dropped orders are 0
+
+    Examples:
+      | kind       |
+      | stale-flat |
+      | zero       |
+
+  Scenario: One unchanged pending order is refused only once across filler hours
+    When an unchanged target waits through two untraded hours
+    Then there are 1 fills
+    And fill 1 is buy at 100 USDT with fee 0
+    And refused orders are 1

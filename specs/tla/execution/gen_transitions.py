@@ -16,6 +16,8 @@ or changed vs v3, with its reason). V3_TABLE / V31_CHANGES below are hand
 transcriptions used ONLY for comparison; they are not read from TLC.
 """
 import json, re, sys, hashlib, collections
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 LOG = sys.argv[1] if len(sys.argv) > 1 else "tlc.log"
 OUT = sys.argv[2] if len(sys.argv) > 2 else "transitions.json"
@@ -154,12 +156,17 @@ checks = {
     "legal_cells_unreachable": [[c["state"], c["event"]] for c in cells if c["model_allowed"] and not [x for x in c["reached_results"] if x in STATES]],
     "legal_results_unreached": [[c["state"], c["event"], x] for c in cells for x in c["unreached_allowed_results"] if [y for y in c["reached_results"] if y in STATES]],
 }
+print(json.dumps(checks, indent=1))
+ok = (checks["tlc_completed_without_error"] and checks["cell_count_ok"] and checks["cells_unique"]
+      and not dups and checks["triples_unique"] and checks["all_cells_match_v31_expected"] and not removed)
+if not ok:
+    sys.exit(1)
+
 doc = {"model": "OrderLifecycle.tla (v3.1)",
        "sources": {"tlc_log": LOG, "tlc_log_sha256": hashlib.sha256(open(LOG, "rb").read()).hexdigest()},
        "derivation": __doc__.strip(),
        "checks": checks, "cells": cells,
        "triples": [{"state": s, "event": e, "next": t} for s, e, t in triples]}
-json.dump(doc, open(OUT, "w"), indent=1)
 
 fmt = lambda x: "—" if x is None else ("{}" if not x else "{" + ", ".join(sorted(x)) + "}")
 L = ["# transitions: v3 → v3.1", "",
@@ -176,8 +183,10 @@ for n, c in enumerate(diff, 1):
              f"{c['reason']} | {', '.join(c['reached_results']) or 'none'} | {why} |")
 L += ["", "No cell was removed: all 108 v3 cells are present in v3.1; 104 of them are unchanged."
       if not removed and checks['cells_vs_v3']['changed'] == 4 else f"Removed: {removed}"]
-open(DIFF, "w").write("\n".join(L) + "\n")
-print(json.dumps(checks, indent=1))
-ok = (checks["cell_count_ok"] and checks["cells_unique"] and not dups and checks["triples_unique"]
-      and checks["all_cells_match_v31_expected"] and not removed)
-sys.exit(0 if ok else 1)
+# Stage both files before replacing trusted evidence, on each destination's filesystem.
+with TemporaryDirectory(dir=Path(OUT).parent) as out_tmp, TemporaryDirectory(dir=Path(DIFF).parent) as diff_tmp:
+    staged_out, staged_diff = Path(out_tmp) / "transitions.json", Path(diff_tmp) / "diff.md"
+    staged_out.write_text(json.dumps(doc, indent=1), encoding="utf-8")
+    staged_diff.write_text("\n".join(L) + "\n", encoding="utf-8")
+    staged_out.replace(OUT)
+    staged_diff.replace(DIFF)

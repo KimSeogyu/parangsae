@@ -520,3 +520,41 @@ pub fn p7_base() -> (Vec<parangsae_core::Bar>, Vec<FundingStamp>) {
     let funding = vec![stamp_at(at(8, 0), at(13, 30), 1_000)];
     (bars, funding)
 }
+
+/// A pending entry survives filler bars until a new hourly decision supersedes it.
+pub fn filler_hour_targets(steps: Vec<Option<Decision>>, filler_hours: usize) -> Report {
+    let mut bars = hours(at(12, 0), filler_hours + 2, 100);
+    let marks = bars.clone();
+    for bar in &mut bars[60..60 * (filler_hours + 1)] {
+        bar.count = 0;
+        bar.volume = Qty::from_ticks(0).unwrap();
+    }
+    execute(
+        bars,
+        marks,
+        Vec::new(),
+        steps,
+        10_000,
+        Vec::new(),
+        Vec::new(),
+    )
+    .unwrap()
+    .0
+}
+
+pub fn delayed_interior_minute() -> EngineError {
+    let mut bars = hours(at(12, 0), 1, 100);
+    let marks = bars.clone();
+    bars[30].high = px(999);
+    bars[30].available = UtcMicros::from_micros(at(14, 0));
+    execute(
+        bars,
+        marks,
+        Vec::new(),
+        vec![Some(tgt(0.0))],
+        10_000,
+        Vec::new(),
+        Vec::new(),
+    )
+    .unwrap_err()
+}

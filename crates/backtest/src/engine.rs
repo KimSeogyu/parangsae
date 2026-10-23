@@ -379,7 +379,9 @@ pub fn run_targets<S: TargetSignal>(
                 let diff = lots
                     .checked_sub(ledger.position().0)
                     .ok_or(EngineError::Sim(SimError::Overflow))?;
-                if diff != 0 {
+                if diff == 0 {
+                    pending = None;
+                } else {
                     let side = if diff > 0 { Side::Buy } else { Side::Sell };
                     let qty_ticks = diff
                         .checked_abs()
@@ -387,8 +389,13 @@ pub fn run_targets<S: TargetSignal>(
                     let qty = Qty::from_ticks(qty_ticks)
                         .map_err(|_| EngineError::Sim(SimError::Negative))?;
                     if window[index + 1..].iter().any(|next| next.count > 0) {
-                        pending = Some(HeldOrder::new(MarketOrder { side, qty }));
+                        let order = MarketOrder { side, qty };
+                        // An unchanged order retains its one-refusal history.
+                        if !pending.as_ref().is_some_and(|held| held.order == order) {
+                            pending = Some(HeldOrder::new(order));
+                        }
                     } else {
+                        pending = None;
                         dropped_orders += 1;
                     }
                 }

@@ -190,6 +190,47 @@ fn t7_unlisted_step(world: &mut EngineWorld) {
     world.error = Some(t7(2, 3, false, true).expect_err("unlisted gap"));
 }
 
+#[when("an interior minute is unavailable until the next hour")]
+fn delayed_minute_step(world: &mut EngineWorld) {
+    world.error = Some(cases::delayed_interior_minute());
+}
+
+#[then("the engine error is resample availability")]
+fn err_available(world: &mut EngineWorld) {
+    assert!(matches!(
+        world.error,
+        Some(EngineError::Resample(
+            parangsae_core::ResampleError::Available { .. }
+        ))
+    ));
+}
+
+#[when(regex = r"^a (stale-flat|zero) target follows an untraded hour$")]
+fn superseded_step(world: &mut EngineWorld, kind: String) {
+    let flat = if kind == "stale-flat" {
+        cases::stale()
+    } else {
+        cases::tgt(0.0)
+    };
+    keep(
+        world,
+        cases::filler_hour_targets(vec![Some(cases::tgt(1.0)), Some(flat), Some(flat)], 1),
+    );
+}
+
+#[when("an unchanged target waits through two untraded hours")]
+fn unchanged_step(world: &mut EngineWorld) {
+    keep(
+        world,
+        cases::filler_hour_targets(vec![Some(cases::tgt(1.0)); 4], 2),
+    );
+}
+
+#[then(regex = r"^refused orders are (\d+)$")]
+fn refused(world: &mut EngineWorld, n: u64) {
+    assert_eq!(world.report().n_refused_fills, n);
+}
+
 #[then(regex = r"^there are (\d+) fills$")]
 fn fill_count(world: &mut EngineWorld, n: usize) {
     assert_eq!(world.report().fills.len(), n);

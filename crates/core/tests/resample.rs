@@ -124,3 +124,42 @@ proptest! {
         prop_assert_eq!(again, first);
     }
 }
+
+#[test]
+fn delayed_interior_minute_is_rejected() {
+    let start = 1_704_067_200_000_000;
+    let mut minutes = hour_of(start);
+    minutes[30].high = px(999);
+    minutes[30].available = UtcMicros::from_micros(start + 2 * 60 * MINUTE);
+    assert_eq!(
+        ResampledBar::from_minutes(&minutes, Interval::ONE_HOUR),
+        Err(ResampleError::Available {
+            expected: UtcMicros::from_micros(start + 31 * MINUTE),
+            got: minutes[30].available,
+        })
+    );
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(64))]
+
+    #[test]
+    fn unavailable_constituent_mutation_cannot_create_a_causal_bar(
+        h4 in any::<bool>(),
+        offset in 0usize..239,
+        high in 1_000i64..1_000_000,
+    ) {
+        let interval = if h4 { Interval::FOUR_HOURS } else { Interval::ONE_HOUR };
+        let width = usize::try_from(interval.micros() / MINUTE).unwrap();
+        let offset = offset % (width - 1); // Always before the final constituent.
+        let mut minutes: Vec<_> = (0..width)
+            .map(|i| minute(i64::try_from(i).unwrap() * MINUTE, 100, 200, 50, 150, 1))
+            .collect();
+        prop_assert!(ResampledBar::from_minutes(&minutes, interval).is_ok());
+        minutes[offset].available = UtcMicros::from_micros(interval.micros() + MINUTE);
+        let rejected = ResampledBar::from_minutes(&minutes, interval);
+        prop_assert!(matches!(rejected, Err(ResampleError::Available { .. })), "delayed constituent must be rejected");
+        minutes[offset].high = px(high);
+        prop_assert_eq!(ResampledBar::from_minutes(&minutes, interval), rejected);
+    }
+}
