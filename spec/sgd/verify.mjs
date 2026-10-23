@@ -34,7 +34,9 @@ async function step(label, executable, arguments_) {
       env: process.env,
     });
   } catch (error) {
-    const detail = error && typeof error === 'object' && 'stderr' in error ? String(error.stderr).trim() : String(error);
+    const detail = error && typeof error === 'object'
+      ? ['stdout', 'stderr'].filter(key => key in error).map(key => String(error[key]).trim()).filter(Boolean).join('\n')
+      : String(error);
     throw new Error(`${label} failed: ${detail.slice(-16_384) || String(error)}`);
   }
 }

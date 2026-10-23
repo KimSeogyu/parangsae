@@ -20,7 +20,7 @@ The SDK dependency is fixed to a complete Git commit in `package.json`. The comm
 
 `verify` reruns controlled TLC builds, the finite input oracle, supported symbolic orbit checks, native source analysis, row-copy binding, and generation. It checks the existing managed output and receipts with `build --check`. It then checks the explicit abstract-to-concrete erasure with `refine --check` and compiles both generated TypeScript targets with the installed SDK's exact TypeScript 7.0.2 and `--noEmit`.
 
-Verification does not rewrite tracked generated output. It creates disposable analyzer/TLC work and a fresh Pele view at `.runtime/sgd-view/index.html`. The view contains the configured finite witnesses and supported symbolic relations for both models. The checked erasure is recorded separately in `generated/fact-erasure/refinement.json`; a visual link alone is not a refinement proof.
+Verification does not rewrite tracked generated output. It creates disposable analyzer/TLC work and a fresh Pele view at `.runtime/sgd-view/index.html`. The view contains the configured finite witnesses and supported symbolic relations for both models. Yellow dashed cards list numbered self-transition observations; they are annotations, not additional model states. The checked erasure is recorded separately in `generated/fact-erasure/refinement.json`; a visual link alone is not a refinement proof.
 
 ## Change a contract
 
@@ -43,7 +43,7 @@ Review the source, model, binding, generated native code, and receipt changes to
 | `generated/fact-erasure` | Enabled-input, action, and complete projected successor erasure |
 | `.runtime/sgd-view` at the application root | Disposable offline Pele rendering |
 
-For an SDK upgrade, change the exact Git revision, update the npm lockfile, install in a clean dependency directory, run `update`, and review all generated differences before running `verify`. To roll back, restore the previously reviewed SDK pin, lockfile, and generated artifacts together, then run `npm ci` and `verify`.
+For an SDK upgrade, change the exact Git revision, update the npm lockfile, install in a clean dependency directory, and run `verify` first. An upgrade that changes only the viewer should preserve every tracked generated artifact. If an intended compiler change requires regeneration, run `update` separately and review all generated differences before running `verify` again. To roll back, restore the previously reviewed SDK pin, lockfile, and generated artifacts together, then run `npm ci` and `verify`.
 
 ## Proposed CI activation
 
@@ -72,6 +72,10 @@ Independent implementation and architecture review found no concrete behavior re
 On 2026-10-24, the pinned Git dependency installed with its preparation step, and a subsequent `npm ci` succeeded using an empty task-local npm cache with SSH explicitly disabled. The installed SDK completed `update` and `verify` against this application. The verification command rejected a modified generated abstract owner with `TLC104`; after restoration it passed and preserved every managed artifact. The installed-SDK update preserved the existing v5 native code and stable artifacts. Pele rendered all four model views.
 
 This trial used macOS arm64, Node.js 26.0.0, npm 11.12.1, and the already installed Java 17.0.9. The proposed CI environment uses Node.js 24 and Java 21; that workflow remains unactivated and this local trial does not establish its result or a fully fresh operating-system installation.
+
+A subsequent maintenance trial upgraded the installed SDK to the exact viewer-fix revision in `package.json`, repeated locked installation, and ran default `verify` without `update`. Every tracked generated artifact retained its exact bytes, including native code, the source-binding plan, build receipts, and erasure evidence. The freshly rendered viewer kept the exact four input models, laid out `Same` and repeated `Clash` observations in measured annotation cards, and retained intrinsic SVG dimensions without responsive width clamping. Application source and models were unchanged. SDK CI was pending when this local trial completed. The pinned source revision subsequently passed [its full Linux SDK workflow](https://github.com/KimSeogyu/specification-guided-development/actions/runs/40022244563), including the copied native plugin checks.
+
+The initial verification-entry-point trial needed one TypeScript 7 integration correction: the package exports do not expose `typescript/bin/tsc`. The command now resolves the exported package metadata and uses its declared `bin.tsc` entry point. A later diagnostic check exercised a child failure reported only on stdout and confirmed that the entry point retains that output. These interventions changed the verification integration, not the application contract. This maintenance trial exercised the application's pinned SDK workflow; installed Codex and Claude Code plugin upgrades remain separate acceptance work.
 
 ## Guarantee boundary
 
