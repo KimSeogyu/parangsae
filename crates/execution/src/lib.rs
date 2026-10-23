@@ -13,6 +13,7 @@ mod config;
 mod error;
 mod ids;
 mod lifecycle;
+mod paper;
 
 pub use authority::{Elapsed, Mono, NotFoundAuthority};
 pub use book::{Alert, BookError, HaltCause, HaltEpoch, HaltSink, OrderBook};
@@ -22,4 +23,7 @@ pub use ids::{Attempt, ClientOrderId, IdError, IntentId, MaxAttempts};
 pub use lifecycle::{
     transition, CellContext, Event, OrderProgress, OrderState, ProgressError, ProgressRestore,
     TransitionError, ValidatedEvent,
+};
+pub use paper::{
+    PaperAck, PaperOrder, PaperRefusal, PaperVenue, Reservation, SimKey, Venue, VenueError,
 };
