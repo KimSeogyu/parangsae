@@ -103,6 +103,7 @@ pub fn cfg(bars: &[Bar], initial_usdt: i64) -> RunConfig {
         end: UtcMicros::from_micros(bars.last().unwrap().open_time.micros() + 60_000_000),
         holdout_start: UtcDate::parse("2025-10-01").unwrap().start_us(),
         forced_flat: Vec::new(),
+        flatten_before: None,
         mark_gaps: Vec::new(),
         interval: Interval::ONE_HOUR,
         lot_ticks: 100_000,

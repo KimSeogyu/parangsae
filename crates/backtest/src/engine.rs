@@ -8,7 +8,6 @@ use parangsae_core::{AvailableTs, EventTs, ReceivedTs};
 use parangsae_sim::{Cash, Costs, Fill, FundingEvent, Ledger, MarketOrder, SimError};
 
 use crate::bar::{Bar, BarView, FundingStamp, Strategy, Tape, ONE_MINUTE_US};
-use crate::date::UtcDate;
 use crate::error::EngineError;
 use crate::metrics::{
     fill_notional_ticks, max_drawdown, sharpe_ticks, total_return, turnover_ticks,
@@ -171,6 +170,10 @@ where
 ///
 /// Bars from `cfg.warmup_start` through `cfg.start` are in the signal's causal
 /// prefix. That span has no decision, fill, funding settlement, or equity point.
+///
+/// `cfg.flatten_before` chooses the window-end flatten. The fill is the open of
+/// the last scored minute before that instant with `count > 0`. `None` does not
+/// add one.
 pub fn run_targets<S: TargetSignal>(
     tape: &Tape,
     signal: &mut S,
@@ -210,7 +213,7 @@ pub fn run_targets<S: TargetSignal>(
                 .map(|bar| bar.open_time)
         })
         .collect();
-    let end_open = sample_end_open();
+    let window_flat = window_flat_open(window, cfg);
 
     let mut ledger = Ledger::new(cfg.initial_cash);
     let mut book = Book::default();
@@ -246,7 +249,7 @@ pub fn run_targets<S: TargetSignal>(
                 window,
                 index,
             )?;
-            if bar.open_time == end_open || forced_opens.contains(&bar.open_time) {
+            if window_flat == Some(bar.open_time) || forced_opens.contains(&bar.open_time) {
                 pending = flatten_order(&ledger)?;
             }
             if let Some(order) = pending.take() {
@@ -320,7 +323,13 @@ pub fn run_targets<S: TargetSignal>(
                 let inside = cfg
                     .forced_flat
                     .iter()
-                    .any(|range| decision >= range.start && decision < range.end);
+                    .any(|range| decision >= range.start && decision < range.end)
+                    || window_flat.is_some_and(|open| {
+                        bar.open_time >= open
+                            && cfg
+                                .flatten_before
+                                .is_some_and(|limit| bar.open_time < limit)
+                    });
                 let lots = match output.decision {
                     Decision::Flat(FlatReason::FundingStale) => {
                         flat_funding_stale += 1;
@@ -439,6 +448,9 @@ pub struct RunConfig {
     pub end: UtcMicros,
     pub holdout_start: UtcMicros,
     pub forced_flat: Vec<UtcRange>,
+    /// Flatten on the last scored minute before this instant with `count > 0`.
+    /// `None` does not add a window-end flatten.
+    pub flatten_before: Option<UtcMicros>,
     pub mark_gaps: Vec<MarkAbsence>,
     pub interval: Interval,
     pub lot_ticks: i64,
@@ -640,11 +652,12 @@ fn refuse_holdout(tape: &Tape, cfg: &RunConfig) -> Result<(), EngineError> {
     Ok(())
 }
 
-fn sample_end_open() -> UtcMicros {
-    let holdout = UtcDate::parse("2025-10-01")
-        .expect("2025-10-01 is a valid date")
-        .start_us();
-    UtcMicros::from_micros(holdout.micros() - ONE_MINUTE_US)
+fn window_flat_open(window: &[Bar], cfg: &RunConfig) -> Option<UtcMicros> {
+    let end = cfg.flatten_before?;
+    window
+        .iter()
+        .rfind(|bar| bar.open_time >= cfg.start && bar.open_time < end && bar.count > 0)
+        .map(|bar| bar.open_time)
 }
 
 struct FundingPass<'a> {

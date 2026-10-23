@@ -57,6 +57,7 @@ fn run_smoke() -> Result<(), String> {
         end: to.next().start_us(),
         holdout_start: holdout,
         forced_flat: Vec::new(),
+        flatten_before: None,
         mark_gaps: Vec::new(),
         interval: Interval::ONE_HOUR,
         lot_ticks: 100_000,

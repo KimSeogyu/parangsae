@@ -9,9 +9,10 @@
 //! Bars from `warmup_start_us` are fed to the signal. There is no decision,
 //! fill, funding settlement, or equity point before `start_us`.
 //!
-//! Forced flat fills at the last scored minute's open, not at that minute's
-//! mark close. [`forced_flat_at`] is `[end - 1 minute, end)`. The engine
-//! flattens on the first non-filler open in that minute and pays `costs`.
+//! Forced flat fills at the open of the last minute before the window end with
+//! `count > 0`, not at that minute's mark close and not at a hardcoded
+//! sample-end instant. The closure sets [`RunConfig::flatten_before`] to the
+//! scored `end_us` and pays `costs`. [`forced_flat_at`] is `[end - 1 minute, end)`.
 //!
 //! Train selection uses only that fold's train annual Sharpe from
 //! [`sharpe_ticks`] at the costs from [`selection_costs`] (5 bps fee, 2 bps
@@ -183,9 +184,11 @@ impl Fold {
     }
 }
 
-/// Last minute of a scored window. The fill is that minute's open, not its
-/// mark close. The engine flattens on the first non-filler open at or after
-/// `start`, which is that minute when the tape is a 1m grid.
+/// Last minute of a scored window, `[end - 1 minute, end)`.
+///
+/// The fill itself is not this range. Set [`RunConfig::flatten_before`] to
+/// `end`. The engine fills at the open of the last minute before that instant
+/// with `count > 0`, which is this minute when that minute has trades.
 pub fn forced_flat_at(end: UtcMicros) -> Result<UtcRange, ScheduleError> {
     let start = end
         .micros()
@@ -985,6 +988,7 @@ fn config_identity<C>(
             end: bounds.end,
             holdout_start: ctx.holdout_start,
             forced_flat: Vec::new(),
+            flatten_before: None,
             mark_gaps: Vec::new(),
             interval: Interval::ONE_HOUR,
             lot_ticks: 100_000,

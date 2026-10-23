@@ -773,6 +773,7 @@ mod tests {
                 end: UtcMicros::from_micros(2),
                 holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
                 forced_flat: Vec::new(),
+                flatten_before: None,
                 mark_gaps: Vec::new(),
                 interval: Interval::ONE_HOUR,
                 lot_ticks: 100_000,

@@ -184,6 +184,7 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
             end: identity.end,
             holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
             forced_flat: Vec::new(),
+            flatten_before: None,
             mark_gaps: Vec::new(),
             interval: Interval::ONE_HOUR,
             lot_ticks: 100_000,
@@ -458,6 +459,7 @@ fn s01_logs_twelve_config_trials_not_one_per_fold() {
             end: bounds.end,
             holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
             forced_flat: Vec::new(),
+            flatten_before: None,
             mark_gaps: Vec::new(),
             interval: Interval::ONE_HOUR,
             lot_ticks: 100_000,
@@ -691,6 +693,7 @@ fn run_toy(dir: &Path) -> (WalkForward, Vec<Seen>, String) {
             config.end = UtcMicros::from_micros(end);
             config.initial_cash = initial;
             config.forced_flat = vec![forced_flat_at(config.end).unwrap()];
+            config.flatten_before = Some(config.end);
             let fraction = if *side > 0 { 1.0 } else { -1.0 };
             let mut signal = Bias {
                 target: Target::from_f64(fraction).unwrap(),
@@ -854,6 +857,7 @@ fn window_net(
     config.end = UtcMicros::from_micros(end);
     config.initial_cash = initial;
     config.forced_flat = vec![forced_flat_at(config.end).unwrap()];
+    config.flatten_before = Some(config.end);
     let fraction = if side > 0 { 1.0 } else { -1.0 };
     let mut signal = Bias {
         target: Target::from_f64(fraction).unwrap(),
@@ -918,6 +922,7 @@ fn warmup_changes_the_first_decision_and_is_not_scored() {
             config.end = UtcMicros::from_micros(end);
             config.initial_cash = initial;
             config.forced_flat = vec![forced_flat_at(config.end).unwrap()];
+            config.flatten_before = Some(config.end);
             let mut signal = Spike;
             let report = run_targets(&tape, &mut signal, costs, &config)?;
             if start == train_start && costs.taker_fee.0 == 5 && costs.slippage.0 == 2 {
@@ -967,6 +972,7 @@ fn warmup_changes_the_first_decision_and_is_not_scored() {
     cold.end = UtcMicros::from_micros(train_start + DAY_US);
     cold.initial_cash = initial;
     cold.forced_flat = vec![forced_flat_at(cold.end).unwrap()];
+    cold.flatten_before = Some(cold.end);
     let cold_report = run_targets(&tape, &mut Spike, &selection_costs(), &cold).unwrap();
     let cold_ticks = cold_report
         .signal_outputs
@@ -976,6 +982,80 @@ fn warmup_changes_the_first_decision_and_is_not_scored() {
         .target_ticks();
     assert!(cold_ticks < 0);
     assert_ne!(warmed_ticks, cold_ticks);
+}
+
+#[test]
+fn a_mid_history_window_flattens_on_the_last_traded_minute() {
+    let start_us = date("2022-06-14").start_us().micros();
+    let minutes = 2 * 1_440;
+    let bars: Vec<_> = (0..minutes)
+        .map(|minute| {
+            let day = minute / 1_440;
+            let price = px(if day == 0 { 500 } else { 100 });
+            let mut bar = bar_at(start_us + minute * MINUTE_US, price, price);
+            if minute + 1 == minutes {
+                bar.count = 0;
+            }
+            bar
+        })
+        .collect();
+    let last_open = bars.last().unwrap().open_time.micros();
+    assert_eq!(
+        last_open,
+        date("2022-06-15").start_us().micros() + DAY_US - MINUTE_US
+    );
+    assert_eq!(bars[bars.len() - 1].count, 0);
+    assert_eq!(bars[bars.len() - 2].count, 1);
+    let mut funding = Vec::new();
+    let mut ts = start_us;
+    let step = 8 * 3_600_000_000;
+    while ts <= last_open {
+        funding.push(stamp(ts, 100_000));
+        ts += step;
+    }
+    let tape = tape_marked(bars.clone(), bars, funding);
+    let scored = date("2022-06-15").start_us();
+    let end = date("2022-06-16").start_us();
+    let flat_open = end.micros() - 2 * MINUTE_US;
+    let initial = usd(10_000);
+    let mut config = cfg(&tape.bars, 10_000);
+    config.warmup_start = UtcMicros::from_micros(start_us);
+    config.start = scored;
+    config.end = end;
+    config.initial_cash = initial;
+    config.forced_flat.clear();
+    config.flatten_before = Some(end);
+
+    let report = run_targets(&tape, &mut Spike, &selection_costs(), &config).unwrap();
+    let first = report.signal_outputs.first().expect("decision").decision;
+    assert!(first.target_ticks() > 0);
+    assert!(report
+        .signal_outputs
+        .iter()
+        .all(|output| output.bar_close_time_us >= scored));
+    assert!(report.fills.iter().all(|fill| fill.ts >= scored));
+    assert!(report
+        .equity_curve
+        .iter()
+        .all(|(ts, _)| ts.micros() >= scored.micros()));
+    let exit = report.fills.last().expect("flatten fill");
+    assert_eq!(exit.ts.micros(), flat_open);
+    assert_eq!(exit.side, Side::Sell);
+    assert!(report
+        .fills
+        .iter()
+        .all(|fill| fill.ts.micros() != last_open));
+    assert!(report.trades.iter().all(|trade| trade.close_ts.is_some()));
+    assert!(!report.trades.is_empty());
+
+    let mut held = config.clone();
+    held.flatten_before = None;
+    let held = run_targets(&tape, &mut Spike, &selection_costs(), &held).unwrap();
+    assert!(held.fills.iter().any(|fill| fill.side == Side::Buy));
+    assert!(held
+        .fills
+        .iter()
+        .all(|fill| fill.ts.micros() != flat_open && fill.ts.micros() != last_open));
 }
 
 struct Spike;

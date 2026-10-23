@@ -407,17 +407,11 @@ pub fn ff2() -> Report {
 pub fn e1() -> Report {
     let start = on("2025-09-30", 22, 0);
     let bars = hours(start, 2, 100);
-    execute(
-        bars.clone(),
-        bars,
-        Vec::new(),
-        vec![Some(tgt(1.0)), Some(stale())],
-        100,
-        Vec::new(),
-        Vec::new(),
-    )
-    .expect("e1")
-    .0
+    let mut config = cfg(&bars, 100);
+    config.flatten_before = Some(config.end);
+    let tape = tape_marked(bars.clone(), bars, Vec::new());
+    let mut signal = Script::new(vec![Some(tgt(1.0)), Some(stale())]);
+    run_targets(&tape, &mut signal, &costs(0, 0), &config).expect("e1")
 }
 
 pub fn h2() -> EngineError {

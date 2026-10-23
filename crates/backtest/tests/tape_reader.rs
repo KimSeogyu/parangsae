@@ -73,6 +73,7 @@ fn assert_three_bars(tape: &Tape) {
             end: UtcDate::parse(DAY).unwrap().next().start_us(),
             holdout_start: UtcDate::parse("2025-10-01").unwrap().start_us(),
             forced_flat: Vec::new(),
+            flatten_before: None,
             mark_gaps: Vec::new(),
             interval: Interval::ONE_HOUR,
             lot_ticks: 100_000,
