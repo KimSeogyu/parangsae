@@ -40,7 +40,7 @@ const HOUR_US: i64 = 3_600_000_000;
 /// Equity and position at one decision. `mark_ticks` is the decision close.
 ///
 /// Signed weight is `position_lots * mark_ticks / equity_ticks`, toward zero.
-/// That close stands in for the next 1m open, which is the fill price.
+/// The close marks the decision book; order quantity uses the actual fill price.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DecisionBook {
     pub equity_ticks: i64,

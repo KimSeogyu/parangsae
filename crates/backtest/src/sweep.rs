@@ -791,6 +791,13 @@ impl<'a> FamilySignal<'a> {
 }
 
 impl TargetSignal for FamilySignal<'_> {
+    fn decision_delay_us(&self) -> i64 {
+        if matches!(self.family.as_str(), "H4" | "H5") {
+            1_000
+        } else {
+            0
+        }
+    }
     fn on_warmup_bar(
         &mut self,
         bars: Causal<'_, &[ResampledBar]>,
@@ -1870,11 +1877,17 @@ mod tests {
         );
         let scored = ft + 24 * hour;
         let warm = run_family(&tape, "H4", &params, start, scored, end);
-        assert!(warm
-            .signal_outputs
-            .iter()
-            .all(|output| output.decision.target_ticks() == 0));
-        assert!(warm.fills.is_empty(), "{:?}", warm.fills);
+        assert_eq!(
+            warm.signal_outputs[0].decision_ts.micros().micros(),
+            scored + 1_000
+        );
+        assert_eq!(warm.signal_outputs[0].decision.target_ticks(), -100_000_000);
+        assert_eq!(warm.fills[0].ts.micros(), scored + 60_000_000);
+        let late = run_family(&tape, "H4", &params, start, scored + 60_000_000, end);
+        assert!(
+            late.fills.is_empty(),
+            "a decision inside warmup must not arm a hold"
+        );
     }
 
     #[test]
@@ -1922,12 +1935,19 @@ mod tests {
                 .any(|output| output.decision.target_ticks() == -100_000_000),
             "a rich premium day is short"
         );
-        let warm = run_family(&tape, "H5", &params, decision_open, end - hour, end);
-        assert!(warm
-            .signal_outputs
-            .iter()
-            .all(|output| output.decision.target_ticks() == 0));
-        assert!(warm.fills.is_empty(), "{:?}", warm.fills);
+        let scored = end - hour;
+        let warm = run_family(&tape, "H5", &params, decision_open, scored, end);
+        assert_eq!(
+            warm.signal_outputs[0].decision_ts.micros().micros(),
+            scored + 1_000
+        );
+        assert_eq!(warm.signal_outputs[0].decision.target_ticks(), -100_000_000);
+        assert_eq!(warm.fills[0].ts.micros(), scored + minute);
+        let late = run_family(&tape, "H5", &params, decision_open, scored + minute, end);
+        assert!(
+            late.fills.is_empty(),
+            "a decision inside warmup must not arm a hold"
+        );
     }
 
     fn assert_warmup_differs_and_stays_flat(

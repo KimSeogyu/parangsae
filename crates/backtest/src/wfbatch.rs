@@ -25,7 +25,7 @@ use serde::Serialize;
 
 use crate::batch::{canonical_config_id, SweepPins, TrialSpec, HOLDOUT_START_US};
 use crate::engine::RunConfig;
-use crate::metrics::{max_drawdown, total_return};
+use crate::metrics::total_return;
 use crate::sweep::{load_configs, load_pinned_tape, ConfigRow};
 use crate::walkforward::{
     btcusdt_schedule, run_walk_forward, selection_costs, FamilyGrid, FamilyOutput, GridPoint,
@@ -194,13 +194,26 @@ pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
         initial_cash: Cash(cash),
         holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
     };
-    let result = run_walk_forward(
+    let mut result = run_walk_forward(
         &families,
         &ctx,
         &selection_costs(),
         |config, warmup, start, end, costs| fold.run_scored(config, warmup, start, end, costs),
     )
     .map_err(|err| err.to_string())?;
+    for (family, output) in families.iter().zip(&mut result.families) {
+        if family.family == "H2" {
+            output.h2_member_sharpes = h2_member_diagnostics(&family.folds, cash, |config, f| {
+                fold.run_scored(
+                    config,
+                    f.test_warmup.start.micros(),
+                    f.test.start.micros(),
+                    f.test.end.micros(),
+                    &selection_costs(),
+                )
+            })?;
+        }
+    }
     write_oos(
         &request.out_dir,
         &result,
@@ -216,6 +229,34 @@ pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
         &request.ledger,
     )?;
     Ok(())
+}
+
+/// Fixed member diagnostics use the blend's folds and headline costs. They do
+/// not call the trial ledger and cannot enter selection.
+fn h2_member_diagnostics(
+    folds: &[crate::Fold],
+    cash: i64,
+    mut run: impl FnMut(&WindowConfig, &crate::Fold) -> Result<crate::WindowResult, String>,
+) -> Result<Vec<Option<i64>>, String> {
+    let mut sharpes = Vec::with_capacity(12);
+    for params in parangsae_strategies::h2_member_params() {
+        let config = WindowConfig {
+            family: "S01".into(),
+            params,
+            initial_cash: cash,
+        };
+        let mut daily = Vec::new();
+        for fold in folds {
+            daily.extend(run(&config, fold)?.daily_returns);
+        }
+        sharpes.push(
+            crate::metrics::sharpe_of_return_ticks(&daily)
+                .map_err(|e| e.to_string())?
+                .1
+                .map(|v| v.ticks()),
+        );
+    }
+    Ok(sharpes)
 }
 
 fn warmup_by_family(
@@ -522,7 +563,7 @@ fn family_file(
             slippage_bps: row.slippage_bps,
             total_return_ticks: metrics.total_return_ticks,
             sharpe_annual_ticks: metrics.sharpe_annual_ticks,
-            max_drawdown_ticks: metrics.max_drawdown_ticks,
+            max_drawdown_ticks: row.max_dd_ticks,
             turnover_ticks: metrics.turnover_ticks,
             net_result_ticks: row.net_result_ticks,
             round_trips: row.round_trips,
@@ -567,12 +608,13 @@ fn family_file(
         fold_flat: shadow.fold_flat.clone(),
     });
     Ok(FamilyFile {
+        h2_member_sharpes: family.h2_member_sharpes.clone(),
         family: family.family.clone(),
         n_trials: family.n_trials,
         warmup_days,
         total_return_ticks: metrics.total_return_ticks,
         sharpe_annual_ticks: metrics.sharpe_annual_ticks,
-        max_drawdown_ticks: metrics.max_drawdown_ticks,
+        max_drawdown_ticks: headline.max_dd_ticks,
         turnover_ticks: metrics.turnover_ticks,
         round_trips: headline.round_trips,
         daily_returns: headline.daily_returns.clone(),
@@ -633,7 +675,6 @@ fn avg_hold_us(hold_us_sum: i64, round_trips: u64) -> Result<i64, String> {
 struct OosMetrics {
     total_return_ticks: i64,
     sharpe_annual_ticks: Option<i64>,
-    max_drawdown_ticks: i64,
     turnover_ticks: i64,
 }
 
@@ -646,12 +687,10 @@ fn oos_metrics(
     let path = compound(initial, returns)?;
     let end = path.last().copied().ok_or("oos path is empty")?;
     let total = total_return(Cash(initial), Cash(end)).map_err(|err| err.to_string())?;
-    let drawdown = max_drawdown(&path.iter().copied().map(Cash).collect::<Vec<_>>())
-        .map_err(|err| err.to_string())?;
     Ok(OosMetrics {
         total_return_ticks: total.ticks(),
         sharpe_annual_ticks,
-        max_drawdown_ticks: drawdown.ticks(),
+
         turnover_ticks,
     })
 }
@@ -697,6 +736,7 @@ struct FamilyFile {
     #[serde(skip_serializing_if = "Option::is_none")]
     stay_flat_shadow: Option<ShadowFile>,
     fee_replays: Vec<ReplayFile>,
+    h2_member_sharpes: Vec<Option<i64>>,
 }
 
 #[derive(Serialize)]
@@ -791,8 +831,10 @@ mod tests {
             accounting: crate::walkforward::WindowAccounting::ZERO,
         };
         let family = FamilyOutput {
+            h2_member_sharpes: Vec::new(),
             family: "S01".to_owned(),
             folds: vec![FoldOutcome {
+                cost_replays: Vec::new(),
                 fold_index: 1,
                 train: Vec::new(),
                 test: vec![segment()],
@@ -887,8 +929,10 @@ mod tests {
         test.config_id = "cfg-b".to_owned();
         test.trial_id = "trial-b".to_owned();
         let family = FamilyOutput {
+            h2_member_sharpes: Vec::new(),
             family: "S01".to_owned(),
             folds: vec![FoldOutcome {
+                cost_replays: Vec::new(),
                 fold_index: 1,
                 train: vec![train, earlier],
                 test: vec![test],
@@ -941,5 +985,36 @@ S01,cfg-b,trial-b,1,1,OOS_fold_1,2022-01-19,3
             max_dd_ticks: 0,
             accounting: crate::walkforward::WindowAccounting::ZERO,
         }
+    }
+    #[test]
+    fn qr1_all_twelve_members_are_replayed_on_identical_test_folds() {
+        let folds = crate::btcusdt_schedule(crate::WARMUP_DAYS).unwrap();
+        let mut calls = 0;
+        let mut members = std::collections::BTreeSet::new();
+        let values = super::h2_member_diagnostics(&folds, 1_000_000_000, |config, fold| {
+            calls += 1;
+            assert_eq!(config.family, "S01");
+            assert_eq!(config.params["deadband"], 1);
+            members.insert((
+                config.params["interval"],
+                config.params["n"],
+                config.params["c"],
+            ));
+            assert!(fold.test.start >= fold.train.end);
+            Ok(crate::WindowResult {
+                daily_returns: vec![1_000_000, -500_000],
+                equity_ticks: vec![1_000_000_000, 1_010_000_000, 1_004_950_000],
+                net_result_ticks: 4_950_000,
+                round_trips: 1,
+                fill_notional_ticks: 0,
+                max_dd_ticks: 0,
+                accounting: crate::WindowAccounting::ZERO,
+            })
+        })
+        .unwrap();
+        assert_eq!(calls, 12 * folds.len());
+        assert_eq!(members.len(), 12);
+        assert_eq!(values.len(), 12);
+        assert!(values.iter().all(Option::is_some));
     }
 }

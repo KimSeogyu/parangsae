@@ -14,10 +14,10 @@ use parangsae_sim::Cash;
 use crate::batch::SweepPins;
 use crate::canon::json_string;
 use crate::date::UtcDate;
-use crate::metrics::{max_drawdown, sharpe_of_return_ticks, total_return, turnover_ticks};
+use crate::metrics::{sharpe_of_return_ticks, total_return, turnover_ticks};
 use crate::stats::{
-    breakeven_fee, deflated_sharpe, dsr_hurdle_sr_ann, fee_slope_ticks, is_matrix, pbo_ticks,
-    skew_kurt, sr_var_ann_ticks, Breakeven,
+    breakeven_fee, cscv_gap_days, deflated_sharpe, dsr_hurdle_sr_ann, fee_slope_ticks, is_matrix,
+    pbo_ticks, skew_kurt, sr_var_ann_ticks, Breakeven,
 };
 use crate::trial_log::distinct_trial_count;
 use crate::walkforward::{
@@ -33,7 +33,7 @@ fee_bps,slip_bps,funding_on,days_T,total_return,sharpe_annual,sharpe_denominator
 sharpe_daily,skew,kurt,max_dd,turnover_ann,n_trades,avg_hold_h,exposure_pct,\
 n_refused_fills,fees_paid,slippage_cost,funding_net,fee_sens,breakeven_fee_bps,\
 n_global,sr_var_cross_trial,dsr_hurdle_sr_ann,dsr,pbo,gate_pass,selected_grid_index,\
-selected_config_id,S_j,n_rebalances,n_sign_changes,n_forced_exits";
+selected_config_id,S_j,n_rebalances,n_sign_changes,n_forced_exits,h2_member_sharpes,h2_member_median,h2_gate2prime";
 
 pub(crate) fn write_family_tables<C>(
     dir: &Path,
@@ -113,7 +113,9 @@ fn family_table<C>(
         None => 25_000_000,
     };
     let pbo = match &columns {
-        Some(columns) => pbo_ticks(columns).map_err(|_| "pbo overflowed")?,
+        Some(columns) => {
+            pbo_ticks(columns, cscv_gap_days(&output.family)).map_err(|_| "pbo overflowed")?
+        }
         None => None,
     };
     let (fee_sens, breakeven) = fee_cells(&output.fee_replays)?;
@@ -122,11 +124,19 @@ fn family_table<C>(
     for fold in &output.folds {
         let s_j = s_j_cell(fold);
         let (selected_index, selected_id) = selection_cells(fold);
-        for (train, run) in fold
+        for (train, run, fee, slip) in fold
             .train
             .iter()
-            .map(|run| (true, run))
-            .chain(fold.test.iter().map(|run| (false, run)))
+            .map(|run| (true, run, 5, 2))
+            .chain(fold.test.iter().map(|run| (false, run, 5, 2)))
+            .chain(fold.cost_replays.iter().map(|r| {
+                (
+                    matches!(r.segment, crate::walkforward::Segment::Train),
+                    &r.run,
+                    r.fee_bps,
+                    r.slippage_bps,
+                )
+            }))
         {
             let window = if train {
                 format!("IS_fold_{}", fold.fold_index)
@@ -149,6 +159,7 @@ fn family_table<C>(
                 },
                 &params,
                 &window,
+                (fee, slip),
                 &Selection {
                     s_j: &s_j,
                     selected_index: &selected_index,
@@ -235,6 +246,7 @@ fn segment_row(
     printed: &Printed<'_>,
     params: &str,
     window: &str,
+    costs: (u32, u32),
     selection: &Selection<'_>,
 ) -> Result<String, String> {
     let days = run.daily_returns.len();
@@ -259,8 +271,8 @@ fn segment_row(
         window,
         &date_string(run.start_us),
         &date_string(end),
-        "5",
-        "2",
+        &costs.0.to_string(),
+        &costs.1.to_string(),
         "true",
         &days.to_string(),
         &total,
@@ -292,6 +304,9 @@ fn segment_row(
         &run.accounting.n_rebalances.to_string(),
         &run.accounting.n_sign_changes.to_string(),
         &run.accounting.n_forced_exits.to_string(),
+        "",
+        "",
+        "",
     ]))
 }
 
@@ -314,8 +329,7 @@ fn stitched_row(
     };
     let initial = opening_cash(output)?;
     let total = compounded_return(initial, &replay.daily_returns)?;
-    let compounded_dd = compounded_drawdown(initial, &replay.daily_returns)?;
-    let max_dd = compounded_dd.max(replay.max_dd_ticks);
+    let max_dd = replay.max_dd_ticks;
     let headline = replay.fee_bps == 5 && replay.slippage_bps == 2;
     let (hurdle, dsr) = if let Some((skew_ticks, kurt_ticks)) = moments {
         let hurdle = dsr_hurdle_sr_ann(
@@ -399,6 +413,18 @@ fn stitched_row(
         &replay.accounting.n_rebalances.to_string(),
         &replay.accounting.n_sign_changes.to_string(),
         &replay.accounting.n_forced_exits.to_string(),
+        &output
+            .h2_member_sharpes
+            .iter()
+            .map(|v| opt_scale(*v))
+            .collect::<Vec<_>>()
+            .join(";"),
+        &opt_scale(h2_member_median(output)),
+        &if output.family == "H2" {
+            h2_gate2prime(output)?.to_string()
+        } else {
+            String::new()
+        },
     ]))
 }
 
@@ -488,7 +514,11 @@ fn gate_cell(
     let hurdle = dsr_hurdle_sr_ann(n_global, sr_var, days, skew, kurt)
         .map_err(|_| "dsr hurdle overflowed")?;
     let gate1 = hurdle.is_some_and(|level| sharpe >= level);
-    let gate2 = pbo.is_some_and(|value| value <= 20_000_000);
+    let gate2 = if output.family == "H2" {
+        h2_gate2prime(output)?
+    } else {
+        pbo.is_some_and(|value| value <= 20_000_000)
+    };
     let initial = opening_cash(output)?;
     let total = compounded_return_ticks(initial, &headline.daily_returns)?;
     let sharpe6 = annual_ticks(&six.daily_returns)?.unwrap_or(0);
@@ -501,7 +531,51 @@ fn gate_cell(
             .saturating_sub(headline.accounting.n_forced_exits)
             >= 100
     };
-    Ok((gate1 && gate2 && gate3 && gate4).to_string())
+    let turnover_gate = output.family != "H1" || headline.turnover_ticks <= 4_000_000_000;
+    Ok((gate1 && gate2 && gate3 && gate4 && turnover_gate).to_string())
+}
+
+fn h2_member_median(output: &FamilyOutput) -> Option<i64> {
+    if output.h2_member_sharpes.len() != 12 {
+        return None;
+    }
+    let mut values = output
+        .h2_member_sharpes
+        .iter()
+        .copied()
+        .collect::<Option<Vec<_>>>()?;
+    values.sort_unstable();
+    i64::try_from((i128::from(values[5]) + i128::from(values[6])) / 2).ok()
+}
+
+fn h2_gate2prime(output: &FamilyOutput) -> Result<bool, String> {
+    let Some(median) = h2_member_median(output) else {
+        return Ok(false);
+    };
+    if output.folds.len() != 15 {
+        return Ok(false);
+    }
+    let mut positive = 0;
+    let mut total = 0i128;
+    let mut largest = 0i128;
+    for fold in &output.folds {
+        let run = fold.test.first().ok_or("H2 fold has no blend")?;
+        if annual_ticks(&run.daily_returns)?.is_some_and(|s| s > 0) {
+            positive += 1;
+        }
+        let sum = run
+            .daily_returns
+            .iter()
+            .map(|r| i128::from(*r))
+            .sum::<i128>();
+        total = total.checked_add(sum).ok_or("H2 fold sum overflow")?;
+        largest = largest.max(sum);
+    }
+    let blend = annual_ticks(&output.stitched_oos_daily_returns)?;
+    Ok(positive >= 9
+        && total > 0
+        && largest.checked_mul(2).ok_or("H2 concentration overflow")? <= total
+        && blend.is_some_and(|s| s >= median))
 }
 
 fn selection_cells(fold: &FoldOutcome) -> (String, String) {
@@ -573,14 +647,6 @@ fn compounded_return_ticks(initial: i64, returns: &[i64]) -> Result<Option<i64>,
     let end = path.last().copied().ok_or("oos path is empty")?;
     total_return(Cash(initial), Cash(end))
         .map(|ratio| Some(ratio.ticks()))
-        .map_err(|err| err.to_string())
-}
-
-fn compounded_drawdown(initial: i64, returns: &[i64]) -> Result<i64, String> {
-    let path = compound(initial, returns)?;
-    let points: Vec<Cash> = path.into_iter().map(Cash).collect();
-    max_drawdown(&points)
-        .map(|ratio| ratio.ticks())
         .map_err(|err| err.to_string())
 }
 
@@ -857,8 +923,10 @@ mod tests {
             ],
         };
         let output = FamilyOutput {
+            h2_member_sharpes: Vec::new(),
             family: "S01".to_owned(),
             folds: vec![FoldOutcome {
+                cost_replays: Vec::new(),
                 fold_index: 1,
                 train: vec![train_a, train_b],
                 test: vec![test_a, test_b],
@@ -968,5 +1036,167 @@ mod tests {
         }
         out.push(cell);
         out
+    }
+    fn qr_fixture(family: &str) -> (FamilyGrid<()>, FamilyOutput) {
+        let returns = vec![1_000_000, 2_000_000, 3_000_000, 4_000_000];
+        let mut selected = run("config", 0, returns.clone(), 100);
+        selected.accounting.n_sign_changes = 10;
+        let mut folds = Vec::new();
+        for fold_index in 1..=15 {
+            let mut replay_rows = Vec::new();
+            for segment in [
+                crate::walkforward::Segment::Train,
+                crate::walkforward::Segment::Test,
+            ] {
+                for (fee_bps, slippage_bps) in [(2, 2), (4, 2), (6, 2), (5, 5)] {
+                    replay_rows.push(crate::walkforward::WindowReplay {
+                        segment,
+                        fee_bps,
+                        slippage_bps,
+                        run: selected.clone(),
+                    });
+                }
+            }
+            folds.push(FoldOutcome {
+                cost_replays: replay_rows,
+                fold_index,
+                train: vec![selected.clone()],
+                test: vec![selected.clone()],
+                selected_index: 0,
+                selected_config_id: "config".into(),
+                selected_flat: false,
+            });
+        }
+        let replay = |fee_bps, slippage_bps| FeeReplay {
+            fee_bps,
+            slippage_bps,
+            daily_returns: returns.repeat(15),
+            equity_ticks: vec![100_000_000_000_000],
+            net_result_ticks: 0,
+            round_trips: 200,
+            sharpe_annual_ticks: None,
+            turnover_ticks: 4_000_000_000,
+            max_dd_ticks: 0,
+            accounting: selected.accounting,
+        };
+        (
+            FamilyGrid {
+                family: family.into(),
+                slug: family.into(),
+                prereg_sha256: "a".repeat(64),
+                folds: Vec::new(),
+                points: vec![GridPoint {
+                    config: (),
+                    params: BTreeMap::new(),
+                    attempt: 2,
+                }],
+            },
+            FamilyOutput {
+                h2_member_sharpes: vec![Some(100_000_000); 12],
+                family: family.into(),
+                folds,
+                stitched_oos_daily_returns: returns.repeat(15),
+                stitched_oos_equity: vec![100_000_000_000_000],
+                oos_round_trips: 200,
+                n_trials: 1,
+                stay_flat_shadow: None,
+                fee_replays: [(2, 2), (4, 2), (5, 2), (6, 2), (5, 5)]
+                    .into_iter()
+                    .map(|(f, s)| replay(f, s))
+                    .collect(),
+            },
+        )
+    }
+
+    #[test]
+    fn qr1_h2_uses_ratified_gate_with_all_twelve_member_sharpes() {
+        let (_, mut output) = qr_fixture("H2");
+        assert_eq!(gate_cell(&output, 202, 25_000_000, None).unwrap(), "true");
+        let mut few_positive = output.clone();
+        for fold in &mut few_positive.folds[..7] {
+            fold.test[0].daily_returns = vec![-1_000_000, -2_000_000, -3_000_000, -4_000_000];
+        }
+        assert!(!h2_gate2prime(&few_positive).unwrap());
+        let mut concentrated = output.clone();
+        concentrated.folds[0].test[0].daily_returns = vec![100_000_000; 4];
+        assert!(!h2_gate2prime(&concentrated).unwrap());
+        let mut undefined = output.clone();
+        undefined.h2_member_sharpes[0] = None;
+        assert!(!h2_gate2prime(&undefined).unwrap());
+        output.h2_member_sharpes = vec![Some(10_000_000_000); 12];
+        assert_eq!(gate_cell(&output, 202, 25_000_000, None).unwrap(), "false");
+        output.h2_member_sharpes.pop();
+        assert_eq!(gate_cell(&output, 202, 25_000_000, None).unwrap(), "false");
+    }
+
+    #[test]
+    fn qr5_every_config_window_has_all_five_cost_scenarios() {
+        let (grid, output) = qr_fixture("H1");
+        let text = family_table(&grid, &output, "pin", "sql", 202).unwrap();
+        let header: Vec<_> = TABLE_HEADER.split(',').collect();
+        let column = |key| header.iter().position(|v| *v == key).unwrap();
+        let rows: Vec<_> = text
+            .lines()
+            .skip(1)
+            .filter(|s| !s.is_empty())
+            .map(parse_csv)
+            .collect();
+        for window in ["IS_fold_1", "OOS_fold_1"] {
+            let mut costs: Vec<_> = rows
+                .iter()
+                .filter(|r| r[column("window")] == window)
+                .map(|r| (r[column("fee_bps")].clone(), r[column("slip_bps")].clone()))
+                .collect();
+            costs.sort();
+            assert_eq!(
+                costs,
+                vec![
+                    ("2".into(), "2".into()),
+                    ("4".into(), "2".into()),
+                    ("5".into(), "2".into()),
+                    ("5".into(), "5".into()),
+                    ("6".into(), "2".into())
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn qr6_h1_turnover_limit_is_inclusive_and_mandatory() {
+        let (_, mut output) = qr_fixture("H1");
+        assert_eq!(
+            gate_cell(&output, 202, 25_000_000, Some(0)).unwrap(),
+            "true"
+        );
+        output
+            .fee_replays
+            .iter_mut()
+            .find(|r| r.fee_bps == 5 && r.slippage_bps == 2)
+            .unwrap()
+            .turnover_ticks += 1;
+        assert_eq!(
+            gate_cell(&output, 202, 25_000_000, Some(0)).unwrap(),
+            "false"
+        );
+    }
+
+    #[test]
+    fn qr7_stitched_drawdown_retains_a_prior_fold_peak() {
+        let (_, mut output) = qr_fixture("H1");
+        output.folds.truncate(2);
+        let cash = 100_000_000_000_000i64;
+        let a = &mut output.folds[0].test[0];
+        a.equity_ticks = vec![cash, cash * 9 / 10];
+        a.daily_returns = vec![-10_000_000];
+        a.max_dd_ticks = 10_000_000;
+        a.accounting.equity_range = Some((cash * 9 / 10, cash));
+        let b = &mut output.folds[1].test[0];
+        b.equity_ticks = vec![cash, cash];
+        b.daily_returns = vec![0];
+        b.max_dd_ticks = 20_000_000;
+        b.accounting.equity_range = Some((cash * 8 / 10, cash));
+        let replay =
+            crate::walkforward::replay_from_selection::<String>(5, 2, &output.folds).unwrap();
+        assert_eq!(replay.max_dd_ticks, 28_000_000);
     }
 }

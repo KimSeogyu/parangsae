@@ -57,7 +57,7 @@ pub use walkforward::{
     btcusdt_schedule, check_window_result, daily_return_tick, fold_schedule, forced_flat_at,
     run_walk_forward, selection_costs, window_result, FamilyGrid, FamilyOutput, FeeReplay, Fold,
     FoldOutcome, GridPoint, ScheduleError, ScheduleSpec, Segment, SegmentRun, StayFlatShadow,
-    WalkContext, WalkError, WalkForward, WindowAccounting, WindowResult, WindowShape,
+    WalkContext, WalkError, WalkForward, WindowAccounting, WindowReplay, WindowResult, WindowShape,
     H1_WARMUP_DAYS, H3_WARMUP_DAYS, H4_WARMUP_DAYS, H5_WARMUP_DAYS, PURGE_DAYS,
     REMAINDER_OWN_FOLD_DAYS, SELECTION_FEE_BPS, SELECTION_SLIPPAGE_BPS, SESSION_WARMUP_DAYS,
     STEP_DAYS, STRESS_SLIPPAGE_BPS, TEST_DAYS, TRAIN_DAYS, WARMUP_DAYS,

@@ -368,3 +368,20 @@ async fn main() {
         .join("../../specs/features/backtest_engine.feature");
     EngineWorld::cucumber().run_and_exit(features).await;
 }
+
+#[when("a target waits for a decision one millisecond after the boundary")]
+fn qr_delayed_step(world: &mut EngineWorld) {
+    keep(world, cases::delayed_target_report());
+}
+#[then("the first fill is the 13:01 open")]
+fn qr_later_open(world: &mut EngineWorld) {
+    assert_eq!(world.report().fills[0].ts.micros(), at(13, 1));
+}
+#[when("the target is half equity and the fill price doubles")]
+fn qr_sizing_step(world: &mut EngineWorld) {
+    keep(world, cases::moving_price());
+}
+#[then("the filled quantity is 5000000 ticks")]
+fn qr_fill_qty(world: &mut EngineWorld) {
+    assert_eq!(world.report().fills[0].qty.ticks(), 5_000_000);
+}

@@ -54,8 +54,8 @@
 //!   sign; the order layer is what skips the re-trade.
 //! * **Sizing.** The engine sizes `w × equity / decision close` when the
 //!   emitted target changes, and holds that quantity until the next change.
-//!   Equity is marked at the decision close. That close stands in for the
-//!   unknown next 1m open, which is the fill price. Quantity is floored toward
+//!   Equity is frozen at the decision close. Quantity uses the actual slipped
+//!   price of the next eligible 1m open, and is floored toward
 //!   zero to 0.001 BTC. A `count = 0` minute does not fill; the order waits
 //!   for the next minute with `count > 0`, and each refused minute is
 //!   `n_refused_fills`. The open of 2025-09-30 23:59 UTC force-flats, so the
@@ -233,3 +233,5 @@ pub fn replay(
     }
     Ok(out)
 }
+
+pub use ensemble::h2_member_params;

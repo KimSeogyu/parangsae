@@ -781,6 +781,23 @@ fn synthetic_tape_selects_the_long_train_and_flattens_with_costs() {
     let fold = toy_schedule();
     let scored = &output.families[0].folds[0];
     assert_eq!(scored.train.len(), 2);
+    for grid_index in 0..2 {
+        for segment in [
+            parangsae_backtest::Segment::Train,
+            parangsae_backtest::Segment::Test,
+        ] {
+            let mut scenarios = vec![(5, 2)];
+            scenarios.extend(
+                scored
+                    .cost_replays
+                    .iter()
+                    .filter(|r| r.run.grid_index == grid_index && r.segment == segment)
+                    .map(|r| (r.fee_bps, r.slippage_bps)),
+            );
+            scenarios.sort();
+            assert_eq!(scenarios, vec![(2, 2), (4, 2), (5, 2), (5, 5), (6, 2)]);
+        }
+    }
     assert!(scored.train[1].net_result_ticks > scored.train[0].net_result_ticks);
     assert!(scored.train[1].net_result_ticks > 0);
     assert!(scored.train[0].net_result_ticks < 0);
@@ -847,7 +864,7 @@ fn purge_bars_are_not_used_for_selection() {
     let test_start = fold.test.start.micros();
     assert_eq!(test_start - train_end, 2 * DAY_US);
     let train_calls: Vec<_> = seen.iter().filter(|call| call.end == train_end).collect();
-    assert_eq!(train_calls.len(), 2);
+    assert_eq!(train_calls.len(), 2 * 5);
     assert!(train_calls
         .iter()
         .all(|call| call.start == fold.train.start.micros()));

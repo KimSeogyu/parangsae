@@ -23,7 +23,7 @@ fn moving_price_keeps_the_sized_quantity() {
     let report = moving_price();
     assert_eq!(report.fills.len(), 1);
     assert_eq!(report.fills[0].side, Side::Buy);
-    assert_eq!(report.fills[0].qty.ticks(), 10_000_000);
+    assert_eq!(report.fills[0].qty.ticks(), 5_000_000);
     assert_eq!(report.fills[0].price, px(100_000));
     assert_eq!(report.fills[0].ts.micros(), at(13, 0));
     assert_eq!(report.n_refused_fills, 0);
@@ -406,4 +406,37 @@ fn delayed_interior_minute_never_reaches_the_signal() {
         cases::delayed_interior_minute(),
         EngineError::Resample(parangsae_core::ResampleError::Available { .. })
     ));
+}
+
+#[test]
+fn qr4_quantity_uses_executed_fill_price() {
+    let report = cases::moving_price();
+    assert_eq!(report.fills[0].qty.ticks(), 5_000_000);
+}
+
+#[test]
+fn qr3_delayed_decision_cannot_fill_the_boundary_open() {
+    let report = cases::delayed_target_report();
+    assert_eq!(report.fills[0].ts.micros(), at(13, 1));
+    assert_eq!(
+        report.signal_outputs[0].decision_ts.micros().micros(),
+        at(13, 0) + 1_000
+    );
+}
+
+#[test]
+fn qr4_frozen_decision_equity_is_divided_by_the_slipped_fill_quote() {
+    let bars = cases::hours(at(12, 0), 2, 100);
+    let tape = support::tape_of(bars.clone());
+    let mut signal = cases::Script::new(vec![Some(cases::tgt(1.0)); 2]);
+    let report = parangsae_backtest::run_targets(
+        &tape,
+        &mut signal,
+        &support::costs(0, 2500),
+        &support::cfg(&bars, 10_000),
+    )
+    .unwrap();
+    assert_eq!(report.fills.len(), 1);
+    assert_eq!(report.fills[0].price, px(125));
+    assert_eq!(report.fills[0].qty.ticks(), 8_000_000_000);
 }

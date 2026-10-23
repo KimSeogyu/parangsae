@@ -1,4 +1,5 @@
-//! Bar loop. Funding, then the queued fill, then the mark, then the decision.
+//! Funding and queued fills at the open. Delayed decisions follow the open;
+//! undelayed closed-bar decisions follow the close mark.
 
 use parangsae_core::{
     require_regular_grid, resample_series, DecisionTime, Interval, Observation, Qty, Side,
@@ -6,7 +7,7 @@ use parangsae_core::{
 };
 use parangsae_core::{AvailableTs, EventTs, ReceivedTs};
 use parangsae_sim::{
-    slippage_cost, Cash, Costs, Fill, FundingEvent, Ledger, MarketOrder, SimError,
+    fill_price, slippage_cost, Cash, Costs, Fill, FundingEvent, Ledger, MarketOrder, SimError,
 };
 
 use crate::bar::{Bar, BarView, FundingStamp, Strategy, Tape, ONE_MINUTE_US};
@@ -177,7 +178,8 @@ where
 ///
 /// A target is sized once, from equity marked at the decision close, and that
 /// quantity is held until the emitted target ticks change or `SignalOutput::accept`
-/// changes. The decision close stands in for the fill price. The fill itself is
+/// changes. Decision equity stays frozen until sizing at the actual slipped
+/// execution price. The fill itself is
 /// the next 1m open whose `count` is greater than zero. One order that waits
 /// through several `count = 0` minutes increments `n_refused_fills` once.
 ///
@@ -196,6 +198,10 @@ pub fn run_targets<S: TargetSignal>(
     cfg: &RunConfig,
 ) -> Result<Report, EngineError> {
     if cfg.initial_cash.0 <= 0 || cfg.lot_ticks <= 0 {
+        return Err(EngineError::Sim(SimError::Negative));
+    }
+    let delay = signal.decision_delay_us();
+    if !matches!(delay, 0 | 1_000) {
         return Err(EngineError::Sim(SimError::Negative));
     }
     refuse_holdout(tape, cfg)?;
@@ -261,7 +267,7 @@ pub fn run_targets<S: TargetSignal>(
                 let hour = &resampled[hour_index];
                 let decision = hour
                     .close_time()
-                    .checked_add_micros(1_000)
+                    .checked_add_micros(1_000 + delay)
                     .ok_or(EngineError::Sim(SimError::Overflow))?;
                 let bars_prefix = &resampled[..=hour_index];
                 let fund_prefix = funding_visible(&funding_rows, decision);
@@ -273,7 +279,9 @@ pub fn run_targets<S: TargetSignal>(
                 let funding_view = fund_obs
                     .causal_at(DecisionTime::from_micros(decision))
                     .expect("the prefix is stamped available at the decision");
-                signal.on_warmup_bar(view, funding_view);
+                if delay == 0 || decision < cfg.start {
+                    signal.on_warmup_bar(view, funding_view);
+                }
             }
             continue;
         }
@@ -303,7 +311,7 @@ pub fn run_targets<S: TargetSignal>(
                     flattened_here = true;
                 }
             }
-            settle_pending(
+            if let Some(resolved) = settle_pending(
                 &mut pending,
                 &mut refused_fills,
                 &mut FillSink {
@@ -314,125 +322,161 @@ pub fn run_targets<S: TargetSignal>(
                 &mut book,
                 bar,
                 costs,
-            )?;
-        }
-
-        let mark = resolve_mark(&tape.marks, bar.open_time, &cfg.mark_gaps)?;
-        if let Some(cash) = frozen {
-            equity_curve.push((bar.close_time, cash));
-            continue;
-        }
-        let equity = ledger.equity(mark.close).map_err(EngineError::Sim)?;
-        if equity.0 <= 0 {
-            force_flat(
-                &mut ledger,
-                &mut book,
-                &mut fills,
-                &mut slippage_ticks,
-                mark.close,
-                costs,
-                bar.close_time,
-            )?;
-            let after = ledger.equity(mark.close).map_err(EngineError::Sim)?;
-            ruined = Some(bar.close_time);
-            frozen = Some(after);
-            equity_curve.push((bar.close_time, after));
-            pending = None;
-            continue;
-        }
-        equity_curve.push((bar.close_time, equity));
-
-        if width == 0 || (index + 1) % width != 0 || resampled.is_empty() {
-            continue;
-        }
-        let hour_index = (index + 1) / width - 1;
-        let hour = &resampled[hour_index];
-        let decision = hour
-            .close_time()
-            .checked_add_micros(1_000)
-            .ok_or(EngineError::Sim(SimError::Overflow))?;
-        let bars_prefix = &resampled[..=hour_index];
-        let fund_prefix = funding_visible(&funding_rows, decision);
-        let bar_obs = Observation::new(decision_stamps(decision), bars_prefix);
-        let fund_obs = Observation::new(decision_stamps(decision), fund_prefix);
-        let view = bar_obs
-            .causal_at(DecisionTime::from_micros(decision))
-            .expect("the prefix is stamped available at the decision");
-        let funding_view = fund_obs
-            .causal_at(DecisionTime::from_micros(decision))
-            .expect("the prefix is stamped available at the decision");
-        let decision_close = hour.close();
-        let sizing_equity = ledger.equity(decision_close).map_err(EngineError::Sim)?;
-        let book_state = BookState {
-            equity_ticks: sizing_equity.0,
-            position_lots: ledger.position().0,
-            mark_ticks: decision_close.ticks(),
-        };
-        match signal.on_bar(view, funding_view, book_state) {
-            None if !seen => warmup_bars += 1,
-            None => return Err(EngineError::MissingSignal(decision)),
-            Some(output) if output.bar_close_time_us != hour.close_time() => {
-                return Err(EngineError::MissingSignal(decision));
+            )? {
+                sized = Some(resolved);
             }
-            Some(output) => {
-                seen = true;
-                let inside = cfg
-                    .forced_flat
-                    .iter()
-                    .any(|range| decision >= range.start && decision < range.end)
-                    || in_window_flat(window_flat, cfg.flatten_before, bar.open_time)
-                    || end_open.is_some_and(|open| {
-                        bar.open_time >= open && bar.open_time <= sample_end_open()
-                    });
-                match output.decision {
-                    Decision::Flat(FlatReason::FundingStale) => flat_funding_stale += 1,
-                    Decision::Flat(FlatReason::FundingSlotMissing) => {
-                        flat_funding_slot_missing += 1
-                    }
-                    Decision::Target(_) => {}
+        }
+
+        for before_close in [true, false] {
+            if !before_close {
+                let mark = resolve_mark(&tape.marks, bar.open_time, &cfg.mark_gaps)?;
+                if let Some(cash) = frozen {
+                    equity_curve.push((bar.close_time, cash));
+                    continue;
                 }
-                let lots = held_lots(
-                    &mut sized,
-                    inside || matches!(output.decision, Decision::Flat(_)),
-                    output.decision.target_ticks(),
-                    output.accept,
-                    sizing_equity.0,
-                    decision_close.ticks(),
-                    cfg.lot_ticks,
-                )
-                .map_err(EngineError::Sim)?;
-                signal_outputs.push(output);
-                let diff = lots
-                    .checked_sub(ledger.position().0)
-                    .ok_or(EngineError::Sim(SimError::Overflow))?;
-                if diff == 0 {
+                let equity = ledger.equity(mark.close).map_err(EngineError::Sim)?;
+                if equity.0 <= 0 {
+                    force_flat(
+                        &mut ledger,
+                        &mut book,
+                        &mut fills,
+                        &mut slippage_ticks,
+                        mark.close,
+                        costs,
+                        bar.close_time,
+                    )?;
+                    let after = ledger.equity(mark.close).map_err(EngineError::Sim)?;
+                    ruined = Some(bar.close_time);
+                    frozen = Some(after);
+                    equity_curve.push((bar.close_time, after));
                     pending = None;
-                } else {
-                    let side = if diff > 0 { Side::Buy } else { Side::Sell };
-                    let qty_ticks = diff
-                        .checked_abs()
+                    continue;
+                }
+                equity_curve.push((bar.close_time, equity));
+            }
+            if frozen.is_some() {
+                continue;
+            }
+            let hour_index = if before_close {
+                if delay == 0 || width == 0 || index == 0 || index % width != 0 {
+                    continue;
+                }
+                index / width - 1
+            } else {
+                if delay != 0 || width == 0 || (index + 1) % width != 0 {
+                    continue;
+                }
+                (index + 1) / width - 1
+            };
+            if resampled.is_empty() {
+                continue;
+            }
+            let hour = &resampled[hour_index];
+            let decision = hour
+                .close_time()
+                .checked_add_micros(1_000 + delay)
+                .ok_or(EngineError::Sim(SimError::Overflow))?;
+            let bars_prefix = &resampled[..=hour_index];
+            let fund_prefix = funding_visible(&funding_rows, decision);
+            let bar_obs = Observation::new(decision_stamps(decision), bars_prefix);
+            let fund_obs = Observation::new(decision_stamps(decision), fund_prefix);
+            let view = bar_obs
+                .causal_at(DecisionTime::from_micros(decision))
+                .expect("the prefix is stamped available at the decision");
+            let funding_view = fund_obs
+                .causal_at(DecisionTime::from_micros(decision))
+                .expect("the prefix is stamped available at the decision");
+            let decision_close = hour.close();
+            let sizing_equity = ledger.equity(decision_close).map_err(EngineError::Sim)?;
+            let book_state = BookState {
+                equity_ticks: sizing_equity.0,
+                position_lots: ledger.position().0,
+                mark_ticks: decision_close.ticks(),
+            };
+            match signal.on_bar(view, funding_view, book_state) {
+                None if !seen => warmup_bars += 1,
+                None => return Err(EngineError::MissingSignal(decision)),
+                Some(output)
+                    if output.bar_close_time_us != hour.close_time()
+                        || output.decision_ts.micros() != decision =>
+                {
+                    return Err(EngineError::MissingSignal(decision));
+                }
+                Some(output) => {
+                    seen = true;
+                    let inside = cfg
+                        .forced_flat
+                        .iter()
+                        .any(|range| decision >= range.start && decision < range.end)
+                        || in_window_flat(window_flat, cfg.flatten_before, bar.open_time)
+                        || end_open.is_some_and(|open| {
+                            bar.open_time >= open && bar.open_time <= sample_end_open()
+                        });
+                    match output.decision {
+                        Decision::Flat(FlatReason::FundingStale) => flat_funding_stale += 1,
+                        Decision::Flat(FlatReason::FundingSlotMissing) => {
+                            flat_funding_slot_missing += 1
+                        }
+                        Decision::Target(_) => {}
+                    }
+                    let suppressed = inside || matches!(output.decision, Decision::Flat(_));
+                    let key = (output.decision.target_ticks(), output.accept);
+                    let resize = !suppressed
+                        && key.0 != 0
+                        && sized.is_none_or(|(target, _, accept)| (target, accept) != key);
+                    let lots = held_lots(
+                        &mut sized,
+                        inside || matches!(output.decision, Decision::Flat(_)),
+                        output.decision.target_ticks(),
+                        output.accept,
+                        sizing_equity.0,
+                        decision_close.ticks(),
+                        cfg.lot_ticks,
+                    )
+                    .map_err(EngineError::Sim)?;
+                    signal_outputs.push(output);
+                    let diff = lots
+                        .checked_sub(ledger.position().0)
                         .ok_or(EngineError::Sim(SimError::Overflow))?;
-                    let qty = Qty::from_ticks(qty_ticks)
-                        .map_err(|_| EngineError::Sim(SimError::Negative))?;
-                    if window[index + 1..].iter().any(|next| next.count > 0) {
-                        let order = MarketOrder { side, qty };
-                        // An unchanged order retains its one-refusal history.
-                        if !pending.as_ref().is_some_and(|held| held.order == order) {
-                            pending = Some(HeldOrder::new(order));
-                        }
-                        if !flattened_here {
-                            note_target_change(
-                                &mut n_rebalances,
-                                &mut n_sign_changes,
-                                &mut n_forced_exits,
-                                inside,
-                                ledger.position().0,
-                                lots,
-                            )?;
-                        }
-                    } else {
+                    if diff == 0 && !resize {
                         pending = None;
-                        dropped_orders += 1;
+                    } else {
+                        let side = if diff > 0 { Side::Buy } else { Side::Sell };
+                        let qty_ticks = diff
+                            .checked_abs()
+                            .ok_or(EngineError::Sim(SimError::Overflow))?;
+                        let qty = Qty::from_ticks(qty_ticks)
+                            .map_err(|_| EngineError::Sim(SimError::Negative))?;
+                        if window[index + 1..].iter().any(|next| next.count > 0) {
+                            let order = MarketOrder { side, qty };
+                            // An unchanged order retains its one-refusal history.
+                            if resize || !pending.as_ref().is_some_and(|held| held.order == order) {
+                                let mut held = HeldOrder::new(order);
+                                held.not_before = Some(decision);
+                                if resize {
+                                    held.sizing = Some(FillSizing {
+                                        target: key.0,
+                                        equity: sizing_equity.0,
+                                        lot: cfg.lot_ticks,
+                                        accept: key.1,
+                                    });
+                                }
+                                pending = Some(held);
+                            }
+                            if !flattened_here {
+                                note_target_change(
+                                    &mut n_rebalances,
+                                    &mut n_sign_changes,
+                                    &mut n_forced_exits,
+                                    inside,
+                                    ledger.position().0,
+                                    lots,
+                                )?;
+                            }
+                        } else {
+                            pending = None;
+                            dropped_orders += 1;
+                        }
                     }
                 }
             }
@@ -518,9 +562,19 @@ fn held_lots(
     Ok(lots)
 }
 
+#[derive(Clone, Copy)]
+struct FillSizing {
+    target: i64,
+    equity: i64,
+    lot: i64,
+    accept: u64,
+}
+
 struct HeldOrder {
     order: MarketOrder,
     refused: bool,
+    not_before: Option<UtcMicros>,
+    sizing: Option<FillSizing>,
 }
 
 impl HeldOrder {
@@ -528,6 +582,8 @@ impl HeldOrder {
         Self {
             order,
             refused: false,
+            not_before: None,
+            sizing: None,
         }
     }
 }
@@ -545,10 +601,14 @@ fn settle_pending(
     book: &mut Book,
     bar: &Bar,
     costs: &Costs,
-) -> Result<(), EngineError> {
+) -> Result<Option<(i64, i64, u64)>, EngineError> {
     let Some(mut held) = pending.take() else {
-        return Ok(());
+        return Ok(None);
     };
+    if held.not_before.is_some_and(|time| bar.open_time < time) {
+        *pending = Some(held);
+        return Ok(None);
+    }
     if bar.count == 0 {
         if !held.refused {
             *refused_fills = refused_fills
@@ -557,7 +617,35 @@ fn settle_pending(
             held.refused = true;
         }
         *pending = Some(held);
-        return Ok(());
+        return Ok(None);
+    }
+    let mut resolved = None;
+    if let Some(sizing) = held.sizing {
+        let mut chosen = None;
+        // A rebalance may buy or sell an existing position. Use the same adverse
+        // execution-price function as the ledger, then floor to the lot grid.
+        for side in [Side::Buy, Side::Sell] {
+            let price = fill_price(bar.open, side, costs.slippage).map_err(EngineError::Sim)?;
+            let lots = target_qty(sizing.target, sizing.equity, price.ticks(), sizing.lot)
+                .map_err(EngineError::Sim)?;
+            let diff = lots
+                .checked_sub(ledger.position().0)
+                .ok_or(EngineError::Sim(SimError::Overflow))?;
+            if (side == Side::Buy && diff > 0) || (side == Side::Sell && diff < 0) {
+                let qty = Qty::from_ticks(
+                    diff.checked_abs()
+                        .ok_or(EngineError::Sim(SimError::Overflow))?,
+                )
+                .map_err(|_| EngineError::Sim(SimError::Negative))?;
+                chosen = Some((MarketOrder { side, qty }, lots));
+                break;
+            }
+        }
+        let Some((order, lots)) = chosen else {
+            return Ok(Some((sizing.target, ledger.position().0, sizing.accept)));
+        };
+        held.order = order;
+        resolved = Some((sizing.target, lots, sizing.accept));
     }
     execute(
         ledger,
@@ -567,7 +655,8 @@ fn settle_pending(
         bar.open,
         costs,
         bar.open_time,
-    )
+    )?;
+    Ok(resolved)
 }
 
 /// Last open at or before 2025-09-30 23:59 UTC whose `count` can fill.

@@ -176,7 +176,8 @@ pub fn taker_fee(price: Price, qty: Qty, bps: FeeBps) -> Result<Cash, SimError> 
     Ok(Cash(fit_i64(ticks)?))
 }
 
-pub(crate) fn fill_price(open: Price, side: Side, slip: SlippageBps) -> Result<Price, SimError> {
+/// Adverse execution quote shared by fill sizing and ledger settlement.
+pub fn fill_price(open: Price, side: Side, slip: SlippageBps) -> Result<Price, SimError> {
     let slip = i128::from(slip.0);
     let (factor, pays) = match side {
         Side::Buy => (BPS_DENOM + slip, true),

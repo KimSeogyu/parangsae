@@ -139,7 +139,9 @@ impl FundingFade {
 
     fn features(&mut self, row: &Observation<ResampledBar>) -> Result<Ready, StrategyError> {
         let view = self.cursor.admit(row)?;
-        let decision_us = decision_micros(&view);
+        let decision_us = decision_micros(&view)
+            .checked_add(1_000)
+            .ok_or(StrategyError::Overflow)?;
         let bar = *view.value();
         let close = price_f64(bar.close())?;
         self.closes.push_back((decision_us, close));
@@ -157,7 +159,10 @@ impl FundingFade {
     }
 
     fn event_side(&self, decision_us: i64, close: f64) -> Result<i8, StrategyError> {
-        let Some(ft) = decision_us.checked_sub(self.confirm_us) else {
+        let Some(ft) = decision_us
+            .checked_sub(self.confirm_us)
+            .and_then(|t| t.checked_sub(1_000))
+        else {
             return Ok(0);
         };
         let Some(f24) = self.f24_at(ft) else {
@@ -182,7 +187,7 @@ impl FundingFade {
         if !long_crowded && !short_crowded {
             return Ok(0);
         }
-        let Some(past) = self.close_at(ft) else {
+        let Some(past) = self.close_at(ft + 1_000) else {
             return Ok(0);
         };
         let rc = log_ratio(close, past)?;

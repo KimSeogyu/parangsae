@@ -440,7 +440,7 @@ pub(crate) fn block_ranges(days: usize) -> Option<Vec<(usize, usize)>> {
     Some(out)
 }
 
-fn is_days(blocks: &[(usize, usize)], chosen: &[usize]) -> Vec<usize> {
+fn is_days(blocks: &[(usize, usize)], chosen: &[usize], gap: usize) -> Vec<usize> {
     let mut days = Vec::new();
     for (index, (start, end)) in blocks.iter().enumerate() {
         if chosen.binary_search(&index).is_err() {
@@ -449,10 +449,10 @@ fn is_days(blocks: &[(usize, usize)], chosen: &[usize]) -> Vec<usize> {
         let mut lo = *start;
         let mut hi = *end;
         if index > 0 && chosen.binary_search(&(index - 1)).is_err() {
-            lo = lo.saturating_add(1).min(hi);
+            lo = lo.saturating_add(gap).min(hi);
         }
         if index + 1 < blocks.len() && chosen.binary_search(&(index + 1)).is_err() {
-            hi = hi.saturating_sub(1).max(lo);
+            hi = hi.saturating_sub(gap).max(lo);
         }
         days.extend(lo..hi);
     }
@@ -522,7 +522,7 @@ fn lamda_nonpositive(scores: &[Option<i64>], chosen: usize) -> bool {
 }
 
 /// PBO in `10^8` ticks. `None` when there are fewer than 2 configs or 16 days.
-pub(crate) fn pbo_ticks(columns: &[Vec<i64>]) -> Result<Option<i64>, StatsError> {
+pub(crate) fn pbo_ticks(columns: &[Vec<i64>], gap: usize) -> Result<Option<i64>, StatsError> {
     if columns.len() < 2 {
         return Ok(None);
     }
@@ -535,7 +535,7 @@ pub(crate) fn pbo_ticks(columns: &[Vec<i64>]) -> Result<Option<i64>, StatsError>
     };
     let mut failures = 0i128;
     for_each_is_split(&mut |chosen| {
-        let is_rows = is_days(&blocks, chosen);
+        let is_rows = is_days(&blocks, chosen, gap);
         let oos_rows = oos_days(&blocks, chosen);
         let is_scores = column_sharpe(columns, &is_rows)?;
         let oos_scores = column_sharpe(columns, &oos_rows)?;
@@ -709,7 +709,7 @@ mod tests {
             strong.extend_from_slice(&[-100_000, 800_000, 1_200_000, 1_000_000]);
             weak.extend_from_slice(&[100_000, -800_000, -1_200_000, -1_000_000]);
         }
-        let pbo = pbo_ticks(&[strong, weak]).unwrap().unwrap();
+        let pbo = pbo_ticks(&[strong, weak], 1).unwrap().unwrap();
         assert_eq!(pbo, 0);
     }
 
@@ -720,7 +720,7 @@ mod tests {
         for _ in 0..8 {
             days.extend_from_slice(&column);
         }
-        let pbo = pbo_ticks(&[days.clone(), days]).unwrap().unwrap();
+        let pbo = pbo_ticks(&[days.clone(), days], 1).unwrap().unwrap();
         assert_eq!(pbo, 100_000_000);
     }
 
@@ -743,14 +743,14 @@ mod tests {
 
     #[test]
     fn one_config_has_no_pbo() {
-        assert_eq!(pbo_ticks(&[vec![1, 2, 3]]).unwrap(), None);
+        assert_eq!(pbo_ticks(&[vec![1, 2, 3]], 1).unwrap(), None);
     }
 
     #[test]
     fn embargo_drops_the_is_day_touching_an_oos_block() {
         let blocks = block_ranges(16).unwrap();
         let chosen: Vec<usize> = (0..8).collect();
-        let days = is_days(&blocks, &chosen);
+        let days = is_days(&blocks, &chosen, 1);
         assert_eq!(days.len(), 7);
         assert!(!days.contains(&7));
     }
@@ -768,6 +768,34 @@ mod tests {
         match breakeven_fee([Some(100_000_000), Some(0), Some(-1), Some(-2)]) {
             Some(Breakeven::Fee(ticks)) => assert_eq!(ticks, 4 * SCALE),
             other => panic!("{other:?}"),
+        }
+    }
+}
+
+// Family-specific CSCV policy is exercised independently of the walk-forward gap.
+/// Frozen preregs §5: max hold plus one-day embargo. Separate from WF purge.
+pub(crate) fn cscv_gap_days(family: &str) -> usize {
+    match family {
+        "H3" => 5,
+        "H4" | "H5" => 8,
+        _ => 1,
+    }
+}
+
+#[cfg(test)]
+mod qr_purge_regression {
+    use super::*;
+    #[test]
+    fn qr2_preregistered_gap_excludes_near_boundary_days() {
+        let blocks = vec![(0, 20), (20, 40), (40, 60)];
+        for (family, gap) in [("H1", 1), ("H3", 5), ("H4", 8), ("H5", 8)] {
+            let kept = is_days(&blocks, &[1], cscv_gap_days(family));
+            let policy = cscv_gap_days(family);
+            assert_eq!(
+                (policy, kept.first().copied(), kept.last().copied()),
+                (gap, Some(20 + gap), Some(39 - gap)),
+                "{family}"
+            );
         }
     }
 }

@@ -116,3 +116,12 @@ Feature: Backtest engine v0
     Then there are 1 fills
     And fill 1 is buy at 100 USDT with fee 0
     And refused orders are 1
+
+  Scenario: A decision after the boundary cannot trade at the boundary open
+    When a target waits for a decision one millisecond after the boundary
+    Then the first fill is the 13:01 open
+
+  Scenario: A target quantity uses its actual execution price
+    When the target is half equity and the fill price doubles
+    Then there are 1 fills
+    And the filled quantity is 5000000 ticks

@@ -16,7 +16,7 @@ mod ledger;
 mod round;
 mod types;
 
-pub use ledger::{slippage_cost, taker_fee, Fill, FundingEvent, Ledger};
+pub use ledger::{fill_price, slippage_cost, taker_fee, Fill, FundingEvent, Ledger};
 pub use round::round_against_trader;
 pub use types::{Cash, Costs, FeeBps, MarketOrder, PositionQty, SimError, SlippageBps};
 

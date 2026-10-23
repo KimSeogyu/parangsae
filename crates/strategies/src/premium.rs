@@ -92,10 +92,10 @@ impl PremiumReversal {
         if ready.decision_us < WARMUP_91D_US || self.days.len() < self.lookback {
             return Ok(None);
         }
-        let midnight = ready.decision_us % DAY_US == 0;
+        let midnight = ready.decision_us.rem_euclid(DAY_US) == 1_000;
         let occupied = self.hold.side() != 0;
         let signal = if midnight && !occupied {
-            self.entry_side(ready.decision_us)?
+            self.entry_side(ready.decision_us - 1_000)?
         } else {
             0
         };
@@ -113,7 +113,9 @@ impl PremiumReversal {
 
     fn features(&mut self, row: &Observation<ResampledBar>) -> Result<Ready, StrategyError> {
         let view = self.cursor.admit(row)?;
-        let decision_us = decision_micros(&view);
+        let decision_us = decision_micros(&view)
+            .checked_add(1_000)
+            .ok_or(StrategyError::Overflow)?;
         let bar = *view.value();
         self.close_elapsed(decision_us)?;
         Ok(Ready { bar, decision_us })

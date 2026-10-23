@@ -25,6 +25,22 @@ const MEMBERS: [(i64, u16, i64); 12] = [
     (240, 180, 100_000_000),
 ];
 
+/// The twelve frozen S01 members used by H2. Diagnostic runs have no member
+/// deadband: one target tick is the smallest representable weight change.
+pub fn h2_member_params() -> Vec<BTreeMap<String, i64>> {
+    MEMBERS
+        .iter()
+        .map(|(interval, n, c)| {
+            BTreeMap::from([
+                ("interval".into(), *interval),
+                ("n".into(), i64::from(*n)),
+                ("c".into(), *c),
+                ("deadband".into(), 1),
+            ])
+        })
+        .collect()
+}
+
 pub struct Ensemble {
     cursor: Cursor,
     legs: Vec<Member>,
