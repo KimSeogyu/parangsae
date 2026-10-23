@@ -1410,7 +1410,9 @@ dependencies = [
  "arrow-schema",
  "cucumber",
  "parangsae-core",
+ "parangsae-signals",
  "parangsae-sim",
+ "parangsae-strategies",
  "parquet",
  "proptest",
  "serde",
@@ -1477,6 +1479,16 @@ name = "parangsae-sim"
 version = "0.0.0"
 dependencies = [
  "parangsae-core",
+ "proptest",
+]
+
+[[package]]
+name = "parangsae-strategies"
+version = "0.0.0"
+dependencies = [
+ "libm",
+ "parangsae-core",
+ "parangsae-signals",
  "proptest",
 ]
 

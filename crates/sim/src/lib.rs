@@ -18,6 +18,6 @@ mod types;
 
 pub use ledger::{taker_fee, Fill, FundingEvent, Ledger};
 pub use round::round_against_trader;
-pub use types::{Cash, Costs, FeeBps, MarketOrder, PositionQty, Side, SimError, SlippageBps};
+pub use types::{Cash, Costs, FeeBps, MarketOrder, PositionQty, SimError, SlippageBps};
 
 const _: () = assert!(parangsae_core::SCALE == 100_000_000);

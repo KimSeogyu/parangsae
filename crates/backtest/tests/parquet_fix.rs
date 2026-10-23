@@ -24,6 +24,16 @@ pub struct Day {
     pub null_open: bool,
     pub omit_open: bool,
     pub funding_rate: i64,
+    pub funding_available_delta: i64,
+    pub funding_event_delta: i64,
+    pub um_open_us: Option<Vec<i64>>,
+    pub mark_open_us: Option<Vec<i64>>,
+    pub funding_time_us: Option<i64>,
+    /// Per-row `volume_ticks`. `None` writes `2 * 10^8` on every row.
+    pub volumes: Option<Vec<i64>>,
+    /// Per-row `count`. `None` writes 1 on every row unless `omit_count`.
+    pub counts: Option<Vec<i64>>,
+    pub omit_count: bool,
 }
 
 impl Day {
@@ -38,6 +48,14 @@ impl Day {
             null_open: false,
             omit_open: false,
             funding_rate: 7697,
+            funding_available_delta: 0,
+            funding_event_delta: 0,
+            um_open_us: None,
+            mark_open_us: None,
+            funding_time_us: None,
+            volumes: None,
+            counts: None,
+            omit_count: false,
         }
     }
 }
@@ -45,13 +63,23 @@ impl Day {
 pub fn write_day(root: &Path, day: &Day) -> std::io::Result<()> {
     let date = UtcDate::parse(DAY).expect("fixture date");
     let start = date.start_us().micros();
-    write_klines(root, "um-kline", day, start, |index| {
-        (100 + index) * 100_000_000
-    })?;
-    write_klines(root, "mark-price-kline", day, start, |index| {
-        (200 + index) * 100_000_000
-    })?;
-    write_funding(root, day, start)?;
+    write_klines(
+        root,
+        "um-kline",
+        day,
+        start,
+        day.um_open_us.clone(),
+        |index| (100 + index) * 100_000_000,
+    )?;
+    write_klines(
+        root,
+        "mark-price-kline",
+        day,
+        start,
+        day.mark_open_us.clone(),
+        |index| (200 + index) * 100_000_000,
+    )?;
+    write_funding(root, day, day.funding_time_us.unwrap_or(start))?;
     Ok(())
 }
 
@@ -60,6 +88,7 @@ fn write_klines(
     dataset: &str,
     day: &Day,
     start: i64,
+    open_us: Option<Vec<i64>>,
     close_of: impl Fn(i64) -> i64,
 ) -> std::io::Result<()> {
     let n = 3i64;
@@ -79,7 +108,8 @@ fn write_klines(
         vec![day.interval_us; n as usize],
         false,
     );
-    let open_time: Vec<i64> = (0..n).map(|index| start + index * 60_000_000).collect();
+    let open_time =
+        open_us.unwrap_or_else(|| (0..n).map(|index| start + index * 60_000_000).collect());
     let close_time: Vec<i64> = open_time
         .iter()
         .map(|open| open + 60_000_000 - 1_000)
@@ -141,20 +171,126 @@ fn write_klines(
             .collect(),
         false,
     );
-    push_i64(
-        &mut fields,
-        &mut columns,
-        "volume_ticks",
-        vec![2 * 100_000_000; n as usize],
-        false,
-    );
+    let volumes = day
+        .volumes
+        .clone()
+        .unwrap_or_else(|| vec![2 * 100_000_000; n as usize]);
+    push_i64(&mut fields, &mut columns, "volume_ticks", volumes, false);
+    if !day.omit_count {
+        let counts = day.counts.clone().unwrap_or_else(|| vec![1; n as usize]);
+        push_i64(&mut fields, &mut columns, "count", counts, false);
+    }
     push_u32(
         &mut fields,
         &mut columns,
         "schema_version",
         vec![day.schema_version; n as usize],
     );
-    write_batch(&part(root, dataset), &fields, columns, day.scale)
+    write_batch(&part(root, dataset), &fields, columns, Some(day.scale))
+}
+
+/// One overlay row. `scale: None` writes no `parangsae.scale` metadata.
+pub struct OverlayRow {
+    pub open_us: i64,
+    pub close_ticks: i64,
+    pub close_time_us: i64,
+    pub available_us: i64,
+    pub volume_ticks: i64,
+    pub count: Option<i64>,
+    pub schema_version: u32,
+    pub symbol: &'static str,
+    pub interval_us: i64,
+    pub scale: Option<&'static str>,
+}
+
+impl OverlayRow {
+    /// Times match a stored 1m bar that opens at `open_us`.
+    pub fn matching(open_us: i64, close_ticks: i64) -> Self {
+        let close_time_us = open_us + 60_000_000 - 1_000;
+        Self {
+            open_us,
+            close_ticks,
+            close_time_us,
+            available_us: close_time_us + 1_000,
+            volume_ticks: 100_000_000,
+            count: None,
+            schema_version: 2,
+            symbol: SYMBOL,
+            interval_us: 60_000_000,
+            scale: Some("100000000"),
+        }
+    }
+}
+
+pub fn write_overlay(path: &Path, open_us: i64, close_ticks: i64) -> std::io::Result<()> {
+    write_overlay_row(path, &OverlayRow::matching(open_us, close_ticks))
+}
+
+pub fn write_overlay_row(path: &Path, row: &OverlayRow) -> std::io::Result<()> {
+    let mut fields = Vec::new();
+    let mut columns: Vec<ArrayRef> = Vec::new();
+    push_utf8(&mut fields, &mut columns, "symbol", vec![row.symbol], false);
+    push_utf8(
+        &mut fields,
+        &mut columns,
+        "resolution",
+        vec!["daily-archive"],
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "interval_us",
+        vec![row.interval_us],
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "open_time_us",
+        vec![row.open_us],
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "close_time_us",
+        vec![row.close_time_us],
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "available_ts_us",
+        vec![row.available_us],
+        false,
+    );
+    for name in ["open_ticks", "high_ticks", "low_ticks", "close_ticks"] {
+        push_i64(
+            &mut fields,
+            &mut columns,
+            name,
+            vec![row.close_ticks],
+            false,
+        );
+    }
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "volume_ticks",
+        vec![row.volume_ticks],
+        false,
+    );
+    if let Some(count) = row.count {
+        push_i64(&mut fields, &mut columns, "count", vec![count], false);
+    }
+    push_u32(
+        &mut fields,
+        &mut columns,
+        "schema_version",
+        vec![row.schema_version],
+    );
+    write_batch(path, &fields, columns, row.scale)
 }
 
 fn write_funding(root: &Path, day: &Day, start: i64) -> std::io::Result<()> {
@@ -186,7 +322,14 @@ fn write_funding(root: &Path, day: &Day, start: i64) -> std::io::Result<()> {
         &mut fields,
         &mut columns,
         "available_ts_us",
-        vec![start],
+        vec![start + day.funding_available_delta],
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "event_ts_us",
+        vec![start + day.funding_event_delta],
         false,
     );
     push_u32(
@@ -195,7 +338,12 @@ fn write_funding(root: &Path, day: &Day, start: i64) -> std::io::Result<()> {
         "schema_version",
         vec![day.funding_schema],
     );
-    write_batch(&part(root, "funding-rate"), &fields, columns, day.scale)
+    write_batch(
+        &part(root, "funding-rate"),
+        &fields,
+        columns,
+        Some(day.scale),
+    )
 }
 
 fn part(root: &Path, dataset: &str) -> PathBuf {
@@ -250,13 +398,15 @@ fn write_batch(
     path: &Path,
     fields: &[Field],
     columns: Vec<ArrayRef>,
-    scale: &str,
+    scale: Option<&str>,
 ) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
     let mut metadata = std::collections::HashMap::new();
-    metadata.insert("parangsae.scale".to_owned(), scale.to_owned());
+    if let Some(scale) = scale {
+        metadata.insert("parangsae.scale".to_owned(), scale.to_owned());
+    }
     let schema = Arc::new(Schema::new_with_metadata(fields.to_vec(), metadata));
     let batch = RecordBatch::try_new(schema.clone(), columns).expect("fixture batch");
     let file = File::create(path)?;

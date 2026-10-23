@@ -119,6 +119,19 @@ fn rule_at_index(rules: &[InstrumentRule], index: usize) -> Result<&InstrumentRu
     rules.get(index).ok_or(LookupError::TableFault)
 }
 
+/// Byte equality. A 7-byte name (every symbol in this table is `BTCUSDT`) is
+/// compared without `memcmp`. The two-row Kani harness would otherwise unwind
+/// every loop, including `pick_side` and `fold_conservative`, to one iteration
+/// per symbol byte, and that formula exhausts the solver.
+fn symbol_eq(left: &str, right: &str) -> bool {
+    match (left.as_bytes(), right.as_bytes()) {
+        ([a, b, c, d, e, f, g], [h, i, j, k, l, m, n]) => {
+            a == h && b == i && c == j && d == k && e == l && f == m && g == n
+        }
+        (left, right) => left == right,
+    }
+}
+
 fn decimal_value(rule: &InstrumentRule) -> Result<Decimal, LookupError> {
     match rule.value {
         RuleValue::Value(decimal) => Ok(decimal),
@@ -271,7 +284,7 @@ pub fn lookup<'a>(
     let mut maybe_len = 0usize;
     let mut saw_symbol = false;
     for (index, rule) in rules.iter().enumerate() {
-        if rule.symbol != symbol {
+        if !symbol_eq(rule.symbol, symbol) {
             continue;
         }
         saw_symbol = true;
@@ -423,18 +436,35 @@ mod proofs {
 
     /// Two-row brackets only. A scan of the full static table is not a bounded
     /// harness: the string compare plus every row blows the solver budget.
-    /// Symbol literals are 7 bytes, so the compare loop needs this unwind.
-    #[kani::proof]
-    #[kani::unwind(9)]
-    fn lookup_on_two_row_bracket_does_not_panic() {
+    /// Seven-byte names go through `symbol_eq`, so this bound only has to cover
+    /// the two rule rows (the exit check, plus slack for `continue`). One
+    /// harness that called all three lookups, unwound to 9, exhausted CBMC
+    /// on the self-hosted runner.
+    fn two_row_at() -> (BracketPolicy, UtcDateTime) {
         let micros: i64 = kani::any();
         let policy: BracketPolicy = kani::any();
-        let at = instant(micros);
-        let taker = taker_pair();
-        let market = market_pair();
-        let _ = lookup(&taker, "BTCUSDT", Field::FeeTakerVip0, at, policy);
-        let _ = lookup(&taker, "ETHUSDT", Field::FeeTakerVip0, at, policy);
-        let _ = lookup(&market, "BTCUSDT", Field::MarketMaxQty, at, policy);
+        (policy, instant(micros))
+    }
+
+    #[kani::proof]
+    #[kani::unwind(5)]
+    fn lookup_taker_btc_on_two_rows_does_not_panic() {
+        let (policy, at) = two_row_at();
+        let _ = lookup(&taker_pair(), "BTCUSDT", Field::FeeTakerVip0, at, policy);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(5)]
+    fn lookup_unknown_symbol_on_two_rows_does_not_panic() {
+        let (policy, at) = two_row_at();
+        let _ = lookup(&taker_pair(), "ETHUSDT", Field::FeeTakerVip0, at, policy);
+    }
+
+    #[kani::proof]
+    #[kani::unwind(5)]
+    fn lookup_market_btc_on_two_rows_does_not_panic() {
+        let (policy, at) = two_row_at();
+        let _ = lookup(&market_pair(), "BTCUSDT", Field::MarketMaxQty, at, policy);
     }
 
     #[kani::proof]

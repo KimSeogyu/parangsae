@@ -134,6 +134,12 @@ pub struct Interval {
 
 impl Interval {
     pub const ONE_MINUTE: Self = Self { micros: 60_000_000 };
+    pub const ONE_HOUR: Self = Self {
+        micros: 3_600_000_000,
+    };
+    pub const FOUR_HOURS: Self = Self {
+        micros: 14_400_000_000,
+    };
 
     pub const fn from_micros(micros: i64) -> Option<Self> {
         if micros > 0 {
