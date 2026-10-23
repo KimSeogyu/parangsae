@@ -173,7 +173,7 @@ impl Tape {
         }
         let mut overlays = Vec::with_capacity(cfg.overlays.len());
         for overlay in &cfg.overlays {
-            overlays.push(apply_overlay(&mut bars, &mut marks, overlay)?);
+            overlays.push(apply_overlay(&mut bars, &mut marks, overlay, symbol)?);
         }
         Ok(Self {
             bars,
@@ -357,6 +357,7 @@ fn apply_overlay(
     bars: &mut [Bar],
     marks: &mut [Bar],
     overlay: &Overlay,
+    symbol: &Symbol,
 ) -> Result<AppliedOverlay, TapeError> {
     let path = overlay.path.display().to_string();
     let bytes = std::fs::read(&overlay.path).map_err(|err| TapeError::Io {
@@ -371,7 +372,7 @@ fn apply_overlay(
         path: path.clone(),
         message: err.to_string(),
     })?;
-    let rows = overlay_rows(file)?;
+    let rows = overlay_rows(file, symbol, overlay.dataset.as_str())?;
     let target: &mut [Bar] = match overlay.dataset.as_str() {
         UM_KLINE => bars,
         MARK_KLINE => marks,
@@ -387,7 +388,13 @@ fn apply_overlay(
             .iter()
             .position(|row| row.open_time == bar.open_time)
         {
-            *bar = pending.swap_remove(index);
+            let row = pending.swap_remove(index);
+            if row.close_time != bar.close_time || row.available != bar.available {
+                return Err(TapeError::OverlayShape {
+                    open_time: row.open_time,
+                });
+            }
+            *bar = row;
         }
     }
     if let Some(extra) = pending.first() {
@@ -402,10 +409,13 @@ fn apply_overlay(
     })
 }
 
-fn overlay_rows(file: File) -> Result<Vec<Bar>, TapeError> {
-    let batches = batches_from_file(file)?;
+fn overlay_rows(file: File, symbol: &Symbol, dataset: &str) -> Result<Vec<Bar>, TapeError> {
+    // The sha pin is the authenticity check. DuckDB resolution files have no
+    // `parangsae.scale` key, so this path does not call `require_scale`.
+    let batches = record_batches(file, false)?;
     let resolution = read_string(&batches, "resolution")?;
     let symbols = read_string(&batches, "symbol")?;
+    let interval = read_i64(&batches, "interval_us")?;
     let open_time = read_i64(&batches, "open_time_us")?;
     let close_time = read_i64(&batches, "close_time_us")?;
     let available = read_i64(&batches, "available_ts_us")?;
@@ -414,6 +424,7 @@ fn overlay_rows(file: File) -> Result<Vec<Bar>, TapeError> {
     let low = read_i64(&batches, "low_ticks")?;
     let close = read_i64(&batches, "close_ticks")?;
     let volume = read_i64(&batches, "volume_ticks")?;
+    let schema = read_u32(&batches, "schema_version")?;
     let rows = symbols.len();
     let count = match read_i64(&batches, "count") {
         Ok(values) => values,
@@ -421,6 +432,7 @@ fn overlay_rows(file: File) -> Result<Vec<Bar>, TapeError> {
         Err(err) => return Err(err),
     };
     same_len("resolution", resolution.len(), rows)?;
+    same_len("interval_us", interval.len(), rows)?;
     same_len("open_time_us", open_time.len(), rows)?;
     same_len("close_time_us", close_time.len(), rows)?;
     same_len("available_ts_us", available.len(), rows)?;
@@ -429,9 +441,26 @@ fn overlay_rows(file: File) -> Result<Vec<Bar>, TapeError> {
     same_len("low_ticks", low.len(), rows)?;
     same_len("close_ticks", close.len(), rows)?;
     same_len("volume_ticks", volume.len(), rows)?;
+    same_len("schema_version", schema.len(), rows)?;
     same_len("count", count.len(), rows)?;
     let mut bars = Vec::with_capacity(rows);
     for index in 0..rows {
+        if symbols[index] != symbol.as_str() {
+            return Err(TapeError::SymbolMismatch {
+                got: symbols[index].clone(),
+            });
+        }
+        if interval[index] != ONE_MINUTE_US {
+            return Err(TapeError::Interval {
+                got: interval[index],
+            });
+        }
+        if schema[index] != 1 && schema[index] != 2 {
+            return Err(TapeError::UnknownSchema {
+                dataset: dataset.to_owned(),
+                got: schema[index],
+            });
+        }
         bars.push(Bar {
             open_time: UtcMicros::from_micros(open_time[index]),
             close_time: UtcMicros::from_micros(close_time[index]),
@@ -504,13 +533,15 @@ fn read_batches(path: &Path) -> Result<Vec<RecordBatch>, TapeError> {
         path: path.display().to_string(),
         message: err.to_string(),
     })?;
-    batches_from_file(file)
+    record_batches(file, true)
 }
 
-fn batches_from_file(file: File) -> Result<Vec<RecordBatch>, TapeError> {
+fn record_batches(file: File, check_scale: bool) -> Result<Vec<RecordBatch>, TapeError> {
     let builder = ParquetRecordBatchReaderBuilder::try_new(file)
         .map_err(|err| TapeError::Arrow(err.to_string()))?;
-    require_scale(builder.schema().as_ref())?;
+    if check_scale {
+        require_scale(builder.schema().as_ref())?;
+    }
     let reader = builder
         .build()
         .map_err(|err| TapeError::Arrow(err.to_string()))?;

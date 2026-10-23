@@ -1,14 +1,19 @@
-//! Local check against the v0.3 DuckDB views. Not a CI test.
+//! Local check against the v0.3 read path, on dates before the holdout. Not a CI test.
 //!
 //! Needs the store, `/workspace/reports/research-read-path.sql`, and `duckdb`
 //! on PATH. A missing piece exits with the path that was required.
+//!
+//! Counts are built from hive file lists with `date < 2025-10-01`. The SQL
+//! views glob every date, including the holdout, so they are not the count
+//! source. Row parity for in-sample days still reads those views.
 //!
 //! ```text
 //! cargo run -p parangsae-backtest --example readpath_parity
 //! ```
 
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::process::{Command, ExitCode, Output};
 
 use parangsae_backtest::{Overlay, Tape, TapeConfig, UtcDate};
 use parangsae_core::{resample_series, Interval, Symbol};
@@ -18,11 +23,14 @@ const FUNDING_ROOT: &str = "/workspace/data/parangsae/runs/funding-4db8a75";
 const SQL: &str = "/workspace/reports/research-read-path.sql";
 const OVERLAY: &str = "/workspace/data/parangsae/runs/resolutions/um-kline-2023-11-10.parquet";
 const OVERLAY_SHA: &str = "d5f6bcd61688cac971b6d276ea4fa0826c86d998b7adc06557686da6bdcfb8ea";
+const HOLDOUT_DATE: &str = "2025-10-01";
 
-const KLINE_1M: i64 = 3_581_280;
-const KLINE_1H: i64 = 59_688;
-const FUNDING_ROWS: i64 = 7_395;
-const MARK_1M: i64 = 3_579_785;
+/// In-sample rows. 2,517,120 = 1,748 days × 1,440. The full-store views are larger
+/// because they include the holdout (3,581,280 = 2,487 days × 1,440).
+const KLINE_1M: i64 = 2_517_120;
+const KLINE_1H: i64 = 41_952;
+const FUNDING_ROWS: i64 = 5_244;
+const MARK_1M: i64 = 2_517_118;
 
 fn main() -> ExitCode {
     match run() {
@@ -47,27 +55,169 @@ fn run() -> Result<(), String> {
         return Err("duckdb is not on PATH".to_owned());
     }
 
-    let kline_1m = duck_count(&sql, "select count(*) from kline_1m")?;
-    let kline_1h = duck_count(&sql, "select count(*) from kline_1h")?;
-    let funding_n = duck_count(&sql, "select count(*) from funding")?;
-    let mark_1m = duck_count(&sql, "select count(*) from mark_1m")?;
-    check_count("kline_1m", kline_1m, KLINE_1M)?;
-    check_count("kline_1h", kline_1h, KLINE_1H)?;
-    check_count("funding", funding_n, FUNDING_ROWS)?;
-    check_count("mark_1m", mark_1m, MARK_1M)?;
+    let um_files = in_sample_parts(&store, "um-kline")?;
+    let mark_files = in_sample_parts(&store, "mark-price-kline")?;
+    let funding_files = in_sample_parts(&funding, "funding-rate")?;
+    let (kline_1m, kline_1h, funding_n, mark_1m) =
+        view_counts(&um_files, &mark_files, &funding_files, &overlay)?;
+    check_count("view kline_1m", kline_1m, KLINE_1M)?;
+    check_count("view complete 1h", kline_1h, KLINE_1H)?;
+    check_count("view funding", funding_n, FUNDING_ROWS)?;
+    check_count("view mark_1m", mark_1m, MARK_1M)?;
+
+    let spec = Overlay {
+        dataset: "um-kline".to_owned(),
+        path: overlay.clone(),
+        sha256: parse_sha(OVERLAY_SHA)?,
+    };
+    let tape = load(
+        &store,
+        &funding,
+        date("2020-12-18")?,
+        date("2025-09-30")?,
+        &[spec],
+    )?;
+    check_count("reader kline_1m", as_i64(tape.bars.len())?, KLINE_1M)?;
+    let hours = resample_series(&tape.bars, Interval::ONE_HOUR).map_err(|err| err.to_string())?;
+    check_count("reader complete 1h", as_i64(hours.len())?, KLINE_1H)?;
+    check_count("reader funding", as_i64(tape.funding.len())?, FUNDING_ROWS)?;
+    check_count("reader mark_1m", as_i64(tape.marks.len())?, MARK_1M)?;
+    compare_funding_rule(&tape, &funding_files)?;
 
     compare_hours(&store, &funding, &sql)?;
     compare_day(&store, &funding, &sql, "2021-12-31")?;
     compare_day(&store, &funding, &sql, "2022-01-01")?;
     compare_overlay_day(&store, &funding, &sql, &overlay)?;
 
-    let kline_after = duck_count(&sql, "select count(*) from kline_1m")?;
-    let hour_after = duck_count(&sql, "select count(*) from kline_1h")?;
+    let (kline_after, hour_after, funding_after, mark_after) =
+        view_counts(&um_files, &mark_files, &funding_files, &overlay)?;
     check_count("kline_1m after overlay", kline_after, KLINE_1M)?;
-    check_count("kline_1h after overlay", hour_after, KLINE_1H)?;
+    check_count("complete 1h after overlay", hour_after, KLINE_1H)?;
+    check_count("funding after overlay", funding_after, FUNDING_ROWS)?;
+    check_count("mark_1m after overlay", mark_after, MARK_1M)?;
     println!("readpath_parity ok");
-    println!("kline_1m={kline_1m} kline_1h={kline_1h} funding={funding_n} mark_1m={mark_1m}");
+    println!("kline_1m={kline_1m} complete_1h={kline_1h} funding={funding_n} mark_1m={mark_1m}");
     Ok(())
+}
+
+fn view_counts(
+    um_files: &[PathBuf],
+    mark_files: &[PathBuf],
+    funding_files: &[PathBuf],
+    overlay: &Path,
+) -> Result<(i64, i64, i64, i64), String> {
+    let resolved = resolved_sql(um_files, overlay);
+    let kline_1m = duck_count_query(&format!("select count(*) from {resolved}"))?;
+    let kline_1h = duck_count_query(&format!(
+        "select count(*) from (select open_time_us // 3600000000 as hour from {resolved} \
+         group by 1 having count(*) = 60)"
+    ))?;
+    let funding_n = duck_count_query(&format!(
+        "select count(*) from read_parquet({})",
+        sql_paths(funding_files)
+    ))?;
+    let mark_1m = duck_count_query(&format!(
+        "select count(*) from read_parquet({})",
+        sql_paths(mark_files)
+    ))?;
+    Ok((kline_1m, kline_1h, funding_n, mark_1m))
+}
+
+fn resolved_sql(um_files: &[PathBuf], overlay: &Path) -> String {
+    format!(
+        "(select * from read_parquet({files}) s \
+         where s.open_time_us not in (select open_time_us from read_parquet('{overlay}')) \
+         union all by name \
+         select * exclude (resolution) from read_parquet('{overlay}'))",
+        files = sql_paths(um_files),
+        overlay = overlay.display(),
+    )
+}
+
+fn compare_funding_rule(tape: &Tape, files: &[PathBuf]) -> Result<(), String> {
+    let rows = duck_exec(&format!(
+        "select funding_time_us, available_ts_us, \
+         greatest(available_ts_us, funding_time_us + 60000000) \
+         from read_parquet({}) order by funding_time_us",
+        sql_paths(files)
+    ))?;
+    if rows.len() != tape.funding.len() {
+        return Err(format!(
+            "funding rows: reader {} raw {}",
+            tape.funding.len(),
+            rows.len()
+        ));
+    }
+    let mut lifted = 0i64;
+    for (stamp, row) in tape.funding.iter().zip(rows.iter()) {
+        let funding_time = parse_i64(&row[0])?;
+        let raw = parse_i64(&row[1])?;
+        let visible = parse_i64(&row[2])?;
+        if stamp.funding_time.micros() != funding_time {
+            return Err(format!(
+                "funding time: reader {} raw {funding_time}",
+                stamp.funding_time.micros()
+            ));
+        }
+        if stamp.available.micros() != visible {
+            return Err(format!(
+                "funding available at {funding_time}: reader {} max(stored, ft+60s) {visible}",
+                stamp.available.micros()
+            ));
+        }
+        if raw != visible {
+            lifted += 1;
+        }
+    }
+    if lifted == 0 {
+        return Err(
+            "funding max(stored, ft+60s) matched raw available on every in-sample row".to_owned(),
+        );
+    }
+    println!("funding visibility matches max(stored, ft+60s); lifted {lifted} rows above raw");
+    Ok(())
+}
+
+fn in_sample_parts(root: &Path, dataset: &str) -> Result<Vec<PathBuf>, String> {
+    let dir = root.join("parquet").join(dataset).join("symbol=BTCUSDT");
+    if !dir.is_dir() {
+        return Err(format!("missing directory {}", dir.display()));
+    }
+    let mut files = Vec::new();
+    for entry in fs::read_dir(&dir).map_err(|err| format!("read {}: {err}", dir.display()))? {
+        let entry = entry.map_err(|err| format!("read {}: {err}", dir.display()))?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let Some(date) = name.strip_prefix("date=") else {
+            continue;
+        };
+        if date >= HOLDOUT_DATE {
+            continue;
+        }
+        let part = entry.path().join("part.parquet");
+        if part.is_file() {
+            files.push(part);
+        }
+    }
+    if files.is_empty() {
+        return Err(format!("no in-sample files in {}", dir.display()));
+    }
+    files.sort();
+    Ok(files)
+}
+
+fn sql_paths(files: &[PathBuf]) -> String {
+    let mut out = String::from("[");
+    for (index, path) in files.iter().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        out.push('\'');
+        out.push_str(&path.display().to_string().replace('\'', "''"));
+        out.push('\'');
+    }
+    out.push(']');
+    out
 }
 
 fn compare_hours(store: &Path, funding: &Path, sql: &Path) -> Result<(), String> {
@@ -195,7 +345,7 @@ fn compare_overlay_day(
              where open_time_us >= {start} and open_time_us < {end} order by open_time_us"
         ),
     )?;
-    if tape.bars.len() != rows.len() {
+    if tape.bars.len() != 1440 || rows.len() != 1440 {
         return Err(format!(
             "2023-11-10 rows: reader {} resolved {}",
             tape.bars.len(),
@@ -211,7 +361,7 @@ fn compare_overlay_day(
             ));
         }
     }
-    println!("2023-11-10 overlay matches um_1m_resolved");
+    println!("2023-11-10 overlay matches um_1m_resolved 1440/1440");
     Ok(())
 }
 
@@ -238,13 +388,23 @@ fn load(
     .map_err(|err| err.to_string())
 }
 
-fn duck_count(sql: &Path, query: &str) -> Result<i64, String> {
-    let rows = duck_rows(sql, query)?;
+fn duck_count_query(query: &str) -> Result<i64, String> {
+    let rows = duck_exec(query)?;
     let cell = rows
         .first()
         .and_then(|row| row.first())
         .ok_or("empty duckdb count")?;
     parse_i64(cell)
+}
+
+fn duck_exec(query: &str) -> Result<Vec<Vec<String>>, String> {
+    let output = Command::new("duckdb")
+        .arg("-csv")
+        .arg("-c")
+        .arg(query)
+        .output()
+        .map_err(|err| format!("duckdb failed to start: {err}"))?;
+    command_rows(output)
 }
 
 fn duck_rows(sql: &Path, query: &str) -> Result<Vec<Vec<String>>, String> {
@@ -256,6 +416,10 @@ fn duck_rows(sql: &Path, query: &str) -> Result<Vec<Vec<String>>, String> {
         .arg(query)
         .output()
         .map_err(|err| format!("duckdb failed to start: {err}"))?;
+    command_rows(output)
+}
+
+fn command_rows(output: Output) -> Result<Vec<Vec<String>>, String> {
     if !output.status.success() {
         return Err(format!(
             "duckdb exited {}: {}",
@@ -276,6 +440,10 @@ fn duck_rows(sql: &Path, query: &str) -> Result<Vec<Vec<String>>, String> {
         rows.push(cells);
     }
     Ok(rows)
+}
+
+fn as_i64(len: usize) -> Result<i64, String> {
+    i64::try_from(len).map_err(|_| format!("count {len} does not fit i64"))
 }
 
 fn check_count(name: &str, got: i64, want: i64) -> Result<(), String> {

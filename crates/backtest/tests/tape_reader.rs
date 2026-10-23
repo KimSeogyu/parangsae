@@ -14,7 +14,7 @@ use parangsae_backtest::{
 };
 use parangsae_core::{Interval, Symbol, UtcMicros};
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
-use parquet_fix::{write_day, write_overlay, Day, DAY, SYMBOL};
+use parquet_fix::{write_day, write_overlay, write_overlay_row, Day, OverlayRow, DAY, SYMBOL};
 use sha2::{Digest, Sha256};
 
 fn symbol() -> Symbol {
@@ -375,11 +375,19 @@ fn h1_holdout_date_is_refused_before_the_poison_file_is_read() {
 #[test]
 fn o1_overlay_row_replaces_the_stored_row() {
     let dir = tempfile::tempdir().unwrap();
-    write_day(dir.path(), &Day::good()).unwrap();
+    let scale = 100_000_000;
+    let mut stored = Day::good();
+    // Minute 1 is a stored filler: flat print, no trades. The other two are not.
+    stored.volumes = Some(vec![2 * scale, 0, 2 * scale]);
+    stored.counts = Some(vec![1, 0, 1]);
+    write_day(dir.path(), &stored).unwrap();
     let start = day().start_us().micros();
     let path = dir.path().join("overlay.parquet");
-    let close = 777 * 100_000_000;
-    write_overlay(&path, start + 60_000_000, close).unwrap();
+    let close = 777 * scale;
+    let mut row = OverlayRow::matching(start + 60_000_000, close);
+    row.volume_ticks = scale;
+    row.count = Some(7);
+    write_overlay_row(&path, &row).unwrap();
     let mut cfg = load_cfg(dir.path());
     cfg.overlays.push(Overlay {
         dataset: "um-kline".to_owned(),
@@ -388,11 +396,135 @@ fn o1_overlay_row_replaces_the_stored_row() {
     });
     let tape = Tape::load(dir.path(), &symbol(), day(), day(), &cfg).unwrap();
     assert_eq!(tape.bars[1].close.ticks(), close);
-    assert_eq!(tape.bars[0].close.ticks(), 100 * 100_000_000);
-    assert_eq!(tape.bars[2].close.ticks(), 102 * 100_000_000);
+    assert_eq!(tape.bars[0].close.ticks(), 100 * scale);
+    assert_eq!(tape.bars[2].close.ticks(), 102 * scale);
+    // Replacement is applied before filler status is read. The stored minute
+    // was a filler; the overlay row has trades, so the loaded bar is a fill bar.
+    assert!(!tape.bars[1].is_filler());
+    assert_eq!(tape.bars[1].volume.ticks(), scale);
+    assert_eq!(tape.bars[1].count, 7);
+    assert_eq!(tape.bars[1].close_time.micros(), row.close_time_us);
+    assert_eq!(tape.bars[1].available.micros(), row.available_us);
+    assert_eq!(tape.bars[0].volume.ticks(), 2 * scale);
+    assert_eq!(tape.bars[0].count, 1);
+    assert!(!tape.bars[0].is_filler());
     assert_eq!(tape.overlays.len(), 1);
     assert_eq!(tape.overlays[0].dataset, "um-kline");
     assert_eq!(tape.overlays[0].sha256.len(), 64);
+}
+
+#[test]
+fn overlay_sha_replaces_the_scale_check() {
+    let start = day().start_us().micros();
+    let open = start + 60_000_000;
+    let close = 777 * 100_000_000;
+    let cases = [
+        (None, 1u32, "missing scale, schema 1"),
+        (Some("1"), 2u32, "wrong scale, schema 2"),
+    ];
+    for (scale, schema_version, label) in cases {
+        let dir = tempfile::tempdir().unwrap();
+        write_day(dir.path(), &Day::good()).unwrap();
+        let path = dir.path().join("overlay.parquet");
+        let mut row = OverlayRow::matching(open, close);
+        row.scale = scale;
+        row.schema_version = schema_version;
+        write_overlay_row(&path, &row).unwrap();
+        let mut cfg = load_cfg(dir.path());
+        cfg.overlays.push(Overlay {
+            dataset: "um-kline".to_owned(),
+            path: path.clone(),
+            sha256: file_sha(&path),
+        });
+        let tape = Tape::load(dir.path(), &symbol(), day(), day(), &cfg)
+            .unwrap_or_else(|err| panic!("{label}: {err}"));
+        assert_eq!(tape.bars[1].close.ticks(), close, "{label}");
+        assert_eq!(tape.bars[0].close.ticks(), 100 * 100_000_000, "{label}");
+    }
+}
+
+#[test]
+fn overlay_checks_symbol_interval_and_schema() {
+    let start = day().start_us().micros();
+    for fault in [
+        OverlayFault::Symbol,
+        OverlayFault::Interval,
+        OverlayFault::Schema,
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        write_day(dir.path(), &Day::good()).unwrap();
+        let path = dir.path().join("overlay.parquet");
+        let mut row = OverlayRow::matching(start, 100 * 100_000_000);
+        fault.edit(&mut row);
+        write_overlay_row(&path, &row).unwrap();
+        let mut cfg = load_cfg(dir.path());
+        cfg.overlays.push(Overlay {
+            dataset: "um-kline".to_owned(),
+            path: path.clone(),
+            sha256: file_sha(&path),
+        });
+        let err = Tape::load(dir.path(), &symbol(), day(), day(), &cfg).unwrap_err();
+        assert!(fault.matches(&err), "{fault:?}: {err:?}");
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum OverlayFault {
+    Symbol,
+    Interval,
+    Schema,
+}
+
+impl OverlayFault {
+    fn edit(self, row: &mut OverlayRow) {
+        match self {
+            Self::Symbol => row.symbol = "ETHUSDT",
+            Self::Interval => row.interval_us = 1,
+            Self::Schema => row.schema_version = 9,
+        }
+    }
+
+    fn matches(self, err: &TapeError) -> bool {
+        match self {
+            Self::Symbol => matches!(err, TapeError::SymbolMismatch { .. }),
+            Self::Interval => matches!(err, TapeError::Interval { got: 1 }),
+            Self::Schema => matches!(err, TapeError::UnknownSchema { got: 9, .. }),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum OverlayClock {
+    CloseTime,
+    Available,
+}
+
+#[test]
+fn overlay_clock_must_match_the_stored_row() {
+    let start = day().start_us().micros();
+    let open = start + 60_000_000;
+    for fault in [OverlayClock::CloseTime, OverlayClock::Available] {
+        let dir = tempfile::tempdir().unwrap();
+        write_day(dir.path(), &Day::good()).unwrap();
+        let path = dir.path().join("overlay.parquet");
+        let mut row = OverlayRow::matching(open, 777 * 100_000_000);
+        match fault {
+            OverlayClock::CloseTime => row.close_time_us += 1_000,
+            OverlayClock::Available => row.available_us += 1_000,
+        }
+        write_overlay_row(&path, &row).unwrap();
+        let mut cfg = load_cfg(dir.path());
+        cfg.overlays.push(Overlay {
+            dataset: "um-kline".to_owned(),
+            path: path.clone(),
+            sha256: file_sha(&path),
+        });
+        let err = Tape::load(dir.path(), &symbol(), day(), day(), &cfg).unwrap_err();
+        assert!(
+            matches!(err, TapeError::OverlayShape { .. }),
+            "{fault:?}: {err:?}"
+        );
+    }
 }
 
 #[test]
