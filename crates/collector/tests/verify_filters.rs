@@ -11,7 +11,7 @@ use parangsae_collector::fetch::MapBlob;
 use parangsae_collector::run::{self, RunRequest, VerifyFilter, VerifyReport};
 use parangsae_collector::store;
 use parangsae_collector::vision::{download_url, list_url, sha256_bytes, Cadence, VisionDataset};
-use parangsae_core::{ReceivedTs, Symbol, UtcMicros};
+use parangsae_core::{AvailableTs, EventTs, Ratio, ReceivedTs, Symbol, UtcMicros};
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
@@ -179,6 +179,291 @@ fn corrupt_one_funding_gap(dir: &Path) -> Result<CivilDay, Box<dyn std::error::E
         cursor = cursor.next();
     }
     Err("funding fixture stored no gap".into())
+}
+
+fn funding_csv(days: &[CivilDay]) -> String {
+    let mut csv = String::from("calc_time,funding_interval_hours,last_funding_rate\n");
+    for day in days {
+        for hour in [0, 8, 16] {
+            let millis = day.start_us().micros() / 1_000 + hour * 3_600_000;
+            csv.push_str(&format!("{millis},8,0.00010000\n"));
+        }
+    }
+    csv
+}
+
+fn funding_archive(days: &[CivilDay]) -> Result<ArchiveFile, Box<dyn std::error::Error>> {
+    Ok(ArchiveFile {
+        prefix: prefix(VisionDataset::FundingRate, Cadence::Monthly)?,
+        file_name: "BTCUSDT-fundingRate-2026-09.zip".to_owned(),
+        csv: funding_csv(days),
+    })
+}
+
+fn legacy_funding_scope(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let path = dir.join("manifest/objects.jsonl");
+    let legacy = std::fs::read_to_string(&path)?
+        .lines()
+        .map(|line| -> Result<String, serde_json::Error> {
+            let mut object: serde_json::Value = serde_json::from_str(line)?;
+            object.as_object_mut().unwrap().remove("materialized_days");
+            serde_json::to_string(&object)
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("\n");
+    std::fs::write(path, format!("{legacy}\n"))?;
+    Ok(())
+}
+
+fn funding_gap_day_injection_is_detected(legacy: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let september1 = day(2026, 9, 1)?;
+    let september2 = day(2026, 9, 2)?;
+    let september3 = day(2026, 9, 3)?;
+    ingest(
+        dir.path(),
+        VisionDataset::FundingRate,
+        september1,
+        september2,
+        &[funding_archive(&[september1])?],
+    )?;
+    if legacy {
+        legacy_funding_scope(dir.path())?;
+    }
+    let filter = VerifyFilter::parse(&["funding-rate"], Some("2026-09-02"), Some("2026-09-02"))?;
+    let before = run::verify(dir.path(), &filter)?;
+    assert!(before.ok(), "{before}");
+    let gaps = store::load_gaps(dir.path(), "funding-rate", "BTCUSDT", september2)?;
+    assert!(!gaps.is_empty());
+    let mut injected =
+        store::load_funding(dir.path(), "funding-rate", "BTCUSDT", september1)?[0].clone();
+    injected.raw_calc_time = september2.start_us();
+    injected.funding_time = september2.start_us();
+    injected.event_ts = EventTs::from_micros(september2.start_us());
+    injected.available_ts = AvailableTs::from_micros(september2.start_us());
+    store::upsert_funding(dir.path(), "funding-rate", vec![injected.clone()])?;
+    assert_eq!(
+        store::load_gaps(dir.path(), "funding-rate", "BTCUSDT", september2)?,
+        gaps
+    );
+    for selected in [filter, VerifyFilter::all()] {
+        let report = run::verify(dir.path(), &selected)?;
+        assert!(
+            !report.ok(),
+            "injected row on an expected empty day was accepted: {report}"
+        );
+        assert!(
+            report
+                .fault_lines
+                .iter()
+                .any(|line| line == "unexpected funding parquet rows 2026-09-02"),
+            "{report}"
+        );
+    }
+    if !legacy {
+        injected.raw_calc_time = september3.start_us();
+        injected.funding_time = september3.start_us();
+        injected.event_ts = EventTs::from_micros(september3.start_us());
+        injected.available_ts = AvailableTs::from_micros(september3.start_us());
+        store::upsert_funding(dir.path(), "funding-rate", vec![injected])?;
+        let outside = run::verify(
+            dir.path(),
+            &VerifyFilter::parse(&["funding-rate"], Some("2026-09-03"), Some("2026-09-03"))?,
+        )?;
+        assert!(outside.ok(), "never-requested day was included: {outside}");
+    }
+    Ok(())
+}
+
+#[test]
+fn funding_parquet_gap_day_injection_fails_with_recorded_scope(
+) -> Result<(), Box<dyn std::error::Error>> {
+    funding_gap_day_injection_is_detected(false)
+}
+
+#[test]
+fn funding_parquet_gap_day_injection_fails_with_legacy_scope(
+) -> Result<(), Box<dyn std::error::Error>> {
+    funding_gap_day_injection_is_detected(true)
+}
+
+fn funding_parquet_change_is_detected(change: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let september1 = day(2026, 9, 1)?;
+    let mut files = [funding_archive(&[september1])?];
+    if change == "extra" {
+        files[0].csv.push_str(&format!(
+            "{},8,0.00010000\n",
+            september1.start_us().micros() / 1_000,
+        ));
+    }
+    ingest(
+        dir.path(),
+        VisionDataset::FundingRate,
+        september1,
+        september1,
+        &files,
+    )?;
+    let filter = VerifyFilter::parse(&["funding-rate"], Some("2026-09-01"), Some("2026-09-01"))?;
+    let before = run::verify(dir.path(), &filter)?;
+    assert!(before.ok(), "{before}");
+    let path = store::fact_path(dir.path(), "funding-rate", "BTCUSDT", september1);
+    let mut rows = store::load_funding(dir.path(), "funding-rate", "BTCUSDT", september1)?;
+    match change {
+        "partition" => rows.clear(),
+        "row" => {
+            rows.remove(0);
+        }
+        "rate" => rows[0].rate = Ratio::from_ticks(rows[0].rate.ticks() + 1),
+        "available" => {
+            rows[0].available_ts = AvailableTs::from_micros(UtcMicros::from_micros(
+                rows[0].available_ts.micros().micros() + 1,
+            ))
+        }
+        "event" => {
+            rows[0].event_ts = EventTs::from_micros(UtcMicros::from_micros(
+                rows[0].event_ts.micros().micros() + 1,
+            ))
+        }
+        "schema" => rows[0].schema_version += 1,
+        "extra" => {
+            let mut extra = rows[0].clone();
+            extra.funding_time =
+                UtcMicros::from_micros(extra.funding_time.micros() + 14_400_000_000);
+            rows.push(extra);
+        }
+        _ => return Err(format!("unknown funding change {change}").into()),
+    }
+    std::fs::remove_file(path)?;
+    if !rows.is_empty() {
+        store::upsert_funding(dir.path(), "funding-rate", rows)?;
+    }
+
+    for excluded in [
+        VerifyFilter::parse(&["um-kline"], None, None)?,
+        VerifyFilter::parse(&["funding-rate"], Some("2026-09-02"), Some("2026-09-02"))?,
+    ] {
+        let report = run::verify(dir.path(), &excluded)?;
+        assert!(report.ok(), "{change} outside filter: {report}");
+    }
+    for selected in [filter, VerifyFilter::all()] {
+        let report = run::verify(dir.path(), &selected)?;
+        assert!(!report.ok(), "funding {change} was accepted: {report}");
+        let prefix = match change {
+            "partition" | "row" => "missing parquet row ",
+            "extra" => "unexpected funding parquet rows ",
+            _ => "conflict ",
+        };
+        assert!(
+            report
+                .fault_lines
+                .iter()
+                .any(|line| line.starts_with(prefix)),
+            "{report}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn missing_funding_parquet_partition_fails_verify() -> Result<(), Box<dyn std::error::Error>> {
+    funding_parquet_change_is_detected("partition")
+}
+
+#[test]
+fn missing_funding_parquet_row_fails_verify() -> Result<(), Box<dyn std::error::Error>> {
+    funding_parquet_change_is_detected("row")
+}
+
+#[test]
+fn altered_funding_parquet_payload_fails_verify() -> Result<(), Box<dyn std::error::Error>> {
+    for change in ["rate", "available", "event", "schema", "extra"] {
+        funding_parquet_change_is_detected(change)?;
+    }
+    Ok(())
+}
+
+#[test]
+fn funding_parquet_partial_month_scope_unions_and_retains_missing_days(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let september1 = day(2026, 9, 1)?;
+    let september2 = day(2026, 9, 2)?;
+    let files = [funding_archive(&[september1, september2])?];
+    ingest(
+        dir.path(),
+        VisionDataset::FundingRate,
+        september1,
+        september1,
+        &files,
+    )?;
+    let partial = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert!(partial.ok(), "{partial}");
+    let unmaterialized = run::verify(
+        dir.path(),
+        &VerifyFilter::parse(&["funding-rate"], Some("2026-09-02"), Some("2026-09-02"))?,
+    )?;
+    assert!(unmaterialized.ok(), "{unmaterialized}");
+
+    ingest(
+        dir.path(),
+        VisionDataset::FundingRate,
+        september2,
+        september2,
+        &files,
+    )?;
+    let extended = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert!(extended.ok(), "{extended}");
+    std::fs::remove_file(store::fact_path(
+        dir.path(),
+        "funding-rate",
+        "BTCUSDT",
+        september1,
+    ))?;
+    let deleted = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert!(!deleted.ok(), "{deleted}");
+    assert_eq!(deleted.fault_lines.len(), 3, "{deleted}");
+    let intact = run::verify(
+        dir.path(),
+        &VerifyFilter::parse(&["funding-rate"], Some("2026-09-02"), Some("2026-09-02"))?,
+    )?;
+    assert!(intact.ok(), "{intact}");
+    Ok(())
+}
+
+#[test]
+fn funding_parquet_legacy_scope_remains_conservative() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let september1 = day(2026, 9, 1)?;
+    let september2 = day(2026, 9, 2)?;
+    let files = [funding_archive(&[september1, september2])?];
+    ingest(
+        dir.path(),
+        VisionDataset::FundingRate,
+        september1,
+        september1,
+        &files,
+    )?;
+    legacy_funding_scope(dir.path())?;
+
+    for _ in 0..2 {
+        let scoped = run::verify(
+            dir.path(),
+            &VerifyFilter::parse(&["funding-rate"], Some("2026-09-01"), Some("2026-09-01"))?,
+        )?;
+        assert!(scoped.ok(), "{scoped}");
+        let full = run::verify(dir.path(), &VerifyFilter::all())?;
+        assert!(!full.ok(), "unknown legacy scope was narrowed: {full}");
+        assert_eq!(full.fault_lines.len(), 3, "{full}");
+        ingest(
+            dir.path(),
+            VisionDataset::FundingRate,
+            september1,
+            september1,
+            &files,
+        )?;
+    }
+    Ok(())
 }
 
 fn conflict(open_us: i64) -> String {

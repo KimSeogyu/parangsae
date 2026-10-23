@@ -37,3 +37,47 @@ Feature: Collector verify scope
     And the stored um-kline open on 2021-06-01 differs from the archive
     When verify has no filters
     Then verify reports a conflict fault
+
+  Scenario Outline: funding payload changes fail inside the selected scope
+    Given a temp store with the 2021-06-01 um-kline fixture and the September 2026 funding fixture
+    When the stored funding "<field>" on 2026-09-01 differs from the archive
+    And verify is limited to dataset "um-kline" from "2021-06-01" to "2021-06-01"
+    Then verify reports no faults
+    When verify is limited to dataset "funding-rate" from "2026-09-02" to "2026-09-02"
+    Then verify reports no faults
+    When verify is limited to dataset "funding-rate" from "2026-09-01" to "2026-09-01"
+    Then verify reports a conflict fault
+
+    Examples:
+      | field          |
+      | rate           |
+      | available_ts   |
+      | event_ts       |
+      | schema_version |
+
+  Scenario: a missing funding partition fails default verification after a partial-month ingest
+    Given a monthly September 2026 funding archive ingested only on 2026-09-01
+    When verify has no filters
+    Then verify reports no faults
+    When the stored funding partition on 2026-09-01 is deleted
+    And verify has no filters
+    Then verify reports missing parquet rows
+
+  Scenario: a missing funding row fails verification
+    Given a temp store with the 2021-06-01 um-kline fixture and the September 2026 funding fixture
+    When the first stored funding row on 2026-09-01 is deleted
+    And verify is limited to dataset "funding-rate" from "2026-09-01" to "2026-09-01"
+    Then verify reports one missing parquet row
+
+  Scenario Outline: an expected empty funding day rejects injected stored data
+    Given a requested empty funding day with <scope> scope
+    When verify is limited to dataset "funding-rate" from "2026-09-02" to "2026-09-02"
+    Then verify reports no faults
+    When a funding row is injected into the empty day 2026-09-02
+    And verify is limited to dataset "funding-rate" from "2026-09-02" to "2026-09-02"
+    Then verify reports an unexpected funding row on 2026-09-02
+
+    Examples:
+      | scope    |
+      | recorded |
+      | legacy   |

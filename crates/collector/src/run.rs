@@ -724,12 +724,19 @@ fn ingest_funding(
         .into_iter()
         .filter(|row| in_range(row.funding_time, request.range))
         .collect();
+    object.materialized_days = Some(
+        DayRange::new(item.name.month.first(), item.name.month.last())?
+            .days()
+            .into_iter()
+            .filter(|day| request.range.contains(*day))
+            .collect(),
+    );
+    manifest.record_stored(object, previous)?;
     summary.add_counts(store::upsert_funding(
         &request.data_dir,
         VisionDataset::FundingRate.as_str(),
         windowed,
     )?);
-    manifest.record_stored(object, previous)?;
     Ok(true)
 }
 
@@ -1477,6 +1484,55 @@ fn verify_funding_archive(
             ctx.out.fault(format!("funding_slot gap mismatch {day}"));
         }
     }
+    let rows = match collapse_by(parsed.rows, |row| row.funding_time.micros()) {
+        Ok(rows) => rows,
+        Err(fault) => {
+            ctx.out.fault(format!("{} {}", object.path, fault.name));
+            return Ok(());
+        }
+    };
+    let mut by_day = BTreeMap::new();
+    for day in covered_days(name, ctx.filter) {
+        if object
+            .materialized_days
+            .as_ref()
+            .is_some_and(|days| !days.contains(&day))
+        {
+            continue;
+        }
+        by_day.insert(day, Vec::new());
+    }
+    for row in &rows {
+        if let Some(expected) = by_day.get_mut(&day_of(row.funding_time)?) {
+            expected.push(row);
+        }
+    }
+    for (day, expected) in by_day {
+        let actual = store::load_funding(
+            ctx.data_dir,
+            VisionDataset::FundingRate.as_str(),
+            symbol.as_str(),
+            day,
+        )?;
+        if actual.len() > expected.len() {
+            ctx.out
+                .fault(format!("unexpected funding parquet rows {day}"));
+        }
+        for row in expected {
+            match actual
+                .iter()
+                .find(|kept| kept.funding_time == row.funding_time)
+            {
+                Some(kept) if kept == row => {}
+                Some(_) => ctx
+                    .out
+                    .fault(format!("conflict {}", row.funding_time.micros())),
+                None => ctx
+                    .out
+                    .fault(format!("missing parquet row {}", row.funding_time.micros())),
+            }
+        }
+    }
     Ok(())
 }
 
@@ -1659,57 +1715,78 @@ mod tests {
 
     #[test]
     fn a_failed_coverage_record_leaves_parquet_untouched() -> Result<(), Error> {
-        let dir = tempfile::tempdir().unwrap();
-        let day = CivilDay::new(2021, 6, 1).unwrap();
-        let dataset = VisionDataset::UmKline;
-        let file_name = "BTCUSDT-1m-2021-06.zip";
-        let Classified::Archive(name) = classify(dataset, "BTCUSDT", file_name)? else {
-            panic!("monthly archive");
-        };
-        let request = RunRequest {
-            datasets: vec![dataset],
-            symbol: Symbol::new("BTCUSDT").unwrap(),
-            range: DayRange::new(day, day)?,
-            data_dir: dir.path().to_path_buf(),
-            jobs: 1,
-            min_interval: Duration::ZERO,
-            fetched_at: ReceivedTs::from_micros(UtcMicros::from_micros(1)),
-        };
-        let item = Planned {
-            key: file_name.to_owned(),
-            size: 1,
-            name,
-            checksum_key: format!("{file_name}.CHECKSUM"),
-            checksum_size: 1,
-        };
-        let object = ObjectManifest {
-            url: download_url(file_name),
-            sha256: [1; 32],
-            size_bytes: 1,
-            schema_version: 0,
-            path: file_name.to_owned(),
-            dataset: dataset.as_str().to_owned(),
-            symbol: "BTCUSDT".to_owned(),
-            row_count: 0,
-            fetched_at: request.fetched_at,
-            materialized_days: None,
-        };
-        let mut manifest = ManifestLog::open(dir.path())?;
-        fs::create_dir_all(dir.path().join("manifest/objects.jsonl")).unwrap();
-        let open = day.start_us().micros() / 1_000;
-        let csv = format!("{open},10,10,10,10,0,{},0,0,0,0,0\n", open + 59_999);
-        let result = ingest_klines(
-            &request,
-            dataset,
-            &item,
-            &csv,
-            object,
-            None,
-            &mut manifest,
-            &mut RunSummary::default(),
-        );
-        assert!(matches!(result, Err(Error::Io { .. })));
-        assert!(!store::fact_path(dir.path(), "um-kline", "BTCUSDT", day).exists());
+        for dataset in [VisionDataset::UmKline, VisionDataset::FundingRate] {
+            let dir = tempfile::tempdir().unwrap();
+            let day = CivilDay::new(2026, 9, 1).unwrap();
+            let file_name = if dataset == VisionDataset::FundingRate {
+                "BTCUSDT-fundingRate-2026-09.zip"
+            } else {
+                "BTCUSDT-1m-2026-09.zip"
+            };
+            let Classified::Archive(name) = classify(dataset, "BTCUSDT", file_name)? else {
+                panic!("monthly archive");
+            };
+            let request = RunRequest {
+                datasets: vec![dataset],
+                symbol: Symbol::new("BTCUSDT").unwrap(),
+                range: DayRange::new(day, day)?,
+                data_dir: dir.path().to_path_buf(),
+                jobs: 1,
+                min_interval: Duration::ZERO,
+                fetched_at: ReceivedTs::from_micros(UtcMicros::from_micros(1)),
+            };
+            let item = Planned {
+                key: file_name.to_owned(),
+                size: 1,
+                name,
+                checksum_key: format!("{file_name}.CHECKSUM"),
+                checksum_size: 1,
+            };
+            let object = ObjectManifest {
+                url: download_url(file_name),
+                sha256: [1; 32],
+                size_bytes: 1,
+                schema_version: 0,
+                path: file_name.to_owned(),
+                dataset: dataset.as_str().to_owned(),
+                symbol: "BTCUSDT".to_owned(),
+                row_count: 0,
+                fetched_at: request.fetched_at,
+                materialized_days: None,
+            };
+            let mut manifest = ManifestLog::open(dir.path())?;
+            fs::create_dir_all(dir.path().join("manifest/objects.jsonl")).unwrap();
+            let open = day.start_us().micros() / 1_000;
+            let result = if dataset == VisionDataset::FundingRate {
+                let csv = format!(
+                    "calc_time,funding_interval_hours,last_funding_rate\n{open},8,0.00010000\n"
+                );
+                ingest_funding(
+                    &request,
+                    &item,
+                    &csv,
+                    object,
+                    None,
+                    &mut manifest,
+                    &mut RunSummary::default(),
+                    &mut BTreeMap::new(),
+                )
+            } else {
+                let csv = format!("{open},10,10,10,10,0,{},0,0,0,0,0\n", open + 59_999);
+                ingest_klines(
+                    &request,
+                    dataset,
+                    &item,
+                    &csv,
+                    object,
+                    None,
+                    &mut manifest,
+                    &mut RunSummary::default(),
+                )
+            };
+            assert!(matches!(result, Err(Error::Io { .. })));
+            assert!(!store::fact_path(dir.path(), dataset.as_str(), "BTCUSDT", day).exists());
+        }
         Ok(())
     }
 }
