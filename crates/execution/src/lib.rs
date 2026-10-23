@@ -1,7 +1,8 @@
 //! Order lifecycle for paper execution.
 //!
-//! State changes go through [`transition`]. There is no socket, no HTTP client,
-//! and no signing. `crates/risk` is not linked, so dispatch and kill are absent.
+//! State changes go through [`transition`]. [`demo`] builds signed offline
+//! query/cancel data without a transport. `crates/risk` is not
+//! linked, so order dispatch and kill are absent.
 
 #![forbid(unsafe_code)]
 #![deny(clippy::float_arithmetic)]
@@ -10,6 +11,7 @@
 mod authority;
 mod book;
 mod config;
+pub mod demo;
 mod error;
 mod ids;
 mod lifecycle;
