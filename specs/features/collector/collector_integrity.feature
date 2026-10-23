@@ -15,3 +15,11 @@ Feature: Collector verify scope
     Then verify rejects the request as usage
     When verify is limited from "2021-06-02" to "2021-06-01"
     Then verify rejects the request as usage
+
+  Scenario: a missing in-scope kline partition fails verify
+    Given a temp store with the 2021-06-01 um-kline fixture and the September 2026 funding fixture
+    When verify is limited to dataset "um-kline" from "2021-06-01" to "2021-06-01"
+    Then verify reports no faults
+    When the stored um-kline partition on 2021-06-01 is deleted
+    And verify is limited to dataset "um-kline" from "2021-06-01" to "2021-06-01"
+    Then verify reports missing parquet rows

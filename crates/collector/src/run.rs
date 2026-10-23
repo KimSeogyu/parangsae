@@ -1418,12 +1418,12 @@ fn verify_kline_archive(
             .cache
             .compare_kline(ctx.data_dir, dataset.as_str(), symbol.as_str(), day, row)?
         {
-            StoredRow::FileMissing | StoredRow::Equal => {}
+            StoredRow::Equal => {}
             StoredRow::Conflict => {
                 ctx.out
                     .fault(format!("conflict {}", row.open_time.micros()));
             }
-            StoredRow::Missing => {
+            StoredRow::FileMissing | StoredRow::Missing => {
                 ctx.out
                     .fault(format!("missing parquet row {}", row.open_time.micros()));
             }
