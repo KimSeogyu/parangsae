@@ -34,7 +34,7 @@ pub fn run<S: Strategy>(
     }
     refuse_holdout(tape, cfg)?;
     validate(tape)?;
-    let window = time_window(&tape.bars, cfg.start, cfg.end);
+    let window = feed_window(&tape.bars, cfg)?;
     let step = funding_step(&tape.funding)?;
     require_coverage(tape, window, step, cfg)?;
 
@@ -50,7 +50,11 @@ pub fn run<S: Strategy>(
     let mut dropped_orders = 0u64;
     let mut refused_fills = 0u64;
 
+    let scored_bars = scored_len(window, cfg.start);
     for (index, bar) in window.iter().enumerate() {
+        if bar.open_time < cfg.start {
+            continue;
+        }
         if ruined.is_none() {
             funding_i = settle_funding(
                 &FundingPass {
@@ -115,7 +119,7 @@ pub fn run<S: Strategy>(
         cfg,
         tape,
         costs,
-        window.len(),
+        scored_bars,
         Accum {
             ledger,
             book,
@@ -164,9 +168,16 @@ where
 /// quantity is held until the emitted target ticks change or `SignalOutput::accept`
 /// changes. The decision close stands in for the fill price. The fill itself is
 /// the next 1m open whose `count` is greater than zero. One order that waits
-/// through several `count = 0` minutes increments `n_refused_fills` once. The
-/// force-flat is the last minute at or before 2025-09-30 23:59 UTC with
-/// `count > 0`, so a zero-count 23:59 does not leave the position open.
+/// through several `count = 0` minutes increments `n_refused_fills` once.
+///
+/// Bars from `cfg.warmup_start` up to `cfg.start` are fed through
+/// [`TargetSignal::on_warmup_bar`]. That span has no decision, order, sizing,
+/// fill, funding settlement, or equity point. A hold or held target built
+/// there is not a position: the first scored bar decides from a flat book.
+///
+/// `cfg.flatten_before` flattens at the last scored minute before that instant
+/// with `count > 0`. A window that contains 2025-09-30 23:59 UTC also flattens
+/// at the last scored minute at or before that open with `count > 0`.
 pub fn run_targets<S: TargetSignal>(
     tape: &Tape,
     signal: &mut S,
@@ -178,7 +189,7 @@ pub fn run_targets<S: TargetSignal>(
     }
     refuse_holdout(tape, cfg)?;
     validate(tape)?;
-    let window = time_window(&tape.bars, cfg.start, cfg.end);
+    let window = feed_window(&tape.bars, cfg)?;
     if let Some(bar) = window.iter().find(|bar| bar.open_time < sample_start()) {
         return Err(EngineError::BeforeSample(bar.open_time));
     }
@@ -206,7 +217,8 @@ pub fn run_targets<S: TargetSignal>(
                 .map(|bar| bar.open_time)
         })
         .collect();
-    let end_open = last_tradable_open(window);
+    let window_flat = window_flat_open(window, cfg);
+    let end_open = last_tradable_open(window, cfg.start);
 
     let mut ledger = Ledger::new(cfg.initial_cash);
     let mut book = Book::default();
@@ -226,7 +238,30 @@ pub fn run_targets<S: TargetSignal>(
     let mut flat_funding_slot_missing = 0u64;
     let mut signal_outputs = Vec::new();
 
+    let scored_bars = scored_len(window, cfg.start);
     for (index, bar) in window.iter().enumerate() {
+        if bar.open_time < cfg.start {
+            if width > 0 && (index + 1) % width == 0 && !resampled.is_empty() {
+                let hour_index = (index + 1) / width - 1;
+                let hour = &resampled[hour_index];
+                let decision = hour
+                    .close_time()
+                    .checked_add_micros(1_000)
+                    .ok_or(EngineError::Sim(SimError::Overflow))?;
+                let bars_prefix = &resampled[..=hour_index];
+                let fund_prefix = funding_visible(&funding_rows, decision);
+                let bar_obs = Observation::new(decision_stamps(decision), bars_prefix);
+                let fund_obs = Observation::new(decision_stamps(decision), fund_prefix);
+                let view = bar_obs
+                    .causal_at(DecisionTime::from_micros(decision))
+                    .expect("the prefix is stamped available at the decision");
+                let funding_view = fund_obs
+                    .causal_at(DecisionTime::from_micros(decision))
+                    .expect("the prefix is stamped available at the decision");
+                signal.on_warmup_bar(view, funding_view);
+            }
+            continue;
+        }
         if ruined.is_none() {
             funding_i = settle_funding(
                 &FundingPass {
@@ -240,7 +275,10 @@ pub fn run_targets<S: TargetSignal>(
                 window,
                 index,
             )?;
-            if end_open == Some(bar.open_time) || forced_opens.contains(&bar.open_time) {
+            if window_flat == Some(bar.open_time)
+                || end_open == Some(bar.open_time)
+                || forced_opens.contains(&bar.open_time)
+            {
                 pending = flatten_order(&ledger)?.map(HeldOrder::new);
             }
             settle_pending(
@@ -315,7 +353,11 @@ pub fn run_targets<S: TargetSignal>(
                 let inside = cfg
                     .forced_flat
                     .iter()
-                    .any(|range| decision >= range.start && decision < range.end);
+                    .any(|range| decision >= range.start && decision < range.end)
+                    || in_window_flat(window_flat, cfg.flatten_before, bar.open_time)
+                    || end_open.is_some_and(|open| {
+                        bar.open_time >= open && bar.open_time <= sample_end_open()
+                    });
                 match output.decision {
                     Decision::Flat(FlatReason::FundingStale) => flat_funding_stale += 1,
                     Decision::Flat(FlatReason::FundingSlotMissing) => {
@@ -361,7 +403,7 @@ pub fn run_targets<S: TargetSignal>(
         cfg,
         tape,
         costs,
-        window.len(),
+        scored_bars,
         Accum {
             ledger,
             book,
@@ -455,7 +497,7 @@ fn settle_pending(
 ///
 /// A window that never reaches that minute is left alone. A `count = 0` bar
 /// at 23:59 walks back to the previous open that can fill.
-fn last_tradable_open(window: &[Bar]) -> Option<UtcMicros> {
+fn last_tradable_open(window: &[Bar], start: UtcMicros) -> Option<UtcMicros> {
     let limit = sample_end_open();
     if !window.iter().any(|bar| bar.open_time == limit) {
         return None;
@@ -463,8 +505,22 @@ fn last_tradable_open(window: &[Bar]) -> Option<UtcMicros> {
     window
         .iter()
         .rev()
-        .find(|bar| bar.open_time <= limit && bar.count > 0)
+        .find(|bar| bar.open_time >= start && bar.open_time <= limit && bar.count > 0)
         .map(|bar| bar.open_time)
+}
+
+fn sample_end_open() -> UtcMicros {
+    let holdout = UtcDate::parse("2025-10-01")
+        .expect("2025-10-01 is a valid date")
+        .start_us();
+    UtcMicros::from_micros(holdout.micros() - ONE_MINUTE_US)
+}
+
+fn in_window_flat(open: Option<UtcMicros>, limit: Option<UtcMicros>, bar_open: UtcMicros) -> bool {
+    match (open, limit) {
+        (Some(open), Some(limit)) => bar_open >= open && bar_open < limit,
+        _ => false,
+    }
 }
 
 fn decision_stamps(decision: UtcMicros) -> Timestamps {
@@ -510,10 +566,15 @@ pub struct MarkAbsence {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunConfig {
     pub initial_cash: Cash,
+    /// Lookback fed to the signal. Fills, funding, and equity begin at [`Self::start`].
+    pub warmup_start: UtcMicros,
     pub start: UtcMicros,
     pub end: UtcMicros,
     pub holdout_start: UtcMicros,
     pub forced_flat: Vec<UtcRange>,
+    /// Flatten on the last scored minute before this instant with `count > 0`.
+    /// `None` does not add a window-end flatten.
+    pub flatten_before: Option<UtcMicros>,
     pub mark_gaps: Vec<MarkAbsence>,
     pub interval: Interval,
     pub lot_ticks: i64,
@@ -573,6 +634,20 @@ fn funding_step(funding: &[FundingStamp]) -> Result<i64, EngineError> {
     hours
         .checked_mul(3_600_000_000)
         .ok_or(EngineError::Sim(SimError::Overflow))
+}
+
+fn feed_window<'a>(bars: &'a [Bar], cfg: &RunConfig) -> Result<&'a [Bar], EngineError> {
+    if cfg.warmup_start > cfg.start {
+        return Err(EngineError::Warmup(cfg.warmup_start));
+    }
+    if cfg.warmup_start >= cfg.holdout_start {
+        return Err(EngineError::HoldoutBar(cfg.warmup_start));
+    }
+    Ok(time_window(bars, cfg.warmup_start, cfg.end))
+}
+
+fn scored_len(window: &[Bar], start: UtcMicros) -> usize {
+    window.iter().filter(|bar| bar.open_time >= start).count()
 }
 
 fn time_window(bars: &[Bar], start: UtcMicros, end: UtcMicros) -> &[Bar] {
@@ -701,11 +776,12 @@ fn refuse_holdout(tape: &Tape, cfg: &RunConfig) -> Result<(), EngineError> {
     Ok(())
 }
 
-fn sample_end_open() -> UtcMicros {
-    let holdout = UtcDate::parse("2025-10-01")
-        .expect("2025-10-01 is a valid date")
-        .start_us();
-    UtcMicros::from_micros(holdout.micros() - ONE_MINUTE_US)
+fn window_flat_open(window: &[Bar], cfg: &RunConfig) -> Option<UtcMicros> {
+    let end = cfg.flatten_before?;
+    window
+        .iter()
+        .rfind(|bar| bar.open_time >= cfg.start && bar.open_time < end && bar.count > 0)
+        .map(|bar| bar.open_time)
 }
 
 struct FundingPass<'a> {

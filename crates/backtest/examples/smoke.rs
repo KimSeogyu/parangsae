@@ -52,10 +52,12 @@ fn run_smoke() -> Result<(), String> {
     };
     let cfg = RunConfig {
         initial_cash: Cash(1_000_000 * SCALE),
+        warmup_start: from.start_us(),
         start: from.start_us(),
         end: to.next().start_us(),
         holdout_start: holdout,
         forced_flat: Vec::new(),
+        flatten_before: None,
         mark_gaps: Vec::new(),
         interval: Interval::ONE_HOUR,
         lot_ticks: 100_000,

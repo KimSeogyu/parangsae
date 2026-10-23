@@ -10,12 +10,17 @@ pub use crate::tape::TapeError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EngineError {
-    Gap { expected: UtcMicros, got: UtcMicros },
+    Gap {
+        expected: UtcMicros,
+        got: UtcMicros,
+    },
     MissingMark(UtcMicros),
     MissingFunding(UtcMicros),
     MissingSignal(UtcMicros),
     HoldoutBar(UtcMicros),
     BeforeSample(UtcMicros),
+    /// `warmup_start` is after the scored start.
+    Warmup(UtcMicros),
     Unsorted,
     Sim(SimError),
     Tape(TapeError),
@@ -33,6 +38,7 @@ impl fmt::Display for EngineError {
             Self::MissingSignal(ts) => write!(f, "missing signal at {ts}"),
             Self::HoldoutBar(ts) => write!(f, "bar {ts} is in the holdout"),
             Self::BeforeSample(ts) => write!(f, "bar {ts} is before the in-sample start"),
+            Self::Warmup(ts) => write!(f, "warmup {ts} starts after the scored window"),
             Self::Unsorted => write!(f, "tape timestamps are not strictly increasing"),
             Self::Sim(err) => write!(f, "{err}"),
             Self::Tape(err) => write!(f, "{err}"),
@@ -53,6 +59,7 @@ impl std::error::Error for EngineError {
             | Self::MissingSignal(_)
             | Self::HoldoutBar(_)
             | Self::BeforeSample(_)
+            | Self::Warmup(_)
             | Self::Unsorted => None,
         }
     }

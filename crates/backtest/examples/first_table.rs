@@ -179,12 +179,15 @@ where
 fn run_config(interval: BarInterval) -> RunConfig {
     let gap_day = date("2024-08-12").expect("2024-08-12").start_us();
     let minute = 60_000_000;
+    let end = date("2025-09-30").expect("sample end").next().start_us();
     RunConfig {
         initial_cash: Cash(1_000_000 * SCALE),
+        warmup_start: date("2020-12-18").expect("sample start").start_us(),
         start: date("2020-12-18").expect("sample start").start_us(),
-        end: date("2025-09-30").expect("sample end").next().start_us(),
+        end,
         holdout_start: date("2025-10-01").expect("holdout").start_us(),
         forced_flat: Vec::new(),
+        flatten_before: Some(end),
         mark_gaps: vec![MarkAbsence {
             first_open: gap_day
                 .checked_add_micros(10 * 3_600_000_000 + 2 * minute)

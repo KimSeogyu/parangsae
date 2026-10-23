@@ -43,14 +43,41 @@ impl Squeeze {
         })
     }
 
+    /// Channel and vol rank only. The hold is not stepped.
+    pub fn observe(&mut self, row: &Observation<ResampledBar>) -> Result<(), StrategyError> {
+        let _ready = self.ingest(row)?;
+        Ok(())
+    }
+
     pub fn push(
         &mut self,
         row: &Observation<ResampledBar>,
         _book: Option<crate::DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
+        let ready = self.ingest(row)?;
+        let Some(p_prev) = ready.gate else {
+            return Ok(None);
+        };
+        if !ready.channel_ready || ready.decision_us < WARMUP_30D_US {
+            return Ok(None);
+        }
+        let signal_side = if p_prev <= self.theta_ticks {
+            ready.breakout
+        } else {
+            0
+        };
+        let side = self.hold.step(ready.decision_us, signal_side)?;
+        Ok(Some(emitted(
+            &ready.bar,
+            ready.decision_us,
+            side_target(side)?,
+        )))
+    }
+
+    fn ingest(&mut self, row: &Observation<ResampledBar>) -> Result<SqueezeReady, StrategyError> {
         let view = self.cursor.admit(row)?;
         let decision_us = decision_micros(&view);
-        let bar = view.value();
+        let bar = *view.value();
         let channel_ready = self.prev.len() >= self.n;
         let breakout = channel_side(&self.prev, self.n, bar.close().ticks());
         self.prev.push_back((bar.high().ticks(), bar.low().ticks()));
@@ -61,22 +88,24 @@ impl Squeeze {
         let rank = rank_of(&self.vol, &self.ring.to_vec())?;
         let gate = self.prev_rank;
         self.prev_rank = rank;
-        let Some(p_prev) = gate else {
-            return Ok(None);
-        };
-        if !channel_ready || decision_us < WARMUP_30D_US {
-            return Ok(None);
-        }
-        let signal_side = if p_prev <= self.theta_ticks {
-            breakout
-        } else {
-            0
-        };
-        let side = self.hold.step(decision_us, signal_side)?;
-        Ok(Some(emitted(bar, decision_us, side_target(side)?)))
+        Ok(SqueezeReady {
+            bar,
+            decision_us,
+            channel_ready,
+            breakout,
+            gate,
+        })
     }
 
     pub(crate) fn dropped_entries(&self) -> u64 {
         self.hold.dropped()
     }
+}
+
+struct SqueezeReady {
+    bar: ResampledBar,
+    decision_us: i64,
+    channel_ready: bool,
+    breakout: i8,
+    gate: Option<i64>,
 }

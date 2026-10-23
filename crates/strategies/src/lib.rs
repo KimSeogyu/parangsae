@@ -27,7 +27,9 @@
 //! * **Warmup silence.** No output before 2021-01-17 00:00 UTC for S01, S02,
 //!   S03, and S05, or before 2021-12-18 00:00 UTC for S06. Buffers still
 //!   update. Position state does not. This is the protocol's "no decisions in
-//!   the warmup period" on the full-window batch.
+//!   the warmup period" on the full-window batch. [`Strategy::observe`] is
+//!   that split for a walk-forward window: lookback moves, and a hold or the
+//!   S01 held target does not.
 //! * **Time stop.** At the first decision `>= entry + H`, the position is flat
 //!   before that bar's entry signal is considered, so the exit bar can open a
 //!   new trade. S02 flips on an opposite break and does not extend on a
@@ -138,6 +140,17 @@ impl Strategy {
             Inner::S03(strategy) => strategy.push(row, book),
             Inner::S05(strategy) => strategy.push(row, book),
             Inner::S06(strategy) => strategy.push(row, book),
+        }
+    }
+
+    /// Update lookback only. Holds and the S01 held target stay as they were.
+    pub fn observe(&mut self, row: &Observation<ResampledBar>) -> Result<(), StrategyError> {
+        match &mut self.inner {
+            Inner::S01(strategy) => strategy.observe(row),
+            Inner::S02(strategy) => strategy.observe(row),
+            Inner::S03(strategy) => strategy.observe(row),
+            Inner::S05(strategy) => strategy.observe(row),
+            Inner::S06(strategy) => strategy.observe(row),
         }
     }
 }
