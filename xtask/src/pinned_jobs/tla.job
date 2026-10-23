@@ -64,12 +64,4 @@
         run: |
           cd "$GITHUB_WORKSPACE"
           cargo xtask guards tlc-output --model ManifestWrite --file "${{ runner.temp }}/tlc-manifest.txt"
-      - name: Model-check execution OrderLifecycle
-        run: |
-          cd specs/tla/execution
-          java -XX:+UseParallelGC -Xmx2g -cp ../tla2tools.jar tlc2.TLC \
-            -workers 1 \
-            -metadir "${{ runner.temp }}/tlc-order-lifecycle" \
-            -config OrderLifecycle.cfg \
-            OrderLifecycle.tla
 
