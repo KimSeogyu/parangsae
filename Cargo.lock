@@ -1490,6 +1490,12 @@ dependencies = [
 [[package]]
 name = "parangsae-execution"
 version = "0.0.0"
+dependencies = [
+ "parangsae-core",
+ "proptest",
+ "serde_json",
+ "sha2",
+]
 
 [[package]]
 name = "parangsae-regime"
