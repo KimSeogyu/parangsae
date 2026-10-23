@@ -1,6 +1,11 @@
 -- parangsae research read path v0.4 (DuckDB). Run: duckdb -c ".read /workspace/reports/research-read-path.sql" ...
 -- Store root: /workspace/data/parangsae/parquet  (read-only for consumers)
 -- Fixed point: *_ticks / 1e8. Times: UTC microseconds. Point-in-time key: available_ts_us.
+-- Holdout bound (v0.4, defense in depth): every row view below returns only rows with event time
+-- < 2025-10-01 00:00 UTC (1759276800000000 us) unless the session explicitly opts in with
+--   SET VARIABLE readpath_include_holdout = true;
+-- The runner's partition guard stays the primary control; this only stops an accidental glob read.
+-- Metadata views (day_completeness, *_gaps, coverage_*) are not bounded and carry no values.
 -- um-kline 1m with reviewed resolutions applied (store unmodified).
 -- 2023-11-10 15:06..16:45 UTC (100 min): the stored monthly rows are synthetic filler (99 zero-count bars);
 -- they are replaced by the daily archive rows (aggTrades arbitration, Reviewer-signed). 2023-11-14 11:38..11:42 (5 min): stored monthly is correct.
@@ -16,7 +21,8 @@ select open_time_us, close_time_us,
        volume_ticks/1e8 as volume, quote_volume_ticks/1e8 as quote_volume, count as trades,
        taker_buy_volume_ticks/1e8 as taker_buy_volume, taker_buy_quote_volume_ticks/1e8 as taker_buy_quote_volume,
        available_ts_us
-from um_1m_resolved;
+from um_1m_resolved
+where open_time_us < 1759276800000000 or coalesce(getvariable('readpath_include_holdout'), false);
 
 -- 1h derived from 1m; only complete hours (60/60 minutes). Verified 744/744 exact vs Vision 1h 2024-01.
 create or replace view kline_1h as
@@ -28,6 +34,7 @@ select open_time_us//3600000000*3600000000 as open_time_us,
        sum(taker_buy_volume_ticks)/1e8 as taker_buy_volume, sum(taker_buy_quote_volume_ticks)/1e8 as taker_buy_quote_volume,
        max(available_ts_us) as available_ts_us
 from um_1m_resolved
+where open_time_us < 1759276800000000 or coalesce(getvariable('readpath_include_holdout'), false)
 group by 1 having count(*) = 60;
 
 -- Funding: fresh ingest with main 4db8a75 (verify 81/81 archives, 0 faults).
@@ -37,7 +44,8 @@ group by 1 having count(*) = 60;
 create or replace view funding as
 select funding_time_us, interval_hours, rate_ticks/1e8 as rate,
        greatest(available_ts_us, funding_time_us + 60000000) as available_ts_us  -- idempotent across C7
-from read_parquet('/workspace/data/parangsae/runs/funding-4db8a75/parquet/funding-rate/symbol=BTCUSDT/*/part.parquet');
+from read_parquet('/workspace/data/parangsae/runs/funding-4db8a75/parquet/funding-rate/symbol=BTCUSDT/*/part.parquet')
+where funding_time_us < 1759276800000000 or coalesce(getvariable('readpath_include_holdout'), false);
 
 -- Mark price 1m (for funding notional, equity marks, ruin check). Same units as kline_1m.
 -- NOT complete on 3/2,486 days: 55 missing minutes, real source gaps (see mark_1m_gaps).
@@ -45,7 +53,8 @@ create or replace view mark_1m as
 select open_time_us, close_time_us,
        open_ticks/1e8 as open, high_ticks/1e8 as high, low_ticks/1e8 as low, close_ticks/1e8 as close,
        available_ts_us
-from read_parquet('/workspace/data/parangsae/parquet/mark-price-kline/symbol=BTCUSDT/*/part.parquet');
+from read_parquet('/workspace/data/parangsae/parquet/mark-price-kline/symbol=BTCUSDT/*/part.parquet')
+where open_time_us < 1759276800000000 or coalesce(getvariable('readpath_include_holdout'), false);
 
 -- Per-day completeness: complete = 1440/1440 minutes present.
 create or replace view day_completeness as
@@ -64,18 +73,21 @@ where kind = 'grid';
 
 -- v0.4: premium index and index price 1m (raw Vision premiumIndexKlines / indexPriceKlines, monthly, checksums verified).
 -- Same units and availability as kline_1m: *_ticks / 1e8, available_ts_us = open + 60 s on every row.
--- premium = premium index ratio (e.g. 0.0009 = 0.09 %). Volume/trade columns are not meaningful for these sources and are omitted.
+-- premium = premium index ratio (e.g. 0.0009 = 0.09 %). Volume columns are not meaningful for these sources and are omitted; premium_1m keeps the source count as `samples`.
 create or replace view premium_1m as
 select open_time_us, close_time_us,
        open_ticks/1e8 as open, high_ticks/1e8 as high, low_ticks/1e8 as low, close_ticks/1e8 as close,
+       count as samples,  -- source sample count; 0 = no premium sample that minute (flat carry-forward bar)
        available_ts_us
-from read_parquet('/workspace/data/parangsae/parquet/premium-index-kline/symbol=BTCUSDT/*/part.parquet');
+from read_parquet('/workspace/data/parangsae/parquet/premium-index-kline/symbol=BTCUSDT/*/part.parquet')
+where open_time_us < 1759276800000000 or coalesce(getvariable('readpath_include_holdout'), false);
 
 create or replace view index_1m as
 select open_time_us, close_time_us,
        open_ticks/1e8 as open, high_ticks/1e8 as high, low_ticks/1e8 as low, close_ticks/1e8 as close,
        available_ts_us
-from read_parquet('/workspace/data/parangsae/parquet/index-price-kline/symbol=BTCUSDT/*/part.parquet');
+from read_parquet('/workspace/data/parangsae/parquet/index-price-kline/symbol=BTCUSDT/*/part.parquet')
+where open_time_us < 1759276800000000 or coalesce(getvariable('readpath_include_holdout'), false);
 
 -- Daily premium per UTC day, from premium_1m. Every day is emitted; `complete` = 1440/1440 minutes.
 -- close = last present 1m close; mean_close = mean of present 1m closes.
@@ -87,6 +99,7 @@ select open_time_us//86400000000*86400000000 as day_open_us,
        arg_min(open, open_time_us) as open, max(high) as high, min(low) as low,
        arg_max(close, open_time_us) as close, avg(close) as mean_close,
        count(*) as minutes, count(*) = 1440 as complete,
+       count(*) filter (where samples > 0) as valid_minutes,  -- minutes with >= 1 source sample
        max(available_ts_us) as available_ts_us
 from premium_1m group by 1, 2;
 
