@@ -688,6 +688,10 @@ const FORBIDDEN_ENV: &[&str] = &[
 
 const GATE_FIXTURE_STEP: &str = include_str!("gate_fixture_step.txt");
 
+/// Exact run body of the `changes` path filter. The command inventory does not
+/// parse it; any other bytes fail closed. The job pin checks the same text.
+const PATH_FILTER_SCRIPT: &str = include_str!("path_filter_step.sh");
+
 /// Reviewer-protected. Raw sha256 of `.github/workflows/gate_results.py`.
 const GATE_RESULTS_SHA256: &str =
     "67f96791665fc8b870c26e70c16d62a06cfa127e7e1dc9f86974654c0f567a24";
@@ -5598,6 +5602,10 @@ const CLOSURE_PINS: &[(&str, &str)] = &[
         "de0aa384a5f0100cd490f29b6ae0ea44d69395b5f9e9067c7d7faa546de1fea5",
     ),
     (
+        "xtask/src/path_filter_step.sh",
+        "cb6db059bee97e7ba77acf5bbb225910d38994c3a9b5602ec557cf9798a95f34",
+    ),
+    (
         "xtask/src/pinned_jobs/ci.header",
         "e70f3eb0e8ab1ec9cb815c23ee523d4cf29bd82824f34cdaf07e83468bff5671",
     ),
@@ -7821,6 +7829,16 @@ fn inventory_report(root: &Path, ci: &str) -> Result<Inventory, String> {
     let mut steps = Vec::new();
     for step in ci_run_steps(ci) {
         let key = step_key(&step);
+        if step.job == "changes" && step.name == "Decide which path-gated jobs run" {
+            if step.script != PATH_FILTER_SCRIPT {
+                push_gap(
+                    &mut gaps,
+                    "changes path filter script does not match".to_owned(),
+                );
+            }
+            listing.push(format!("{key} L{} path-filter :: pinned", step.line));
+            continue;
+        }
         let report = parse_run_script(&step.script, &key, step.line);
         gaps.extend(report.gaps);
         listing.extend(report.listing);
@@ -13580,6 +13598,13 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         let ci = read(&root.join(".github/workflows/ci.yml"))?;
         let report = inventory_report(&root, &ci)?;
         expect_gaps("head ci", report.gaps, &[])?;
+        let mutated = ci.replace("git rev-parse HEAD", "git rev-parse --verify HEAD");
+        let mutated_report = inventory_report(&root, &mutated)?;
+        expect_gaps(
+            "mutated path filter",
+            mutated_report.gaps,
+            &["changes path filter script does not match"],
+        )?;
         assert_eq!(ENUMERATED_MATCH_FORMS, &["grep -qF -- '<lit>' \"$f\""]);
         assert_eq!(ENV_I_TEMPLATES.len(), 13);
         let mut occurrences = 0usize;
