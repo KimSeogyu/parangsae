@@ -1,0 +1,5 @@
+states.dot.gz
+states-small.svg
+states-small.dot
+states/
+*.out

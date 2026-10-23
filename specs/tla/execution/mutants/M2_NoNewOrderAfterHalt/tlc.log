@@ -1,0 +1,447 @@
+$ java -XX:+UseParallelGC -Xmx512m -cp /workspace/builder/tools/tla2tools.jar tlc2.TLC -workers 1 -metadir /tmp/tlc-M2_NoNewOrderAfterHalt -config OrderLifecycle.cfg OrderLifecycle.tla
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 99 and seed 4709510949303244638 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 42902] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/builder/execution-tla/mutants/M2_NoNewOrderAfterHalt/OrderLifecycle.tla
+Parsing file /tmp/Integers.tla
+Parsing file /tmp/FiniteSets.tla
+Parsing file /tmp/TLC.tla
+Parsing file /tmp/Naturals.tla
+Parsing file /tmp/Sequences.tla
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module OrderLifecycle
+Starting... (2026-10-23 09:59:34)
+<<"CELL", "PendingNew", "Ack", {"Acked"}>>
+<<"CELL", "PendingNew", "Fill", {"PartiallyFilled", "Filled"}>>
+<<"CELL", "PendingNew", "CancelRequested", {"PendingCancel"}>>
+<<"CELL", "PendingNew", "CancelDenied", {}>>
+<<"CELL", "PendingNew", "CancelConfirmed", {}>>
+<<"CELL", "PendingNew", "Reject", {"Rejected"}>>
+<<"CELL", "PendingNew", "Expire", {"Expired"}>>
+<<"CELL", "PendingNew", "Timeout", {"Unknown"}>>
+<<"CELL", "PendingNew", "QueryFilled", {}>>
+<<"CELL", "PendingNew", "QueryCanceled", {}>>
+<<"CELL", "PendingNew", "QueryNotFound", {}>>
+<<"CELL", "PendingNew", "RaceFill", {}>>
+<<"CELL", "Acked", "Ack", {"Acked"}>>
+<<"CELL", "Acked", "Fill", {"PartiallyFilled", "Filled"}>>
+<<"CELL", "Acked", "CancelRequested", {"PendingCancel"}>>
+<<"CELL", "Acked", "CancelDenied", {}>>
+<<"CELL", "Acked", "CancelConfirmed", {}>>
+<<"CELL", "Acked", "Reject", {}>>
+<<"CELL", "Acked", "Expire", {"Expired"}>>
+<<"CELL", "Acked", "Timeout", {"Unknown"}>>
+<<"CELL", "Acked", "QueryFilled", {}>>
+<<"CELL", "Acked", "QueryCanceled", {}>>
+<<"CELL", "Acked", "QueryNotFound", {}>>
+<<"CELL", "Acked", "RaceFill", {}>>
+<<"CELL", "PartiallyFilled", "Ack", {"PartiallyFilled"}>>
+<<"CELL", "PartiallyFilled", "Fill", {"PartiallyFilled", "Filled"}>>
+<<"CELL", "PartiallyFilled", "CancelRequested", {"PendingCancel"}>>
+<<"CELL", "PartiallyFilled", "CancelDenied", {}>>
+<<"CELL", "PartiallyFilled", "CancelConfirmed", {}>>
+<<"CELL", "PartiallyFilled", "Reject", {}>>
+<<"CELL", "PartiallyFilled", "Expire", {"Expired"}>>
+<<"CELL", "PartiallyFilled", "Timeout", {"Unknown"}>>
+<<"CELL", "PartiallyFilled", "QueryFilled", {}>>
+<<"CELL", "PartiallyFilled", "QueryCanceled", {}>>
+<<"CELL", "PartiallyFilled", "QueryNotFound", {}>>
+<<"CELL", "PartiallyFilled", "RaceFill", {}>>
+<<"CELL", "Filled", "Ack", {}>>
+<<"CELL", "Filled", "Fill", {}>>
+<<"CELL", "Filled", "CancelRequested", {}>>
+<<"CELL", "Filled", "CancelDenied", {}>>
+<<"CELL", "Filled", "CancelConfirmed", {}>>
+<<"CELL", "Filled", "Reject", {}>>
+<<"CELL", "Filled", "Expire", {}>>
+<<"CELL", "Filled", "Timeout", {}>>
+<<"CELL", "Filled", "QueryFilled", {}>>
+<<"CELL", "Filled", "QueryCanceled", {}>>
+<<"CELL", "Filled", "QueryNotFound", {}>>
+<<"CELL", "Filled", "RaceFill", {}>>
+<<"CELL", "PendingCancel", "Ack", {"PendingCancel"}>>
+<<"CELL", "PendingCancel", "Fill", {"Filled", "PendingCancel"}>>
+<<"CELL", "PendingCancel", "CancelRequested", {"PendingCancel"}>>
+<<"CELL", "PendingCancel", "CancelDenied", {"Acked", "PartiallyFilled"}>>
+<<"CELL", "PendingCancel", "CancelConfirmed", {"Canceled"}>>
+<<"CELL", "PendingCancel", "Reject", {}>>
+<<"CELL", "PendingCancel", "Expire", {"Expired"}>>
+<<"CELL", "PendingCancel", "Timeout", {"Unknown"}>>
+<<"CELL", "PendingCancel", "QueryFilled", {}>>
+<<"CELL", "PendingCancel", "QueryCanceled", {}>>
+<<"CELL", "PendingCancel", "QueryNotFound", {}>>
+<<"CELL", "PendingCancel", "RaceFill", {}>>
+<<"CELL", "Canceled", "Ack", {}>>
+<<"CELL", "Canceled", "Fill", {}>>
+<<"CELL", "Canceled", "CancelRequested", {}>>
+<<"CELL", "Canceled", "CancelDenied", {}>>
+<<"CELL", "Canceled", "CancelConfirmed", {}>>
+<<"CELL", "Canceled", "Reject", {}>>
+<<"CELL", "Canceled", "Expire", {}>>
+<<"CELL", "Canceled", "Timeout", {}>>
+<<"CELL", "Canceled", "QueryFilled", {}>>
+<<"CELL", "Canceled", "QueryCanceled", {}>>
+<<"CELL", "Canceled", "QueryNotFound", {}>>
+<<"CELL", "Canceled", "RaceFill", {"Canceled"}>>
+<<"CELL", "Rejected", "Ack", {}>>
+<<"CELL", "Rejected", "Fill", {}>>
+<<"CELL", "Rejected", "CancelRequested", {}>>
+<<"CELL", "Rejected", "CancelDenied", {}>>
+<<"CELL", "Rejected", "CancelConfirmed", {}>>
+<<"CELL", "Rejected", "Reject", {}>>
+<<"CELL", "Rejected", "Expire", {}>>
+<<"CELL", "Rejected", "Timeout", {}>>
+<<"CELL", "Rejected", "QueryFilled", {}>>
+<<"CELL", "Rejected", "QueryCanceled", {}>>
+<<"CELL", "Rejected", "QueryNotFound", {}>>
+<<"CELL", "Rejected", "RaceFill", {}>>
+<<"CELL", "Expired", "Ack", {}>>
+<<"CELL", "Expired", "Fill", {}>>
+<<"CELL", "Expired", "CancelRequested", {}>>
+<<"CELL", "Expired", "CancelDenied", {}>>
+<<"CELL", "Expired", "CancelConfirmed", {}>>
+<<"CELL", "Expired", "Reject", {}>>
+<<"CELL", "Expired", "Expire", {}>>
+<<"CELL", "Expired", "Timeout", {}>>
+<<"CELL", "Expired", "QueryFilled", {}>>
+<<"CELL", "Expired", "QueryCanceled", {}>>
+<<"CELL", "Expired", "QueryNotFound", {}>>
+<<"CELL", "Expired", "RaceFill", {}>>
+<<"CELL", "Unknown", "Ack", {}>>
+<<"CELL", "Unknown", "Fill", {}>>
+<<"CELL", "Unknown", "CancelRequested", {"Unknown"}>>
+<<"CELL", "Unknown", "CancelDenied", {}>>
+<<"CELL", "Unknown", "CancelConfirmed", {}>>
+<<"CELL", "Unknown", "Reject", {}>>
+<<"CELL", "Unknown", "Expire", {}>>
+<<"CELL", "Unknown", "Timeout", {"Unknown"}>>
+<<"CELL", "Unknown", "QueryFilled", {"Filled"}>>
+<<"CELL", "Unknown", "QueryCanceled", {"Canceled"}>>
+<<"CELL", "Unknown", "QueryNotFound", {"PendingNew"}>>
+<<"CELL", "Unknown", "RaceFill", {}>>
+Computing initial states...
+Computed 2 initial states...
+Finished computing initial states: 4 distinct states generated at 2026-10-23 09:59:35.
+Error: Invariant NoNewOrderAfterHalt is violated.
+Error: The behavior up to this point is:
+State 1: <Initial predicate>
+/\ flag = FALSE
+/\ epoch = 0
+/\ foreign = FALSE
+/\ killed = FALSE
+/\ fresh = FALSE
+/\ riskHalted = FALSE
+/\ o = ( i1 :>
+      [ st |-> "None",
+        qty |-> 0,
+        side |-> 0,
+        ro |-> FALSE,
+        leg |-> "none",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] @@
+  i2 :>
+      [ st |-> "None",
+        qty |-> 0,
+        side |-> 0,
+        ro |-> FALSE,
+        leg |-> "none",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] )
+/\ pos = 0
+/\ last = <<"-", "-", "-">>
+/\ halted = TRUE
+/\ lpos = 0
+
+State 2: <Reconcile line 405, col 3 to line 411, col 73 of module OrderLifecycle>
+/\ flag = FALSE
+/\ epoch = 0
+/\ foreign = FALSE
+/\ killed = FALSE
+/\ fresh = TRUE
+/\ riskHalted = FALSE
+/\ o = ( i1 :>
+      [ st |-> "None",
+        qty |-> 0,
+        side |-> 0,
+        ro |-> FALSE,
+        leg |-> "none",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] @@
+  i2 :>
+      [ st |-> "None",
+        qty |-> 0,
+        side |-> 0,
+        ro |-> FALSE,
+        leg |-> "none",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] )
+/\ pos = 0
+/\ last = <<"-", "-", "-">>
+/\ halted = TRUE
+/\ lpos = 0
+
+State 3: <OperatorReset line 414, col 3 to line 419, col 60 of module OrderLifecycle>
+/\ flag = FALSE
+/\ epoch = 0
+/\ foreign = FALSE
+/\ killed = FALSE
+/\ fresh = TRUE
+/\ riskHalted = FALSE
+/\ o = ( i1 :>
+      [ st |-> "None",
+        qty |-> 0,
+        side |-> 0,
+        ro |-> FALSE,
+        leg |-> "none",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] @@
+  i2 :>
+      [ st |-> "None",
+        qty |-> 0,
+        side |-> 0,
+        ro |-> FALSE,
+        leg |-> "none",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] )
+/\ pos = 0
+/\ last = <<"-", "-", "-">>
+/\ halted = FALSE
+/\ lpos = 0
+
+State 4: <Plan line 166, col 3 to line 178, col 91 of module OrderLifecycle>
+/\ flag = FALSE
+/\ epoch = 0
+/\ foreign = FALSE
+/\ killed = FALSE
+/\ fresh = TRUE
+/\ riskHalted = FALSE
+/\ o = ( i1 :>
+      [ st |-> "PendingNew",
+        qty |-> 2,
+        side |-> -1,
+        ro |-> FALSE,
+        leg |-> "open",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] @@
+  i2 :>
+      [ st |-> "None",
+        qty |-> 0,
+        side |-> 0,
+        ro |-> FALSE,
+        leg |-> "none",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] )
+/\ pos = 0
+/\ last = <<"-", "-", "-">>
+/\ halted = FALSE
+/\ lpos = 0
+
+State 5: <SpurFill line 385, col 3 to line 388, col 74 of module OrderLifecycle>
+/\ flag = TRUE
+/\ epoch = 0
+/\ foreign = FALSE
+/\ killed = FALSE
+/\ fresh = TRUE
+/\ riskHalted = FALSE
+/\ o = ( i1 :>
+      [ st |-> "PendingNew",
+        qty |-> 2,
+        side |-> -1,
+        ro |-> FALSE,
+        leg |-> "open",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] @@
+  i2 :>
+      [ st |-> "None",
+        qty |-> 0,
+        side |-> 0,
+        ro |-> FALSE,
+        leg |-> "none",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] )
+/\ pos = 0
+/\ last = <<"PendingNew", "Fill", "PayloadError">>
+/\ halted = TRUE
+/\ lpos = 0
+
+State 6: <DispatchAck line 191, col 3 to line 195, col 84 of module OrderLifecycle>
+/\ flag = TRUE
+/\ epoch = 0
+/\ foreign = FALSE
+/\ killed = FALSE
+/\ fresh = FALSE
+/\ riskHalted = FALSE
+/\ o = ( i1 :>
+      [ st |-> "PendingNew",
+        qty |-> 2,
+        side |-> -1,
+        ro |-> FALSE,
+        leg |-> "open",
+        cum |-> 0,
+        sent |-> TRUE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> TRUE,
+        resp |-> "ack",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "open",
+        vcum |-> 0,
+        vsubs |-> 1,
+        infl |-> FALSE ] @@
+  i2 :>
+      [ st |-> "None",
+        qty |-> 0,
+        side |-> 0,
+        ro |-> FALSE,
+        leg |-> "none",
+        cum |-> 0,
+        sent |-> FALSE,
+        aEp |-> 0,
+        aAge |-> 0,
+        sh |-> FALSE,
+        resp |-> "none",
+        cxl |-> FALSE,
+        cresp |-> "none",
+        cxlReq |-> FALSE,
+        rem |-> -1,
+        vst |-> "none",
+        vcum |-> 0,
+        vsubs |-> 0,
+        infl |-> FALSE ] )
+/\ pos = 0
+/\ last = <<"PendingNew", "Fill", "PayloadError">>
+/\ halted = TRUE
+/\ lpos = 0
+
+336 states generated, 239 distinct states found, 176 states left on queue.
+The depth of the complete state graph search is 6.
+The average outdegree of the complete state graph is 4 (minimum is 0, the maximum 9 and the 95th percentile is 9).
+Finished in 01s at (2026-10-23 09:59:35)
+
+exit_code=12

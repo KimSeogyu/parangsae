@@ -172,6 +172,15 @@ jobs:
             -config ManifestWrite.cfg \
             ManifestWrite.tla
 
+      - name: Model-check execution OrderLifecycle
+        working-directory: specs/tla/execution
+        run: |
+          java -XX:+UseParallelGC -Xmx2g -cp ../tla2tools.jar tlc2.TLC \
+            -workers 1 \
+            -metadir "${{ runner.temp }}/tlc-order-lifecycle" \
+            -config OrderLifecycle.cfg \
+            OrderLifecycle.tla
+
   kani:
     name: kani
     needs: changes
