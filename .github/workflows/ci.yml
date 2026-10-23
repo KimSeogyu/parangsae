@@ -121,6 +121,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: cargo fetch (all targets, for offline cargo metadata)
+        run: cargo fetch --locked
       - name: cargo test (unit, proptest, cucumber, execution lock)
         run: cargo test --workspace
 
@@ -218,6 +220,8 @@ jobs:
           curl -fsSL -o tla2tools.jar -L \
             https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
           echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  tla2tools.jar" | sha256sum -c -
+      - name: cargo fetch (all targets, for offline cargo metadata)
+        run: cargo fetch --locked
       - name: validate, generate --check, enforce
         run: |
           cargo xtask spec validate --jar specs/tla/tla2tools.jar
