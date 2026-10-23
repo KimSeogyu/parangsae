@@ -44,6 +44,10 @@ pub struct BookState {
 ///
 /// `None` is warmup. After the first `Some`, `None` or a mismatched
 /// `bar_close_time_us` aborts the run. `book` is the position at this decision.
+///
+/// [`TargetSignal::on_warmup_bar`] runs for bars before the scored start.
+/// The engine does not size, fill, fund, or score those bars. A stateful
+/// signal updates lookback there and does not arm a hold.
 pub trait TargetSignal {
     fn on_bar(
         &mut self,
@@ -51,4 +55,12 @@ pub trait TargetSignal {
         funding: Causal<'_, &[FundingObs]>,
         book: BookState,
     ) -> Option<SignalOutput>;
+
+    /// Feature lookback before the scored start. The default reads nothing.
+    fn on_warmup_bar(
+        &mut self,
+        _view: Causal<'_, &[ResampledBar]>,
+        _funding: Causal<'_, &[FundingObs]>,
+    ) {
+    }
 }

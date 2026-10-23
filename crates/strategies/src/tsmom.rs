@@ -56,13 +56,40 @@ impl TsmomSlow {
         self.interval
     }
 
+    /// Ring only. `held` and `accept` stay put, so a warmup target cannot reopen.
+    pub fn observe(&mut self, row: &Observation<ResampledBar>) -> Result<(), StrategyError> {
+        let _ready = self.ingest(row)?;
+        Ok(())
+    }
+
     pub fn push(
         &mut self,
         row: &Observation<ResampledBar>,
         book: Option<DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
+        let Some(ready) = self.ingest(row)? else {
+            return Ok(None);
+        };
+        if ready.decision_us < WARMUP_30D_US {
+            return Ok(None);
+        }
+        let current = match book {
+            Some(book) => signed_weight(book)?,
+            None => self.held.ticks(),
+        };
+        if passes_deadband(current, ready.target.ticks()) {
+            self.held = ready.target;
+            self.accept = self.accept.checked_add(1).ok_or(StrategyError::Overflow)?;
+        }
+        let mut output = emitted(&ready.bar, ready.decision_us, self.held);
+        output.accept = self.accept;
+        Ok(Some(output))
+    }
+
+    fn ingest(&mut self, row: &Observation<ResampledBar>) -> Result<Option<Ready>, StrategyError> {
         let view = self.cursor.admit(row)?;
         let decision_us = decision_micros(&view);
+        let bar = *view.value();
         self.ring.push(row.clone());
         let rows = self.ring.to_vec();
         let decision = DecisionTime::from_micros(UtcMicros::from_micros(decision_us));
@@ -70,25 +97,22 @@ impl TsmomSlow {
         let Some(raw) = raw else {
             return Ok(None);
         };
-        if decision_us < WARMUP_30D_US {
-            return Ok(None);
-        }
-        let next = match raw.decision {
+        let target = match raw.decision {
             Decision::Target(target) => target,
             Decision::Flat(_) => return Err(StrategyError::Param("tsmom")),
         };
-        let current = match book {
-            Some(book) => signed_weight(book)?,
-            None => self.held.ticks(),
-        };
-        if passes_deadband(current, next.ticks()) {
-            self.held = next;
-            self.accept = self.accept.checked_add(1).ok_or(StrategyError::Overflow)?;
-        }
-        let mut output = emitted(view.value(), decision_us, self.held);
-        output.accept = self.accept;
-        Ok(Some(output))
+        Ok(Some(Ready {
+            bar,
+            decision_us,
+            target,
+        }))
     }
+}
+
+struct Ready {
+    bar: ResampledBar,
+    decision_us: i64,
+    target: Target,
 }
 
 fn signed_weight(book: DecisionBook) -> Result<i64, StrategyError> {

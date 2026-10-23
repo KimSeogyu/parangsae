@@ -42,10 +42,12 @@ fn spec(run_id: &str, start: i64, end: i64) -> TrialSpec {
         ts: UtcMicros::from_micros(start),
         run: parangsae_backtest::RunConfig {
             initial_cash: Cash(1_000 * 100_000_000),
+            warmup_start: UtcMicros::from_micros(start),
             start: UtcMicros::from_micros(start),
             end: UtcMicros::from_micros(end),
             holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
             forced_flat: Vec::new(),
+            flatten_before: None,
             mark_gaps: Vec::new(),
             interval: Interval::ONE_HOUR,
             lot_ticks: 100_000,

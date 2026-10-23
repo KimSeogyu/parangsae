@@ -71,6 +71,18 @@ pub fn max_drawdown(equity: &[Cash]) -> Result<Ratio, SimError> {
 /// A product that does not fit is [`SimError::Overflow`].
 pub fn sharpe_ticks(levels_ticks: &[i64]) -> Result<(Option<Ratio>, Option<Ratio>), SimError> {
     let returns = daily_returns(levels_ticks)?;
+    sharpe_of_returns(&returns)
+}
+
+/// Sharpe of returns already in `10^8` ticks. The sums are [`sharpe_ticks`].
+pub(crate) fn sharpe_of_return_ticks(
+    returns: &[i64],
+) -> Result<(Option<Ratio>, Option<Ratio>), SimError> {
+    let wide: Vec<i128> = returns.iter().copied().map(i128::from).collect();
+    sharpe_of_returns(&wide)
+}
+
+fn sharpe_of_returns(returns: &[i128]) -> Result<(Option<Ratio>, Option<Ratio>), SimError> {
     let n_us = returns.len();
     if n_us < 2 {
         return Ok((None, None));
@@ -79,9 +91,9 @@ pub fn sharpe_ticks(levels_ticks: &[i64]) -> Result<(Option<Ratio>, Option<Ratio
     let mut s1: i128 = 0;
     let mut s2: i128 = 0;
     for value in returns {
-        s1 = s1.checked_add(value).ok_or(SimError::Overflow)?;
+        s1 = s1.checked_add(*value).ok_or(SimError::Overflow)?;
         s2 = s2
-            .checked_add(value.checked_mul(value).ok_or(SimError::Overflow)?)
+            .checked_add(value.checked_mul(*value).ok_or(SimError::Overflow)?)
             .ok_or(SimError::Overflow)?;
     }
     let square = s1.checked_mul(s1).ok_or(SimError::Overflow)?;

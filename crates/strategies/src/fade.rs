@@ -53,14 +53,38 @@ impl Fade {
         })
     }
 
+    /// Returns and vol rank only. The hold is not stepped.
+    pub fn observe(&mut self, row: &Observation<ResampledBar>) -> Result<(), StrategyError> {
+        let _ready = self.ingest(row)?;
+        Ok(())
+    }
+
     pub fn push(
         &mut self,
         row: &Observation<ResampledBar>,
         _book: Option<crate::DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
+        let ready = self.ingest(row)?;
+        let Some(rank_ticks) = ready.rank else {
+            return Ok(None);
+        };
+        if self.returns.len() < SIGMA_BARS || ready.decision_us < WARMUP_30D_US {
+            return Ok(None);
+        }
+        let signal_side = self.event(rank_ticks);
+        let side = self.hold.step(ready.decision_us, signal_side)?;
+        Ok(Some(emitted(
+            &ready.bar,
+            ready.decision_us,
+            side_target(side)?,
+        )))
+    }
+
+    fn ingest(&mut self, row: &Observation<ResampledBar>) -> Result<FadeReady, StrategyError> {
         let view = self.cursor.admit(row)?;
         let decision_us = decision_micros(&view);
-        let close = price_f64(view.value().close())?;
+        let bar = *view.value();
+        let close = price_f64(bar.close())?;
         if let Some(prev) = self.prev_close {
             self.returns.push_back(log_ratio(close, prev)?);
             if self.returns.len() > SIGMA_BARS {
@@ -70,15 +94,11 @@ impl Fade {
         self.prev_close = Some(close);
         self.ring.push(row.clone());
         let rank = rank_of(&self.vol, &self.ring.to_vec())?;
-        let Some(rank_ticks) = rank else {
-            return Ok(None);
-        };
-        if self.returns.len() < SIGMA_BARS || decision_us < WARMUP_30D_US {
-            return Ok(None);
-        }
-        let signal_side = self.event(rank_ticks);
-        let side = self.hold.step(decision_us, signal_side)?;
-        Ok(Some(emitted(view.value(), decision_us, side_target(side)?)))
+        Ok(FadeReady {
+            bar,
+            decision_us,
+            rank,
+        })
     }
 
     pub(crate) fn dropped_entries(&self) -> u64 {
@@ -110,4 +130,10 @@ impl Fade {
         }
         -sign_of(z)
     }
+}
+
+struct FadeReady {
+    bar: ResampledBar,
+    decision_us: i64,
+    rank: Option<i64>,
 }
