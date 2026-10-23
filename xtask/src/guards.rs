@@ -5841,7 +5841,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-core",
         "lib",
         "unittests src/lib.rs (target/debug/deps/parangsae_core-",
-        19,
+        26,
     ),
     (
         (
@@ -5931,7 +5931,37 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-signals",
         "lib",
         "unittests src/lib.rs (target/debug/deps/parangsae_signals-",
-        0,
+        5,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "test",
+        "tests/determinism.rs",
+        2,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "test",
+        "tests/signal_golden.rs",
+        12,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "test",
+        "tests/leaky_fail_first.rs",
+        5,
     ),
     (
         (
@@ -5942,6 +5972,46 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "test",
         "tests/producer_gate.rs",
         1,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "test",
+        "tests/signals_v0.rs",
+        13,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "test",
+        "tests/target_props.rs",
+        9,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "test",
+        "tests/truncation.rs",
+        5,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-signals",
+        "test",
+        "tests/warmup_emit.rs",
+        15,
     ),
     (
         (
@@ -6091,7 +6161,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-signals",
         "doctest",
         "Doc-tests parangsae_signals",
-        0,
+        8,
     ),
     (
         (
@@ -6128,7 +6198,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-core",
         "lib",
         "unittests src/lib.rs (target/debug/deps/parangsae_core-",
-        20,
+        27,
     ),
     (
         ("test", "causal gate compile-fail"),
