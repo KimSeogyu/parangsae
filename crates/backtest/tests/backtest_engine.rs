@@ -28,6 +28,7 @@ struct EngineWorld {
     grid: Vec<i64>,
     funding_hidden: bool,
     funding_visible: bool,
+    funding_scripts: Option<(cases::Script, cases::Script)>,
 }
 
 impl EngineWorld {
@@ -193,6 +194,24 @@ fn t7_unlisted_step(world: &mut EngineWorld) {
 #[when("an interior minute is unavailable until the next hour")]
 fn delayed_minute_step(world: &mut EngineWorld) {
     world.error = Some(cases::delayed_interior_minute());
+}
+
+#[when("an earlier funding slot is delayed beyond a later available slot")]
+fn delayed_funding_step(world: &mut EngineWorld) {
+    world.funding_scripts = Some((
+        cases::delayed_funding_prefix(1_000),
+        cases::delayed_funding_prefix(9_999),
+    ));
+}
+
+#[then("the delayed funding mutation leaves the signal's funding prefix empty")]
+fn delayed_funding_hidden(world: &mut EngineWorld) {
+    let (first, mutated) = world
+        .funding_scripts
+        .as_ref()
+        .expect("funding views recorded");
+    assert_eq!(first.funding_seen, mutated.funding_seen);
+    assert!(first.funding_seen.iter().all(Vec::is_empty));
 }
 
 #[then("the engine error is resample availability")]

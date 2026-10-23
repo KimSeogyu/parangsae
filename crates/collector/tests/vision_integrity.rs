@@ -688,6 +688,14 @@ fn corrupt_stored_um(world: &mut VisionWorld) {
     store::upsert_klines(dir, "um-kline", rows).expect("rewrite");
 }
 
+#[when("the stored um-kline partition on 2021-06-01 is deleted")]
+fn delete_stored_um_partition(world: &mut VisionWorld) {
+    let dir = world.verify_dir.as_ref().expect("store").path();
+    let june1 = CivilDay::new(2021, 6, 1).expect("june");
+    std::fs::remove_file(store::fact_path(dir, "um-kline", "BTCUSDT", june1))
+        .expect("remove partition");
+}
+
 #[when(regex = r#"^verify is limited to dataset "([^"]+)"$"#)]
 fn when_verify_dataset(world: &mut VisionWorld, name: String) {
     run_verify(world, VerifyFilter::parse(&[name], None, None));
@@ -756,6 +764,18 @@ fn then_verify_conflict(world: &mut VisionWorld) {
         "{report}"
     );
     assert!(!report.ok());
+}
+
+#[then("verify reports missing parquet rows")]
+fn then_verify_missing_rows(world: &mut VisionWorld) {
+    let report = world.verify_report.as_ref().expect("report");
+    assert!(!report.ok(), "{report}");
+    assert_eq!(report.summary.faults, 3);
+    assert_eq!(report.fault_lines.len(), 3);
+    assert!(report
+        .fault_lines
+        .iter()
+        .all(|line| line.starts_with("missing parquet row ")));
 }
 
 #[then("verify rejects the request as usage")]

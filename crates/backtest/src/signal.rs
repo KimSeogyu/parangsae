@@ -23,9 +23,13 @@ pub struct FundingObs {
     pub rate: Ratio,
 }
 
-/// Rows whose `available` is at or before `decision`, in stored order.
+/// The longest stored prefix whose rows are all available by `decision`.
+/// Funding-time order does not imply availability order when a row is delayed.
 pub fn funding_visible(rows: &[FundingObs], decision: UtcMicros) -> &[FundingObs] {
-    let end = rows.partition_point(|row| row.available <= decision);
+    let end = rows
+        .iter()
+        .position(|row| row.available > decision)
+        .unwrap_or(rows.len());
     &rows[..end]
 }
 
