@@ -1,0 +1,961 @@
+[
+  {
+    "id": "224355125767",
+    "title": "채용공고 × 하나은행 AI퀀트",
+    "date": "2026. 7. 23.",
+    "url": "https://blog.naver.com/nomore_bet/224355125767",
+    "inventory_index": 1,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "AI",
+      "퀀트직무",
+      "리서치자동화"
+    ],
+    "summary_ko": "하나은행 AI퀀트 공고를 계기로 LLM과 에이전트를 이용한 투자 리서치 자동화, 금융데이터 분석, 계량모델 운용의 결합을 논한다. 기술만으로 금융 고유의 전문성을 대체하기 어렵다는 저자의 관찰이다.",
+    "developer_note_ko": "채용공고는 연구 수요의 증거이지 수익성 증거가 아니다. 아이디어 생성·코드 구현·독립 검증 단계의 책임을 분리하자는 설계 가설로 활용한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "f94670b051bf7b3bab826be7d91e9c4a8d092372eca1db2c5af10854509336d7",
+    "source_text_chars": 1619,
+    "source_document_sha256": "f94670b051bf7b3bab826be7d91e9c4a8d092372eca1db2c5af10854509336d7",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "224057045323",
+    "title": "투자 권태기다! 근데 권태기라고 철인3종을? #1",
+    "date": "2025. 10. 29.",
+    "url": "https://blog.naver.com/nomore_bet/224057045323",
+    "inventory_index": 2,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "투자심리",
+      "연구비용",
+      "과잉매매"
+    ],
+    "summary_ko": "투자 공부와 글쓰기에 대한 권태, 운동으로 옮겨간 관심을 회고한다. 금융 지식이 수익을 보장하지 않고 지식 증가가 잦은 거래와 과도한 베팅으로 이어질 수 있다는 자기성찰이 중심이다.",
+    "developer_note_ko": "연구량과 수익을 혼동하지 말고 시간 비용·거래빈도·위험 확대를 별도 측정한다. 개인 경험을 투자전략 우월성의 실증 결과로 분류하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "d0071b4bd5025d71d35220ea35b17bcbf70e1df9966ad23c2f778e6a213f42e3",
+    "source_text_chars": 4058,
+    "source_document_sha256": "d0071b4bd5025d71d35220ea35b17bcbf70e1df9966ad23c2f778e6a213f42e3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223923836293",
+    "title": "젠틀 몬스터, 구글 지분 투자는 스마트 글래스를 위한?",
+    "date": "2025. 7. 7.",
+    "url": "https://blog.naver.com/nomore_bet/223923836293",
+    "inventory_index": 3,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "대안데이터",
+      "기술확산",
+      "소비자수용"
+    ],
+    "summary_ko": "구글의 젠틀몬스터 투자 소식에서 스마트글래스의 디자인·사회적 수용성·촬영 프라이버시를 기술 성능과 구별한다. 투자 관심으로 연결하지만 스스로 재무 분석보다는 소비자 경험과 직관에 기반한 관찰로 설명한다.",
+    "developer_note_ko": "기사상의 거래 조건은 원공시로 확인할 대상이다. 기술 도입 가설을 지분 투자 사건, 소비자 수용 지표, 기업가치 평가로 나눠 검증하며 실제 매수 신호로 바로 변환하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "71a28e787393e80f86e2750f2449ed592bbba72a2e3e8afb4460c87a2ac845be",
+    "source_text_chars": 3713,
+    "source_document_sha256": "71a28e787393e80f86e2750f2449ed592bbba72a2e3e8afb4460c87a2ac845be",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223629592582",
+    "title": "온 러닝, 호카, 아식스 - 러닝 하면서 궁금해지던 관련 주식들",
+    "date": "2024. 10. 23.",
+    "url": "https://blog.naver.com/nomore_bet/223629592582",
+    "inventory_index": 4,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "소비동향",
+      "브랜드경쟁",
+      "관찰편향"
+    ],
+    "summary_ko": "러닝 입문 경험에서 Nike 대신 ASICS·Hoka·On을 찾게 된 변화를 투자 아이디어로 확장한다. 유통전략·제품혁신·지역별 매출과 개인이 목격한 수요를 연결하며 On의 아시아 확장 가능성에 관심을 보인다.",
+    "developer_note_ko": "개인 경험과 추천 알고리즘에 노출된 표본은 대표성이 없다. 브랜드와 상장 모회사 매핑, 보고기간별 지역 매출, 이미 주가에 반영된 성장 기대를 별도 검증한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "83b53be41e1bcf25c019a684a1f8cd836deab6e7611d61e39224923ff8aff4d6",
+    "source_text_chars": 4962,
+    "source_document_sha256": "83b53be41e1bcf25c019a684a1f8cd836deab6e7611d61e39224923ff8aff4d6",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223488331066",
+    "title": "비트코인 × 주기적인 장작 투하",
+    "date": "2024. 6. 24.",
+    "url": "https://blog.naver.com/nomore_bet/223488331066",
+    "inventory_index": 5,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "비트코인",
+      "정책발언",
+      "이벤트"
+    ],
+    "summary_ko": "2024년 미국 대선 후보의 비트코인 채굴 발언을 에너지 투자·정책 명분·CBDC에 대한 정치적 대비로 해석한다. 비트코인에 관한 저자의 과거 투자 경험과 정치인의 시장 부양 유인에 대한 추측이 섞여 있다.",
+    "developer_note_ko": "발언 시점·후보 공약·확정 정책·실제 집행을 다른 이벤트 타입으로 구분한다. 정책 의도나 가격 방향에 대한 해석은 사실 라벨로 학습시키지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "8b9566ad7bc7fd4eac6fadbc5214210f9165895ca7183fe34d941b8af01bb890",
+    "source_text_chars": 2537,
+    "source_document_sha256": "8b9566ad7bc7fd4eac6fadbc5214210f9165895ca7183fe34d941b8af01bb890",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223444312860",
+    "title": "인도투자 × 전자결제 발전",
+    "date": "2024. 5. 13.",
+    "url": "https://blog.naver.com/nomore_bet/223444312860",
+    "inventory_index": 6,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "인도",
+      "결제인프라",
+      "단위검증"
+    ],
+    "summary_ko": "인도의 UPI 보급과 현금에서 디지털 결제로의 도약을 금융 인프라 변화로 읽는다. 신용 확대와 소비재 수요로 이어질 가능성을 한국의 과거 카드 확대 경험과 비교하지만 직접적인 투자 대상은 확정하지 않는다.",
+    "developer_note_ko": "본문의 영문 링크 설명에는 $6.4 trillion, 한국어 설명에는 64조 달러가 있어 배수 불일치가 보인다. 원자료와 통화 환산을 검증하고 결제 증가가 신용·소비 증가를 뜻하는지 구분한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "86401c327cec65aea798d209b079656dfbd4bc2999f47dd4a779b4549f1a5223",
+    "source_text_chars": 4628,
+    "source_document_sha256": "86401c327cec65aea798d209b079656dfbd4bc2999f47dd4a779b4549f1a5223",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223400184384",
+    "title": "인도 투자하자! feat. 강황맨",
+    "date": "2024. 4. 1.",
+    "url": "https://blog.naver.com/nomore_bet/223400184384",
+    "inventory_index": 7,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "인도",
+      "국가분산",
+      "투자입문서"
+    ],
+    "summary_ko": "인도 동료와의 경험 및 인도 투자 입문서를 통해 인구구조·내수·금융업 비중을 새롭게 인식했다고 소개한다. 한국 산업구조를 인도에 투영했던 자신의 선입견을 돌아보며 기업·ETF·산업 지식을 정리할 필요성을 강조한다.",
+    "developer_note_ko": "국가 인구 성장과 주식 수익은 같지 않다. 종목·ETF 상장시장, 환율, 섹터 집중도와 당시 이용 가능 상품을 확인하고 개인의 호감도를 투자 근거와 분리한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "84b8145b8a5338def0d036526b43fa1bfe759c769f8a079b0c6ea5efb2dc0f96",
+    "source_text_chars": 3962,
+    "source_document_sha256": "84b8145b8a5338def0d036526b43fa1bfe759c769f8a079b0c6ea5efb2dc0f96",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223376003606",
+    "title": "금융공학 채용공고, 신한은행 리스크 퀀트",
+    "date": "2024. 3. 7.",
+    "url": "https://blog.naver.com/nomore_bet/223376003606",
+    "inventory_index": 8,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용",
+      "리스크퀀트"
+    ],
+    "summary_ko": "2024년 신한은행 리스크 퀀트 채용 링크를 소개하고, 저자의 접촉 경험에 근거해 업무 문화와 전문직 대우를 긍정적으로 평가한다. 공개 본문 자체에는 구체적인 계량 방법론이나 전략이 거의 없다.",
+    "developer_note_ko": "과거 채용 안내로 분류하고 현재 모집 여부나 직무 요건을 확인한 것으로 처리하지 않는다. 원공고 미열람 상태에서는 필수 기술 스택을 추정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "f4f124ebb5b4a251803d67d16bd3df98141c9e0f1d975b67154832b430d1b1cf",
+    "source_text_chars": 616,
+    "source_document_sha256": "f4f124ebb5b4a251803d67d16bd3df98141c9e0f1d975b67154832b430d1b1cf",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223371760305",
+    "title": "재테크 초보에게, 지금 돌이켜 보면 억지 연금 가입은 훌륭했어",
+    "date": "2024. 3. 4.",
+    "url": "https://blog.naver.com/nomore_bet/223371760305",
+    "inventory_index": 9,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "투자심리",
+      "장기저축",
+      "행동제약"
+    ],
+    "summary_ko": "주식투자에 몰두하던 시기에도 오래 유지한 연금보험과 지속적인 상담이 노후자금 축적에 도움이 되었다는 개인 경험이다. 높은 수익률보다 중도 인출의 불편함이 충동적 재투자·소비를 막아 준 행동 장치였다고 설명한다.",
+    "developer_note_ko": "특정 보험상품의 우월성 증거가 아니다. 개발상 차용할 것은 연구자금·장기자금 분리와 위험 예산 등 행동 통제 개념이며 상품 비용·유동성 제약의 손익과는 구분한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "b495d876ddb8b356d44f1f4fe61544e161273b0060c2b1c1b8c420bc28fc912c",
+    "source_text_chars": 5742,
+    "source_document_sha256": "b495d876ddb8b356d44f1f4fe61544e161273b0060c2b1c1b8c420bc28fc912c",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223365022101",
+    "title": "수확자, 선더헤드 그리고 종소리. 아! 듄2까지",
+    "date": "2024. 2. 26.",
+    "url": "https://blog.naver.com/nomore_bet/223365022101",
+    "inventory_index": 10,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "도서감상",
+      "AI상상",
+      "비정량"
+    ],
+    "summary_ko": "수확자 삼부작과 다른 SF 작품의 AI를 비교하며 기술이 인간의 노동·자아실현·저항을 다루는 방식을 감상한다. 금융 카테고리에 있지만 투자모형이나 시장 데이터 분석이 아닌 문학·기술 상상에 관한 글이다.",
+    "developer_note_ko": "금융 실증 자료가 아닌 비정량 참고로 태깅한다. 작품 설정과 AI 미래 예측을 구분하며 작품명·배우·출판연도 같은 부수적 서술도 검증 없이 사실 지식으로 승격하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "a01bcb088d14d73f0880e99f3575b3d1ab0819cfdd649ca3e2949155507a28d4",
+    "source_text_chars": 4312,
+    "source_document_sha256": "a01bcb088d14d73f0880e99f3575b3d1ab0819cfdd649ca3e2949155507a28d4",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223315501385",
+    "title": "룰루레몬 예찬, 하지만 주식은 못샀네",
+    "date": "2024. 1. 8.",
+    "url": "https://blog.naver.com/nomore_bet/223315501385",
+    "inventory_index": 11,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "소비자경험",
+      "브랜드",
+      "사후편향"
+    ],
+    "summary_ko": "룰루레몬을 요가복 브랜드로만 보던 저자가 남성용 바지를 반복 구매하게 된 경험을 회고한다. 제품의 착용감과 재구매가 관심 종목 발굴의 단서였는데 주식 투자는 놓쳤다는 아쉬움이 중심이다.",
+    "developer_note_ko": "주가 상승을 본 뒤 과거 소비 경험을 성공 신호로 재해석하는 사후편향에 주의한다. 소비 시점의 관찰 기록과 이후 가격 데이터를 분리해야 대안데이터 실험이 된다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "5c3b5f76d6ed85de7819d6dbf9f6b3c2e5d0cc6afcbf707dc8cfd84231997478",
+    "source_text_chars": 2776,
+    "source_document_sha256": "5c3b5f76d6ed85de7819d6dbf9f6b3c2e5d0cc6afcbf707dc8cfd84231997478",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223268940104",
+    "title": "재테크 초보에게 - 너의 금융전문가 친구는 왜 너한테 개별 주식 추천을 안하는가?",
+    "date": "2023. 11. 20.",
+    "url": "https://blog.naver.com/nomore_bet/223268940104",
+    "inventory_index": 12,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "위험관리",
+      "추천책임",
+      "확률해석"
+    ],
+    "summary_ko": "금융전문가가 개별 종목 추천을 꺼리는 이유를 추천받은 사람의 손절·매도 기준 부재와 진입가격 차이에서 찾는다. 확률적인 전망이 초보자에게 확정적인 믿음으로 바뀌고, 상승장 수익이 실력으로 오인되는 사례를 개인 경험으로 설명한다.",
+    "developer_note_ko": "신호와 포지션관리·청산 조건을 함께 명세한다. 추천 당시 분포·하방 시나리오·유효기간을 남기고 전체 시장 상승에 의한 수익을 전략 고유 성과로 보지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "b296c5ebcc3f7f1e5f20b155718fce1ff0716a802e106448094d2fde5de6ee2b",
+    "source_text_chars": 6399,
+    "source_document_sha256": "b296c5ebcc3f7f1e5f20b155718fce1ff0716a802e106448094d2fde5de6ee2b",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223215221387",
+    "title": "1997년 아시아 위기 태국 × 그리고 중국",
+    "date": "2023. 9. 19.",
+    "url": "https://blog.naver.com/nomore_bet/223215221387",
+    "inventory_index": 13,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융위기",
+      "신용전이",
+      "거시시나리오"
+    ],
+    "summary_ko": "1997년 태국의 자본 유입·부동산 차입·금융기관 위기를 2023년 중국 부동산과 신탁 부문의 불안에 비춰 설명한다. 소비 부양이나 자국 중심 정책에 따라 한국 기업에 미칠 영향이 달라질 수 있다는 시나리오적 의견이다.",
+    "developer_note_ko": "역사적 유사성이 같은 결과를 보장하지 않는다. 채무자·채권자 연결, 만기·통화 불일치, 정책 대응을 따로 모델링하고 기사 속 환율 손익 예시는 통화 표시 방향과 분모를 검산한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "f5f2548af6e73eefc6fa0abc1c3b774ebe51632aa534ae4bb9d7dac58694cbf1",
+    "source_text_chars": 5592,
+    "source_document_sha256": "f5f2548af6e73eefc6fa0abc1c3b774ebe51632aa534ae4bb9d7dac58694cbf1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223137792421",
+    "title": "비트코인 2023년 그리고 금",
+    "date": "2023. 6. 26.",
+    "url": "https://blog.naver.com/nomore_bet/223137792421",
+    "inventory_index": 14,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "비트코인",
+      "ETF",
+      "제도권편입"
+    ],
+    "summary_ko": "2023년 비트코인 상승을 현물 ETF 신청 기대와 정책 인사의 발언에 연결하고, 탈중앙화 자산이 제도권의 인정으로 가치를 얻는 역설을 논한다. 금처럼 사회적으로 가치가 굳어지는 과정이라는 비유를 제시한다.",
+    "developer_note_ko": "글 자체도 ETF 신청과 승인 완료를 구분한다. 스테이블코인에 관한 인용 발언을 비트코인 승인·보증으로 넓혀 해석하지 말고, 발언의 정확한 대상과 공시 시각을 분리한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "e1db13212fd66ba9eb800a45d705ff041a651182438aa558cd942c99fe1938d3",
+    "source_text_chars": 3322,
+    "source_document_sha256": "e1db13212fd66ba9eb800a45d705ff041a651182438aa558cd942c99fe1938d3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223122007872",
+    "title": "숫자에 대한 감, 억만장자의 수 ✕ 재산",
+    "date": "2023. 6. 7.",
+    "url": "https://blog.naver.com/nomore_bet/223122007872",
+    "inventory_index": 15,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "숫자감각",
+      "규모비교",
+      "부의분포"
+    ],
+    "summary_ko": "억만장자의 달러 기준과 총자산을 기업 시가총액·국가 부채 같은 비교 대상으로 이해하는 방법을 보여준다. 부의 집중과 금융 중심지 이동에 대한 기사와 개인 관찰을 곁들인 숫자 독해 에세이다.",
+    "developer_note_ko": "billion/trillion과 억/조/경 변환을 검증하고 비교 수치의 기준일·통화·자산범위를 맞춘다. 개인 순자산, 국가 총부채, 기업 시총은 규모 비교용이지 동일 경제개념이 아니다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "074786355b65b49479e617157ec1162127128246a2c812717ca61fbe03297db3",
+    "source_text_chars": 2437,
+    "source_document_sha256": "074786355b65b49479e617157ec1162127128246a2c812717ca61fbe03297db3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223120307577",
+    "title": "2023년 일본 투자와 워런 버핏",
+    "date": "2023. 6. 5.",
+    "url": "https://blog.naver.com/nomore_bet/223120307577",
+    "inventory_index": 16,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "일본",
+      "환노출",
+      "유명투자자추종"
+    ],
+    "summary_ko": "2023년 일본 증시 상승과 버핏의 종합상사 투자를 되짚으며 일본 저성장에 대한 선입견 때문에 관심을 놓쳤다고 회고한다. 원자재·배당·차입 비용·환율·디지털화 등을 투자 논점으로 열거한다.",
+    "developer_note_ko": "유명 투자자의 공개 포지션을 복사할 때 자금조달 통화·보유기간·진입가격까지 같다고 가정하지 않는다. 원화 투자자의 수익은 주가 수익과 환율 효과를 분리하고 헤지 및 자금조달은 원공시로 검증한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "053bf38ec1203545a9054ab8740e2bba46f45611e80dfd091c20fe93eef23e08",
+    "source_text_chars": 5414,
+    "source_document_sha256": "053bf38ec1203545a9054ab8740e2bba46f45611e80dfd091c20fe93eef23e08",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223090664236",
+    "title": "주가 조작 사건을 보며 - 다우데이타, 대성홀딩스, 서울가스 등",
+    "date": "2023. 5. 2.",
+    "url": "https://blog.naver.com/nomore_bet/223090664236",
+    "inventory_index": 17,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "시장조작위험",
+      "CFD",
+      "레버리지"
+    ],
+    "summary_ko": "2023년 주가 급락 관련 보도를 바탕으로 낮은 유통비중, 장기간 가격 상승, 벤치마크 수요와 CFD 레버리지의 위험을 해설한다. 지수 편입을 노렸다는 부분 등은 확인된 사실과 구별해야 할 당시의 추측을 포함한다.",
+    "developer_note_ko": "낮은 변동성과 꾸준한 상승이 안전을 뜻하지 않는다. 유동성·집중보유·증거금·갭 하락·청산 실패를 스트레스 테스트하고 원금 초과 손실을 허용한 상품 구조를 별도 관리한다. 사기에서 일정 수익만 먹고 나온다는 조언은 채택하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "1cb2e90ade70dc9eafa95f39aa9655864c54f8712d4ad5bd21acb0130f856749",
+    "source_text_chars": 4918,
+    "source_document_sha256": "1cb2e90ade70dc9eafa95f39aa9655864c54f8712d4ad5bd21acb0130f856749",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223056494072",
+    "title": "<퀀트 투자 포트폴리오 만들기>, 좀 더 깊은 퀀트 투자를 위한",
+    "date": "2023. 3. 27.",
+    "url": "https://blog.naver.com/nomore_bet/223056494072",
+    "inventory_index": 18,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트입문",
+      "Python",
+      "데이터파이프라인"
+    ],
+    "summary_ko": "파이썬 기반 퀀트 투자 포트폴리오 입문서를 소개하며 데이터 접근성, 무료 분석도구와 AI 코딩 지원으로 개인의 구현 부담이 낮아졌다고 평가한다. 시각화·크롤링·증권사 API 연결을 아이디어에서 실행으로 이어지는 요소로 설명한다.",
+    "developer_note_ko": "이 글은 책 서평이지 책 전체 내용 검증이 아니다. 데이터 취득 권한·관측시점·결측 처리와 주문 단계 안전장치를 명세해야 하며, 구현 용이성과 전략 수익성을 분리한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "f7d62731b0ab60dd82aff4d54dc2e4289738dfa28f4228e516348d3a05ed293c",
+    "source_text_chars": 3276,
+    "source_document_sha256": "f7d62731b0ab60dd82aff4d54dc2e4289738dfa28f4228e516348d3a05ed293c",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223028508457",
+    "title": "퀀트의 정석, 개인투자자가 챗GPT 부려먹기 위해 읽어야 할",
+    "date": "2023. 2. 27.",
+    "url": "https://blog.naver.com/nomore_bet/223028508457",
+    "inventory_index": 19,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트입문",
+      "AI코딩",
+      "백테스트"
+    ],
+    "summary_ko": "김성진의 퀀트의 정석을 소개하고, 투자 이론과 실무의 틀을 알아야 AI가 생성하는 예시 코드를 유용하게 지휘할 수 있다고 주장한다. 백테스트 구현의 진입장벽이 낮아져도 배경지식이 필요하다는 것이 중심이다.",
+    "developer_note_ko": "AI 코드가 실행된다는 것만으로 백테스트가 맞지는 않는다. 지연·누수·비용·회계 불변식을 먼저 명세하고 생성된 구현을 독립 테스트한다. 책 본문을 읽은 것으로 표시하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "135c40fa7711be72bd8d3bad6d5cd0c69827089fa79dea37aab920b9a34825e3",
+    "source_text_chars": 2429,
+    "source_document_sha256": "135c40fa7711be72bd8d3bad6d5cd0c69827089fa79dea37aab920b9a34825e3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "223010042519",
+    "title": "퀀트 채용 - KDB산업은행 퀀트",
+    "date": "2023. 2. 9.",
+    "url": "https://blog.naver.com/nomore_bet/223010042519",
+    "inventory_index": 20,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용",
+      "파생상품",
+      "금융시스템"
+    ],
+    "summary_ko": "2023년 KDB산업은행 퀀트 채용을 소개하고 팀의 역사, 파생상품 모델링 및 시스템 관련 사례를 회고한다. 관심 기관의 공식 채용 공지를 직접 확인할 필요도 이야기한다.",
+    "developer_note_ko": "역사적 직무 소개로만 태깅한다. 회사 최초·기술 최초 같은 수식이나 당시 인력 수는 원자료 확인 전 확정하지 않으며 현재 채용 상태·현행 시스템 구성으로 사용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "d46b88525b27a4f409bb24c96557c616e9172570f5ccd2db4c5b7b728507f764",
+    "source_text_chars": 1881,
+    "source_document_sha256": "d46b88525b27a4f409bb24c96557c616e9172570f5ccd2db4c5b7b728507f764",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222978374662",
+    "title": "금융공학 채용 - 외국계 AON Pathwise",
+    "date": "2023. 1. 9.",
+    "url": "https://blog.naver.com/nomore_bet/222978374662",
+    "inventory_index": 21,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용",
+      "금리모형",
+      "시나리오"
+    ],
+    "summary_ko": "보험 시나리오·평가 서비스의 과거 채용공고를 통해 실세계 확률과 위험중립 모형, 대규모 계약 시뮬레이션, GPU·클라우드 활용을 소개한다. 여기서 ESG는 지속가능경영이 아니라 경제 시나리오 생성기를 뜻한다.",
+    "developer_note_ko": "추론: 예측용·가격결정용 확률측도를 구분하고 시나리오 수렴·난수시드·모형 가정을 검증한다. 채용 설명을 현재 제품 성능이나 보험 규정의 근거로 쓰지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "0ae55b263f94d260c4c2576c6123cb23598e58a4266a6af92245a36d3ba4c2d1",
+    "source_text_chars": 3788,
+    "source_document_sha256": "0ae55b263f94d260c4c2576c6123cb23598e58a4266a6af92245a36d3ba4c2d1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222965558795",
+    "title": "스왑 실무 가이드, 책 추천해 볼까나",
+    "date": "2022. 12. 26.",
+    "url": "https://blog.naver.com/nomore_bet/222965558795",
+    "inventory_index": 22,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "서평",
+      "스왑",
+      "금리벤치마크"
+    ],
+    "summary_ko": "정창영의 스왑 실무서가 거래·운용 현장의 세부 질문을 다루는 입문 이후의 참고서라고 평가한다. 당시 LIBOR에서 RFR·SOFR로의 전환을 실무 학습 이유로 든다.",
+    "developer_note_ko": "추론: 이는 서평 읽기이지 책 전문 검토가 아니다. 스왑 구현은 계약별 금리지표·영업일·일수계산·고시시차·적용일자를 검증하고, 과거 전환일 설명을 현행 규정으로 재사용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "81440b9cd4af9edde0a7516678325bf0844074643942e882c50db9368e7e2996",
+    "source_text_chars": 2420,
+    "source_document_sha256": "81440b9cd4af9edde0a7516678325bf0844074643942e882c50db9368e7e2996",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222933626259",
+    "title": "인플레이션 그리고 필립스 곡선, 시간에 따른 변화",
+    "date": "2022. 11. 21.",
+    "url": "https://blog.naver.com/nomore_bet/222933626259",
+    "inventory_index": 23,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "거시경제",
+      "인플레이션",
+      "레짐"
+    ],
+    "summary_ko": "2018~2022년 기사와 발언을 시간순으로 엮어 저실업·저물가에서 코로나 이후 인플레이션까지 필립스 곡선 해석이 바뀐 과정을 되짚는다. 일시적인 관계 약화를 영구적 소멸로 단정하는 태도를 경계한다.",
+    "developer_note_ko": "추론: 발표시각과 관측기간을 나누고 당시 전망과 사후 실현값을 분리한다. 공급충격·기대·구조변화 가설을 대조하며, 수정된 지표로 과거 의사결정을 재구성하거나 서사의 변화를 인과증명으로 취급하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "2ceb7c234d57e25c7bb490ec96f657ac0cf9d0ab265f0459f2e44947bf2c9cba",
+    "source_text_chars": 9360,
+    "source_document_sha256": "2ceb7c234d57e25c7bb490ec96f657ac0cf9d0ab265f0459f2e44947bf2c9cba",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222927534466",
+    "title": "채권, 흥국생명도 한 번 해볼까? #1",
+    "date": "2022. 11. 14.",
+    "url": "https://blog.naver.com/nomore_bet/222927534466",
+    "inventory_index": 24,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채권",
+      "콜옵션",
+      "유동성"
+    ],
+    "summary_ko": "흥국생명 사례를 통해 신종자본증권의 긴 법적 만기와 관행상 기대하는 조기상환 시점이 다름을 설명한다. 발행자의 콜은 의무가 아니므로 투자자의 만기 기대가 어긋날 수 있음을 강조한다.",
+    "developer_note_ko": "추론: 법적 만기·최초 콜일·예상 보유기간을 별도 필드로 관리하고 연장위험·금리변경·재조달비용을 계약별로 검증한다. 회계상 자본 분류는 투자자에게 무위험이라는 뜻이 아니다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "e3e3732043021eaef5bc1adbb1572cee2d5c708c6590db9f2a22bef044e443b0",
+    "source_text_chars": 4341,
+    "source_document_sha256": "e3e3732043021eaef5bc1adbb1572cee2d5c708c6590db9f2a22bef044e443b0",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222921160067",
+    "title": "레고랜드 사태 그리고 헤어질 결심 채권 에세이 #2",
+    "date": "2022. 11. 7.",
+    "url": "https://blog.naver.com/nomore_bet/222921160067",
+    "inventory_index": 25,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "신용위험",
+      "차환",
+      "금융안정"
+    ],
+    "summary_ko": "레고랜드 보증 논란을 차입 신뢰와 차환 유동성의 문제로 확장한다. 개별 채무의 액면 규모보다 금리상승·누적부채 속에서 신용거래가 동시에 위축되는 파급경로에 주목한다.",
+    "developer_note_ko": "추론: 보증인·거래상대방·만기집중·조달한도를 연결한 스트레스 시나리오가 필요하다. 지원 프로그램 발표 한도와 실제 집행액을 구분하며 저자의 위기 설명을 독립적으로 식별된 인과효과로 보지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "754a984727443610d4448f5cdf7c811dfdc75eb0134e9167ad61e5fe8e35e8bc",
+    "source_text_chars": 4788,
+    "source_document_sha256": "754a984727443610d4448f5cdf7c811dfdc75eb0134e9167ad61e5fe8e35e8bc",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222915033009",
+    "title": "레고랜드 사태 그리고 채권 에세이 #1",
+    "date": "2022. 10. 31.",
+    "url": "https://blog.naver.com/nomore_bet/222915033009",
+    "inventory_index": 26,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채권",
+      "신용위험",
+      "용어검증"
+    ],
+    "summary_ko": "채권의 차입·대여 관계와 신용위험에 따른 금리 차이를 소개하고 레고랜드 보증 사건의 대응 시점을 비판한다. 채권시장 신뢰가 정책금리만으로 설명되지 않는다는 관점을 제시한다.",
+    "developer_note_ko": "검증주의: 앞부분은 발행을 차입으로 올바르게 설명하지만 중간에는 대여와 발행을 뒤집은 문장이 있다. 발행자·투자자·보증인의 채무관계를 타입으로 구분하고 정치적 평가와 확인 가능한 발표·지급 사실을 분리한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "0776bd99ca998a3cc919081bcb32c697fb892f6e502284da2d8acaf711beb619",
+    "source_text_chars": 4869,
+    "source_document_sha256": "0776bd99ca998a3cc919081bcb32c697fb892f6e502284da2d8acaf711beb619",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222908784660",
+    "title": "주식 하락장을 보며, 떠오르는 잡상",
+    "date": "2022. 10. 24.",
+    "url": "https://blog.naver.com/nomore_bet/222908784660",
+    "inventory_index": 27,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "행동재무",
+      "하락장",
+      "포지션관리"
+    ],
+    "summary_ko": "상승장에서 우연한 성공을 실력으로 오해하며 투자금이 커지고, 하락장에는 추가매수 여력이 사라지는 과정을 묘사한다. 저가매수 격언도 현금·환율·심리적 실행 능력이 없으면 실천하기 어렵다고 본다.",
+    "developer_note_ko": "추론: 성과를 시장 베타와 분리하고 레버리지·현금여력·통화별 조달비용을 함께 스트레스 테스트한다. 손실 후 매수 여력을 과거 포지션과 무관한 공짜 선택권으로 가정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "f9526da48844225a5274167e6164a4611cef3d75a7c1237e91c9f5c420988ad7",
+    "source_text_chars": 3059,
+    "source_document_sha256": "f9526da48844225a5274167e6164a4611cef3d75a7c1237e91c9f5c420988ad7",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222849150799",
+    "title": "금융공학채용 - 퀀트 팀장 산업은행 금융공학실",
+    "date": "2022. 8. 15.",
+    "url": "https://blog.naver.com/nomore_bet/222849150799",
+    "inventory_index": 28,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용",
+      "금융공학",
+      "인프라"
+    ],
+    "summary_ko": "과거 산업은행 퀀트·인프라 팀장 공고를 소개하며 금융공학과 IT 시스템 역할의 통합을 관찰한다. 개시증거금 관련 공개자료로 기관의 장외파생 거래 규모 범주를 가늠할 수 있다는 접근도 제시한다.",
+    "developer_note_ko": "추론: 모델 연구와 운영 인프라를 함께 설계하되 채용공고는 당시 조직 설명일 뿐이다. 규제 적용 명목잔액 기준으로 경제적 위험액·순익·현재 순위를 추정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "99018cbdd9ab9f56dbbc7d3f134a41837aaaf72537e5b6c6b76a61bc3dd7b6d6",
+    "source_text_chars": 1771,
+    "source_document_sha256": "99018cbdd9ab9f56dbbc7d3f134a41837aaaf72537e5b6c6b76a61bc3dd7b6d6",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222539865017",
+    "title": "애스워드 다모다란, 가치평가 대가가 최근에한 인터뷰",
+    "date": "2021. 10. 18.",
+    "url": "https://blog.naver.com/nomore_bet/222539865017",
+    "inventory_index": 29,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "가치평가",
+      "인플레이션",
+      "분산투자"
+    ],
+    "summary_ko": "다모다란의 당시 인터뷰를 인용해 좋은 기업과 좋은 매수가격을 구분하고, 인플레이션·중국 규제·금과 비트코인의 방어 역할을 논한다. 금을 수익 극대화보다 위기 시 자금 재배치용 완충재로 보는 견해를 덧붙인다.",
+    "developer_note_ko": "추론: 인터뷰 인용·저자 의견·실현 성과를 나누고 방어자산의 상관관계를 시기별 검증한다. 좋은 상품의 인기도나 유명인의 발언을 적정가격·항상 유효한 헤지의 증거로 삼지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "e76859945ed95a09af76270fe93ab3176ed136d6347556730842233e3e4a1493",
+    "source_text_chars": 3779,
+    "source_document_sha256": "e76859945ed95a09af76270fe93ab3176ed136d6347556730842233e3e4a1493",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222504726744",
+    "title": "인플레이션 이라더니! 스테그 플레이션은 뭐야",
+    "date": "2021. 9. 14.",
+    "url": "https://blog.naver.com/nomore_bet/222504726744",
+    "inventory_index": 30,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "거시경제",
+      "스태그플레이션",
+      "공급충격"
+    ],
+    "summary_ko": "금융위기 이후 반복된 물가상승 전망과 실제 저물가의 차이를 되짚고, 2021년 공급망 병목과 회복 지연이 스태그플레이션 우려로 이어진 상황을 서술한다. 경기와 자산가격이 다르게 움직이는 데 대한 투자자의 불확실성을 드러낸다.",
+    "developer_note_ko": "추론: 성장·물가·공급 차질을 별도 축으로 기록하고 전망의 당시 확률과 수정 이력을 보존한다. 통화완화가 즉시 동일한 물가반응을 낸다는 고정 규칙이나 저자의 당시 보유자산을 전략 근거로 쓰지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "18afbbf3a0fec13716d8297a46e2c8464073a3c7899aa2dae2155971a66c621d",
+    "source_text_chars": 2495,
+    "source_document_sha256": "18afbbf3a0fec13716d8297a46e2c8464073a3c7899aa2dae2155971a66c621d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222459134005",
+    "title": "캐시우드 돈나무 누나를 따르던가, 반대하던가",
+    "date": "2021. 8. 6.",
+    "url": "https://blog.naver.com/nomore_bet/222459134005",
+    "inventory_index": 31,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "밈주식",
+      "군집행동",
+      "인버스ETF"
+    ],
+    "summary_ko": "캐시 우드의 매수 공개, 로빈후드·게임스톱과 온라인 커뮤니티의 결집을 묶어 스타 투자자와 소셜 미디어가 가격에 미치는 영향을 논한다. 당시 신청 단계였던 ARKK 역방향 ETF를 새로운 거래 도구로 소개한다.",
+    "developer_note_ko": "추론: 언급량·공시시각·거래량·가격반응을 분리하고 사후 유명 사례 선택편향을 통제한다. 인버스 상품은 단순히 원상품 성과가 낮으면 오르는 것이 아니며 일일 목표수익률·복리경로·비용을 계약자료로 확인한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "426500d06f0d42aee3f11895d9ea0fc77ceb92351204c1b68519ab70f21e5480",
+    "source_text_chars": 3802,
+    "source_document_sha256": "426500d06f0d42aee3f11895d9ea0fc77ceb92351204c1b68519ab70f21e5480",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222456898235",
+    "title": "중국 사교육 금지 × 과거 한국 사교육 금지",
+    "date": "2021. 8. 5.",
+    "url": "https://blog.naver.com/nomore_bet/222456898235",
+    "inventory_index": 32,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "정책위험",
+      "중국",
+      "역사비교"
+    ],
+    "summary_ko": "2021년 중국 사교육 규제를 한국의 과거 과외 금지 사례와 비교하며 정책 충격과 우회 수요의 가능성을 논한다. 규제에 따른 가치 훼손과 잠재 수혜를 함께 생각하되 구체적 수혜기업은 확정하지 않는다.",
+    "developer_note_ko": "추론: 규제 대상·발표일·시행일·예외·자금조달 제한을 구조화한다. 국가·시대가 다른 사례는 시나리오 생성용 비유일 뿐이며, 정치적 평가와 정책효과의 실증 근거를 분리한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "304c34e7cfc9ca612e06718aab466e401e21c7b09d0267b33c313ab9933d1ae8",
+    "source_text_chars": 3144,
+    "source_document_sha256": "304c34e7cfc9ca612e06718aab466e401e21c7b09d0267b33c313ab9933d1ae8",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222309598593",
+    "title": "파이어족, 20대 파이어족 인터뷰를 보며",
+    "date": "2021. 4. 14.",
+    "url": "https://blog.naver.com/nomore_bet/222309598593",
+    "inventory_index": 33,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "행동재무",
+      "레버리지",
+      "생존편향"
+    ],
+    "summary_ko": "조기 은퇴 성공 인터뷰를 보며 비슷한 투자자산을 골라도 투입 규모와 차입 여부에 따라 절대 이익이 크게 달라짐을 돌아본다. 높은 수익률과 삶을 바꿀 만큼의 수익금은 같지 않다는 개인적 소회다.",
+    "developer_note_ko": "추론: 성공사례만으로 레버리지 확대를 정당화하지 않는다. 자기자본·차입·현금흐름·파산확률을 분리하고 실패한 비교집단과 하락 경로를 함께 고려한다. 개인 사례의 세부 재산정보는 연구노트에서 생략한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "712c6c7f8a18c9747a5f786d5ca59422278726b07b8584077116c512effc766a",
+    "source_text_chars": 1960,
+    "source_document_sha256": "712c6c7f8a18c9747a5f786d5ca59422278726b07b8584077116c512effc766a",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222306623421",
+    "title": "인플레, 금 그리고 비트코인",
+    "date": "2021. 4. 12.",
+    "url": "https://blog.naver.com/nomore_bet/222306623421",
+    "inventory_index": 34,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "비트코인",
+      "금",
+      "헤지"
+    ],
+    "summary_ko": "2021년 금의 약세와 비트코인 강세, 기관 자금 유입 보도를 비교하며 두 자산의 대체 가능성을 묻는다. 비트코인을 방어자산과 고위험 투기자산으로 동시에 설명하는 모순, 향후 규제 가능성을 지적한다.",
+    "developer_note_ko": "추론: 가격비율 상승이나 동시 자금흐름은 대체관계·헤지 효과의 인과증명이 아니다. 자산군별 실질금리·달러·위험선호 노출을 검증하고 당시 규제 전망을 이미 확정된 법률로 저장하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "60d5066e48f102d8db113c0a3f5e712f5d2d6c6906277c861e04b62c8a304830",
+    "source_text_chars": 3380,
+    "source_document_sha256": "60d5066e48f102d8db113c0a3f5e712f5d2d6c6906277c861e04b62c8a304830",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222298616545",
+    "title": "재테크 초보 - 대출도 재테크 분야, 40년 대출 뉴스를 보며",
+    "date": "2021. 4. 5.",
+    "url": "https://blog.naver.com/nomore_bet/222298616545",
+    "inventory_index": 35,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융교육",
+      "대출",
+      "현금흐름"
+    ],
+    "summary_ko": "대출을 미래소득과 현재 구매력을 연결하는 금융수단으로 설명하고, 당시 발표된 40년 정책모기지가 월 상환 부담을 낮추는 구조를 소개한다. 자산 선택뿐 아니라 자금조달도 학습 대상이라는 주장이다.",
+    "developer_note_ko": "추론: 장기화에 따른 월 납입액 감소와 총 이자·잔액·금리재설정·소득중단 위험을 함께 계산한다. 매각·중도상환은 가격과 수수료 제약이 있고, 당시 자격·금리를 현행 상품조건으로 재사용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "ba5e1dd5ab518f37867d05b779222831ab4bbe70fcdb83264c3807b6b768567d",
+    "source_text_chars": 3505,
+    "source_document_sha256": "ba5e1dd5ab518f37867d05b779222831ab4bbe70fcdb83264c3807b6b768567d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222288119914",
+    "title": "존경하는 투자자 그리고 세대 차이",
+    "date": "2021. 3. 26.",
+    "url": "https://blog.naver.com/nomore_bet/222288119914",
+    "inventory_index": 36,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "소셜미디어",
+      "스타투자자",
+      "펀드평가"
+    ],
+    "summary_ko": "전통적인 가치투자 대가에서 머스크·캐시 우드·팔리하피티야 같은 소셜미디어 영향력자로 관심이 옮겨가는 현상을 소개한다. 투자 이야기의 전달 방식과 추종자 동원이 시장 참여의 일부가 된 점에 주목한다.",
+    "developer_note_ko": "추론: 팔로워·발언량·투자실적을 분리하고 유명 투자자의 목표가격을 객관적 가치 라벨로 쓰지 않는다. 적극운용과 지수투자의 비교도 기간·위험·비용을 맞춰야 하며 사후 승자만 선택하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "52f9ca4f35e3c0f494f8a14ea326511e22aad1df3985eef0c6b620c9d422035a",
+    "source_text_chars": 3002,
+    "source_document_sha256": "52f9ca4f35e3c0f494f8a14ea326511e22aad1df3985eef0c6b620c9d422035a",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222277791934",
+    "title": "재테크 초보 - 첫걸음은 신용카드를 잘라라?",
+    "date": "2021. 3. 17.",
+    "url": "https://blog.naver.com/nomore_bet/222277791934",
+    "inventory_index": 37,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "행동재무",
+      "소비",
+      "현금흐름"
+    ],
+    "summary_ko": "신용카드 사용과 소비 행동을 다룬 연구 보도를 계기로 지출 통제를 금융지식뿐 아니라 행동과 결제환경의 문제로 바라본다. 소득·지출의 시간축을 나누어 투자 가능 자금이 어떻게 생기는지 설명한다.",
+    "developer_note_ko": "추론: 지출 한도·마찰·알림 같은 행동 장치를 연구 아이디어로만 취급한다. 연구 원문·표본·효과크기를 읽지 않았으므로 뇌 보상체계에 관한 보도 내용을 보편적 인과사실로 확정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "296f9a6da5ee0c449043248fb319e8a5f26db8160b52e799d7edc8b25a7aa7ac",
+    "source_text_chars": 2060,
+    "source_document_sha256": "296f9a6da5ee0c449043248fb319e8a5f26db8160b52e799d7edc8b25a7aa7ac",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222275097362",
+    "title": "비트코인, 정녕 인플레이션 때문에? 금은 뭐하고 있대?",
+    "date": "2021. 3. 14.",
+    "url": "https://blog.naver.com/nomore_bet/222275097362",
+    "inventory_index": 38,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "인플레이션",
+      "비트코인",
+      "내러티브"
+    ],
+    "summary_ko": "미국 부양안과 비트코인 회복을 연결한 당시 시장 설명을 소개하면서, 같은 인플레이션 서사에도 금과 비트코인의 가격이 다르게 반응한 점을 질문한다. 큰 숫자를 GDP·자산규모와 비교해 감을 잡으려 한다.",
+    "developer_note_ko": "추론: 시장의 설명과 실제 위험헤지 성능을 구분하고 발표액·집행액, 연간 GDP·시가총액 같은 흐름과 잔액을 혼합하지 않는다. 유명인 발언과 가격 변동의 시간적 근접성을 원인으로 확정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "47e5a7ddb171276c8d66249b91e02fb6f6597ea5aaee23546be0e70099ae9a27",
+    "source_text_chars": 3384,
+    "source_document_sha256": "47e5a7ddb171276c8d66249b91e02fb6f6597ea5aaee23546be0e70099ae9a27",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222260725782",
+    "title": "비트코인, 투기하는 마음으로 익절 그리고 손절",
+    "date": "2021. 3. 4.",
+    "url": "https://blog.naver.com/nomore_bet/222260725782",
+    "inventory_index": 39,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "스톱로스",
+      "행동재무",
+      "체결위험"
+    ],
+    "summary_ko": "비트코인에서 분할 익절·손절 규칙을 사용한 개인 경험을 통해 상승 이익 일부를 포기하는 대신 큰 하락 노출을 줄이는 선택을 설명한다. 매매의 자극과 자신감이 포지션 확대를 부르는 위험을 경계한다.",
+    "developer_note_ko": "추론: 예시 비율은 검증된 최적값이 아니다. 스톱은 보험처럼 손실을 보장 제한하지 않으므로 갭·슬리피지·호가 공백·미체결·재진입 회전비용을 포함해 경로별 평가하고 주문을 실제 실행하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "03e6baf22ddb3d6d84d2d4b02f4e030a7499846e5ccdaa79bebd1f3fd11cdad1",
+    "source_text_chars": 2377,
+    "source_document_sha256": "03e6baf22ddb3d6d84d2d4b02f4e030a7499846e5ccdaa79bebd1f3fd11cdad1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222260524322",
+    "title": "국채 수익률로 난리일세, 국채 수익률과 증시라",
+    "date": "2021. 3. 2.",
+    "url": "https://blog.naver.com/nomore_bet/222260524322",
+    "inventory_index": 40,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채권수익률",
+      "정책금리",
+      "할인율"
+    ],
+    "summary_ko": "고정 쿠폰 채권의 가격과 시장금리의 역관계를 비유로 소개하고, 2021년 국채수익률 상승이 인플레이션·긴축 기대를 통해 증시 불안으로 이어진다는 해석을 제시한다. 당시 중앙은행 발언과 반론도 함께 나열한다.",
+    "developer_note_ko": "검증주의: 정책금리 불변과 시장금리 상승은 양립하며 쿠폰과 만기수익률도 다르다. 국채수익률을 단순 인기 지표로 환원하지 말고 실질금리·기대물가·기간프리미엄을 구분한다. 과거 발언을 미래 금리 보장으로 읽지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_text_sha256": "faaa5f2b1227650078060af490c48a438fe9351688c92f3f013f8557d9c98773",
+    "source_text_chars": 3834,
+    "source_document_sha256": "faaa5f2b1227650078060af490c48a438fe9351688c92f3f013f8557d9c98773",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  }
+]
