@@ -4,6 +4,7 @@ members = [
     "crates/core",
     "crates/collector",
     "crates/signals",
+    "crates/strategies",
     "crates/regime",
     "crates/execution",
     "crates/sim",

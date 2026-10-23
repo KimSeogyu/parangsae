@@ -1,0 +1,112 @@
+# Failing-first evidence for T2, T5, T7, and G9
+# Captured with the v1a checks in place and the production paths stubbed.
+# Stub: funding_visible returned an empty slice; a None after warmup counted as warmup;
+# a missing mark never carried; sharpe_ticks returned (None, None).
+# rustc: rustc 1.99.1 (58cf8f9c3 2026-10-13)
+# date: 2026-10-22T23:50:25Z
+
+$ cargo test -p parangsae-backtest --test targets -- t2_none_after_warmup_is_missing_signal t5_funding_hidden_until_slot_plus_60s t7_listed_two_minute_gap_passes
+
+   Compiling parangsae-core v0.0.0 (/workspace/crates/core)
+   Compiling parangsae-sim v0.0.0 (/workspace/crates/sim)
+   Compiling parangsae-backtest v0.0.0 (/workspace/crates/backtest)
+warning: variable `seen` is assigned to, but never used
+   --> crates/backtest/src/engine.rs:218:9
+    |
+218 |     let mut seen = false;
+    |         ^^^^^^^^
+    |
+    = note: consider using `_seen` instead
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `seen` is never read
+   --> crates/backtest/src/engine.rs:303:17
+    |
+303 |                 seen = true;
+    |                 ^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: `parangsae-backtest` (lib) generated 2 warnings
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.02s
+     Running tests/targets.rs (target/debug/deps/targets-d319ac2d46531f51)
+
+running 3 tests
+test t7_listed_two_minute_gap_passes ... FAILED
+test t5_funding_hidden_until_slot_plus_60s ... FAILED
+test t2_none_after_warmup_is_missing_signal ... FAILED
+
+failures:
+
+---- t7_listed_two_minute_gap_passes stdout ----
+
+thread 't7_listed_two_minute_gap_passes' (13092) panicked at crates/backtest/tests/targets.rs:132:39:
+two minute gap: MissingMark(UtcMicros(1723456920000000))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- t5_funding_hidden_until_slot_plus_60s stdout ----
+
+thread 't5_funding_hidden_until_slot_plus_60s' (13091) panicked at crates/backtest/tests/targets.rs:110:5:
+assertion failed: visible
+
+---- t2_none_after_warmup_is_missing_signal stdout ----
+
+thread 't2_none_after_warmup_is_missing_signal' (13090) panicked at crates/backtest/tests/common/cases.rs:157:6:
+missing signal: (Report { equity_curve: [(UtcMicros(1704110459999000), Cash(100000000000)), (UtcMicros(1704110519999000), Cash(100000000000)), (UtcMicros(1704110579999000), Cash(100000000000)), (UtcMicros(1704110639999000), Cash(100000000000)), (UtcMicros(1704110699999000), Cash(100000000000)), (UtcMicros(1704110759999000), Cash(100000000000)), (UtcMicros(1704110819999000), Cash(100000000000)), (UtcMicros(1704110879999000), Cash(100000000000)), (UtcMicros(1704110939999000), Cash(100000000000)), (UtcMicros(1704110999999000), Cash(100000000000)), (UtcMicros(1704111059999000), Cash(100000000000)), (UtcMicros(1704111119999000), Cash(100000000000)), (UtcMicros(1704111179999000), Cash(100000000000)), (UtcMicros(1704111239999000), Cash(100000000000)), (UtcMicros(1704111299999000), Cash(100000000000)), (UtcMicros(1704111359999000), Cash(100000000000)), (UtcMicros(1704111419999000), Cash(100000000000)), (UtcMicros(1704111479999000), Cash(100000000000)), (UtcMicros(1704111539999000), Cash(100000000000)), (UtcMicros(1704111599999000), Cash(100000000000)), (UtcMicros(1704111659999000), Cash(100000000000)), (UtcMicros(1704111719999000), Cash(100000000000)), (UtcMicros(1704111779999000), Cash(100000000000)), (UtcMicros(1704111839999000), Cash(100000000000)), (UtcMicros(1704111899999000), Cash(100000000000)), (UtcMicros(1704111959999000), Cash(100000000000)), (UtcMicros(1704112019999000), Cash(100000000000)), (UtcMicros(1704112079999000), Cash(100000000000)), (UtcMicros(1704112139999000), Cash(100000000000)), (UtcMicros(1704112199999000), Cash(100000000000)), (UtcMicros(1704112259999000), Cash(100000000000)), (UtcMicros(1704112319999000), Cash(100000000000)), (UtcMicros(1704112379999000), Cash(100000000000)), (UtcMicros(1704112439999000), Cash(100000000000)), (UtcMicros(1704112499999000), Cash(100000000000)), (UtcMicros(1704112559999000), Cash(100000000000)), (UtcMicros(1704112619999000), Cash(100000000000)), (UtcMicros(1704112679999000), Cash(100000000000)), (UtcMicros(1704112739999000), Cash(100000000000)), (UtcMicros(1704112799999000), Cash(100000000000)), (UtcMicros(1704112859999000), Cash(100000000000)), (UtcMicros(1704112919999000), Cash(100000000000)), (UtcMicros(1704112979999000), Cash(100000000000)), (UtcMicros(1704113039999000), Cash(100000000000)), (UtcMicros(1704113099999000), Cash(100000000000)), (UtcMicros(1704113159999000), Cash(100000000000)), (UtcMicros(1704113219999000), Cash(100000000000)), (UtcMicros(1704113279999000), Cash(100000000000)), (UtcMicros(1704113339999000), Cash(100000000000)), (UtcMicros(1704113399999000), Cash(100000000000)), (UtcMicros(1704113459999000), Cash(100000000000)), (UtcMicros(1704113519999000), Cash(100000000000)), (UtcMicros(1704113579999000), Cash(100000000000)), (UtcMicros(1704113639999000), Cash(100000000000)), (UtcMicros(1704113699999000), Cash(100000000000)), (UtcMicros(1704113759999000), Cash(100000000000)), (UtcMicros(1704113819999000), Cash(100000000000)), (UtcMicros(1704113879999000), Cash(100000000000)), (UtcMicros(1704113939999000), Cash(100000000000)), (UtcMicros(1704113999999000), Cash(100000000000)), (UtcMicros(1704114059999000), Cash(100000000000)), (UtcMicros(1704114119999000), Cash(100000000000)), (UtcMicros(1704114179999000), Cash(100000000000)), (UtcMicros(1704114239999000), Cash(100000000000)), (UtcMicros(1704114299999000), Cash(100000000000)), (UtcMicros(1704114359999000), Cash(100000000000)), (UtcMicros(1704114419999000), Cash(100000000000)), (UtcMicros(1704114479999000), Cash(100000000000)), (UtcMicros(1704114539999000), Cash(100000000000)), (UtcMicros(1704114599999000), Cash(100000000000)), (UtcMicros(1704114659999000), Cash(100000000000)), (UtcMicros(1704114719999000), Cash(100000000000)), (UtcMicros(1704114779999000), Cash(100000000000)), (UtcMicros(1704114839999000), Cash(100000000000)), (UtcMicros(1704114899999000), Cash(100000000000)), (UtcMicros(1704114959999000), Cash(100000000000)), (UtcMicros(1704115019999000), Cash(100000000000)), (UtcMicros(1704115079999000), Cash(100000000000)), (UtcMicros(1704115139999000), Cash(100000000000)), (UtcMicros(1704115199999000), Cash(100000000000)), (UtcMicros(1704115259999000), Cash(100000000000)), (UtcMicros(1704115319999000), Cash(100000000000)), (UtcMicros(1704115379999000), Cash(100000000000)), (UtcMicros(1704115439999000), Cash(100000000000)), (UtcMicros(1704115499999000), Cash(100000000000)), (UtcMicros(1704115559999000), Cash(100000000000)), (UtcMicros(1704115619999000), Cash(100000000000)), (UtcMicros(1704115679999000), Cash(100000000000)), (UtcMicros(1704115739999000), Cash(100000000000)), (UtcMicros(1704115799999000), Cash(100000000000)), (UtcMicros(1704115859999000), Cash(100000000000)), (UtcMicros(1704115919999000), Cash(100000000000)), (UtcMicros(1704115979999000), Cash(100000000000)), (UtcMicros(1704116039999000), Cash(100000000000)), (UtcMicros(1704116099999000), Cash(100000000000)), (UtcMicros(1704116159999000), Cash(100000000000)), (UtcMicros(1704116219999000), Cash(100000000000)), (UtcMicros(1704116279999000), Cash(100000000000)), (UtcMicros(1704116339999000), Cash(100000000000)), (UtcMicros(1704116399999000), Cash(100000000000)), (UtcMicros(1704116459999000), Cash(100000000000)), (UtcMicros(1704116519999000), Cash(100000000000)), (UtcMicros(1704116579999000), Cash(100000000000)), (UtcMicros(1704116639999000), Cash(100000000000)), (UtcMicros(1704116699999000), Cash(100000000000)), (UtcMicros(1704116759999000), Cash(100000000000)), (UtcMicros(1704116819999000), Cash(100000000000)), (UtcMicros(1704116879999000), Cash(100000000000)), (UtcMicros(1704116939999000), Cash(100000000000)), (UtcMicros(1704116999999000), Cash(100000000000)), (UtcMicros(1704117059999000), Cash(100000000000)), (UtcMicros(1704117119999000), Cash(100000000000)), (UtcMicros(1704117179999000), Cash(100000000000)), (UtcMicros(1704117239999000), Cash(100000000000)), (UtcMicros(1704117299999000), Cash(100000000000)), (UtcMicros(1704117359999000), Cash(100000000000)), (UtcMicros(1704117419999000), Cash(100000000000)), (UtcMicros(1704117479999000), Cash(100000000000)), (UtcMicros(1704117539999000), Cash(100000000000)), (UtcMicros(1704117599999000), Cash(100000000000)), (UtcMicros(1704117659999000), Cash(100000000000)), (UtcMicros(1704117719999000), Cash(100000000000)), (UtcMicros(1704117779999000), Cash(100000000000)), (UtcMicros(1704117839999000), Cash(100000000000)), (UtcMicros(1704117899999000), Cash(100000000000)), (UtcMicros(1704117959999000), Cash(100000000000)), (UtcMicros(1704118019999000), Cash(100000000000)), (UtcMicros(1704118079999000), Cash(100000000000)), (UtcMicros(1704118139999000), Cash(100000000000)), (UtcMicros(1704118199999000), Cash(100000000000)), (UtcMicros(1704118259999000), Cash(100000000000)), (UtcMicros(1704118319999000), Cash(100000000000)), (UtcMicros(1704118379999000), Cash(100000000000)), (UtcMicros(1704118439999000), Cash(100000000000)), (UtcMicros(1704118499999000), Cash(100000000000)), (UtcMicros(1704118559999000), Cash(100000000000)), (UtcMicros(1704118619999000), Cash(100000000000)), (UtcMicros(1704118679999000), Cash(100000000000)), (UtcMicros(1704118739999000), Cash(100000000000)), (UtcMicros(1704118799999000), Cash(100000000000)), (UtcMicros(1704118859999000), Cash(100000000000)), (UtcMicros(1704118919999000), Cash(100000000000)), (UtcMicros(1704118979999000), Cash(100000000000)), (UtcMicros(1704119039999000), Cash(100000000000)), (UtcMicros(1704119099999000), Cash(100000000000)), (UtcMicros(1704119159999000), Cash(100000000000)), (UtcMicros(1704119219999000), Cash(100000000000)), (UtcMicros(1704119279999000), Cash(100000000000)), (UtcMicros(1704119339999000), Cash(100000000000)), (UtcMicros(1704119399999000), Cash(100000000000)), (UtcMicros(1704119459999000), Cash(100000000000)), (UtcMicros(1704119519999000), Cash(100000000000)), (UtcMicros(1704119579999000), Cash(100000000000)), (UtcMicros(1704119639999000), Cash(100000000000)), (UtcMicros(1704119699999000), Cash(100000000000)), (UtcMicros(1704119759999000), Cash(100000000000)), (UtcMicros(1704119819999000), Cash(100000000000)), (UtcMicros(1704119879999000), Cash(100000000000)), (UtcMicros(1704119939999000), Cash(100000000000)), (UtcMicros(1704119999999000), Cash(100000000000)), (UtcMicros(1704120059999000), Cash(100000000000)), (UtcMicros(1704120119999000), Cash(100000000000)), (UtcMicros(1704120179999000), Cash(100000000000)), (UtcMicros(1704120239999000), Cash(100000000000)), (UtcMicros(1704120299999000), Cash(100000000000)), (UtcMicros(1704120359999000), Cash(100000000000)), (UtcMicros(1704120419999000), Cash(100000000000)), (UtcMicros(1704120479999000), Cash(100000000000)), (UtcMicros(1704120539999000), Cash(100000000000)), (UtcMicros(1704120599999000), Cash(100000000000)), (UtcMicros(1704120659999000), Cash(100000000000)), (UtcMicros(1704120719999000), Cash(100000000000)), (UtcMicros(1704120779999000), Cash(100000000000)), (UtcMicros(1704120839999000), Cash(100000000000)), (UtcMicros(1704120899999000), Cash(100000000000)), (UtcMicros(1704120959999000), Cash(100000000000)), (UtcMicros(1704121019999000), Cash(100000000000)), (UtcMicros(1704121079999000), Cash(100000000000)), (UtcMicros(1704121139999000), Cash(100000000000)), (UtcMicros(1704121199999000), Cash(100000000000)), (UtcMicros(1704121259999000), Cash(100000000000)), (UtcMicros(1704121319999000), Cash(100000000000)), (UtcMicros(1704121379999000), Cash(100000000000)), (UtcMicros(1704121439999000), Cash(100000000000)), (UtcMicros(1704121499999000), Cash(100000000000)), (UtcMicros(1704121559999000), Cash(100000000000)), (UtcMicros(1704121619999000), Cash(100000000000)), (UtcMicros(1704121679999000), Cash(100000000000)), (UtcMicros(1704121739999000), Cash(100000000000)), (UtcMicros(1704121799999000), Cash(100000000000)), (UtcMicros(1704121859999000), Cash(100000000000)), (UtcMicros(1704121919999000), Cash(100000000000)), (UtcMicros(1704121979999000), Cash(100000000000)), (UtcMicros(1704122039999000), Cash(100000000000)), (UtcMicros(1704122099999000), Cash(100000000000)), (UtcMicros(1704122159999000), Cash(100000000000)), (UtcMicros(1704122219999000), Cash(100000000000)), (UtcMicros(1704122279999000), Cash(100000000000)), (UtcMicros(1704122339999000), Cash(100000000000)), (UtcMicros(1704122399999000), Cash(100000000000)), (UtcMicros(1704122459999000), Cash(100000000000)), (UtcMicros(1704122519999000), Cash(100000000000)), (UtcMicros(1704122579999000), Cash(100000000000)), (UtcMicros(1704122639999000), Cash(100000000000)), (UtcMicros(1704122699999000), Cash(100000000000)), (UtcMicros(1704122759999000), Cash(100000000000)), (UtcMicros(1704122819999000), Cash(100000000000)), (UtcMicros(1704122879999000), Cash(100000000000)), (UtcMicros(1704122939999000), Cash(100000000000)), (UtcMicros(1704122999999000), Cash(100000000000)), (UtcMicros(1704123059999000), Cash(100000000000)), (UtcMicros(1704123119999000), Cash(100000000000)), (UtcMicros(1704123179999000), Cash(100000000000)), (UtcMicros(1704123239999000), Cash(100000000000)), (UtcMicros(1704123299999000), Cash(100000000000)), (UtcMicros(1704123359999000), Cash(100000000000)), (UtcMicros(1704123419999000), Cash(100000000000)), (UtcMicros(1704123479999000), Cash(100000000000)), (UtcMicros(1704123539999000), Cash(100000000000)), (UtcMicros(1704123599999000), Cash(100000000000)), (UtcMicros(1704123659999000), Cash(100000000000)), (UtcMicros(1704123719999000), Cash(100000000000)), (UtcMicros(1704123779999000), Cash(100000000000)), (UtcMicros(1704123839999000), Cash(100000000000)), (UtcMicros(1704123899999000), Cash(100000000000)), (UtcMicros(1704123959999000), Cash(100000000000)), (UtcMicros(1704124019999000), Cash(100000000000)), (UtcMicros(1704124079999000), Cash(100000000000)), (UtcMicros(1704124139999000), Cash(100000000000)), (UtcMicros(1704124199999000), Cash(100000000000)), (UtcMicros(1704124259999000), Cash(100000000000)), (UtcMicros(1704124319999000), Cash(100000000000)), (UtcMicros(1704124379999000), Cash(100000000000)), (UtcMicros(1704124439999000), Cash(100000000000)), (UtcMicros(1704124499999000), Cash(100000000000)), (UtcMicros(1704124559999000), Cash(100000000000)), (UtcMicros(1704124619999000), Cash(100000000000)), (UtcMicros(1704124679999000), Cash(100000000000)), (UtcMicros(1704124739999000), Cash(100000000000)), (UtcMicros(1704124799999000), Cash(100000000000))], daily_equity: [(UtcDate { year: 2024, month: 1, day: 1 }, Cash(100000000000))], fills: [], funding: [], trades: [], metrics: Metrics { days: 1, total_return: Ratio(0), max_drawdown: Ratio(0), sharpe_daily: None, sharpe_annual: None, turnover: Ratio(0), fees_paid: Cash(0), funding_net: Cash(0), fills: 0, trades: 0 }, costs: Costs { taker_fee: FeeBps(0), slippage: SlippageBps(0) }, bars: 240, ruined: None, dropped_orders: 0, warmup_bars: 3, flat_funding_stale: 0, flat_funding_slot_missing: 0, signal_outputs: [SignalOutput { decision_ts: UtcMicros(1704121200000000), bar_close_time_us: UtcMicros(1704121199999000), interval: Interval { micros: 3600000000 }, decision: Target(Target(0)) }], overlays: [], mark_gaps: [], forced_flat: [] }, Script { steps: [None, None, Some(Target(Target(0))), None], cursor: 4, bars_seen: [[10000000000], [10000000000, 10000000000], [10000000000, 10000000000, 10000000000], [10000000000, 10000000000, 10000000000, 10000000000]], funding_seen: [[], [], [], []] })
+
+
+failures:
+    t2_none_after_warmup_is_missing_signal
+    t5_funding_hidden_until_slot_plus_60s
+    t7_listed_two_minute_gap_passes
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 22 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p parangsae-backtest --test targets`
+targets_exit=101
+
+$ cargo test -p parangsae-backtest --test golden -- g9_sharpe_and_max_drawdown
+
+warning: variable `seen` is assigned to, but never used
+   --> crates/backtest/src/engine.rs:218:9
+    |
+218 |     let mut seen = false;
+    |         ^^^^^^^^
+    |
+    = note: consider using `_seen` instead
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: value assigned to `seen` is never read
+   --> crates/backtest/src/engine.rs:303:17
+    |
+303 |                 seen = true;
+    |                 ^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` (part of `#[warn(unused)]`) on by default
+
+warning: `parangsae-backtest` (lib) generated 2 warnings
+   Compiling parangsae-backtest v0.0.0 (/workspace/crates/backtest)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.40s
+     Running tests/golden.rs (target/debug/deps/golden-01671a401dcee468)
+
+running 1 test
+test g9_sharpe_and_max_drawdown ... FAILED
+
+failures:
+
+---- g9_sharpe_and_max_drawdown stdout ----
+
+thread 'g9_sharpe_and_max_drawdown' (13196) panicked at crates/backtest/tests/golden.rs:168:44:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    g9_sharpe_and_max_drawdown
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p parangsae-backtest --test golden`
+golden_exit=101

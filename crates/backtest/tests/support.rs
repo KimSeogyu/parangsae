@@ -4,8 +4,8 @@ use parangsae_backtest::fixture::Scripted;
 use parangsae_backtest::{
     run, run_fee_grid, Bar, EngineError, FundingStamp, Report, RunConfig, Tape, UtcDate,
 };
-use parangsae_core::{Price, Qty, Ratio, UtcMicros};
-use parangsae_sim::{Cash, Costs, FeeBps, MarketOrder, Side, SlippageBps};
+use parangsae_core::{Interval, Price, Qty, Ratio, Side, UtcMicros};
+use parangsae_sim::{Cash, Costs, FeeBps, MarketOrder, SlippageBps};
 
 pub const TICK: i64 = 100_000_000;
 
@@ -69,6 +69,7 @@ pub fn bar_at(open_us: i64, open_px: Price, close_px: Price) -> Bar {
         low,
         close: close_px,
         volume: btc(1),
+        count: 1,
     }
 }
 
@@ -99,6 +100,11 @@ pub fn cfg(bars: &[Bar], initial_usdt: i64) -> RunConfig {
         initial_cash: usd(initial_usdt),
         start: bars[0].open_time,
         end: UtcMicros::from_micros(bars.last().unwrap().open_time.micros() + 60_000_000),
+        holdout_start: UtcDate::parse("2025-10-01").unwrap().start_us(),
+        forced_flat: Vec::new(),
+        mark_gaps: Vec::new(),
+        interval: Interval::ONE_HOUR,
+        lot_ticks: 100_000,
     }
 }
 
@@ -240,6 +246,29 @@ pub fn g11() -> Report {
         Some(buy(btc(1))),
     ]);
     run(&tape, &mut strategy, &costs(5, 0), &cfg(&bars, 50)).unwrap()
+}
+
+pub fn g9_book() -> (Tape, RunConfig) {
+    let start = UtcDate::parse("2024-01-01").unwrap().start_us().micros();
+    let minutes = 3 * 24 * 60;
+    let mut bars = Vec::with_capacity(minutes);
+    let mut marks = Vec::with_capacity(minutes);
+    for index in 0..minutes {
+        let open = start + index as i64 * 60_000_000;
+        let day = index / (24 * 60);
+        let mark_px = if day == 0 { 110 } else { 121 };
+        bars.push(bar_at(open, px(100), px(100)));
+        marks.push(bar_at(open, px(mark_px), px(mark_px)));
+    }
+    let mut funding = Vec::new();
+    for day in 0..3 {
+        for hour in [0i64, 8, 16] {
+            let ts = start + (day * 24 + hour) * 3_600_000_000;
+            funding.push(stamp(ts, 0));
+        }
+    }
+    let config = cfg(&bars, 100);
+    (tape_marked(bars, marks, funding), config)
 }
 
 pub fn g12() -> Report {

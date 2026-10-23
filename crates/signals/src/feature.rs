@@ -82,6 +82,7 @@
 //!     bar_close_time_us: UtcMicros::from_micros(0),
 //!     interval: BarInterval::H1,
 //!     decision: Decision::Target(Target::FLAT),
+//!     accept: 0,
 //! };
 //! engine_accepts(signal_out);
 //! ```

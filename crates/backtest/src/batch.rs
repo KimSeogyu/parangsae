@@ -2,32 +2,34 @@
 //!
 //! `FeeGridRunner::run_targets` is the v0 adapter. It calls `run_fee_grid`.
 //! engine-v1a's `run_targets` replaces that body; the log and the row stay.
-//! Fee scenarios are not trials. Flat-bar counts come from the runner. The v0
-//! report has none, so the adapter records the counts it was given (zero
-//! unless a test or v1a supplies them).
+//! Fee scenarios are not trials. [`FeeGridRunner`] records the flat-bar counts
+//! it was given. [`TargetEngine`] runs `run_targets` and reports the counts
+//! on the headline report.
 //!
-//! A window touches the holdout when `start >= 2025-10-01T00:00:00Z` or
-//! `end` is past that instant, including a start on the holdout whose end is
-//! at or before that instant. `end` is exclusive, so an end equal to the
-//! holdout instant with an earlier start is the in-sample boundary.
+//! A window touches the holdout when `start >= run.holdout_start` or `end` is
+//! past that instant, including a start on the holdout whose end is at or
+//! before that instant. `end` is exclusive, so an end equal to `holdout_start`
+//! with an earlier start is the in-sample boundary. The first runs use
+//! 2025-10-01T00:00:00Z ([`HOLDOUT_START_US`]).
 //!
 //! `config_id` is the lowercase sha256 of the canonical config. Anything else
 //! is refused before a trial line is written.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::panic::{self, AssertUnwindSafe};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use parangsae_core::{notional, FixedError, Ratio, UtcMicros, SCALE};
-use parangsae_sim::{Cash, Costs, FeeBps, SimError, SlippageBps};
+use parangsae_sim::{Cash, Costs, FeeBps, SimError};
 use serde::Deserialize;
 
 use crate::canon::{json_string, sha256_file, sha256_hex};
-use crate::engine::{run_fee_grid, RunConfig, FEE_GRID_BPS};
+use crate::engine::{run, run_fee_grid, RunConfig, FEE_GRID_BPS};
 use crate::error::EngineError;
-use crate::metrics::{div_half_even, level_returns};
+use crate::metrics::{div_half_even, sharpe_ticks};
 use crate::report::Report;
+use crate::signal::TargetSignal;
 use crate::trial_log::{append_fsync, trial_id, StartRecord, TrialError, TrialLog};
 use crate::{Strategy, Tape};
 
@@ -50,13 +52,15 @@ pub struct TrialMetrics {
     pub turnover: Ratio,
     pub flat_bars: FlatBars,
     pub net_return: [Ratio; 4],
+    pub n_refused_fills: u64,
+    /// Holds `Hold::arm` refused because they would end after 2025-09-30 23:59 UTC.
+    pub n_dropped_entries: u64,
 }
 
 /// One config in a batch, plus the trial identity written before compute.
 ///
-/// `params` is the grid point. Keys are ASCII and ordered by byte. Values are integers.
-/// Non-integer values such as `c = 0.5` are stored as integer ticks at `1e8` scale, and the interval is minutes.
-/// `config_id` must be [`canonical_config_id`] of this spec.
+/// `params` is the grid point. Keys are ASCII and ordered by byte. Values are
+/// integers. `config_id` must be [`canonical_config_id`] of this spec.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrialSpec {
     pub run_id: String,
@@ -83,6 +87,8 @@ pub struct ResultRow {
     pub net_return_ticks: Option<[i64; 4]>,
     pub slippage_bps: u32,
     pub fee_grid_bps: [u32; 4],
+    pub n_refused_fills: Option<u64>,
+    pub n_dropped_entries: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -141,11 +147,22 @@ impl std::error::Error for BatchError {}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SweepPins {
     pinned_root: String,
+    objects: BTreeSet<PathBuf>,
+    sha256: BTreeMap<PathBuf, String>,
 }
 
 impl SweepPins {
     pub fn pinned_root(&self) -> &str {
         &self.pinned_root
+    }
+
+    /// True when `path` is one of the hashed objects. A docs path can be pinned and still be refused by the reader.
+    pub fn allows(&self, path: &Path) -> bool {
+        self.objects.contains(path)
+    }
+
+    pub fn sha256(&self, path: &Path) -> Option<&str> {
+        self.sha256.get(path).map(String::as_str)
     }
 
     pub fn load(path: &Path) -> Result<Self, BatchError> {
@@ -161,6 +178,8 @@ impl SweepPins {
         }
         let base = path.parent().unwrap_or(Path::new("."));
         let mut objects = Vec::with_capacity(file.objects.len());
+        let mut stored = BTreeSet::new();
+        let mut sha256 = BTreeMap::new();
         for object in file.objects {
             if object.path.is_empty() || !is_lower_hex64(&object.sha256) {
                 return Err(BatchError::Pins(
@@ -181,6 +200,8 @@ impl SweepPins {
                     got,
                 });
             }
+            stored.insert(full.clone());
+            sha256.insert(full, object.sha256.clone());
             objects.push((object.path, object.sha256));
         }
         objects.sort_by(|left, right| left.0.cmp(&right.0));
@@ -188,7 +209,11 @@ impl SweepPins {
             return Err(BatchError::Pins("duplicate pin path".to_owned()));
         }
         let pinned_root = sha256_hex(pin_preimage(&objects).as_bytes());
-        Ok(Self { pinned_root })
+        Ok(Self {
+            pinned_root,
+            objects: stored,
+            sha256,
+        })
     }
 }
 
@@ -229,23 +254,17 @@ fn pin_preimage(objects: &[(String, String)]) -> String {
 
 /// The engine step the batch calls once per config.
 ///
-/// The method name is the spec's `run_targets`. `FeeGridRunner` fills it
-/// until engine-v1a provides the real one.
+/// `costs` has no default. A runner applies that value; it does not invent a
+/// zero fee or zero slippage. The 2/4/5/6 net-return columns keep `costs.slippage`.
 pub trait TargetRunner {
     type Error: std::fmt::Display;
 
-    fn run_targets(&mut self, cfg: &RunConfig) -> Result<TrialMetrics, Self::Error>;
-
-    /// Slippage recorded on every results row. Fee scenarios are not trials.
-    fn slippage_bps(&self) -> u32 {
-        0
-    }
+    fn run_targets(&mut self, costs: &Costs, cfg: &RunConfig) -> Result<TrialMetrics, Self::Error>;
 }
 
 /// v0 adapter: four fee replays, one set of metrics, headline at 5 bps.
 pub struct FeeGridRunner<'a, S, F> {
     tape: &'a Tape,
-    slippage: SlippageBps,
     make: F,
     flat_bars: FlatBars,
     _strategy: PhantomData<fn() -> S>,
@@ -256,10 +275,9 @@ where
     S: Strategy,
     F: FnMut() -> S,
 {
-    pub fn new(tape: &'a Tape, slippage: SlippageBps, make: F) -> Self {
+    pub fn new(tape: &'a Tape, make: F) -> Self {
         Self {
             tape,
-            slippage,
             make,
             flat_bars: FlatBars::default(),
             _strategy: PhantomData,
@@ -279,17 +297,73 @@ where
 {
     type Error = EngineError;
 
-    fn slippage_bps(&self) -> u32 {
-        self.slippage.0
+    fn run_targets(&mut self, costs: &Costs, cfg: &RunConfig) -> Result<TrialMetrics, EngineError> {
+        let grid = run_fee_grid(
+            self.tape,
+            &mut self.make,
+            &Costs {
+                taker_fee: FeeBps(FEE_GRID_BPS[2]),
+                slippage: costs.slippage,
+            },
+            cfg,
+        )?;
+        let mut strategy = (self.make)();
+        let headline = run(self.tape, &mut strategy, costs, cfg)?;
+        let metrics =
+            metrics_from_grid(cfg.initial_cash, &grid, self.flat_bars).map_err(EngineError::Sim)?;
+        with_headline(metrics, cfg.initial_cash, &headline).map_err(EngineError::Sim)
     }
+}
 
-    fn run_targets(&mut self, cfg: &RunConfig) -> Result<TrialMetrics, EngineError> {
-        let costs = Costs {
-            taker_fee: FeeBps(FEE_GRID_BPS[2]),
-            slippage: self.slippage,
+/// v1 engine: four fee replays of `run_targets`. Flat-bar counts come from the
+/// 5 bps report.
+pub struct TargetEngine<'a, S, F> {
+    tape: &'a Tape,
+    make: F,
+    _signal: PhantomData<fn() -> S>,
+}
+
+impl<'a, S, F> TargetEngine<'a, S, F>
+where
+    S: TargetSignal,
+    F: FnMut() -> S,
+{
+    pub fn new(tape: &'a Tape, make: F) -> Self {
+        Self {
+            tape,
+            make,
+            _signal: PhantomData,
+        }
+    }
+}
+
+impl<'a, S, F> TargetRunner for TargetEngine<'a, S, F>
+where
+    S: TargetSignal,
+    F: FnMut() -> S,
+{
+    type Error = EngineError;
+
+    fn run_targets(&mut self, costs: &Costs, cfg: &RunConfig) -> Result<TrialMetrics, EngineError> {
+        let mut grid = Vec::with_capacity(FEE_GRID_BPS.len());
+        for bps in FEE_GRID_BPS {
+            let scenario = Costs {
+                taker_fee: FeeBps(bps),
+                slippage: costs.slippage,
+            };
+            let mut signal = (self.make)();
+            let report = crate::engine::run_targets(self.tape, &mut signal, &scenario, cfg)?;
+            grid.push((FeeBps(bps), report));
+        }
+        let mut signal = (self.make)();
+        let headline = crate::engine::run_targets(self.tape, &mut signal, costs, cfg)?;
+        let flat_bars = FlatBars {
+            funding_stale: headline.flat_funding_stale,
+            funding_slot_missing: headline.flat_funding_slot_missing,
         };
-        let grid = run_fee_grid(self.tape, &mut self.make, &costs, cfg)?;
-        metrics_from_grid(cfg.initial_cash, &grid, self.flat_bars).map_err(EngineError::Sim)
+        let metrics =
+            metrics_from_grid(cfg.initial_cash, &grid, flat_bars).map_err(EngineError::Sim)?;
+        with_headline(metrics, cfg.initial_cash, &headline).map_err(EngineError::Sim)
     }
 }
 
@@ -326,6 +400,8 @@ pub fn metrics_from_grid(
         turnover: turnover_ratio(sum_notional(headline)?, &daily)?,
         flat_bars,
         net_return,
+        n_refused_fills: headline.n_refused_fills,
+        n_dropped_entries: 0,
     })
 }
 
@@ -344,75 +420,35 @@ fn sum_notional(report: &Report) -> Result<i128, SimError> {
     Ok(sum)
 }
 
-/// Annualised Sharpe in `1e8` ticks.
-///
-/// Daily returns are consecutive level changes at scale `1e18`, then rescaled
-/// to `1e8`. The sample standard deviation uses `n - 1`. Ticks are
-/// `sign(sum) * isqrt(floor(sum^2 * (n - 1) * 365 * 1e16 / sum_sq))`, toward
-/// zero. The `1e16` factor is applied as two `1e8` steps. Fewer than two
-/// returns, or a zero sum of squares, is `None`.
-pub fn annual_sharpe_ticks(levels_ticks: &[i64]) -> Result<Option<i64>, SimError> {
-    let returns = level_returns(levels_ticks)?;
-    if returns.len() < 2 {
-        return Ok(None);
-    }
-    let mut scaled = Vec::with_capacity(returns.len());
-    for value in returns {
-        scaled.push(div_half_even(value, 10_000_000_000)?);
-    }
-    let n = i128::try_from(scaled.len()).map_err(|_| SimError::Overflow)?;
-    let mut sum = 0i128;
-    for value in &scaled {
-        sum = sum.checked_add(*value).ok_or(SimError::Overflow)?;
-    }
-    let mut squares = 0i128;
-    for value in &scaled {
-        let centered = n
-            .checked_mul(*value)
-            .ok_or(SimError::Overflow)?
-            .checked_sub(sum)
-            .ok_or(SimError::Overflow)?;
-        squares = squares
-            .checked_add(centered.checked_mul(centered).ok_or(SimError::Overflow)?)
-            .ok_or(SimError::Overflow)?;
-    }
-    if squares == 0 {
-        return Ok(None);
-    }
-    let periods = (n - 1).checked_mul(365).ok_or(SimError::Overflow)?;
-    if periods <= 0 {
-        return Err(SimError::Overflow);
-    }
-    let inside = sharpe_ratio_floor(sum, periods, squares)?;
-    let root = isqrt(inside).ok_or(SimError::Overflow)?;
-    let magnitude = i128::try_from(root).map_err(|_| SimError::Overflow)?;
-    let ticks = if sum < 0 { -magnitude } else { magnitude };
-    Ok(Some(i64::try_from(ticks).map_err(|_| SimError::Overflow)?))
+pub(crate) fn with_headline(
+    metrics: TrialMetrics,
+    initial: Cash,
+    headline: &Report,
+) -> Result<TrialMetrics, SimError> {
+    let daily: Vec<i64> = headline
+        .daily_equity
+        .iter()
+        .map(|(_, cash)| cash.0)
+        .collect();
+    let mut levels = Vec::with_capacity(daily.len() + 1);
+    levels.push(initial.0);
+    levels.extend_from_slice(&daily);
+    Ok(TrialMetrics {
+        total_return: headline.metrics.total_return,
+        sharpe_annual_ticks: annual_sharpe_ticks(&levels)?,
+        max_drawdown: headline.metrics.max_drawdown,
+        turnover: turnover_ratio(sum_notional(headline)?, &daily)?,
+        flat_bars: metrics.flat_bars,
+        net_return: metrics.net_return,
+        n_refused_fills: headline.n_refused_fills,
+        n_dropped_entries: metrics.n_dropped_entries,
+    })
 }
 
-/// `floor(sum^2 * periods * 1e16 / squares)` with the scale applied in two `1e8` steps.
-fn sharpe_ratio_floor(sum: i128, periods: i128, squares: i128) -> Result<u128, SimError> {
-    let scale = 100_000_000u128;
-    let sum2 = sum
-        .unsigned_abs()
-        .checked_mul(sum.unsigned_abs())
-        .ok_or(SimError::Overflow)?;
-    let periods = u128::try_from(periods).map_err(|_| SimError::Overflow)?;
-    let squares = u128::try_from(squares).map_err(|_| SimError::Overflow)?;
-    let base = sum2.checked_mul(periods).ok_or(SimError::Overflow)?;
-    let (quot, rem) = (base / squares, base % squares);
-    let rem_scaled = rem.checked_mul(scale).ok_or(SimError::Overflow)?;
-    let once = quot
-        .checked_mul(scale)
-        .ok_or(SimError::Overflow)?
-        .checked_add(rem_scaled / squares)
-        .ok_or(SimError::Overflow)?;
-    let rem = rem_scaled % squares;
-    let rem_scaled = rem.checked_mul(scale).ok_or(SimError::Overflow)?;
-    once.checked_mul(scale)
-        .ok_or(SimError::Overflow)?
-        .checked_add(rem_scaled / squares)
-        .ok_or(SimError::Overflow)
+/// Annualised Sharpe in `1e8` ticks. This is [`sharpe_ticks`]'s annual value.
+pub fn annual_sharpe_ticks(levels_ticks: &[i64]) -> Result<Option<i64>, SimError> {
+    let (_, annual) = sharpe_ticks(levels_ticks)?;
+    Ok(annual.map(Ratio::ticks))
 }
 
 /// `sum |fill notional| * 365 / sum(daily equity)`, in `1e8` ticks.
@@ -451,20 +487,6 @@ pub fn turnover_ratio(
     ))
 }
 
-fn isqrt(n: u128) -> Option<u128> {
-    if n == 0 {
-        return Some(0);
-    }
-    let mut x0 = n;
-    let mut x1 = n / 2 + n % 2;
-    while x1 < x0 {
-        x0 = x1;
-        let sum = x0.checked_add(n / x0)?;
-        x1 = sum / 2;
-    }
-    Some(x0)
-}
-
 /// Canonical metrics body hashed into `RunFinished.metrics_digest`.
 pub fn metrics_preimage(metrics: &TrialMetrics) -> String {
     let sharpe = match metrics.sharpe_annual_ticks {
@@ -472,10 +494,12 @@ pub fn metrics_preimage(metrics: &TrialMetrics) -> String {
         None => "null".to_owned(),
     };
     format!(
-        "{{\"flat_funding_slot_missing\":{},\"flat_funding_stale\":{},\"max_drawdown_ticks\":{},\"net_2\":{},\"net_4\":{},\"net_5\":{},\"net_6\":{},\"sharpe_annual_ticks\":{sharpe},\"total_return_ticks\":{},\"turnover_ticks\":{}}}",
+        "{{\"flat_funding_slot_missing\":{},\"flat_funding_stale\":{},\"max_drawdown_ticks\":{},\"n_dropped_entries\":{},\"n_refused_fills\":{},\"net_2\":{},\"net_4\":{},\"net_5\":{},\"net_6\":{},\"sharpe_annual_ticks\":{sharpe},\"total_return_ticks\":{},\"turnover_ticks\":{}}}",
         metrics.flat_bars.funding_slot_missing,
         metrics.flat_bars.funding_stale,
         metrics.max_drawdown.ticks(),
+        metrics.n_dropped_entries,
+        metrics.n_refused_fills,
         metrics.net_return[0].ticks(),
         metrics.net_return[1].ticks(),
         metrics.net_return[2].ticks(),
@@ -531,12 +555,56 @@ pub fn run_batch<R: TargetRunner>(
     pins: &SweepPins,
     trials_path: &Path,
     results_path: &Path,
+    costs: &Costs,
+    runner: &mut R,
+) -> Result<Vec<ResultRow>, BatchError> {
+    run_recorded(
+        specs,
+        pins,
+        trials_path,
+        Recorded::Results(results_path),
+        costs,
+        runner,
+    )
+}
+
+/// Ledger plus one digest line per config. The line has no performance numbers.
+pub(crate) fn run_batch_digest<R: TargetRunner>(
+    specs: &[TrialSpec],
+    pins: &SweepPins,
+    trials_path: &Path,
+    digest_path: &Path,
+    costs: &Costs,
+    runner: &mut R,
+) -> Result<Vec<ResultRow>, BatchError> {
+    run_recorded(
+        specs,
+        pins,
+        trials_path,
+        Recorded::Digest(digest_path),
+        costs,
+        runner,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum Recorded<'a> {
+    Results(&'a Path),
+    Digest(&'a Path),
+}
+
+fn run_recorded<R: TargetRunner>(
+    specs: &[TrialSpec],
+    pins: &SweepPins,
+    trials_path: &Path,
+    recorded: Recorded<'_>,
+    costs: &Costs,
     runner: &mut R,
 ) -> Result<Vec<ResultRow>, BatchError> {
     let log = TrialLog::new(trials_path);
     let mut rows = Vec::with_capacity(specs.len());
     for spec in specs {
-        rows.push(drive(spec, pins, &log, results_path, runner)?);
+        rows.push(drive(spec, pins, &log, recorded, costs, runner)?);
     }
     for spec in specs {
         if let Some(reason) = gate(spec) {
@@ -550,7 +618,8 @@ fn drive<R: TargetRunner>(
     spec: &TrialSpec,
     pins: &SweepPins,
     log: &TrialLog,
-    results_path: &Path,
+    recorded: Recorded<'_>,
+    costs: &Costs,
     runner: &mut R,
 ) -> Result<ResultRow, BatchError> {
     if spec.config_id != canonical_config_id(spec) {
@@ -558,7 +627,7 @@ fn drive<R: TargetRunner>(
             run_id: spec.run_id.clone(),
         });
     }
-    let slippage_bps = runner.slippage_bps();
+    let slippage_bps = costs.slippage.0;
     let id = trial_id(&spec.config_id, pins.pinned_root(), spec.attempt);
     log.begin(StartRecord {
         run_id: &spec.run_id,
@@ -573,10 +642,10 @@ fn drive<R: TargetRunner>(
     if let Some(reason) = gate(spec) {
         log.abort(&spec.run_id, reason).map_err(map_trial)?;
         let row = aborted_row(spec, &id, reason, slippage_bps);
-        write_row(results_path, spec, &row, pins.pinned_root(), None)?;
+        record(recorded, spec, &row, pins.pinned_root(), None)?;
         return Ok(row);
     }
-    let computed = panic::catch_unwind(AssertUnwindSafe(|| runner.run_targets(&spec.run)));
+    let computed = panic::catch_unwind(AssertUnwindSafe(|| runner.run_targets(costs, &spec.run)));
     match computed {
         Ok(Ok(metrics)) => {
             let digest = metrics_digest(&metrics);
@@ -595,9 +664,11 @@ fn drive<R: TargetRunner>(
                 net_return_ticks: Some(metrics.net_return.map(Ratio::ticks)),
                 slippage_bps,
                 fee_grid_bps: FEE_GRID_BPS,
+                n_refused_fills: Some(metrics.n_refused_fills),
+                n_dropped_entries: Some(metrics.n_dropped_entries),
             };
-            write_row(
-                results_path,
+            record(
+                recorded,
                 spec,
                 &row,
                 pins.pinned_root(),
@@ -609,13 +680,13 @@ fn drive<R: TargetRunner>(
             let reason = err.to_string();
             log.abort(&spec.run_id, &reason).map_err(map_trial)?;
             let row = aborted_row(spec, &id, &reason, slippage_bps);
-            write_row(results_path, spec, &row, pins.pinned_root(), None)?;
+            record(recorded, spec, &row, pins.pinned_root(), None)?;
             Ok(row)
         }
         Err(payload) => {
             let _ = log.abort(&spec.run_id, "panic");
             let row = aborted_row(spec, &id, "panic", slippage_bps);
-            let _ = write_row(results_path, spec, &row, pins.pinned_root(), None);
+            let _ = record(recorded, spec, &row, pins.pinned_root(), None);
             panic::resume_unwind(payload);
         }
     }
@@ -624,7 +695,8 @@ fn drive<R: TargetRunner>(
 fn gate(spec: &TrialSpec) -> Option<&'static str> {
     let start = spec.run.start.micros();
     let end = spec.run.end.micros();
-    if start >= HOLDOUT_START_US || end > HOLDOUT_START_US {
+    let holdout = spec.run.holdout_start.micros();
+    if start >= holdout || end > holdout {
         return Some("holdout");
     }
     if end < start {
@@ -661,6 +733,8 @@ fn aborted_row(spec: &TrialSpec, trial_id: &str, reason: &str, slippage_bps: u32
         net_return_ticks: None,
         slippage_bps,
         fee_grid_bps: FEE_GRID_BPS,
+        n_refused_fills: None,
+        n_dropped_entries: None,
     }
 }
 
@@ -689,6 +763,8 @@ struct RowJson<'a> {
     net_return_ticks: Option<NetJson>,
     slippage_bps: u32,
     fee_grid_bps: &'a [u32],
+    n_refused_fills: Option<u64>,
+    n_dropped_entries: Option<u64>,
     metrics_digest: Option<&'a str>,
 }
 
@@ -710,6 +786,36 @@ struct NetJson {
     bps_5: i64,
     #[serde(rename = "6")]
     bps_6: i64,
+}
+
+fn record(
+    recorded: Recorded<'_>,
+    spec: &TrialSpec,
+    row: &ResultRow,
+    pinned_root: &str,
+    metrics_digest: Option<&str>,
+) -> Result<(), BatchError> {
+    match recorded {
+        Recorded::Results(path) => write_row(path, spec, row, pinned_root, metrics_digest),
+        Recorded::Digest(path) => write_digest(path, spec, row, metrics_digest),
+    }
+}
+
+fn write_digest(
+    path: &Path,
+    spec: &TrialSpec,
+    row: &ResultRow,
+    metrics_digest: Option<&str>,
+) -> Result<(), BatchError> {
+    let value = serde_json::json!({
+        "run_id": row.run_id,
+        "config_id": spec.config_id,
+        "status": row.status,
+        "reason": row.reason,
+        "metrics_digest": metrics_digest,
+    });
+    let line = serde_json::to_string(&value).map_err(|err| BatchError::Append(err.to_string()))?;
+    append_fsync(path, &line).map_err(map_trial)
 }
 
 fn write_row(
@@ -746,6 +852,8 @@ fn write_row(
         net_return_ticks: nets,
         slippage_bps: row.slippage_bps,
         fee_grid_bps: &row.fee_grid_bps,
+        n_refused_fills: row.n_refused_fills,
+        n_dropped_entries: row.n_dropped_entries,
         metrics_digest,
     };
     let line = serde_json::to_string(&json).map_err(|err| BatchError::Append(err.to_string()))?;
@@ -755,6 +863,7 @@ fn write_row(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use parangsae_core::Interval;
     use proptest::prelude::*;
 
     #[test]
@@ -770,6 +879,11 @@ mod tests {
                 initial_cash: Cash(100),
                 start: UtcMicros::from_micros(1),
                 end: UtcMicros::from_micros(2),
+                holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
+                forced_flat: Vec::new(),
+                mark_gaps: Vec::new(),
+                interval: Interval::ONE_HOUR,
+                lot_ticks: 100_000,
             },
         };
         left.params.insert("n".to_owned(), 24);
@@ -783,6 +897,12 @@ mod tests {
         let right_id = canonical_config_id(&right);
         assert_ne!(left_id, right_id);
         assert_ne!(trial_id(&left_id, "pin", 0), trial_id(&right_id, "pin", 0));
+    }
+
+    #[test]
+    fn sharpe_of_the_g9_levels_is_the_engine_golden() {
+        let levels = [100_i64, 110, 121, 121].map(|level| level * 100_000_000);
+        assert_eq!(annual_sharpe_ticks(&levels).unwrap(), Some(2_206_052_281));
     }
 
     #[test]
@@ -834,14 +954,16 @@ mod tests {
                 Ratio::from_ticks(3),
                 Ratio::from_ticks(4),
             ],
+            n_refused_fills: 7,
+            n_dropped_entries: 9,
         };
         assert_eq!(
             metrics_preimage(&metrics),
-            "{\"flat_funding_slot_missing\":2,\"flat_funding_stale\":3,\"max_drawdown_ticks\":0,\"net_2\":1,\"net_4\":2,\"net_5\":3,\"net_6\":4,\"sharpe_annual_ticks\":5,\"total_return_ticks\":3,\"turnover_ticks\":6}"
+            "{\"flat_funding_slot_missing\":2,\"flat_funding_stale\":3,\"max_drawdown_ticks\":0,\"n_dropped_entries\":9,\"n_refused_fills\":7,\"net_2\":1,\"net_4\":2,\"net_5\":3,\"net_6\":4,\"sharpe_annual_ticks\":5,\"total_return_ticks\":3,\"turnover_ticks\":6}"
         );
         assert_eq!(
             metrics_digest(&metrics),
-            "82eee788c3d38f931950de091bc8d3975abe2deee4c341c8827c79710e794048"
+            "8849b2186b505f478890bf669ff4c67ac3759676af23bc1653610f3877ff4a2e"
         );
     }
 

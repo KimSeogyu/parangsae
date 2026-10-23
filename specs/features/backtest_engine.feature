@@ -50,9 +50,10 @@ Feature: Backtest engine v0
     Then fee-grid ending equities are 100995800000,100991600000,100989500000,100987400000
 
   Scenario: G9 sharpe and max drawdown
-    When the G9 levels are scored
-    Then the daily sharpe is 1.1547005383792515
-    And the max drawdown ticks are 10000000
+    When the G9 buy-and-hold is run
+    Then the daily sharpe ticks are 115470053
+    And the annual sharpe ticks are 2206052281
+    And the max drawdown ticks are 0
 
   Scenario: G10 a gap, a missing mark, and a missing funding stamp abort
     When the G10 gapped tape is run
@@ -75,3 +76,22 @@ Feature: Backtest engine v0
     Then dropped orders are 1
     And there are 2 fills
     And the run is not ruined
+
+  Scenario: T3 a closed hour fills at that hour's next open
+    When the T3 hour target is run
+    Then there are 1 fills
+    And fill 1 is buy at 100 USDT with fee 0
+
+  Scenario: T5 funding is hidden until slot plus 60s and settles before the fill
+    When the T5 funding visibility case is run
+    Then the 08:00 funding is hidden at 08:00:30
+    And the 08:00 funding is visible at 08:01:00
+    And funding amount is -1000000 on position 100000000 at mark 100
+
+  Scenario: T7 a listed two-minute mark gap passes and a longer or unlisted gap aborts
+    When the T7 two-minute listed gap is run
+    Then the run is not ruined
+    When the T7 six-minute listed gap is run
+    Then the engine error is a missing mark
+    When the T7 unlisted gap is run
+    Then the engine error is a missing mark

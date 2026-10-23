@@ -1,7 +1,7 @@
 //! Test fixtures. These are not strategies and they are not evidence of edge.
 
-use parangsae_core::Qty;
-use parangsae_sim::{MarketOrder, Side};
+use parangsae_core::{Qty, Side};
+use parangsae_sim::MarketOrder;
 
 use crate::{BarView, Strategy};
 

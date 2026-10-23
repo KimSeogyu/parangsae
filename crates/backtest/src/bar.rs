@@ -1,20 +1,9 @@
 //! Bars, the causal view, and the in-memory tape.
 
-use parangsae_core::{Price, Qty, Ratio, UtcMicros};
+use parangsae_core::{Ratio, UtcMicros};
 use parangsae_sim::MarketOrder;
 
-/// One 1m bar. `available` is the stored `available_ts_us`, not a recomputed close.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Bar {
-    pub open_time: UtcMicros,
-    pub close_time: UtcMicros,
-    pub available: UtcMicros,
-    pub open: Price,
-    pub high: Price,
-    pub low: Price,
-    pub close: Price,
-    pub volume: Qty,
-}
+pub use parangsae_core::Bar;
 
 /// A funding settlement timestamp. `interval_hours` is the declared grid, 8 for USD-M BTCUSDT.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,6 +20,7 @@ pub struct Tape {
     pub bars: Vec<Bar>,
     pub marks: Vec<Bar>,
     pub funding: Vec<FundingStamp>,
+    pub overlays: Vec<crate::tape::AppliedOverlay>,
 }
 
 impl Tape {
@@ -39,6 +29,7 @@ impl Tape {
             bars,
             marks,
             funding,
+            overlays: Vec::new(),
         }
     }
 }

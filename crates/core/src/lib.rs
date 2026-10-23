@@ -10,6 +10,8 @@ pub mod bar;
 pub mod causal;
 pub mod fixed;
 pub mod instrument_spec;
+pub mod resample;
+pub mod side;
 pub mod symbol;
 pub mod time;
 pub mod timestamps;
@@ -17,6 +19,8 @@ pub mod timestamps;
 pub use bar::{BarError, BarInterval, ResampledBar};
 pub use causal::{Causal, DecisionTime, Observation};
 pub use fixed::{notional, Amount, FixedError, Notional, Price, Qty, Ratio, SCALE};
+pub use resample::{resample_series, Bar, ResampleError};
+pub use side::Side;
 pub use symbol::{Symbol, SymbolError};
 pub use time::{
     expected_close, require_declared_unit, require_regular_grid, source_tick_us,

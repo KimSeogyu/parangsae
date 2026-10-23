@@ -1,8 +1,8 @@
 //! P1–P6. Each property runs 100 cases. The model below does not call the ledger.
 
-use parangsae_core::{Price, Qty, Ratio, UtcMicros, SCALE};
+use parangsae_core::{Price, Qty, Ratio, Side, UtcMicros, SCALE};
 use parangsae_sim::{
-    round_against_trader, taker_fee, Cash, Costs, FeeBps, Ledger, MarketOrder, Side, SimError,
+    round_against_trader, taker_fee, Cash, Costs, FeeBps, Ledger, MarketOrder, SimError,
     SlippageBps,
 };
 use proptest::prelude::*;
