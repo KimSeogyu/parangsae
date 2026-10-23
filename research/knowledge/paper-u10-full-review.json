@@ -1,0 +1,2146 @@
+{
+  "schema_version": "u10-page-audit-recovery-1",
+  "source_id": "U10",
+  "title": "Empirical Asset Pricing via Machine Learning",
+  "authors": [
+    "Shihao Gu",
+    "Bryan Kelly",
+    "Dacheng Xiu"
+  ],
+  "doi": "10.1093/rfs/hhaa009",
+  "source_homepage": "https://dachxiu.chicagobooth.edu/",
+  "recovery": {
+    "reconstructed_at_utc": "2026-10-23T08:00:55+00:00",
+    "reason": "Execution workspace reset; original page-level hashes were not retained in conversation.",
+    "method": "Recover review coverage from agent conversation; refetch public author PDFs and compare with original byte lengths and SHA-256 supplied by parent; regenerate page fingerprints.",
+    "original_pdf_identity_verified": true,
+    "prior_page_text_hashes_available": false,
+    "page_hashes_are_new_extraction_fingerprints": true,
+    "historical_review_status_preserved_not_newly_claimed": true,
+    "raw_source_bundled": false
+  },
+  "sources": [
+    {
+      "document_id": "main",
+      "url": "https://dachxiu.chicagobooth.edu/download/ML.pdf",
+      "source_filename": "ML.pdf",
+      "source_document_sha256": "05e4ef8a1c830c9f33a0f461f07c145f6e6be30fbd7996a09d0672de1413bd61",
+      "source_document_bytes": 1146229,
+      "pdf_pages": 51,
+      "printed_page_range": {
+        "first": 2223,
+        "last": 2273
+      },
+      "refetched_at_utc": "2026-10-23T08:00:55+00:00",
+      "prior_record_sha256": "05e4ef8a1c830c9f33a0f461f07c145f6e6be30fbd7996a09d0672de1413bd61",
+      "prior_record_bytes": 1146229,
+      "matches_prior_reviewed_pdf_bytes": true,
+      "http_last_modified": "Thu, 26 Feb 2026 05:30:16 GMT",
+      "license_check": {
+        "status": "CC BY-NC-ND 4.0 notice observed on main PDF page 1",
+        "checked_during_prior_review": true
+      },
+      "doi": "10.1093/rfs/hhaa009"
+    },
+    {
+      "document_id": "appendix",
+      "url": "https://dachxiu.chicagobooth.edu/download/ML_supp.pdf",
+      "source_filename": "ML_supp.pdf",
+      "source_document_sha256": "a9ffb80679129ec98752b0c472112951de0e886c5b430e58cf068bccd5107a71",
+      "source_document_bytes": 584081,
+      "pdf_pages": 31,
+      "printed_page_range": {
+        "first": 1,
+        "last": 31
+      },
+      "refetched_at_utc": "2026-10-23T08:00:55+00:00",
+      "prior_record_sha256": "a9ffb80679129ec98752b0c472112951de0e886c5b430e58cf068bccd5107a71",
+      "prior_record_bytes": 584081,
+      "matches_prior_reviewed_pdf_bytes": true,
+      "http_last_modified": "Thu, 26 Feb 2026 05:30:16 GMT",
+      "license_check": {
+        "status": "Separate appendix redistribution permission not established",
+        "checked_during_prior_review": true
+      },
+      "doi": null
+    }
+  ],
+  "coverage": {
+    "main_pdf_pages": 51,
+    "appendix_pdf_pages": 31,
+    "total_pdf_pages": 82,
+    "text_pages_read": 82,
+    "main_text_pages_read": 51,
+    "appendix_text_pages_read": 31,
+    "main_visual_pages": [
+      16,
+      18,
+      21,
+      22,
+      24,
+      28,
+      29,
+      31,
+      33,
+      34,
+      35,
+      37,
+      38,
+      41,
+      43,
+      44,
+      45,
+      46,
+      47
+    ],
+    "appendix_visual_pages": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27
+    ],
+    "visual_pages_count": 45,
+    "main_tables_checked": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8"
+    ],
+    "main_figures_checked": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9"
+    ],
+    "appendix_tables_checked": [
+      "A.1",
+      "A.2",
+      "A.3",
+      "A.4",
+      "A.5",
+      "A.6",
+      "A.7",
+      "A.8",
+      "A.9",
+      "A.10",
+      "A.11"
+    ],
+    "appendix_figures_checked": [
+      "A.1",
+      "A.2",
+      "A.3",
+      "A.4",
+      "A.5",
+      "A.6",
+      "A.7"
+    ],
+    "references_lists_read": true,
+    "cited_works_recursively_reviewed": false,
+    "all_pdf_pages_visually_inspected": false,
+    "all_table_cells_independently_recomputed": false,
+    "author_code_reviewed": false,
+    "author_code_executed": false,
+    "dataset_downloaded": false,
+    "empirical_results_reproduced": false,
+    "source_text_missing_pages": [],
+    "review_limit": "Complete extracted page text was read in the prior review; selected visual inspection covered tables, figures and algorithm/formula layouts, not all numerical values or every equation page."
+  },
+  "fingerprint_method": {
+    "pdf_hash": "SHA-256 of exact downloaded PDF bytes",
+    "extractor": "pdftotext (Poppler) 25.03.0",
+    "extraction_options": [
+      "-layout",
+      "-enc",
+      "UTF-8"
+    ],
+    "page_split": "Split decoded UTF-8 text at U+000C; discard only the final whitespace-only trailing chunk.",
+    "page_hash": "SHA-256 of each page chunk re-encoded as UTF-8, preserving whitespace and newlines, excluding the form-feed separator.",
+    "character_count": "Python len() of the identical page chunk",
+    "raw_page_text_included": false,
+    "old_page_hash_equivalence_asserted": false
+  },
+  "content_pointers": {
+    "primary_summary": {
+      "file": "papers.md",
+      "source_id": "U10"
+    },
+    "supplemental_review_and_independent_checks": {
+      "file": "paper-u10-full-review.md",
+      "check_ids": [
+        "C1",
+        "C2",
+        "C3"
+      ]
+    },
+    "source_derived_summary_duplicated_here": false
+  },
+  "check_locations": [
+    {
+      "check_id": "C1",
+      "details_file": "paper-u10-full-review.md",
+      "locations": [
+        {
+          "document_id": "appendix",
+          "pdf_pages": [
+            6,
+            7
+          ],
+          "section_id": "B.1"
+        }
+      ]
+    },
+    {
+      "check_id": "C2",
+      "details_file": "paper-u10-full-review.md",
+      "locations": [
+        {
+          "document_id": "main",
+          "pdf_pages": [
+            16
+          ],
+          "equation_ids": [
+            "13"
+          ]
+        },
+        {
+          "document_id": "appendix",
+          "pdf_pages": [
+            6
+          ],
+          "section_id": "B.1"
+        }
+      ]
+    },
+    {
+      "check_id": "C3",
+      "details_file": "paper-u10-full-review.md",
+      "locations": [
+        {
+          "document_id": "appendix",
+          "pdf_pages": [
+            26
+          ],
+          "table_ids": [
+            "A.10"
+          ]
+        },
+        {
+          "document_id": "main",
+          "pdf_pages": [
+            43,
+            45
+          ]
+        }
+      ]
+    }
+  ],
+  "page_audit": {
+    "main": [
+      {
+        "pdf_page": 1,
+        "printed_page": 2223,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5073,
+        "extracted_text_sha256": "db88afbfdb0dd9adb84e3a7a61dee2eb572bb9bff93adcc967ae461c17e5cb7b",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "front_matter",
+            "introduction"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 2,
+        "printed_page": 2224,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4739,
+        "extracted_text_sha256": "28ef06c8b12a79d6452af9c781349ff408427b21e3bceada881053969987214c",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "introduction"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 3,
+        "printed_page": 2225,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4797,
+        "extracted_text_sha256": "d385e0ffd27a0bedc0605e5524c9ce1217a828ad4bccd82b461008d808d4bfc0",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "introduction"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 4,
+        "printed_page": 2226,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4608,
+        "extracted_text_sha256": "43a37bae0268d61b0986dae3ea2ca093972058f07dc3758f9f88e90cf39db5ef",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "introduction"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 5,
+        "printed_page": 2227,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4649,
+        "extracted_text_sha256": "6a6ca3ff0907f20e0e8958b7d23b72b6e2add81ce32429e2e77842bab0bf968d",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "introduction"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 6,
+        "printed_page": 2228,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4509,
+        "extracted_text_sha256": "fc8dd572b9842954f0ec14e57b01460554e5b45bbc0acea7e567871a6797655d",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "introduction"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 7,
+        "printed_page": 2229,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4553,
+        "extracted_text_sha256": "8d3be05071c052e73f1e1cf25c3812689d2e2b6d1acf4430d167b921be3ebead",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "introduction"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 8,
+        "printed_page": 2230,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4323,
+        "extracted_text_sha256": "160cf07ec7e184bdc2760826b8310f5f70b6fb8fd1e3d652210df664077c7c55",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "introduction",
+            "1"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 9,
+        "printed_page": 2231,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4279,
+        "extracted_text_sha256": "ac3b57756872645e4b53eb6db858cec7dcb3335ece051a98ac228eb26d65910d",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1"
+          ],
+          "equation_ids": [
+            "1",
+            "2"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 10,
+        "printed_page": 2232,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4435,
+        "extracted_text_sha256": "9d7945d1599112a100b6092a5cee7025790dc329df8aff870e7430888b8badab",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.1",
+            "1.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 11,
+        "printed_page": 2233,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4507,
+        "extracted_text_sha256": "03a5ced0ea6d2fbff2b822b6108cb0b519fef067c90578927792822f723d248b",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.2",
+            "1.2.1"
+          ],
+          "equation_ids": [
+            "3",
+            "4",
+            "5"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 12,
+        "printed_page": 2234,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4547,
+        "extracted_text_sha256": "a9763216f55ee1393a9ea5b79f3c53607e1a4bb145139f61f5ac954a2af2dc1f",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.2.1",
+            "1.3"
+          ],
+          "equation_ids": [
+            "6"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 13,
+        "printed_page": 2235,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4490,
+        "extracted_text_sha256": "c27783b117bb3f18a0b81a4b7a56913628d50feb4fb824264418d9c2a84a79e1",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.3",
+            "1.4"
+          ],
+          "equation_ids": [
+            "7",
+            "8"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 14,
+        "printed_page": 2236,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4051,
+        "extracted_text_sha256": "cb94f0e3d6bb6fcdfb64f204ee3cd5c156762089caee662b02bfc69e2fe74655",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.4"
+          ],
+          "equation_ids": [
+            "9",
+            "10"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 15,
+        "printed_page": 2237,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4565,
+        "extracted_text_sha256": "c29d848b339233d8c8f48802245878adc5544c2af31e1de3bd7832947e97c51f",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.4",
+            "1.5"
+          ],
+          "equation_ids": [
+            "11",
+            "12"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 16,
+        "printed_page": 2238,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4586,
+        "extracted_text_sha256": "d5050f482d1103c1dbdffe8b883d6bd138e4efdfd57941b299f58eb6e0774f4b",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "1.5"
+          ],
+          "equation_ids": [
+            "13",
+            "14"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 17,
+        "printed_page": 2239,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4710,
+        "extracted_text_sha256": "387b3a05e7b2a9b05d26ba349ecb0aaba2b0688495c8602b3c96aa8f53c43adf",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.6"
+          ],
+          "equation_ids": [
+            "15"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 18,
+        "printed_page": 2240,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4909,
+        "extracted_text_sha256": "50b81e572eeae69eb730c682445be14d965ef2a9fa4dd24ae491145b907bbd24",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "1.6"
+          ],
+          "equation_ids": [
+            "16"
+          ],
+          "table_ids": [],
+          "figure_ids": [
+            "1"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 19,
+        "printed_page": 2241,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4893,
+        "extracted_text_sha256": "f5977cca69537c63e8f75744d7bf6b371c086cf3a183e151397b4f7bcf6783fa",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.6"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 20,
+        "printed_page": 2242,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4543,
+        "extracted_text_sha256": "f6288d15c111dd85e2104df3c46b0ee2f8979de3e88850b4f833caac6c22ca11",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.6",
+            "1.7"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 21,
+        "printed_page": 2243,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4273,
+        "extracted_text_sha256": "1870e4cbb6d6e1b46369daee301330b11680ee12ae3f283125cd2b867331169f",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "1.7"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "2"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 22,
+        "printed_page": 2244,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4324,
+        "extracted_text_sha256": "fec48638e81aa7cec39a0f41dce9337b9e23d9ce88235e3b9f5fd4b0117a7a2d",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "1.7"
+          ],
+          "equation_ids": [
+            "17",
+            "18"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 23,
+        "printed_page": 2245,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5084,
+        "extracted_text_sha256": "d01320db76965d6b06ca5e6054716b858ed7aaa0ae2d8a19cdff56e99d47b10d",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.7"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 24,
+        "printed_page": 2246,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4857,
+        "extracted_text_sha256": "4ac83bedffda23f5970575225d3da299f4007fccd3aebc666bea0d629b6e2599",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "1.7",
+            "1.8"
+          ],
+          "equation_ids": [
+            "19"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 25,
+        "printed_page": 2247,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4955,
+        "extracted_text_sha256": "cd0fb3ad82d5bf03c801f9b35ce37c66f25d4f6f25db82b45e4c154fcef4c270",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.8",
+            "1.9"
+          ],
+          "equation_ids": [
+            "20"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 26,
+        "printed_page": 2248,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5323,
+        "extracted_text_sha256": "f0110bc09ddba579be27302e093626ac8bbd87b6db27d1ffa17b4083bbefbfd8",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "1.9",
+            "2",
+            "2.1"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 27,
+        "printed_page": 2249,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4450,
+        "extracted_text_sha256": "00eaa848384f892062aa55302ef3102576671f53ed7ad272b67df56b12ed1685",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "2.1",
+            "2.2"
+          ],
+          "equation_ids": [
+            "21",
+            "22",
+            "23"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 28,
+        "printed_page": 2250,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3893,
+        "extracted_text_sha256": "29cffa2fa3732b825e485f863b3302944aea444036172c8dac110d06e9141a34",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "1"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 29,
+        "printed_page": 2251,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5791,
+        "extracted_text_sha256": "316e5cd8e4d9e5564b8ae525980c10c27d1437dc22589ac78ecc6b4e72ec5a73",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "3"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 30,
+        "printed_page": 2252,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4865,
+        "extracted_text_sha256": "3a148a912200fa5338311e512f31954923f71498673688a3031e3b3afb75a9d2",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "2.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 31,
+        "printed_page": 2253,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3937,
+        "extracted_text_sha256": "4c9a8c95d92d7fcfee373948f2d567cbfd78580a7a39524d14fd3ef53a3b01cc",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "2",
+            "3"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 32,
+        "printed_page": 2254,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4890,
+        "extracted_text_sha256": "b4b5d8b05df55024467d794e04718881d809cd1d64f58d1213d9b498d7b633f5",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "2.2",
+            "2.3"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 33,
+        "printed_page": 2255,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 11406,
+        "extracted_text_sha256": "89717c0b7ea172086293dfdb14c24aecedcfce37c8f75e0dfb5cd5639cb1e35f",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.3"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "4"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 34,
+        "printed_page": 2256,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 6314,
+        "extracted_text_sha256": "a8aaf8f29f74f40299e549c0b5708b191a441dec087b5d66908eedbcf4606250",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.3"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "5"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 35,
+        "printed_page": 2257,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3116,
+        "extracted_text_sha256": "d3260b0a829459813437ff9a32aa66a0247354359a72efdef0558ea62919f40a",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.3"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "4"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 36,
+        "printed_page": 2258,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4410,
+        "extracted_text_sha256": "f40e73fb89313e27982dfb78d89666e8b271f3446de1d83570b970c07af89b61",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "2.3",
+            "2.3.1",
+            "2.3.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 37,
+        "printed_page": 2259,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5108,
+        "extracted_text_sha256": "d7e0ff71834b259c441a68ba799e6fadfebd4fc1f0c2441a09d2e89bc258299e",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.3.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "6"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 38,
+        "printed_page": 2260,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 6320,
+        "extracted_text_sha256": "0d5faaf978b0b4bfc8b7a0fc66f863778547210abb84976ff05f9215ef15433c",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.3.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "7",
+            "8"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 39,
+        "printed_page": 2261,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4565,
+        "extracted_text_sha256": "7563d33951d3bedc55e125c06cece1e7f2ce1ce2b57d9271dcadbb7ced3c9ebb",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "2.3.2",
+            "2.4",
+            "2.4.1"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 40,
+        "printed_page": 2262,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4837,
+        "extracted_text_sha256": "0d721bcf4ff19a510c256051f5c60fc1a6b9159d8bae293bc33623f8520cd0ad",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "2.4.1"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 41,
+        "printed_page": 2263,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 6820,
+        "extracted_text_sha256": "96882fc0bd4856d38eab09eadb1f4878fa5a89b861f3632d5e63c7db5250c109",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.4.1"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "5"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 42,
+        "printed_page": 2264,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4541,
+        "extracted_text_sha256": "d44e55e91f1788050763c64d3f154ba83023ee4e56a0ea426d153afbda77002c",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "2.4.1",
+            "2.4.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 43,
+        "printed_page": 2265,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 6049,
+        "extracted_text_sha256": "47a6882067856e528a0b86e1bf7f75a57f9008ca0a93120afa2b552244c7a609",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.4.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "6"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 44,
+        "printed_page": 2266,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 7836,
+        "extracted_text_sha256": "8063ce497bca020e34fb2b46914a5749cc6cdfedf0dc0eabfea6ec9f1bd9cfa5",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.4.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "7"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 45,
+        "printed_page": 2267,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4965,
+        "extracted_text_sha256": "5f38f5d7bbb6c6b57edd2901b9e7e497fa32ee1c2399a320eb6d040c4f91a0c8",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.4.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "8"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 46,
+        "printed_page": 2268,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4693,
+        "extracted_text_sha256": "8ca7aa4f6b2c9f154a10c3bc0fbeeebcc7307f9c3c9755a32b0392c81209b630",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.4.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 47,
+        "printed_page": 2269,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3433,
+        "extracted_text_sha256": "05306d402a0a17097a64aac3421467412d1b9167244639f2c25d0d7504a0fdca",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "2.4.2",
+            "3"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "9"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 48,
+        "printed_page": 2270,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4494,
+        "extracted_text_sha256": "2d34d3d87d10c3115c1aa8f6b47151cbfc7acd42bfdb3b592bfaa3aa3421bdb1",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "3",
+            "references"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 49,
+        "printed_page": 2271,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4509,
+        "extracted_text_sha256": "c61f15bc675a205d4caea40a5a180b92ef8713c8d8b57a667719972c08fe0858",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "references"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 50,
+        "printed_page": 2272,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3599,
+        "extracted_text_sha256": "feb5775ccd42f40b455125750ca522e0586d47aa2101040645b1ca81623f91f9",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "references"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 51,
+        "printed_page": 2273,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2718,
+        "extracted_text_sha256": "569dd38afb6ff83b30bfe4ca6fab487b8da3b7d764379909ff212e63f9fb2c81",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "references"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      }
+    ],
+    "appendix": [
+      {
+        "pdf_page": 1,
+        "printed_page": 1,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2807,
+        "extracted_text_sha256": "0bed38dd52332b7aaa2f1e82df57fabf6338a7073542ded406fae9ccec3608fd",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "A"
+          ],
+          "equation_ids": [
+            "A.1",
+            "A.2"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 2,
+        "printed_page": 2,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5108,
+        "extracted_text_sha256": "8fe117f2d767752917eec7f3d5d6e09eae823dbf1764762306b889b90eaa17cf",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "A"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.1"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 3,
+        "printed_page": 3,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4970,
+        "extracted_text_sha256": "f5c97ee807bd2445fb400f0f67914a8b0d4869e8743fec4ee932998a32109579",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "A"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.2"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 4,
+        "printed_page": 4,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5033,
+        "extracted_text_sha256": "b5729217970e72c474015190b41686e0a72551ebb5578e301f0bacce5ac90288",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "A"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.3"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 5,
+        "printed_page": 5,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5306,
+        "extracted_text_sha256": "8a57d3ed6b0166cf1baae22770780c8a11e5902de69273674b374f6779ae91a5",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "A"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.4"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 6,
+        "printed_page": 6,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4017,
+        "extracted_text_sha256": "9e1c04005a872b520e4cb31673c4200707aa3a8b6d3f658687dcf5eeb2915aa2",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "A",
+            "B",
+            "B.1"
+          ],
+          "equation_ids": [
+            "B.3",
+            "B.4"
+          ],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 7,
+        "printed_page": 7,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2993,
+        "extracted_text_sha256": "05073e2bbfe55dc0b4347f45e01ea43ed7727a9221e524c7b4f1a2595589c5f1",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "B.1"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": [
+            "1"
+          ]
+        }
+      },
+      {
+        "pdf_page": 8,
+        "printed_page": 8,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3359,
+        "extracted_text_sha256": "044c20c2dc14dbfbec399a14a5827cca245dc5664f73547c9244506f4b16899b",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "B.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": [
+            "2"
+          ]
+        }
+      },
+      {
+        "pdf_page": 9,
+        "printed_page": 9,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3045,
+        "extracted_text_sha256": "6d048c8687f90dca08cd87e70858e12f33dd7e4a31c00997aa67b7ff902e6b63",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "B.2"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": [
+            "3",
+            "4"
+          ]
+        }
+      },
+      {
+        "pdf_page": 10,
+        "printed_page": 10,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2240,
+        "extracted_text_sha256": "085afc7f535f04b1ee4102a993833769bebc0b22d974e3a569bcadb8bdef8960",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "B.3"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": [
+            "5",
+            "6"
+          ]
+        }
+      },
+      {
+        "pdf_page": 11,
+        "printed_page": 11,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3143,
+        "extracted_text_sha256": "c9750cb79ddd886bc089e903855fb1071f9f8b209b4cc3b2e765a3507ca004e7",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "B.3"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": [
+            "7"
+          ]
+        }
+      },
+      {
+        "pdf_page": 12,
+        "printed_page": 12,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3463,
+        "extracted_text_sha256": "1bfcb4981e7ead2694ac0d27eb4344ec3cd1f2e2ff6d4e239822707c3acf306f",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "B.3"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 13,
+        "printed_page": 13,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2179,
+        "extracted_text_sha256": "fa852ea5873cf4186efa54f3036819430456d1cdab86905093760ce1592c4a25",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.5"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 14,
+        "printed_page": 14,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5254,
+        "extracted_text_sha256": "9488af51f6d61db323a98e452568005255a8bdea8e9569feb4c9e5ac0f7a9488",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.6"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 15,
+        "printed_page": 15,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5091,
+        "extracted_text_sha256": "5a5cc2e2bd50d7a21276b57c29fcdb7c97955a88c894184f488a5be3b245e88d",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.6"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 16,
+        "printed_page": 16,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 5189,
+        "extracted_text_sha256": "56d47d48a8c89de903fe4006a0f641ce341b6d41adec54236a30a15d6dd1088c",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.6"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 17,
+        "printed_page": 17,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4309,
+        "extracted_text_sha256": "45a1b8e939f262a512737f07402953af18c00bde6a5c4291387114fd75c8b88a",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.7"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 18,
+        "printed_page": 18,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 9215,
+        "extracted_text_sha256": "100cf3afbf7c6fd909753c119b850d74457a0ca21dc6632fd5391c80ef4d4ed4",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "A.1"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 19,
+        "printed_page": 19,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3067,
+        "extracted_text_sha256": "ad5cf40b17297b65b48cfee16890df4f3dce7628152af00df361c6ef2da72338",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "A.2"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 20,
+        "printed_page": 20,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 3147,
+        "extracted_text_sha256": "4675c2a2faa7fae3e8e6126f8df96c5df8ea632c60b63388fe14b770d2814094",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "A.3"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 21,
+        "printed_page": 21,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2720,
+        "extracted_text_sha256": "3e91209ec736c361aced1307cb64b2f6b01dac2d05c71991574e978fabfe863c",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "A.4"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 22,
+        "printed_page": 22,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 8939,
+        "extracted_text_sha256": "48298de987d516e97037452942a0538d801804509719d840205fb7fd38b8eb31",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "A.5"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 23,
+        "printed_page": 23,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2971,
+        "extracted_text_sha256": "277062bed21fc46acc0ef82f0f6d454b9c215a3fa20ce21ac2688c13b97f7f5c",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [
+            "A.6"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 24,
+        "printed_page": 24,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 4917,
+        "extracted_text_sha256": "c3657e284dd942d12790a4f80765658b0294ea2e56fb28e5896163de96c5ba7b",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.8"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 25,
+        "printed_page": 25,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 6669,
+        "extracted_text_sha256": "daf397826b0f9b7a94e25c124a5e53a8a10d5d9b8a9189e6aa73ec1299b67fcb",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.9"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 26,
+        "printed_page": 26,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 7028,
+        "extracted_text_sha256": "dfe7596cda612190dc91b86b501aebfebffc875a437d0519e18e082848c2674a",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.10"
+          ],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 27,
+        "printed_page": 27,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2657,
+        "extracted_text_sha256": "b0c70e9577b44d6282ab3e6f939c0b140550b6bc1cbca3579cb1b6199cba5947",
+        "visual_reviewed": true,
+        "visual_review_basis": "prior_visual_inspection_of_sha256_identical_pdf",
+        "locators": {
+          "section_ids": [
+            "supplemental_tables_and_figures",
+            "references"
+          ],
+          "equation_ids": [],
+          "table_ids": [
+            "A.11"
+          ],
+          "figure_ids": [
+            "A.7"
+          ],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 28,
+        "printed_page": 28,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2474,
+        "extracted_text_sha256": "71ac3bda50cc3e7594db64cb32e6858236fa00760aecd238bc4209184e9effee",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "references"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 29,
+        "printed_page": 29,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2460,
+        "extracted_text_sha256": "2337ed70cdcddbc8a7a11629c2d122c1de5f6515c6977cabef1cdba9081d3f7d",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "references"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 30,
+        "printed_page": 30,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2422,
+        "extracted_text_sha256": "ed899f3cc0758fdd03b0039e31567bd95066a463f07eea05791cf88d3f272dfa",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "references"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      },
+      {
+        "pdf_page": 31,
+        "printed_page": 31,
+        "text_read": true,
+        "text_read_basis": "prior_complete_read_of_sha256_identical_pdf",
+        "recovery_text_reextracted": true,
+        "recovery_full_page_reread": false,
+        "extracted_text_character_count": 2375,
+        "extracted_text_sha256": "b4ee4713539d5f51e77fff2707162b40bc3c4380feeee622edfbbe7d76937853",
+        "visual_reviewed": false,
+        "visual_review_basis": "not_recorded_as_visually_inspected",
+        "locators": {
+          "section_ids": [
+            "references"
+          ],
+          "equation_ids": [],
+          "table_ids": [],
+          "figure_ids": [],
+          "algorithm_ids": []
+        }
+      }
+    ]
+  }
+}

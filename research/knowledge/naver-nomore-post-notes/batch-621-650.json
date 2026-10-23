@@ -1,0 +1,899 @@
+[
+  {
+    "id": "220130584985",
+    "title": "금융공학이라는 학문의 본질",
+    "date": "2014. 9. 23.",
+    "url": "https://blog.naver.com/nomore_bet/220130584985",
+    "inventory_index": 621,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융공학",
+      "가격결정",
+      "구현"
+    ],
+    "summary_ko": "금융공학의 핵심을 상품 아이디어 자체보다 계약에 가격과 민감도를 부여하는 일로 본다. 수학을 모형 설계, 프로그래밍을 실제 계산 도구 구현과 연결하는 저자의 학습 관점이다.",
+    "developer_note_ko": "계약·평가 가정·시장 가격·민감도를 구분하고 테스트로 연결한다. 이 관점을 금융공학 전체의 유일한 정의나 본문 속 경제학·수상 이력 설명의 검증으로 취급하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "3738520a31d744329d45e7208041018ed0381e7a528afb62452ec1ed428af312",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "7d1dcad90a98483d1978367e9f1093c91d3943a21d1349c773f650f4c839cd15",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3299,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220119000076",
+    "title": "중앙은행의 비전통적인 통화정책을 알아보자 #1",
+    "date": "2014. 9. 11.",
+    "url": "https://blog.naver.com/nomore_bet/220119000076",
+    "inventory_index": 622,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "중앙은행",
+      "통화정책",
+      "LSAP"
+    ],
+    "summary_ko": "금융위기 이후 전통적 금리 경로의 제약을 설명하며 포워드 가이던스와 대규모 자산 매입을 소개한다. 중앙은행 대차대조표를 정책을 관찰하는 창으로 제시한다.",
+    "developer_note_ko": "정책 발표·집행·자산 규모·금리 반응을 분리해 기록한다. 글의 역사적 연도나 금리 하한 설명을 그대로 고정하지 않고 현재 제도와의 차이를 확인한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "751b43d69503191ddb5abbc4115cb2e26fa7528cc836d81be19e533b8929a770",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "43b00d6ae1a0ef9979ed233e708c114e535f3158e03d5bed8b1413fc813aad66",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1583,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220113362824",
+    "title": "AIG 규제금융, 신용부도스왑이라 불리는 파생상품 그리고 금융공학 #2",
+    "date": "2014. 9. 4.",
+    "url": "https://blog.naver.com/nomore_bet/220113362824",
+    "inventory_index": 623,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "AIG",
+      "담보",
+      "유동성위험"
+    ],
+    "summary_ko": "AIG 위기를 최종 신용손실만으로 설명하지 않고 평가 변화와 신용등급 하락에 따른 담보 요구에 초점을 맞춘다. 만기 전에 현금을 마련해야 하는 유동성 압박을 비유로 설명한다.",
+    "developer_note_ko": "최종 지급 손실과 중간 담보 현금흐름을 별도로 계산한다. 담보 약정·등급 트리거·헤어컷·지급 기한을 모델 입력으로 관리한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "afb7e8e5c3885b766401c43740da3514f1bf40c67820c61d0f96061f1e8e59ad",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "d0164db3c0b522d7fb57e22280468881115f7e7f1b029fb5da8266e3b8204789",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1882,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220111837543",
+    "title": "AIG 구제금융, 신용부도스왑이라 불리는 파생상품 그리고 금융공학 #1",
+    "date": "2014. 9. 3.",
+    "url": "https://blog.naver.com/nomore_bet/220111837543",
+    "inventory_index": 624,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "CDS",
+      "신용위험",
+      "헤지"
+    ],
+    "summary_ko": "CDS를 채권의 신용위험을 다른 상대에게 이전하는 계약으로 설명하고 AIG 사례에 연결한다. 채권 보유의 여러 위험을 분리한다는 직관을 제공하는 입문 글이다.",
+    "developer_note_ko": "신용사건·회수율·프리미엄·결제 방식·상대방 위험을 명시한다. 보험 비유만으로 위험이 완전히 사라지거나 모든 CDS가 채권 실보유를 요구한다고 가정하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "776797d5d03d614cb1166df9fcf5a349abfe7013dc2b5caf35cafe53e610fa35",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "0c9bb38ef0006fd4b9cc445e6ba0e7c7c7d70a532221a283d19732d1cfba815b",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1483,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220104908395",
+    "title": "세계적으로 파생상품 거래 증가세에 대한 기사를 읽고",
+    "date": "2014. 8. 28.",
+    "url": "https://blog.naver.com/nomore_bet/220104908395",
+    "inventory_index": 625,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "명목원금",
+      "파생노출",
+      "시장구조"
+    ],
+    "summary_ko": "파생상품 명목금액의 크기만으로 실제 위험을 판단하기 어렵다고 예시한다. 거래 증가를 저마진 고객 거래 확대와 사업 재편으로 설명하는 가설도 제시한다.",
+    "developer_note_ko": "명목원금·평가액·민감도·스트레스 손실을 구별한다. 본문 예시에는 단위·산술 불일치가 있어 숫자나 규칙을 복사하지 말고 독립 계산한다. 증가 원인 역시 검증된 결론은 아니다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "f14c5183a39109fb0bb3908c32a1faf050b50c5c5e1f74187a98733256218aa0",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "4014257281d88247a59fd96f5e9c427b6d60a48e52c33f3e55e2fff36815f240",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3301,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220100237202",
+    "title": "슈피겔 × 언론",
+    "date": "2014. 8. 26.",
+    "url": "https://blog.naver.com/nomore_bet/220100237202",
+    "inventory_index": 626,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "언론",
+      "출처검증",
+      "비연구"
+    ],
+    "summary_ko": "슈피겔 관련 기사들을 통해 정치적 친소관계와 별개로 사실을 확인하는 언론의 역할을 소개한다. 탐사보도와 팩트체크 체계에 관심을 둔 자료 모음이다.",
+    "developer_note_ko": "뉴스 기반 신호에는 원 출처·정정·보도 시각을 보존한다. 매체 평판이나 기사 속 인력 숫자를 개별 주장 검증의 대체물로 사용하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "d3de7b046ee7b3a34b12fb493d4c20f05380cbc1e81935370cdf97204c5cab44",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "af30123679b68130b89079fe09d02fb6bd12f8b7c261485df02302b60bbe2ecd",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1449,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220098913338",
+    "title": "신경제연구소(INET) × 조지 소로스",
+    "date": "2014. 8. 25.",
+    "url": "https://blog.naver.com/nomore_bet/220098913338",
+    "inventory_index": 627,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "경제학",
+      "INET",
+      "연구기관"
+    ],
+    "summary_ko": "금융위기 이후 기존 경제학을 반성하고 새로운 사고를 지원한다는 INET의 취지를 기사 발췌로 소개한다. 연구 지원·교육·토론 활동의 참고 출처다.",
+    "developer_note_ko": "연구기관 소개와 개별 이론의 실증 유효성을 구분한다. 본문에서 다르게 제시된 설립 시점 등은 공식 기록 확인 전 확정 메타데이터로 쓰지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "4a19af9972c07ee2dd2c9e41a741e51f9e9077d053aa3dcc158d1f477c42c532",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "37dbb04d91da526780ba4b6e060fe5ecb47bbdebe3a6c890e4f6efaab04f3025",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1325,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220068199880",
+    "title": "트레이딩룸 포지션 - 프런트 미들 백",
+    "date": "2014. 7. 23.",
+    "url": "https://blog.naver.com/nomore_bet/220068199880",
+    "inventory_index": 628,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "트레이딩조직",
+      "프런트미들백",
+      "통제"
+    ],
+    "summary_ko": "트레이딩 조직의 수익 창출·위험 통제·결제 확인을 프런트·미들·백 역할로 설명한다. 거래 실행뿐 아니라 견제와 사후 처리가 함께 필요하다는 입문적 관점이다.",
+    "developer_note_ko": "신호 생성·위험 승인·주문 실행·체결 대사를 분리하고 권한과 감사 이력을 둔다. 가족 비유를 실제 조직의 고정된 업무 분장으로 일반화하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "0b4fe882e154713970650865bfddbf7926b373d7b053340e6baf7bb576276eb3",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "25b4c40d7d3b15177afa9e94ec4b979e3fc350807b93e46515c3edf95a25048a",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1825,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220067192471",
+    "title": "F1와 트레이딩룸 비교 - #1",
+    "date": "2014. 7. 21.",
+    "url": "https://blog.naver.com/nomore_bet/220067192471",
+    "inventory_index": 629,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "팀운영",
+      "트레이딩인프라",
+      "조직"
+    ],
+    "summary_ko": "F1의 선수 뒤에 여러 기술·운영 조직이 있듯 트레이딩도 세일즈·딜러·퀀트·전산·통제 조직의 협업이라고 설명한다. 눈에 보이는 거래자만으로 사업을 이해하기 어렵다는 취지다.",
+    "developer_note_ko": "개인 시스템에서도 데이터·모형·주문·위험·정산 책임을 구분한다. 역할별 실패와 인계 지점을 문서화하고 단일 성과 숫자로 전체 시스템을 평가하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "fe8549d5b84365c17f7545f35dea4bfa71fa419a5c0b7c16b0643b3da6fcebca",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "b7d2fd174ef27106eba6314581ac9263e80fe163d0be4cc1fc6b08b7b66e8a97",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1367,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220056232158",
+    "title": "해외에서는 요즘 자산운용이 뜨고 있다",
+    "date": "2014. 7. 10.",
+    "url": "https://blog.naver.com/nomore_bet/220056232158",
+    "inventory_index": 630,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "자산운용",
+      "금융진로",
+      "채용"
+    ],
+    "summary_ko": "해외 기사 내용을 자유롭게 요약하며 인구 변화·보상·인력 이동을 근거로 자산운용 분야의 성장 가능성을 소개한다. 원문에 충실한 번역이 아니라는 저자의 제한도 명시돼 있다.",
+    "developer_note_ko": "당시 경력 정보로만 분류한다. 채용 계획과 실제 충원, 자산관리와 운용 직무를 나누고 과거 보상·수요를 현재 전망으로 재사용하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "5441cff78dc1fe6af85ed6af96e19636f10e90b0469e2afd321fd87abd471cec",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "ba5eb954204878734095461f51ee4f35486b0ad882b3878383003d405d37c3de",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1055,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220050186066",
+    "title": "금융권 연봉 및 채용 현황 보고서 2013년",
+    "date": "2014. 7. 4.",
+    "url": "https://blog.naver.com/nomore_bet/220050186066",
+    "inventory_index": 631,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융인력통계",
+      "보상",
+      "직무"
+    ],
+    "summary_ko": "2013년 금융인력 보고서에서 직무별 보상·연령·근속 차이를 살피고 규제와 사업 변화에 연결한다. 통계에 대한 저자의 해석이며 원 보고서와 표 이미지는 이번 복구에서 미검토다.",
+    "developer_note_ko": "조사 연도·표본·직무 분류·분모를 확인한다. 연령 구성만으로 생존 확률을 추론하거나 특정 직군의 연봉을 현재 기대 보상으로 제시하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "d92e187bdf70ada5ae145bdbee91b9373dcf53fcb57af3d9141a24e248275314",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "e91e1e3fb54e16c7caa4868aebf9168530c1dd4b34f3fb3d75df3ba87e8bec92",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1255,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220047031365",
+    "title": "투자은행업 속 트레이딩룸",
+    "date": "2014. 7. 1.",
+    "url": "https://blog.naver.com/nomore_bet/220047031365",
+    "inventory_index": 632,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "발행시장",
+      "유통시장",
+      "시장조성"
+    ],
+    "summary_ko": "증권 발행을 돕는 투자은행 업무와 발행 후 거래를 가능하게 하는 유통시장의 관계를 설명한다. 변동성 확대가 트레이딩 사업의 비중을 높였다는 역사적 관점을 덧붙인다.",
+    "developer_note_ko": "발행 지원·유동성 공급·자기 포지션 손익을 구분한다. 높은 변동성을 자동적인 수익 기회나 최대 실현 가능 이익으로 계산하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "ad3aecd7dea8b65498ba6a48e8be7f5e6a625f9690c7743433c8ba2c13dcaf38",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "335a324ac5fbae8054c9a47a430fba38fbf7271249dacf09fcd69399843a780b",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1876,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220045571185",
+    "title": "금융권역 속 트레이딩룸",
+    "date": "2014. 6. 30.",
+    "url": "https://blog.naver.com/nomore_bet/220045571185",
+    "inventory_index": 633,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융기관",
+      "셀사이드바이사이드",
+      "딜링룸"
+    ],
+    "summary_ko": "상업은행·증권사·운용사와 셀사이드·바이사이드의 관계 속에서 딜링룸을 위치시킨다. 기관마다 강한 자산군과 수익원이 다를 수 있다는 입문 설명이다.",
+    "developer_note_ko": "상품·고객·위험 보유 주체 기준으로 기능을 구분한다. 은행 고객 거래가 언제나 저위험이거나 기관별 업무 경계가 고정되어 있다고 가정하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "511e7092144edcfc6b227411079e6b8772198c7d6e0ad3b100ecc298c32a9317",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "ce7280a71b12e5a1a8e225ed1cbe57197bef45ffa89e3ebefd71475ec9b1b350",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1269,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220042228463",
+    "title": "2013년 파생상품 총거래 현황을 보며",
+    "date": "2014. 6. 27.",
+    "url": "https://blog.naver.com/nomore_bet/220042228463",
+    "inventory_index": 634,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "파생거래통계",
+      "상품분류",
+      "시장수요"
+    ],
+    "summary_ko": "2013년 파생상품 통계에서 통화·금리·신용 상품과 금융권별 거래 변화를 읽는다. 거래량 증가를 헤지 수요와 상품 확대에 연결하는 저자의 추정이며 원 표는 미검토다.",
+    "developer_note_ko": "거래금액·잔액·건수의 정의와 집계 대상을 확인한다. 거래 규모를 수익 기여나 특정 거래 동기의 직접 증거로 바꾸지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "0d1475bc49be63d1b907d6a331eb8b6ced08920e7609e37bf3f308a7e679dfc4",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "c2a2b36b607ed9dbc6b096cf6aa3a775a88779e0746c66ebd97fdaa2c463c1c8",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 635,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220042006290",
+    "title": "딜링룸 속 금융공학...? - 딜링룸",
+    "date": "2014. 6. 26.",
+    "url": "https://blog.naver.com/nomore_bet/220042006290",
+    "inventory_index": 635,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "딜링룸",
+      "금융공학",
+      "업무지도"
+    ],
+    "summary_ko": "금융공학이 딜링룸에서 수익과 위험 관리에 어떻게 연결되는지를 큰 질문으로 삼아 글의 범위를 정리한다. 기관·업무·평가모형·손익·현금 관리의 관계를 함께 보려는 출발점이다.",
+    "developer_note_ko": "연구 결과가 어떤 업무 의사결정과 현금흐름에 쓰이는지 연결도를 만든다. 본문의 기관별 허용 업무 설명은 현행 인가·법규 확인 없이 고정하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "8259740bbd885a9b6cb99e22c903d9d712e1b9572670bb13ebee8e6f74f67585",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "dea5741960d039c3d604b378179b3128a78bcc3badb4e7311484283ac6157b75",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2332,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220032253622",
+    "title": "금융공학자가 간과한 모델 리스크",
+    "date": "2014. 6. 16.",
+    "url": "https://blog.naver.com/nomore_bet/220032253622",
+    "inventory_index": 636,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "모형위험",
+      "꼬리위험",
+      "유동성"
+    ],
+    "summary_ko": "가격과 위험을 계산하는 도구가 현실의 희귀 사건이나 현금화 제약을 놓칠 수 있음을 비유로 설명한다. 이론상 평가와 실제 지급·헤지 가능성의 차이가 핵심이다.",
+    "developer_note_ko": "모형 가정의 적용 범위, 스트레스 손실, 시장·조달 유동성을 별도 검증한다. 반대 거래가 있다는 이유만으로 헤지 비용과 잔여 위험을 영으로 놓지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "4c7f4e568dc36812814a29fd2d48fd5fd74a1840a0c0c6ef21ac9c8f9b168f50",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "b31972a80ad5467b836f4e225cd0f6bb294da6555e020b5c6b4dc0ad189b86d3",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2557,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220028392592",
+    "title": "외국계 은행 취업하기",
+    "date": "2014. 6. 12.",
+    "url": "https://blog.naver.com/nomore_bet/220028392592",
+    "inventory_index": 637,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용경로",
+      "외국계은행"
+    ],
+    "summary_ko": "외국계 은행 근무 경험이 있는 지인의 블로그와 답변을 소개한다. 공개 대규모 채용 외에 공석별 채용과 여러 진입 경로가 있다는 당시 경험담이다.",
+    "developer_note_ko": "특정인의 경험과 회사별 공식 채용 절차를 구분한다. 연결 블로그·현재 공석은 검토하지 않았으며 개인 연락이나 추천 요청을 대신 수행하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "3eb7e392cba42a127b0d4d3482f4ba339db7a148686f762a78eea2a370533b71",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "fc066492c5343ed30c05ffa1c81c8d19fb67786d5abeb62eaf0c74fb92eeeaac",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 598,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70186923437",
+    "title": "대한민국 FICC의 현주소 #2 - 금융공학 대학 교육과 실무와의 거리감",
+    "date": "2014. 3. 17.",
+    "url": "https://blog.naver.com/nomore_bet/70186923437",
+    "inventory_index": 638,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융공학교육",
+      "실무과제",
+      "프로그래밍"
+    ],
+    "summary_ko": "금융공학 교육과 현업 문제의 거리감을 지적하며 실제 상품 설명·구현을 요구하는 과제 경험을 대비한다. 금융·수학·프로그래밍을 함께 다룰 필요를 강조하는 개인적 교육 평가다.",
+    "developer_note_ko": "수식 유도와 더불어 데이터·구현·사용자 설명·위험 고지를 포함한 산출물을 요구한다. 일부 수업 경험을 모든 학교와 현재 교육과정의 평가로 일반화하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "af8caa9603faec725b180a22495be28001ca0d07eb770109d5dd6293c4fe16d7",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "f8c942e3c1ce1f793fd1b23259a0ef34b8c67a9e01fc3ddb5c6af7b48362fd0f",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2921,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70186730742",
+    "title": "대한민국 FICC의 현주소 #1 - 금융공학, 딜링룸과 국외진출",
+    "date": "2014. 3. 14.",
+    "url": "https://blog.naver.com/nomore_bet/70186730742",
+    "inventory_index": 639,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "FICC",
+      "백투백",
+      "해외영업"
+    ],
+    "summary_ko": "국내 기관의 비정형 상품 중개와 해외 진출 한계를 실무 서적·기사에 연결해 논한다. 직접 위험을 관리하려면 이론뿐 아니라 경험·시스템·조직·관계가 필요하다는 관점이다.",
+    "developer_note_ko": "자체 평가·직접 헤지·백투백 이전을 구분하고 잔여 상대방 위험을 남긴다. 특정 시기 업계 비판을 현재 모든 기관의 능력에 대한 판정으로 사용하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "b7b49e209e4c0990d63e5a4ddf060ca8997548bff791712dcb4b666229ff1183",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "ae86968bf97c9af86300876551dd1925d554e6e64e58e6c85ebbe3c4987ee5b9",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2695,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70186613616",
+    "title": "파생상품 취급 받는 김연아 남자친구 #2",
+    "date": "2014. 3. 12.",
+    "url": "https://blog.naver.com/nomore_bet/70186613616",
+    "inventory_index": 640,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "파생상품비유",
+      "비연구"
+    ],
+    "summary_ko": "사람에 대한 평가가 주변 관계에 따라 달라지는 비유로 기초자산과 파생상품 가치의 연관성을 설명한다. 외모·사생활 품평의 세부는 연구와 무관하므로 생략한다.",
+    "developer_note_ko": "비유를 가격식으로 구현하지 않는다. 실제 가치는 계약 조건·시간·금리·변동성·신용·유동성 등에도 좌우되며 사람을 금융자산처럼 점수화하는 자료로 쓰지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "5de8b594ccd0b484e0aeac1bb3b804ea6a0edd0cdf8f890d59f4614f312e35c1",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "716d085f9991c6418db567347c4f14190fa1421eb9875309d3075171ace7a1ae",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1455,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70186484695",
+    "title": "파생상품 취급 받는 김연아 남자친구 #1",
+    "date": "2014. 3. 10.",
+    "url": "https://blog.naver.com/nomore_bet/70186484695",
+    "inventory_index": 641,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "파생상품비유",
+      "비연구"
+    ],
+    "summary_ko": "대중의 관계 인식을 빌려 파생상품이라는 용어와 기초자산 의존성을 소개하는 연재의 첫 글이다. 유명인 사생활과 외모 평가의 상세 내용은 제외한다.",
+    "developer_note_ko": "입문적 비유와 검증 가능한 금융 정의를 구별한다. 파생상품이 모두 주식 기반이거나 수요·공급과 무관하다는 일반화로 확장하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "c262b4050d7945974acc4653c949625200ebe79c132a5b8b30c5f1e5902a39ac",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "89d9757e318bd533df6e4996b594aadbb443cfbf1e8c310b8dd7a433f4a1fba1",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1607,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70186170795",
+    "title": "파생금융사용설명서 - 금융대학원, 파생상품 실무가 궁금한 이에게 추천",
+    "date": "2014. 3. 5.",
+    "url": "https://blog.naver.com/nomore_bet/70186170795",
+    "inventory_index": 642,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "서평",
+      "파생금융실무",
+      "학습자료"
+    ],
+    "summary_ko": "『파생금융사용설명서』를 이론과 현업의 간극을 줄이는 자료로 높이 평가한다. 초심자에게는 여전히 어려울 수 있으며 설명 도식이 더 있으면 좋겠다는 의견도 제시한다.",
+    "developer_note_ko": "서평 검토와 책 전체 독해를 구분한다. 소개된 책·블로그를 별도로 읽기 전에는 실무 주장이나 구현 방법까지 확인했다고 표시하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "569f1227fa05fc3b0a1e0362425994ad7238d45e79ce29327281bc40610fccfe",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "8aa215ade70b1b5d4732c3b1e5e8b6f90db0b69a3396749c97bd507e7165d3c7",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2513,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70185872306",
+    "title": "금융공학을 배울 수 있는 대학원, 대학은 어디인가?",
+    "date": "2014. 2. 28.",
+    "url": "https://blog.naver.com/nomore_bet/70185872306",
+    "inventory_index": 643,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "교육기관",
+      "대학알리미",
+      "검색한계"
+    ],
+    "summary_ko": "국내 금융공학 교육과정 정보를 모으기 어려워 대학알리미에서 찾아본 과정과 결과를 공유한다. 검색 결과가 기대보다 적고 왜 누락되는지는 모르겠다고 명시한다.",
+    "developer_note_ko": "검색어·검색일·학과명 변경과 학위 종류를 기록한다. 당시 조회 목록을 현재 모든 과정의 완전한 목록이나 추천 순위로 제시하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "dcf43bd4b2bd8c051d3c6c2b3b4dc59994e98fb513ad36fc337730f5a0175245",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "4d1cd217430805574bda6347e2e5e0df8f08adfb2a3e267c01a7969b0bbb819c",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 691,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70185202684",
+    "title": "퀀트(금융공학자), 바이사이드와 셀사이드 사이 #2",
+    "date": "2014. 2. 18.",
+    "url": "https://blog.naver.com/nomore_bet/70185202684",
+    "inventory_index": 644,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "바이사이드",
+      "셀사이드",
+      "모형목적"
+    ],
+    "summary_ko": "바이사이드는 시장 데이터에서 투자 기회를 찾고 셀사이드는 거래 가능한 가격을 제시한다는 대비로 퀀트 업무를 설명한다. 목표 차이가 분석 도구와 학습 방향에도 영향을 준다는 관점이다.",
+    "developer_note_ko": "실제확률 기반 예측과 무차익 가격평가를 분리한다. 셀사이드 가격모형이 반드시 강형 효율적 시장을 전제한다거나 모든 바이사이드 업무가 같은 도구를 요구한다고 일반화하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "a8f9bb29f9fef9169b1b0329475cd5b6447712b5cf884d41196cac24644f9902",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "320f52160c136d72008819d32c92c19dc0d240d29ad41ece7b7fb0d5de4f2790",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2232,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70184174191",
+    "title": "퀀트(금융공학자), 바이사이드와 셀사이드 사이 #1",
+    "date": "2014. 2. 3.",
+    "url": "https://blog.naver.com/nomore_bet/70184174191",
+    "inventory_index": 645,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "바이사이드",
+      "셀사이드",
+      "수익구조"
+    ],
+    "summary_ko": "투자자산 운용과 고객 거래·유동성 공급의 수익 구조를 나누어 퀀트 역할을 설명한다. 같은 이익 금액이어도 가격 전망과 상품 평가에서 요구되는 역량은 다를 수 있다는 입문 글이다.",
+    "developer_note_ko": "전략의 목적함수와 의사결정 주체를 먼저 정의한다. 시장조성·고객 거래에도 재고·상대방·헤지 위험이 있으므로 안정적 수익으로 고정하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "2a72ade02576b011a098c8ff91bdbbfcbddcac487970528de984f440f77f79e9",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "dc00ea8f943c963cfe9d53097330a9b359d2ef4c0ceabb5f840ccf36b406eac4",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3168,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70183416941",
+    "title": "금융공학대학원, 금융MBA 시간에 따른 만족도 변화",
+    "date": "2014. 1. 21.",
+    "url": "https://blog.naver.com/nomore_bet/70183416941",
+    "inventory_index": 646,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "대학원",
+      "경력전환",
+      "네트워크"
+    ],
+    "summary_ko": "대학원 입학의 기대, 취업의 현실, 실무 적응, 장기적인 동료 관계의 가치를 단계별로 회고한다. 통계 조사가 아니라 소규모 경험에 바탕을 둔 주관적 진로 이야기임을 밝힌다.",
+    "developer_note_ko": "학위의 기술 역량·기회비용·관계 형성 효과를 분리한다. 입학이나 인맥이 취업·수익을 보장한다는 근거로 사용하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "f082e70c755d2915a5e9be1b94fda69acdfc5423babc433c0d65fa58287ae092",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "f27114bc5ca4ee141201ed229e21bb1fab9ee3e6a2e76d3162c594ff3ba3cac6",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1953,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70177188327",
+    "title": "짬뽕학문 금융공학에선 어떤 과목을 배우나",
+    "date": "2013. 10. 11.",
+    "url": "https://blog.naver.com/nomore_bet/70177188327",
+    "inventory_index": 647,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융공학교육",
+      "수치해석",
+      "프로그래밍"
+    ],
+    "summary_ko": "국제금융공학자협회의 교과목 자료를 소개하며 수학·최적화·수치해석·프로그래밍의 실무 중요성을 강조한다. 과목별 설문과 그림의 원자료는 이번 복구에서 검토하지 않았다.",
+    "developer_note_ko": "기초모형·수치 오차·코드 품질을 연결해 학습 과제를 만든다. 당시 설문 순위를 현재 모든 직무에 적용하거나 모델 가격을 가정과 무관한 정확한 참값으로 취급하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "052ad4d95123dc48f511bd5f8c2dd99c416885dcc925b06f73d7aaa863710618",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "48cf98799ee81412588f32f84344f7caafb2ba5fc7ac7845146c43b663e3525a",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1493,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70176908829",
+    "title": "메소드 스타일",
+    "date": "2013. 10. 6.",
+    "url": "https://blog.naver.com/nomore_bet/70176908829",
+    "inventory_index": 648,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "서평",
+      "소비재",
+      "창업평가"
+    ],
+    "summary_ko": "『메소드 스타일』을 읽고 성숙한 생활용품 시장에서도 디자인·사용 경험·기업문화로 차별화할 수 있다는 관점을 정리한다. 창업자뿐 아니라 초기 기업을 판단하는 투자자에게도 생각거리를 준다는 서평이다.",
+    "developer_note_ko": "브랜드 서사와 매출·재구매·현금 소진·유통 성과를 구분한다. 한 성공 사례를 창업 기업의 일반적 수익성이나 산업 투자 규칙으로 확대하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "0e147ea61af083e7b9c49a3b6c2fa8ec1c6120f68464ebb53aa2bc9488211a53",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "f85dde0af9aec8dd118d53bb2fbc41a07299e1bd5d44e49a45941d3a163de417",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3266,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70176646241",
+    "title": "금융공학이 뭐하는 거냐 물어보신다면?",
+    "date": "2013. 10. 2.",
+    "url": "https://blog.naver.com/nomore_bet/70176646241",
+    "inventory_index": 649,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융공학정의",
+      "위험이전",
+      "모형"
+    ],
+    "summary_ko": "여러 정의에서 수학적 문제해결이라는 공통점을 찾고 파생상품의 위험 이전 기능을 비유로 설명한다. 위험을 옮길 수 있다는 사실이 과도한 위험 수용을 부추길 수 있다는 문제의식도 담는다.",
+    "developer_note_ko": "위험의 이전과 소멸을 구별한다. 최종 위험 보유자·계약 연결·담보·상관 노출을 추적하고 위험을 더 지면 기대수익도 반드시 높아진다고 가정하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "034c9aec53dcc55a49e5d41b14490d57c1d389691cdc3af11ccbe8310d2b7cc6",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "ccb8646f674575be59d79506da46e3a75a8a7258edbf2a39558bd9085711a3f8",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2060,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "70176244244",
+    "title": "딜링룸 비즈니스 요소 - FICC 시스템 #2",
+    "date": "2013. 9. 25.",
+    "url": "https://blog.naver.com/nomore_bet/70176244244",
+    "inventory_index": 650,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "FICC시스템",
+      "운영비",
+      "평가정보"
+    ],
+    "summary_ko": "딜링룸 비용을 인력과 시스템으로 나누고 시스템의 유지 운영과 신규 변경 비용을 구별한다. 보유자산 가치·거래 대상 가치·시장정보를 제공하는 능력이 시스템 투자의 핵심이라는 관점이다.",
+    "developer_note_ko": "개발 비용과 지속 운영비를 따로 추적하고 평가 데이터의 시점·출처·장애를 관리한다. 과거 벤더 비용 사례는 현재 견적이나 개인 시스템 예산으로 전용하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "53c27b34b2b7dfcb7ebdf5034f47ab3fbe665f39e09d21e2b8610980af766121",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:13:28+00:00",
+    "recovery_source_document_sha256": "9c03194d28b3e4cb6e8e3cdcd8496f93bdb8c632fcc014cd99a66b6be27d3c9d",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1051,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  }
+]

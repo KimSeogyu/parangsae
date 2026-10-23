@@ -1,0 +1,725 @@
+[
+  {
+    "id": "70176126561",
+    "title": "딜링룸 비즈니스 요소 - FICC 시스템 #1",
+    "date": "2013. 9. 23.",
+    "url": "https://blog.naver.com/nomore_bet/70176126561",
+    "inventory_index": 651,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "비용",
+      "시스템",
+      "손익"
+    ],
+    "summary_ko": "딜링룸을 독립 수익센터로 설명하고 수익원에서 인건비·시스템 비용을 빼야 한다고 논한다. 기사에 나온 당시 시스템 가격은 업계 비용을 추정하는 자료다.",
+    "developer_note_ko": "고정 인프라 비용과 거래별 비용을 구분하고 현재 가격으로 전용하지 않는다. 평가·위험 데이터가 운영 의사결정의 필수 입력임을 명시한다.",
+    "source_document_sha256": "8ff302f3e017aecb44bf2a53adc3319d4990d1279f41319098e3e521ddb36536",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "a37289b55d7b0fb68bf9992b9d2f30119d962814b2f13775112c709b46c5b62d",
+      "fetched_at_utc": "2026-10-23T08:06:05Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70174268388",
+    "title": "애플의 회사채 발행과 재무공학 #3 - 더블 아이리시 위드 어 더치 샌드위치",
+    "date": "2013. 8. 22.",
+    "url": "https://blog.naver.com/nomore_bet/70174268388",
+    "inventory_index": 652,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "역사적세무",
+      "기업구조"
+    ],
+    "summary_ko": "아일랜드·네덜란드·버뮤다 법인과 로열티 경로를 이용한 과거 다국적기업 세금 구조를 설명한다.",
+    "developer_note_ko": "저자의 탈세 표현을 법적 확정으로 취급하지 않는다. 당시 제도 해설이지 현재 유효한 절세 설계가 아니며 세율·적법성은 검증되지 않았다.",
+    "source_document_sha256": "947f65900eb967f1c4247daeb2fac45736f0b9fcbff8afd856eff4d8e5653f66",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "0a3e24cd9e6689964957565851f88c2f59ef21a25e1d3ab9012f96176bdf5a56",
+      "fetched_at_utc": "2026-10-23T08:06:10Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70173743791",
+    "title": "애플의 회사채 발행과 재무공학 #2 - 더블 아이리시 위드 어 더치 샌드위치",
+    "date": "2013. 8. 14.",
+    "url": "https://blog.naver.com/nomore_bet/70173743791",
+    "inventory_index": 653,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "기업재무",
+      "지식재산"
+    ],
+    "summary_ko": "해외 자회사와 지식재산 공동개발·원가분담을 연결하는 과거 조세 구조의 설명이다. 저자는 전문 세무 지식이 없다고 밝힌다.",
+    "developer_note_ko": "역사적 기업재무 배경으로 분류하고 현재 거래·법인 설립 지침으로 사용하지 않는다. 제도 버전과 저자의 추론을 분리한다.",
+    "source_document_sha256": "b97169ce3a4e6e4180d79e02d998d942e97fd6f328ef3b132a9f58a0d6b12c1b",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "58abb0daaf85cd5ed403a886e3364258f053b8110c0d1fe7b1da2e26f512bf47",
+      "fetched_at_utc": "2026-10-23T08:06:14Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70173270876",
+    "title": "애플의 회사채 발행과 재무공학 #1 - 더블 아이리시 위드 어 더치 샌드위치",
+    "date": "2013. 8. 7.",
+    "url": "https://blog.naver.com/nomore_bet/70173270876",
+    "inventory_index": 654,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "회사채",
+      "현금위치"
+    ],
+    "summary_ko": "해외 현금이 많은 애플이 배당 재원을 위해 차입한 2013년 사례를 송금 관련 세금과 조달 비용으로 해석한다.",
+    "developer_note_ko": "총현금과 실제 가용현금의 차이, 조달 비용과 세금의 기간 차이를 구분한다. 당시 세율·금리를 현재 입력으로 쓰지 않는다.",
+    "source_document_sha256": "d97d0690cd42ffcaafa66524afddbe8842c1f5e6677fbdd9767628850d88875b",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "c23c46240ee0beec61897c9b17452a42d01738a42d6bc1dbfb38990e2d23315f",
+      "fetched_at_utc": "2026-10-23T08:06:18Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70172772695",
+    "title": "아주 소설을 써라! - FICC 딜링룸 비즈니는 어떻게 돌아가나 #3",
+    "date": "2013. 7. 31.",
+    "url": "https://blog.naver.com/nomore_bet/70172772695",
+    "inventory_index": 655,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "모형",
+      "구현",
+      "헤지"
+    ],
+    "summary_ko": "택시 비유로 새 파생상품의 가격모형, 퀀트 개발자의 시스템 이식, 트레이더의 헤지를 연결한다.",
+    "developer_note_ko": "이론가격·비포함 비용·운영 인터페이스를 구분하고 안전한 운용 도구가 없으면 실행을 보류한다. 비유는 무위험 수익 증거가 아니다.",
+    "source_document_sha256": "64c00e16d8234a7183befaa1d8ed3fe63278c6e24f520a3c68b19a127c234448",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "aaedeacc97b79893ec9f272c76f9aea5b529bf9b8b86ff28ad2d8db2aa0825bd",
+      "fetched_at_utc": "2026-10-23T08:06:23Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70172239716",
+    "title": "아주 소설을 써라! - FICC 딜링룸 비즈니는 어떻게 돌아가나 #2",
+    "date": "2013. 7. 23.",
+    "url": "https://blog.naver.com/nomore_bet/70172239716",
+    "inventory_index": 656,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "백투백",
+      "내재화"
+    ],
+    "summary_ko": "낯선 노선을 외부 기사에게 맡기는 비유로 백투백 헤지와 자체 헤지의 인력·시스템 차이를 설명한다.",
+    "developer_note_ko": "외부 헤지도 상대방·베이시스·운영 위험이 남는다. 마진 확대 기대와 자체 위험관리 역량을 별도로 검증한다.",
+    "source_document_sha256": "7f472fbbbf8dd5bc4c129d695603502f3f5c9a74d7503ba379af1993e17dee25",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "b72aad9f4bd7ec71ecb3d0a09ea9884ef4cd9b705b5c28d08210114ca05836fd",
+      "fetched_at_utc": "2026-10-23T08:06:28Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70171913746",
+    "title": "아주 소설을 써라! - FICC 딜링룸 비즈니는 어떻게 돌아가나 #1",
+    "date": "2013. 7. 18.",
+    "url": "https://blog.naver.com/nomore_bet/70171913746",
+    "inventory_index": 657,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "헤지",
+      "가격모형"
+    ],
+    "summary_ko": "택시 요금·소개비·연료비를 통해 판매가격과 세일즈 마진·헤지 비용을 구분한다. 널리 알려진 모형은 경쟁으로 마진이 줄 수 있다고 본다.",
+    "developer_note_ko": "모형의 예상 헤지 비용과 실제 체결 비용은 다르다. 델타헤지가 완전한 위험 제거라는 가정이나 비용 절감의 무위험성을 피한다.",
+    "source_document_sha256": "a8795bb750ad9f75635a5822b7db6868afc0c574264a5613ae1bae1ab2f88812",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "a82cce26c346d68f7d508eaac8c27ab7884023c1c34c6548eb5b0bbffb336d67",
+      "fetched_at_utc": "2026-10-23T08:06:32Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70171294914",
+    "title": "금융공학 석사? 차라리 저자! #2",
+    "date": "2013. 7. 9.",
+    "url": "https://blog.naver.com/nomore_bet/70171294914",
+    "inventory_index": 658,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문서화",
+      "학습"
+    ],
+    "summary_ko": "책 저술과 업무 매뉴얼 작성이 실무 지식을 드러내고 피드백을 축적하는 수단이라고 제안한다.",
+    "developer_note_ko": "공개 가능한 연구 지식만 문서화한다. 출처·색인·질문 기반 보완이라는 방식은 유용하지만 출판이 전문성 검증을 대체하지 않는다.",
+    "source_document_sha256": "dff0238d4c6c318a8d7f53cef0c3c6da766c8fcf9d215464e8299a46666784b3",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "8529c361ac25ed7dd803f4a63c34a67fd00921dc94ba438f82e055903a01a522",
+      "fetched_at_utc": "2026-10-23T08:06:37Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70171220379",
+    "title": "금융공학 석사? 차라리 저자! #1",
+    "date": "2013. 7. 8.",
+    "url": "https://blog.naver.com/nomore_bet/70171220379",
+    "inventory_index": 659,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "교육",
+      "기회비용"
+    ],
+    "summary_ko": "현직자의 대학원 선택을 시간·비용 관점에서 비판하며 독학과 저술을 대안으로 제시하는 개인 의견이다.",
+    "developer_note_ko": "연령·학위에 관한 일반화를 능력 판정으로 사용하지 않는다. 2013년 경력 에세이이며 현재 교육투자 수익을 입증하지 않는다.",
+    "source_document_sha256": "87c8562d4f601703aad3ca1183f81730d2619114157e41dc6b4f8fca5bbdc012",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "71630e824cd31224940da70c41468f1bd530377a169299b764afad8183f4cba7",
+      "fetched_at_utc": "2026-10-23T08:06:41Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70170848181",
+    "title": "[공유] 트레이더들이 광분한 이유- OIS discounting : pricing & risk ",
+    "date": "2013. 7. 3.",
+    "url": "https://blog.naver.com/nomore_bet/70170848181",
+    "inventory_index": 660,
+    "review_status": "partial_text_only",
+    "topic_tags": [
+      "OIS",
+      "멀티커브"
+    ],
+    "summary_ko": "다른 블로그의 OIS 할인 글을 공유하며 여러 커브 구성과 당시 원화 시장 논의를 짧게 언급한다.",
+    "developer_note_ko": "확인한 것은 공유 글의 짧은 설명뿐이다. 연결된 원글 전체 독해나 현재 시장 제도의 확인으로 계산하지 않는다.",
+    "source_document_sha256": "f00c3e37bb5521a3163c7c6e62b96724d1d3f8a451766059cf6d6ff1c9247ad6",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "9561ed8c1c144b3bf1926ddc1e4074a70fba442ff7daa881c2021a6c2f3531fd",
+      "fetched_at_utc": "2026-10-23T08:06:45Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님",
+      "공유글의 원작성자 본문 전체는 포함되지 않아 공유 설명만 검토"
+    ]
+  },
+  {
+    "id": "70170744586",
+    "title": "퀀트의 종류는 가지가지 3편",
+    "date": "2013. 7. 1.",
+    "url": "https://blog.naver.com/nomore_bet/70170744586",
+    "inventory_index": 661,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트역할",
+      "시스템"
+    ],
+    "summary_ko": "캐피털 퀀트와 시스템 퀀트의 업무를 신용·자본 모델과 업무·IT 연결로 설명한다. 분류는 공식적이거나 고정된 것이 아니라고 한정한다.",
+    "developer_note_ko": "역할 명칭보다 책임·입력·검증 경계를 정의한다. 기관의 과거 인력 구조를 프로젝트 아키텍처의 의무사항으로 적용하지 않는다.",
+    "source_document_sha256": "b10c8d6844ac8c8f455d088cdba8e666d298e5b9ed10450fa84d5593787732e2",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "00ec84efaf4cd67a51c785990f52682629b98d29ac8e7622bd13274600f5feeb",
+      "fetched_at_utc": "2026-10-23T08:06:49Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70169549997",
+    "title": "퀀트의 종류는 가지가지 2편",
+    "date": "2013. 6. 13.",
+    "url": "https://blog.naver.com/nomore_bet/70169549997",
+    "inventory_index": 662,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트개발",
+      "차익거래"
+    ],
+    "summary_ko": "이론 연구, 금융·소프트웨어 구현, 통계적 차익 연구의 역할을 비교한다.",
+    "developer_note_ko": "통계적 차익이나 HFT를 무위험 차익과 동일시하지 않는다. 무차익 가격 가정과 현실의 비용·위험을 가진 수익 예측은 구분한다.",
+    "source_document_sha256": "614415993930557c6c385f50d3f1b91d17f8348e4b678478f3dc482f3674384a",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "d4ed7a742c6264aed4d32a58ddf739e62f2c2e0ff68e60ea901514868eccb0ce",
+      "fetched_at_utc": "2026-10-23T08:06:53Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70168979804",
+    "title": "퀀트의 종류는 가지가지 1편",
+    "date": "2013. 6. 4.",
+    "url": "https://blog.naver.com/nomore_bet/70168979804",
+    "inventory_index": 663,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "모형검증",
+      "역할분리"
+    ],
+    "summary_ko": "데스크 퀀트와 독립 모형 검증 퀀트를 비교하며 모델 위험을 통제하는 검증 역할을 설명한다.",
+    "developer_note_ko": "모형 작성자와 평가 기준을 분리하고 독립 기준모형·반례를 둔다. 직무별 스트레스·보상 주장은 당시 개인 관찰이다.",
+    "source_document_sha256": "1bb2b58eb2b9322a15a1793f026959756451e9a335478bde03d4683bf934030e",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "d6fc13417737761eeff0e03f0f3ea1f630dc4790f3d29d6fff2a9459fdf25d3a",
+      "fetched_at_utc": "2026-10-23T08:06:57Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70168633424",
+    "title": "금융공학! 프로그래밍을 해야한다",
+    "date": "2013. 5. 30.",
+    "url": "https://blog.naver.com/nomore_bet/70168633424",
+    "inventory_index": 664,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "프로그래밍",
+      "도구비용"
+    ],
+    "summary_ko": "금융 수학을 사용 가능한 도구로 구현해야 한다며 Python을 비용과 생산성 관점의 대안으로 소개한다.",
+    "developer_note_ko": "2013년 제품 추천·가격을 현재 사실로 쓰지 않는다. 언어 선택은 재현성·연동·정확성·운영 제약으로 평가한다.",
+    "source_document_sha256": "42a51fbd4ca1ad9073f543bae46f9a48ab0885fe8258b409dd4517c17c88656e",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "52aea251b750cb631331b87df40aeb31b384ad51feabb9a2c35857f2719b2601",
+      "fetched_at_utc": "2026-10-23T08:07:01Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70168039390",
+    "title": "중앙청산소(CCP) 장외 거래를 품다 ",
+    "date": "2013. 5. 21.",
+    "url": "https://blog.naver.com/nomore_bet/70168039390",
+    "inventory_index": 665,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "중앙청산",
+      "비용"
+    ],
+    "summary_ko": "중앙청산이 장외거래의 유연성과 신용위험 관리를 결합하며 시장 참여·가격 경쟁·증거금 비용에 영향을 줄 수 있다고 전망한다.",
+    "developer_note_ko": "청산과 거래소 매매를 동일시하지 않는다. 중앙청산으로 위험이 사라지는 것이 아니라 집중·담보·유동성 위험으로 재배분됨을 구분한다.",
+    "source_document_sha256": "2c6c9075ada5fa23ca22bb9d40f67c1e75b74fba163fee37ef41ec4c2037c202",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "8293777bd3c8315435de00212b4f321357e46eca05ab338d356974aa39d6f4d6",
+      "fetched_at_utc": "2026-10-23T08:07:05Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70167144965",
+    "title": "금융위기 이전 금융공학 서적의 문제점",
+    "date": "2013. 5. 7.",
+    "url": "https://blog.naver.com/nomore_bet/70167144965",
+    "inventory_index": 666,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "멀티커브",
+      "모형가정"
+    ],
+    "summary_ko": "금융위기 이후 만기별 신용·유동성 차이가 드러나면서 단일 커브 방식과 스왑 평가를 재검토해야 한다고 논한다.",
+    "developer_note_ko": "베이시스의 존재를 무차익 원리 자체의 붕괴로 설명하지 않는다. 서로 다른 신용·담보·기간의 현금흐름을 동일한 무위험 상품으로 취급했던 가정을 점검한다.",
+    "source_document_sha256": "2b46d4763b7d10cde0e557ab84b2fe88f0c0336e99faa2639453e1927320e75f",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "fd97f640a7041cf3aac257886b0b56303a7d30670bb25bf896690cf8d57c5cb4",
+      "fetched_at_utc": "2026-10-23T08:07:09Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70166466031",
+    "title": "파생상품 개발, 디테일 속 악마와의 싸움",
+    "date": "2013. 4. 26.",
+    "url": "https://blog.naver.com/nomore_bet/70166466031",
+    "inventory_index": 667,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "가격입력",
+      "시장관행"
+    ],
+    "summary_ko": "교과서에서 주어지는 금리·변동성 입력을 실제 시장에서 구성하는 과정이 세밀하고 어렵다고 설명한다.",
+    "developer_note_ko": "입력 데이터·커브 구성·관행·가용시점까지 모델 계약에 포함한다. 연결된 책이나 외부 글은 읽은 범위로 합산하지 않는다.",
+    "source_document_sha256": "6db026eb17d5c5436a3489df4b3dfc66c42692b27bb9cc7479ff62213e15fbe2",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "55a5705181841abffb5429e4fe8b08efda5586d1478860a60ba8ebdf24fe70d6",
+      "fetched_at_utc": "2026-10-23T08:07:18Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70166180053",
+    "title": "다이나믹 델타 헷지, 델타 뉴트럴",
+    "date": "2013. 4. 22.",
+    "url": "https://blog.naver.com/nomore_bet/70166180053",
+    "inventory_index": 668,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "델타헤지",
+      "잔여위험"
+    ],
+    "summary_ko": "델타중립과 동적 헤지를 기초자산 방향 노출을 줄여 다른 옵션 특성에 노출되는 방법으로 비유한다.",
+    "developer_note_ko": "델타0은 국소적 일차 민감도 조건이다. 감마·점프·변동성·이산 재조정·거래비용이 남으며 변동성이 커지면 무조건 이익이라는 결론은 틀리다.",
+    "source_document_sha256": "d32f98e70b0e58d0a7c4080f3abe3462678b3f31c67f395a0f1a539e1654a0cf",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "b0e2def308af58e58eb77b4876853d164977c9b0e09272a949cd30cd4821a718",
+      "fetched_at_utc": "2026-10-23T08:07:22Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70165512097",
+    "title": "파생상품 개발도 타이밍",
+    "date": "2013. 4. 11.",
+    "url": "https://blog.naver.com/nomore_bet/70165512097",
+    "inventory_index": 669,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "상품개발",
+      "적시성"
+    ],
+    "summary_ko": "고객 필요를 포착한 뒤 모형·검증·시스템·법률·회계까지 갖추는 동안 시장 기회가 사라질 수 있다고 설명한다.",
+    "developer_note_ko": "요구의 유효기간과 출시 준비를 함께 관리한다. 속도 때문에 위험 검증을 생략하지 않으며 ELS를 일률적인 중위험 상품으로 분류하지 않는다.",
+    "source_document_sha256": "ee713814c8f2067f6fc7765f253cdcda933d76b4e432a7851084ef8184e6229c",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "2c56333b5e067b1bbdbd9b5e288ec5d099f1ae4389a7dd29e3fc4408dcc78976",
+      "fetched_at_utc": "2026-10-23T08:07:27Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70164324639",
+    "title": "프랍데스크에서 돈 버는 방법을 배울 수 있나? - #3",
+    "date": "2013. 3. 29.",
+    "url": "https://blog.naver.com/nomore_bet/70164324639",
+    "inventory_index": 670,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "조직유인",
+      "학습"
+    ],
+    "summary_ko": "주니어 트레이더 교육의 유인이 조직과 개인마다 다를 수 있어 데스크 입성이 매매 비법 전수를 보장하지 않는다는 의견이다.",
+    "developer_note_ko": "일화와 연역적 비유를 업계 전체의 실증 결과로 쓰지 않는다. 특정 직함·고수의 권위보다 공개 재현 가능한 검증을 우선한다.",
+    "source_document_sha256": "10e9eab06e543f784d01faa3226f2818bbe2662995742b3876f4ebf0a1e139d5",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "5173125a5442632fe23ea6678826ba387963e3056cb9bb0b60fd0350c43d8e8f",
+      "fetched_at_utc": "2026-10-23T08:07:30Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70164073948",
+    "title": "프랍데스크에서 돈 버는 방법을 배울 수 있나? - #2",
+    "date": "2013. 3. 27.",
+    "url": "https://blog.naver.com/nomore_bet/70164073948",
+    "inventory_index": 671,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "사업구조",
+      "고정비"
+    ],
+    "summary_ko": "자기자본 매매와 고객 플로우·시장조성의 자본·네트워크·시스템 요구를 비교한다. 글은 사례 부족으로 연역적 접근임을 밝힌다.",
+    "developer_note_ko": "개인과 조직의 수익·비용 귀속을 나누고 역사적 시스템 견적을 현재 비용으로 사용하지 않는다.",
+    "source_document_sha256": "9b93efdaaa1194c3f1be8c69da79c73f63886e127e86e246b2b797a9027dac56",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "af67ebc79a6b451bda0c6d42fa1d1a1f0b044c0b87539a76b305c994fca3c58f",
+      "fetched_at_utc": "2026-10-23T08:07:34Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70163805674",
+    "title": "프랍데스크에서 돈 버는 방법을 배울 수 있나? - #1",
+    "date": "2013. 3. 25.",
+    "url": "https://blog.naver.com/nomore_bet/70163805674",
+    "inventory_index": 672,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "보상",
+      "유인"
+    ],
+    "summary_ko": "프랍트레이더의 수익 분배와 목표 초과 보너스를 설명하며 높은 보상 이미지와 학습 기회를 구별한다.",
+    "developer_note_ko": "평가 목적과 보상 유인이 행동을 왜곡할 수 있다는 배경 자료다. 개인 보너스 구조를 시장 알파 증거로 삼지 않는다.",
+    "source_document_sha256": "fdde4b0b58d0de2d5019fa9f0198b09652405ecc02a9fb85bbe7aa0d7083d082",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "1484ec9af7e8e3b3504f1cd0a10d04ebf05802e9d78c11c59b602d6a899b3b6b",
+      "fetched_at_utc": "2026-10-23T08:07:38Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70162969323",
+    "title": "금융공학자의 새로운 수요처",
+    "date": "2013. 3. 18.",
+    "url": "https://blog.naver.com/nomore_bet/70162969323",
+    "inventory_index": 673,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "산업수요",
+      "위험관리"
+    ],
+    "summary_ko": "금융위기 이후 감독·규제·청산 관련 업무가 금융공학 인력의 새로운 수요처가 됐다는 당시 관찰이다.",
+    "developer_note_ko": "과거 채용 공고를 현재 기회로 전달하지 않는다. 파생모형 이해가 독립 위험 검증에도 필요하다는 역할 설명으로 분류한다.",
+    "source_document_sha256": "ab6b573f78a3320b75ef34ef35ba3aa59e4a3ad5e21de41a01ccc60ac6c42236",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "97c6fb0f4c1a6d83686b87616b6b6b3577a26bc9b4de1f4f5f21ca3d4a41fbf1",
+      "fetched_at_utc": "2026-10-23T08:07:42Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70162573928",
+    "title": "금융대학원에서 돈 버는 비법을 배울 수 있나?",
+    "date": "2013. 3. 15.",
+    "url": "https://blog.naver.com/nomore_bet/70162573928",
+    "inventory_index": 674,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "교육",
+      "무차익"
+    ],
+    "summary_ko": "금융공학 교육이 곧 초과수익 비법은 아니며 수학·프로그래밍은 가격평가와 다른 역할에도 유용하다고 주장한다.",
+    "developer_note_ko": "옵션의 무차익 가격 가정과 효율적 시장 가설을 동일시하지 않는다. 무차익이 모든 수익 또는 위험 프리미엄의 부재를 뜻하지는 않는다.",
+    "source_document_sha256": "c4978707d96ee13a698d1b7a8b65d034c040e8cb1d06bb466ec451bcdbd869e7",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "f8226c15c38034df6642bcfb6751d562f162bfba8768deb46827e0ca7d300cfc",
+      "fetched_at_utc": "2026-10-23T08:07:46Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70160110502",
+    "title": "FICC조직 - 퀀트 -> 모델 -> 가격 그리고 그릭스",
+    "date": "2013. 2. 22.",
+    "url": "https://blog.naver.com/nomore_bet/70160110502",
+    "inventory_index": 675,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "모형",
+      "수치해석"
+    ],
+    "summary_ko": "가격과 그릭스를 구하는 모델을 폐쇄형 공식과 수치해석으로 나누어 설명한다. 단순 상품도 입력 정밀성 문제가 남는다고 본다.",
+    "developer_note_ko": "수치 오차·수렴·입력 관행을 명시하고 기준모형과 비교한다. 모형 복잡성이 높다는 사실만으로 더 나은 모델이라고 평가하지 않는다.",
+    "source_document_sha256": "aed1cac54b5c7a2e337b8cb9b4dfe766f88e8948fa73068e133cb6bd22894ab9",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "6dffcf54ddf11fe80ca6bfe75ea9fbecaffc7e36cf868b52530f4e0fe62b2ea5",
+      "fetched_at_utc": "2026-10-23T08:07:50Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70159866083",
+    "title": "트레이딩으로 돈을 번다는 것의 복잡한 의미 - 2",
+    "date": "2013. 2. 20.",
+    "url": "https://blog.naver.com/nomore_bet/70159866083",
+    "inventory_index": 676,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "손익",
+      "자금조달"
+    ],
+    "summary_ko": "옵션 매도 프리미엄 유입만 수익으로 볼 수 없으며 부채 평가와 내부 조달·위험·운영 비용을 함께 봐야 한다고 설명한다.",
+    "developer_note_ko": "현금 유입·부채·기초자본을 구분한다. 본문의 3.5억원 절반을 1.25억원으로 적은 산술 오류는 1.75억원으로 고쳐야 한다.",
+    "source_document_sha256": "77d53ca38af5e2e3004a5c6a03997410e37eb2298cc7f1c5799cde6e52f5dfc3",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "ea90cf13b4d127aa8070d3102216885363b8ca446ca0d4eaac9162095ccbd16e",
+      "fetched_at_utc": "2026-10-23T08:07:53Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70159741431",
+    "title": "트레이딩으로 돈을 번다는 것의 복잡한 의미 - 1",
+    "date": "2013. 2. 19.",
+    "url": "https://blog.naver.com/nomore_bet/70159741431",
+    "inventory_index": 677,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "평가액",
+      "순손익"
+    ],
+    "summary_ko": "보유 현금의 절대량이 아니라 기준 시점 이후 가치 변화를 봐야 한다고 설명하고 장외상품 평가의 난도를 논한다.",
+    "developer_note_ko": "평가액과 미실현 손익, 매각 현금과 실현 손익은 같지 않다. 매입원가·초기자본·외부 입출금을 반영하여 총자산을 순수익으로 오인하지 않는다.",
+    "source_document_sha256": "4c83191324815e21572832206cd14fe698f84045554439d54d7091bced2d23b1",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "31bf8693c427c116f88d4d3b19554c5ee05c0bca62cb9a9e68e4a5c36b02849f",
+      "fetched_at_utc": "2026-10-23T08:07:57Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70159127048",
+    "title": "FICC 조직 - 트레이딩 + 세일즈 = 스트럭처러",
+    "date": "2013. 2. 13.",
+    "url": "https://blog.naver.com/nomore_bet/70159127048",
+    "inventory_index": 678,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "스트럭처링",
+      "통합"
+    ],
+    "summary_ko": "고객의 복합 위험을 상품 조합이나 새 구조로 해결하는 스트럭처러가 여러 전문 역할을 연결한다고 설명한다.",
+    "developer_note_ko": "상품 판매가격·복제비용·잔여 위험·운영준비를 분리한다. 복잡성이나 맞춤형이라는 이유만으로 수익성·적합성을 인정하지 않는다.",
+    "source_document_sha256": "c6909ec8e679030ae0587d78b80fc397ce05794464479dea8aadb3f4a87b9992",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "df4292fd71f6394c17d36ef7ab4b3c1fe47b18cfe9a692109c4ee85bb15ca37b",
+      "fetched_at_utc": "2026-10-23T08:08:00Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70158665147",
+    "title": "FICC 조직 - 세일즈 X 트레이딩",
+    "date": "2013. 2. 7.",
+    "url": "https://blog.naver.com/nomore_bet/70158665147",
+    "inventory_index": 679,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "수익귀속",
+      "협업"
+    ],
+    "summary_ko": "고객 가격, 내부 이전 가격, 시장 헤지 가격의 차이로 세일즈와 딜러가 마진을 나누는 구조를 설명한다.",
+    "developer_note_ko": "내부 부서 수익을 합산할 때 내부 이전가격을 제거해 이중계상을 막는다. 비용·위험을 제외한 단순 마진을 전체 순수익으로 보고하지 않는다.",
+    "source_document_sha256": "438586d59d4e3eabfa92f5938d8524492ee8d4b04bf81bd606f20a3a92665cb2",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "68c6c8660c7bbf5ea08bb9076b2ff74e79e7d11e19ab0cca44ac6bf73b3e3173",
+      "fetched_at_utc": "2026-10-23T08:08:04Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  },
+  {
+    "id": "70157909040",
+    "title": "외국계은행은 얼마나 벌고 있지",
+    "date": "2013. 1. 31.",
+    "url": "https://blog.naver.com/nomore_bet/70157909040",
+    "inventory_index": 680,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "은행통계",
+      "역사자료"
+    ],
+    "summary_ko": "2011년 외국계 은행 손익 통계를 소개하고 위기 이후 기관별 수익과 철수를 해석한다.",
+    "developer_note_ko": "법인·지역·기간·사업 범위가 다른 수익을 같은 전략 성과로 비교하지 않는다. 당시 순위를 현재 안정성·보상 지표로 사용하지 않는다.",
+    "source_document_sha256": "5cbfb4ac3dbbdf153a3c3449d1c1cdbc8927c2d333273578a22295f11335334b",
+    "recovery": {
+      "method": "public_text_refetched_and_reread_after_workspace_loss",
+      "refetched_document_sha256": "4eb44d2e2c9396de5706c10c77e1e536ef53d4ffc93cbe3b53b9b5f7103196cf",
+      "fetched_at_utc": "2026-10-23T08:08:09Z"
+    },
+    "limitations": [
+      "공개 본문 텍스트 검토; 이미지·외부 링크 미검토",
+      "역사적 저자 견해이며 현재 제도·가격·성과를 독립 검증한 것이 아님"
+    ]
+  }
+]

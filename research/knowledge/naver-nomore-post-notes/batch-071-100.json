@@ -1,0 +1,655 @@
+[
+  {
+    "id": "222106987208",
+    "title": "재테크 초보, 출간 계약을 하다, 아 고생길이 훤하겠다",
+    "date": "2020. 10. 5.",
+    "url": "https://blog.naver.com/nomore_bet/222106987208",
+    "inventory_index": 71,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "저술",
+      "학습"
+    ],
+    "summary_ko": "블로그 글을 엮은 투자 에세이 출간을 결정한 과정을 설명한다. 투자 전략·실증 성과보다 지식을 정리하고 전달하는 작업에 관한 글이다.",
+    "developer_note_ko": "전략 근거로 분류하지 말고 교육·기록 자료로 보관한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "3d558e0ad1c2408e3fce8893304ce28fd861b388592b8c571aade01ac97e4f93",
+    "source_document_sha256": "3d558e0ad1c2408e3fce8893304ce28fd861b388592b8c571aade01ac97e4f93",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222097395388",
+    "title": "재테크 초보에게 - 위안화 강세와 명품 그리고 투자 공부의 어려움",
+    "date": "2020. 9. 23.",
+    "url": "https://blog.naver.com/nomore_bet/222097395388",
+    "inventory_index": 72,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "이벤트",
+      "환율",
+      "학습"
+    ],
+    "summary_ko": "위안화 강세와 명품 수요를 사례로 과거 반대 상황을 찾아 경제적 연결을 학습하는 방법을 제안한다. 축적된 뉴스 지식이 가설 생성에 도움이 된다는 저자의 견해다.",
+    "developer_note_ko": "과거 반대 사건이 대칭적으로 재현된다고 가정하지 말고 환율·수요·지역 노출을 분리해 검증한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "85324db9978b6fc85401fc29f61f3b179ff15931d4626745a1dc73791fdf8c4d",
+    "source_document_sha256": "85324db9978b6fc85401fc29f61f3b179ff15931d4626745a1dc73791fdf8c4d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222096347256",
+    "title": "이날치 × 조선 힙스터",
+    "date": "2020. 9. 22.",
+    "url": "https://blog.naver.com/nomore_bet/222096347256",
+    "inventory_index": 73,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문화",
+      "일상"
+    ],
+    "summary_ko": "관광 홍보 영상과 국악을 결합한 대중음악에 대한 감상과 플레이리스트 소개다. 투자 신호나 금융 실증은 제시하지 않는다.",
+    "developer_note_ko": "문화적 인기 사례를 자산 예측 신호로 임의 승격하지 않는다. 투자 비관련 항목으로 구분한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "7230d9bf544cf0c5c3c296dbda8d23eef27ffce77171be4b15ea403b61672e22",
+    "source_document_sha256": "7230d9bf544cf0c5c3c296dbda8d23eef27ffce77171be4b15ea403b61672e22",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222085102200",
+    "title": "미 증시 하락을 보며, 어떤 명분을 가져다 붙여야 하나",
+    "date": "2020. 9. 10.",
+    "url": "https://blog.naver.com/nomore_bet/222085102200",
+    "inventory_index": 74,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "시장서사",
+      "옵션",
+      "급락"
+    ],
+    "summary_ko": "2020년 기술주 하락을 소프트뱅크 옵션 거래와 테슬라 경쟁 뉴스 등으로 설명하는 사후 서사를 의심한다. 가격 변동 뒤에 그럴듯한 원인이 붙는 경향을 여러 기사와 비교한다.",
+    "developer_note_ko": "헤드라인 작성시각과 가격 충격시각을 분리하고, 옵션 헤지와 주가의 인과를 뉴스 요약만으로 확정하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "9c805c62c2e04b3cee7885aa5785f6b60cabff4d2e2b458b1e2bf01402490ef1",
+    "source_document_sha256": "9c805c62c2e04b3cee7885aa5785f6b60cabff4d2e2b458b1e2bf01402490ef1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222083537317",
+    "title": "손정의의 콜옵션이라, 소프트뱅크 투자 철학 변화",
+    "date": "2020. 9. 8.",
+    "url": "https://blog.naver.com/nomore_bet/222083537317",
+    "inventory_index": 75,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "옵션",
+      "포지셔닝",
+      "기관투자"
+    ],
+    "summary_ko": "소프트뱅크의 상장 기술주·콜옵션 매입 보도를 바탕으로 비상장 장기투자에서 시장성 자산으로 투자 방식이 변했는지 논한다. 실제 옵션 구조와 의도는 확인되지 않았음을 남긴다.",
+    "developer_note_ko": "명목금액·프리미엄·델타 노출·최대손실을 분리한다. 공개 발언과 사후 공시를 같은 시점 정보로 결합하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "fee937f0e1445fb830ab37f791ea82f4d94cbb63b819a4cc7c12c8bc0ab5bcc8",
+    "source_document_sha256": "fee937f0e1445fb830ab37f791ea82f4d94cbb63b819a4cc7c12c8bc0ab5bcc8",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222081335981",
+    "title": "재테크 초보 - 미 증시 급락, 이유가 없기도 하느니",
+    "date": "2020. 9. 7.",
+    "url": "https://blog.naver.com/nomore_bet/222081335981",
+    "inventory_index": 76,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "급락",
+      "레짐",
+      "불확실성"
+    ],
+    "summary_ko": "특별한 악재가 명확하지 않은 2020년 기술주 급락을 다루며 건강한 조정과 하락장 해석이 공존함을 기록한다. 기술주 집중과 실물·시장 괴리를 당시의 취약 요인으로 제시한다.",
+    "developer_note_ko": "결과가 드러나기 전의 상충된 전망을 보존하고, 사후 정답 서사로 라벨을 다시 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "c3d10db3557d1c32b35434da52e2241bc2886a601e945f09d9423ed4df21a42a",
+    "source_document_sha256": "c3d10db3557d1c32b35434da52e2241bc2886a601e945f09d9423ed4df21a42a",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222078135646",
+    "title": "줌 주가 40%, 이제 어떻게 투자해야 할지 모르겠군, 스토리 투자?",
+    "date": "2020. 9. 2.",
+    "url": "https://blog.naver.com/nomore_bet/222078135646",
+    "inventory_index": 77,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "실적서프라이즈",
+      "내러티브"
+    ],
+    "summary_ko": "줌의 실적·전망 상향 뒤 급등을 보고 전통적 가치평가와 성장 서사를 결합하는 문제를 논한다. 시장의 사전 기대와 실제 실적 확인이 어떻게 달랐는지 질문한다.",
+    "developer_note_ko": "실적 수준보다 당시 컨센서스 대비 surprise와 발표 시각을 보존한다. 서사 점수의 추가 설명력은 기존 펀더멘털 기준모형과 비교한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "296064f8a61b7320866a6a0adb3817187b56dc98f14ba84a3dd2d9237144bea9",
+    "source_document_sha256": "296064f8a61b7320866a6a0adb3817187b56dc98f14ba84a3dd2d9237144bea9",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222070342849",
+    "title": "재태크 초보 - 주식 추천에 대한 부담감에 관하여",
+    "date": "2020. 8. 25.",
+    "url": "https://blog.naver.com/nomore_bet/222070342849",
+    "inventory_index": 78,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "추천위험",
+      "포지션",
+      "청산"
+    ],
+    "summary_ko": "매수 종목 추천보다 매도 조건을 함께 전달하지 못하는 문제가 크다고 본다. 연속 적중이 수신자의 투자금·레버리지를 키워 이후 한 번의 손실을 확대할 수 있다고 설명한다.",
+    "developer_note_ko": "진입 신호만이 아니라 청산·위험 한도·중단 조건을 전략 계약에 포함하고, 적중률과 위험조정 성과를 분리한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "23fd6172387f8943ea97de3f6acb422e1b7b9cada786096bd4e24265a9085248",
+    "source_document_sha256": "23fd6172387f8943ea97de3f6acb422e1b7b9cada786096bd4e24265a9085248",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222066759743",
+    "title": "월스트리트 헤지펀드의 은행주 매도 기사를 보며",
+    "date": "2020. 8. 21.",
+    "url": "https://blog.naver.com/nomore_bet/222066759743",
+    "inventory_index": 79,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "은행주",
+      "위기",
+      "레짐"
+    ],
+    "summary_ko": "2008년 은행주 회복 경험을 2020년에도 적용한 투자자들의 어려움을 기사로 살핀다. 저금리·대출손실 불확실성·대체 금융 경로가 과거 위기와 다른 조건일 수 있다고 해석한다.",
+    "developer_note_ko": "역사적 유사 사건을 재사용할 때 금리·신용·정책·산업구조 차이를 명시한다. 공시된 기관 매매는 공개 지연을 반영한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "951b87c7e05db54629b742b0c760919822469a3be9c5b19c26506e0115040acd",
+    "source_document_sha256": "951b87c7e05db54629b742b0c760919822469a3be9c5b19c26506e0115040acd",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222064781183",
+    "title": "신용 확대와 버블을 감각으로 경험하는 것에 대한 느낌",
+    "date": "2020. 8. 19.",
+    "url": "https://blog.naver.com/nomore_bet/222064781183",
+    "inventory_index": 80,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "신용",
+      "레버리지",
+      "버블"
+    ],
+    "summary_ko": "저금리와 투자 목적 차입 확대를 통해 신용 팽창과 자산 과열을 체감한 경험을 기술한다. 낮은 조달비용이 위험 인식을 약화시키고 매수 여력을 키울 수 있다는 견해다.",
+    "developer_note_ko": "조달비용·담보/청산 조건·변동성 충격을 함께 모델링한다. 거품 인식만으로 붕괴 시점을 예측했다는 주장을 하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "ae37817bc74928137be2c9b7794b207cbe72e32ce3dc79461fe64c1596723262",
+    "source_document_sha256": "ae37817bc74928137be2c9b7794b207cbe72e32ce3dc79461fe64c1596723262",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222060433909",
+    "title": "월급쟁이 후회의 삼각지대 × 참회의 시간",
+    "date": "2020. 8. 14.",
+    "url": "https://blog.naver.com/nomore_bet/222060433909",
+    "inventory_index": 81,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "유동성",
+      "운용제약",
+      "현금흐름"
+    ],
+    "summary_ko": "2020년 자산 급등과 개인 직접투자 열풍 속에서 기관 운용자는 환매·분산·수수료 제약에 직면한다고 설명한다. 전업투자 전환 때 생활비를 실현해야 하는 압박도 별도의 위험으로 본다.",
+    "developer_note_ko": "시장 노출과 운용 제약이 다른 성과를 단순 비교하지 말고, 인출/현금흐름 시나리오를 포함한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "74a75fbd1d9b8942675b019769440f2c96c48e32e50308d306ab212edd77d1a2",
+    "source_document_sha256": "74a75fbd1d9b8942675b019769440f2c96c48e32e50308d306ab212edd77d1a2",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222050813046",
+    "title": "달러, 고개 숙인 달러를 구경하는 사람의 감상기",
+    "date": "2020. 8. 4.",
+    "url": "https://blog.naver.com/nomore_bet/222050813046",
+    "inventory_index": 82,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "달러",
+      "거시",
+      "환율노출"
+    ],
+    "summary_ko": "2020년 달러 약세를 재정·저축·국제질서 변화와 연결한 전문가 전망을 소개한다. 금·비트코인·유로 자산의 수혜 가능성을 질문하지만 전망을 독립 검증하지 않는다.",
+    "developer_note_ko": "환율 전망의 발표시점과 후속 결과를 분리하고, 원화 수익은 자산수익과 환율수익을 곱해 계산한다. 기사의 장기 전망을 확정 사실로 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "67cb0946a10e49d1fa42f2a5c05c5c9f1ecc6f30c657938df932835996b8da2c",
+    "source_document_sha256": "67cb0946a10e49d1fa42f2a5c05c5c9f1ecc6f30c657938df932835996b8da2c",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222049784360",
+    "title": "주식과 사랑에 빠질거라면 삼다리하세요 정략결혼, 원나잇, 플라토닉! 삼다리",
+    "date": "2020. 8. 3.",
+    "url": "https://blog.naver.com/nomore_bet/222049784360",
+    "inventory_index": 83,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "행동재무",
+      "전략분산"
+    ],
+    "summary_ko": "의지만으로 분산을 유지하기 어려운 투자자를 위해 적립식 운용, 단기 탐색, 장기 보유를 자금 묶음별로 분리하는 행동 설계를 제안한다. 특정 비중이나 효과의 실증은 없다.",
+    "developer_note_ko": "전략별 자본·위험예산·리밸런싱 규칙을 분리하되 실제 상관과 공통 노출을 측정한다. 계좌 분리가 곧 위험 분산은 아니다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "a8b7e94fa0e3752664072f7be40f3fdc235736a8e77b73bc81dcd1330f5f51a7",
+    "source_document_sha256": "a8b7e94fa0e3752664072f7be40f3fdc235736a8e77b73bc81dcd1330f5f51a7",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222046811862",
+    "title": "재태크초보에게 - 흥미로운 논문, 개인투자자는 왜 실패에도 불구하고 계속 투자를 하는가?",
+    "date": "2020. 7. 31.",
+    "url": "https://blog.naver.com/nomore_bet/222046811862",
+    "inventory_index": 84,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "행동재무",
+      "민족지",
+      "실패경험"
+    ],
+    "summary_ko": "개인투자자가 반복 손실에도 참여를 지속하는 이유를 연구한 인류학 논문과 관련 보도를 소개한다. 투자자의 자신감과 성공 집착을 참여관찰로 살펴보는 연구 질문이 핵심이다.",
+    "developer_note_ko": "질적 참여관찰을 가격 예측 모델 성과로 오인하지 않는다. 실패·중단·재진입을 포함한 행동 가설의 원논문을 별도로 확인한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "74e52e030485b569f24f1ecca3959c7f309802eecc0b7edee57de31b327cf845",
+    "source_document_sha256": "74e52e030485b569f24f1ecca3959c7f309802eecc0b7edee57de31b327cf845",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222045756264",
+    "title": "재테크 초보에게 - 금 오랜만에 금이라",
+    "date": "2020. 7. 30.",
+    "url": "https://blog.naver.com/nomore_bet/222045756264",
+    "inventory_index": 85,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금",
+      "달러",
+      "중앙은행"
+    ],
+    "summary_ko": "2020년 금과 주식의 동반 상승을 달러 약세·저금리·유동성과 연결하고 과거 달러 강세기의 반대 사례를 찾는다. 중앙은행 금 보유와 통화 신뢰에 관한 해석도 제시한다.",
+    "developer_note_ko": "금과 주식이 항상 반대로 움직인다는 일반화를 피하고, 실질금리·달러·위험회피 레짐별 조건부 관계를 검증한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "e1ebb96964fd10816a06ae432f87aa996a79d2a5089918273c8394fdd1366ab9",
+    "source_document_sha256": "e1ebb96964fd10816a06ae432f87aa996a79d2a5089918273c8394fdd1366ab9",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222042372780",
+    "title": "재테크초보 - 주식 패시브 투자 시대, 액티브 투자 시대",
+    "date": "2020. 7. 27.",
+    "url": "https://blog.naver.com/nomore_bet/222042372780",
+    "inventory_index": 86,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "패시브",
+      "액티브",
+      "자금흐름"
+    ],
+    "summary_ko": "저비용 패시브의 성장과 2020년 종목선정·액티브 ETF·개인 직접투자 관심의 재확대를 기사로 대비한다. 시장의 관심 변화와 전략 성과 자체는 별개다.",
+    "developer_note_ko": "상품 포장, 투자 방식, 자금 유입, 비용 후 초과수익을 서로 다른 지표로 기록한다. ETF라는 이름만으로 패시브라고 분류하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "415e57aa9f1b214db8a5e8806473fd580b2b80782b74588a9720118d8ceb9df1",
+    "source_document_sha256": "415e57aa9f1b214db8a5e8806473fd580b2b80782b74588a9720118d8ceb9df1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222040312618",
+    "title": "금융쟁이 생각보다 주식으로 대박을 잘못하는 이유",
+    "date": "2020. 7. 24.",
+    "url": "https://blog.naver.com/nomore_bet/222040312618",
+    "inventory_index": 87,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "청산",
+      "기회비용",
+      "자기평가"
+    ],
+    "summary_ko": "폭락을 피했지만 반등기에 일찍 이익을 실현해 장기 보유자보다 수익이 낮았던 경험을 회고한다. 손실 회피와 상승 참여를 함께 달성하기 어려운 점을 드러낸다.",
+    "developer_note_ko": "청산 규칙의 하방 방어와 포기한 상승분을 전체 표본으로 비교한다. 크게 오른 사례만 사후 선택해 장기 보유의 우월성을 결론내리지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "526116994a603c46d6651a6c392a6a859b2eb3e4e384658eb13ac3da4e982e0d",
+    "source_document_sha256": "526116994a603c46d6651a6c392a6a859b2eb3e4e384658eb13ac3da4e982e0d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222032166859",
+    "title": "재테크 초보 - 부동산 아주아주 기초적인 전세 이야기 #4",
+    "date": "2020. 7. 16.",
+    "url": "https://blog.naver.com/nomore_bet/222032166859",
+    "inventory_index": 88,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "전세",
+      "신용",
+      "주택시장"
+    ],
+    "summary_ko": "전세수요의 매매 전환과 자금조달비용을 주택가격 경로로 설명하며 전세가율의 역사적 변화·법칙 실패 사례를 살핀다. 전세를 한국 주택시장의 금융 인프라로 해석한다.",
+    "developer_note_ko": "특정 전세가율 임계값을 보편 법칙으로 쓰지 않는다. 금리·정책·공급·보증위험과 시기별 제도를 함께 확인하며 크립토에 직접 전이하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "c5039839ef82dbf441633a32e05b8e1ba05f5dbdef4dc2329bd9d44cfbb1368e",
+    "source_document_sha256": "c5039839ef82dbf441633a32e05b8e1ba05f5dbdef4dc2329bd9d44cfbb1368e",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222031569507",
+    "title": "재테크 초보 - 부동산 아주아주 기초적인 이야기 #3",
+    "date": "2020. 7. 15.",
+    "url": "https://blog.naver.com/nomore_bet/222031569507",
+    "inventory_index": 89,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "레버리지",
+      "주택",
+      "정책회고"
+    ],
+    "summary_ko": "과거 고가주택과 대출 규모가 자산격차에 연결됐던 통계 및 임대사업자 금융혜택을 회고한다. 저자는 유동성이 대출을 통해 시장에 전파된다는 견해를 밝힌다.",
+    "developer_note_ko": "가격·대출 간 상관을 대출의 인과효과로 단정하지 않는다. 생존편향·지역 노출·당시 제도·하락기 이자와 손실을 포함한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "c241b7e7b4e33f261d2efef9b7a309d1e732c6b3d8b1b7882e8efd019a71d44d",
+    "source_document_sha256": "c241b7e7b4e33f261d2efef9b7a309d1e732c6b3d8b1b7882e8efd019a71d44d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222030516670",
+    "title": "재테크 초보 - 부동산 아주아주 기초적인 이야기 #2",
+    "date": "2020. 7. 14.",
+    "url": "https://blog.naver.com/nomore_bet/222030516670",
+    "inventory_index": 90,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융기능",
+      "차입",
+      "제도변화"
+    ],
+    "summary_ko": "미래 소득을 현재 구매력으로 바꾸는 대출의 기능과 과거 주택 금융 규제 변화를 설명한다. 개인·사업자·법인 차입 관련 과거 기사들을 모아 부동산의 금융화를 논한다.",
+    "developer_note_ko": "본문은 역사적 회고이며 현재 대출·세무 안내가 아니다. 조달 가능성과 상환 여력을 구분하고 제도·비용의 시점 버전을 관리한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "d6841d45a34fbe96a6cde4d69a1c0b2521291e6ba803197b4d2d840fc2b1b3c9",
+    "source_document_sha256": "d6841d45a34fbe96a6cde4d69a1c0b2521291e6ba803197b4d2d840fc2b1b3c9",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222026918466",
+    "title": "재태크 초보 - 부동산 공부는 결국 자본조달 공부, 대출 공부",
+    "date": "2020. 7. 10.",
+    "url": "https://blog.naver.com/nomore_bet/222026918466",
+    "inventory_index": 91,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "자본조달",
+      "담보",
+      "정책"
+    ],
+    "summary_ko": "주택 투자를 자산 선택뿐 아니라 담보력과 조달 경로의 문제로 설명한다. 과거 규제 변경과 우회 사례를 회고하며 저금리·신용공급이 구매력을 확대했다는 관점을 제시한다.",
+    "developer_note_ko": "규제 우회 방법을 구현 지침으로 쓰지 않는다. 역사적 제도와 합법적 접근 범위를 확인하고 자산별 담보·자금 제약의 차이를 모델에 명시한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "ebb466080849fb6cbddedf32d1df6eaf5012e00e3d65d6a6f38878eeaf34e8df",
+    "source_document_sha256": "ebb466080849fb6cbddedf32d1df6eaf5012e00e3d65d6a6f38878eeaf34e8df",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222025769864",
+    "title": "금융공학 채용 - 퀀트 디벨로퍼 채용 소식",
+    "date": "2020. 7. 9.",
+    "url": "https://blog.naver.com/nomore_bet/222025769864",
+    "inventory_index": 92,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트개발",
+      "시스템통합"
+    ],
+    "summary_ko": "2020년 퀀트 개발자 채용을 계기로 가격·헤지 모형을 거래 플랫폼의 라이브러리로 통합하는 역할을 소개한다. 금융 모델 이해와 소프트웨어 구현의 접점이 중요하다는 견해다.",
+    "developer_note_ko": "모델 수식·단위·오류 처리·인터페이스를 계약으로 만들고, 연구 노트와 실행 시스템의 검증 단계를 분리한다. 현재 채용 공고가 아니다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "a0bc81fd7f01cc0566d8f8f3c2117c215d00846554e3541be05df34ae9751161",
+    "source_document_sha256": "a0bc81fd7f01cc0566d8f8f3c2117c215d00846554e3541be05df34ae9751161",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222022100846",
+    "title": "재테크초보 - 증시 격언, 소문에 사서 뉴스에 팔라, 설레발 기대치 그리고 주가",
+    "date": "2020. 7. 6.",
+    "url": "https://blog.naver.com/nomore_bet/222022100846",
+    "inventory_index": 93,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "이벤트",
+      "기대차",
+      "실적"
+    ],
+    "summary_ko": "기대가 미리 가격에 반영되면 긍정적 뉴스나 실적 발표 뒤에도 주가가 하락할 수 있다는 격언을 사례 기사로 설명한다. 모든 발표가 하락한다는 법칙은 아니라고 명시한다.",
+    "developer_note_ko": "뉴스 감성 자체보다 사전 기대와 발표의 차이, 직전 가격 움직임, 최초 공개 시점을 기록한다. 작은 선정 표본을 보편 수익률 근거로 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "bc1b29efcca97cd40156574c5a7c477d807e6d9b93e6935d9561176ba2ef1933",
+    "source_document_sha256": "bc1b29efcca97cd40156574c5a7c477d807e6d9b93e6935d9561176ba2ef1933",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222015509348",
+    "title": "학벌주의, 꼰대 시대와 지금 시대의 그 차이",
+    "date": "2020. 6. 29.",
+    "url": "https://blog.naver.com/nomore_bet/222015509348",
+    "inventory_index": 94,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "사회관찰",
+      "학력",
+      "비투자"
+    ],
+    "summary_ko": "학벌의 영향이 과거 인맥 공동체에서 개인 브랜드·능력 서열 인식으로 변했다는 저자의 사회 관찰이다. 투자 데이터나 가격 예측의 실증은 제공하지 않는다.",
+    "developer_note_ko": "비투자 에세이로 분류한다. 학력이나 집단 정체성을 개인 능력·성과의 자동 대리변수로 사용하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "95383c8164fb67dbca497d8faed736056ef160c16c61b1b811da7b7feb6e5c9d",
+    "source_document_sha256": "95383c8164fb67dbca497d8faed736056ef160c16c61b1b811da7b7feb6e5c9d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222010754773",
+    "title": "재테크초보 - 20, 30대라면 50대 은퇴 유튜브를 보는 것도 2편",
+    "date": "2020. 6. 24.",
+    "url": "https://blog.naver.com/nomore_bet/222010754773",
+    "inventory_index": 95,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "은퇴",
+      "현금흐름",
+      "투자행동"
+    ],
+    "summary_ko": "은퇴자 사례를 통해 근로소득 중단과 지출의 느린 감소가 투자 위험 감수 압박을 만들 수 있다고 설명한다. 직업적 성공과 투자 의사결정 능력이 동일하지 않다는 문제의식이다.",
+    "developer_note_ko": "생활비 보전을 위한 무리한 수익 목표를 전략 검증에 넣지 않는다. 장기 인출·손실 순서 위험은 별도 모형으로 다룬다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "769635c8373f348b8207e29ecd6c2b18e2925ea3d2aed977a5a8c08db4296263",
+    "source_document_sha256": "769635c8373f348b8207e29ecd6c2b18e2925ea3d2aed977a5a8c08db4296263",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222008446176",
+    "title": "재테크초보 - 20, 30대라면 50대 은퇴 유튜브를 보는 것도 1편",
+    "date": "2020. 6. 22.",
+    "url": "https://blog.naver.com/nomore_bet/222008446176",
+    "inventory_index": 96,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융교육",
+      "장기계획"
+    ],
+    "summary_ko": "금융 개념이 생겨난 필요를 이해하면 학습이 쉬워진다는 관점에서 은퇴 사례로 시간축을 늘릴 것을 권한다. 근로소득 이후의 현금흐름과 역량 분산을 생각하는 교육 글이다.",
+    "developer_note_ko": "단기 매매 목적과 장기 재무 목표를 구분한다. 개인 사례에서 보편 재취업 확률이나 투자수익을 추정하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "e2c091656003b3e6afa0825561f9c03c3775de911166946ef7072a1b8705a1df",
+    "source_document_sha256": "e2c091656003b3e6afa0825561f9c03c3775de911166946ef7072a1b8705a1df",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222005843973",
+    "title": "재테크 초보 - 나무 재배로 얻는 금융지식을 흡수하는 방법에 대한 깨달음",
+    "date": "2020. 6. 19.",
+    "url": "https://blog.naver.com/nomore_bet/222005843973",
+    "inventory_index": 97,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "학습동기",
+      "이해관계"
+    ],
+    "summary_ko": "실제 이해관계가 걸릴 때 지식에 대한 집중과 학습이 달라진다는 주장을 일상 비유와 책 인용으로 전개한다. 금융 학습의 동기 문제이며 성과를 실증한 자료는 아니다.",
+    "developer_note_ko": "학습을 위해 차입하거나 실거래할 필요는 없다. 이 프로젝트에서는 paper-first 및 사전 예측 기록으로 책임성과 피드백을 설계한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "2a7e11a7d2051dbf472cf8d188a2dd990759a7f0004b1d48d2df6d10a4d53663",
+    "source_document_sha256": "2a7e11a7d2051dbf472cf8d188a2dd990759a7f0004b1d48d2df6d10a4d53663",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222003496884",
+    "title": "동학개미운동, 주식 시장에서의 개미집단에 대한 달라져야할 시선",
+    "date": "2020. 6. 17.",
+    "url": "https://blog.naver.com/nomore_bet/222003496884",
+    "inventory_index": 98,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "개인수급",
+      "소셜연결",
+      "반사성"
+    ],
+    "summary_ko": "2020년 개인투자 집단의 역할을 SNS·저비용 거래 환경과 연결한다. 개별 투자자 행동의 단순 합과 집단 상호작용이 다를 수 있으며 가격이 자금조달을 바꾸는 사례를 제시한다.",
+    "developer_note_ko": "개인수급·소셜 확산·가격의 역인과를 분리하고, 실패한 군집 사건도 포함한다. 특정 집단의 단기 성공을 지속적 우월성으로 보지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "a6a8f8973dd1a9da1a99b339c48aa846ee045aa9494129c3d74fc967ad7722e3",
+    "source_document_sha256": "a6a8f8973dd1a9da1a99b339c48aa846ee045aa9494129c3d74fc967ad7722e3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "222002474967",
+    "title": "이직 타이밍을 만들어준, 자본시장의 큰 변화들",
+    "date": "2020. 6. 16.",
+    "url": "https://blog.naver.com/nomore_bet/222002474967",
+    "inventory_index": 99,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "시장인프라",
+      "규제변화",
+      "커리어"
+    ],
+    "summary_ko": "2020년 거래정보저장소, 비청산 증거금, 시장위험 규제, 지표금리 전환을 금융·IT 결합 수요의 배경으로 소개한다. 당시 일정과 업계 경험을 정리한 역사 자료다.",
+    "developer_note_ko": "현재 제도나 일정 안내로 사용하지 않는다. 개인 프로젝트에는 버전이 있는 데이터 계약·규칙 변경 검증이라는 일반적 교훈만 분리한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "756ab2ad35834f0fb82d107d3a333260abbd997a2eb1d9eaadd689d360692583",
+    "source_document_sha256": "756ab2ad35834f0fb82d107d3a333260abbd997a2eb1d9eaadd689d360692583",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "221996038928",
+    "title": "워런 버핏 vs 로빈 후드 도박사들",
+    "date": "2020. 6. 10.",
+    "url": "https://blog.naver.com/nomore_bet/221996038928",
+    "inventory_index": 100,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "주문흐름",
+      "소셜",
+      "시장참여"
+    ],
+    "summary_ko": "스포츠 중단 뒤 투자로 관심·자금이 이동했다는 보도와 저비용 앱을 연결해 2020년 개인투자 열풍을 설명한다. 투자 대가와 개인의 성과 비교는 당시 선정된 사례에 기반한다.",
+    "developer_note_ko": "시장참여 비용·주의 전환·실제 주문흐름을 구분해 측정한다. 유명인 언급과 사후 상승을 바로 인과·반복 가능한 엣지로 판단하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "content_sha256": "0b23b3e7d34322e38ea44ece506674734a7136d9d32a2737748d3a60fae5f509",
+    "source_document_sha256": "0b23b3e7d34322e38ea44ece506674734a7136d9d32a2737748d3a60fae5f509",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  }
+]
