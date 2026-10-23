@@ -1,0 +1,168 @@
+{
+  "kind": "symbolic-witness",
+  "name": "ManifestWrite",
+  "variables": [
+    "phase",
+    "rejected",
+    "stored"
+  ],
+  "nodes": [
+    {
+      "id": "s0",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "absent"
+        },
+        "rejected": {
+          "kind": "string",
+          "value": "none"
+        },
+        "stored": {
+          "kind": "string",
+          "value": "none"
+        }
+      }
+    },
+    {
+      "id": "s1",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "present"
+        },
+        "rejected": {
+          "kind": "string",
+          "value": "none"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "present"
+        },
+        "rejected": {
+          "kind": "string",
+          "value": "none"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        }
+      }
+    }
+  ],
+  "initial": [
+    "s0"
+  ],
+  "edges": [
+    {
+      "from": "s0",
+      "event": "Insert",
+      "to": "s3"
+    },
+    {
+      "from": "s0",
+      "event": "Insert",
+      "to": "s4"
+    },
+    {
+      "from": "s1",
+      "event": "Clash",
+      "to": "s1"
+    },
+    {
+      "from": "s1",
+      "event": "Same",
+      "to": "s1"
+    },
+    {
+      "from": "s2",
+      "event": "Clash",
+      "to": "s2"
+    },
+    {
+      "from": "s2",
+      "event": "Same",
+      "to": "s2"
+    },
+    {
+      "from": "s3",
+      "event": "Clash",
+      "to": "s2"
+    },
+    {
+      "from": "s3",
+      "event": "Same",
+      "to": "s3"
+    },
+    {
+      "from": "s4",
+      "event": "Clash",
+      "to": "s1"
+    },
+    {
+      "from": "s4",
+      "event": "Same",
+      "to": "s4"
+    }
+  ],
+  "source": {
+    "dotSha256": "cfac82e6ddc9a121e00030ac0b3937e67ed0a07fe1a24bf20bd8896e70258846",
+    "stateCount": 5,
+    "edgeCount": 10
+  },
+  "version": 1,
+  "domain": "Values",
+  "atoms": [
+    "v1",
+    "v2"
+  ]
+}

@@ -1,0 +1,486 @@
+{
+  "version": 1,
+  "kind": "symbolic-owned",
+  "name": "ManifestWrite",
+  "checkDeadlock": true,
+  "variables": [
+    "phase",
+    "rejected",
+    "stored"
+  ],
+  "input": {
+    "parameter": "v",
+    "domain": "Values",
+    "next": "Next"
+  },
+  "initial": {
+    "phase": {
+      "kind": "string",
+      "value": "absent"
+    },
+    "rejected": {
+      "kind": "string",
+      "value": "none"
+    },
+    "stored": {
+      "kind": "string",
+      "value": "none"
+    }
+  },
+  "branches": [
+    {
+      "action": "Insert",
+      "guard": {
+        "kind": "and",
+        "terms": [
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input"
+            },
+            "domain": "Values"
+          },
+          {
+            "kind": "equal",
+            "left": {
+              "kind": "state",
+              "variable": "phase"
+            },
+            "right": {
+              "kind": "literal",
+              "value": {
+                "kind": "string",
+                "value": "absent"
+              }
+            }
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input"
+            },
+            "domain": "Values"
+          }
+        ]
+      },
+      "updates": {
+        "phase": {
+          "kind": "literal",
+          "value": {
+            "kind": "string",
+            "value": "present"
+          }
+        },
+        "rejected": {
+          "kind": "literal",
+          "value": {
+            "kind": "string",
+            "value": "none"
+          }
+        },
+        "stored": {
+          "kind": "input"
+        }
+      },
+      "source": {
+        "module": "ManifestWrite",
+        "beginLine": 26,
+        "beginColumn": 1,
+        "endLine": 31,
+        "endColumn": 23
+      }
+    },
+    {
+      "action": "Same",
+      "guard": {
+        "kind": "and",
+        "terms": [
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input"
+            },
+            "domain": "Values"
+          },
+          {
+            "kind": "member",
+            "value": {
+              "kind": "state",
+              "variable": "phase"
+            },
+            "elements": [
+              {
+                "kind": "string",
+                "value": "present"
+              },
+              {
+                "kind": "string",
+                "value": "conflict"
+              }
+            ]
+          },
+          {
+            "kind": "equal",
+            "left": {
+              "kind": "input"
+            },
+            "right": {
+              "kind": "state",
+              "variable": "stored"
+            }
+          }
+        ]
+      },
+      "updates": {
+        "phase": {
+          "kind": "state",
+          "variable": "phase"
+        },
+        "rejected": {
+          "kind": "state",
+          "variable": "rejected"
+        },
+        "stored": {
+          "kind": "state",
+          "variable": "stored"
+        }
+      },
+      "source": {
+        "module": "ManifestWrite",
+        "beginLine": 33,
+        "beginColumn": 1,
+        "endLine": 36,
+        "endColumn": 19
+      }
+    },
+    {
+      "action": "Clash",
+      "guard": {
+        "kind": "and",
+        "terms": [
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input"
+            },
+            "domain": "Values"
+          },
+          {
+            "kind": "member",
+            "value": {
+              "kind": "state",
+              "variable": "phase"
+            },
+            "elements": [
+              {
+                "kind": "string",
+                "value": "present"
+              },
+              {
+                "kind": "string",
+                "value": "conflict"
+              }
+            ]
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input"
+            },
+            "domain": "Values"
+          },
+          {
+            "kind": "not-equal",
+            "left": {
+              "kind": "input"
+            },
+            "right": {
+              "kind": "state",
+              "variable": "stored"
+            }
+          }
+        ]
+      },
+      "updates": {
+        "phase": {
+          "kind": "literal",
+          "value": {
+            "kind": "string",
+            "value": "conflict"
+          }
+        },
+        "rejected": {
+          "kind": "input"
+        },
+        "stored": {
+          "kind": "state",
+          "variable": "stored"
+        }
+      },
+      "source": {
+        "module": "ManifestWrite",
+        "beginLine": 38,
+        "beginColumn": 1,
+        "endLine": 44,
+        "endColumn": 21
+      }
+    }
+  ],
+  "invariants": [
+    {
+      "name": "TypeOK",
+      "predicate": {
+        "kind": "and",
+        "terms": [
+          {
+            "kind": "member",
+            "value": {
+              "kind": "state",
+              "variable": "phase"
+            },
+            "elements": [
+              {
+                "kind": "string",
+                "value": "absent"
+              },
+              {
+                "kind": "string",
+                "value": "present"
+              },
+              {
+                "kind": "string",
+                "value": "conflict"
+              }
+            ]
+          },
+          {
+            "kind": "equivalent",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "absent"
+                }
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "stored"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "none"
+                }
+              }
+            }
+          },
+          {
+            "kind": "implies",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "conflict"
+                }
+              }
+            },
+            "right": {
+              "kind": "and",
+              "terms": [
+                {
+                  "kind": "in-domain",
+                  "value": {
+                    "kind": "state",
+                    "variable": "rejected"
+                  },
+                  "domain": "Values"
+                },
+                {
+                  "kind": "not-equal",
+                  "left": {
+                    "kind": "state",
+                    "variable": "rejected"
+                  },
+                  "right": {
+                    "kind": "state",
+                    "variable": "stored"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "kind": "implies",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "present"
+                }
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "rejected"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "none"
+                }
+              }
+            }
+          },
+          {
+            "kind": "implies",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "absent"
+                }
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "rejected"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "none"
+                }
+              }
+            }
+          },
+          {
+            "kind": "or",
+            "terms": [
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "state",
+                  "variable": "stored"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": {
+                    "kind": "string",
+                    "value": "none"
+                  }
+                }
+              },
+              {
+                "kind": "in-domain",
+                "value": {
+                  "kind": "state",
+                  "variable": "stored"
+                },
+                "domain": "Values"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConflictKeepsStored",
+      "predicate": {
+        "kind": "implies",
+        "left": {
+          "kind": "equal",
+          "left": {
+            "kind": "state",
+            "variable": "phase"
+          },
+          "right": {
+            "kind": "literal",
+            "value": {
+              "kind": "string",
+              "value": "conflict"
+            }
+          }
+        },
+        "right": {
+          "kind": "in-domain",
+          "value": {
+            "kind": "state",
+            "variable": "stored"
+          },
+          "domain": "Values"
+        }
+      }
+    }
+  ],
+  "actionProperties": [
+    {
+      "kind": "square-action",
+      "name": "StoredStable",
+      "predicate": {
+        "kind": "implies",
+        "left": {
+          "kind": "not-equal",
+          "left": {
+            "kind": "state",
+            "variable": "stored"
+          },
+          "right": {
+            "kind": "literal",
+            "value": {
+              "kind": "string",
+              "value": "none"
+            }
+          }
+        },
+        "right": {
+          "kind": "equal",
+          "left": {
+            "kind": "next-state",
+            "variable": "stored"
+          },
+          "right": {
+            "kind": "state",
+            "variable": "stored"
+          }
+        }
+      }
+    }
+  ],
+  "source": {
+    "semanticSha256": "5861db29aa488a59a0967058d3fcf00b95b3ce2e5dce772307a0810ef94f21a0"
+  }
+}

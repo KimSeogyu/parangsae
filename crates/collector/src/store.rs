@@ -16,7 +16,7 @@ use parquet::file::properties::WriterProperties;
 use serde::Serialize;
 
 use crate::civil::{day_of, CivilDay};
-use crate::manifest::{merge_rows, MergeOutcome};
+use crate::manifest::{merge_rows, BoundFact, MergeOutcome};
 use crate::vision::{BookFact, FundingFact, Gap, GapKind, KlineFact, MetricsFact, TickDomain};
 use crate::Error;
 
@@ -120,7 +120,7 @@ fn upsert_by_day<T, K, DayOf, KeyOf, Read, Write, KeyText, Payload>(
     payload: Payload,
 ) -> Result<WriteCounts, Error>
 where
-    T: Clone + PartialEq + SymbolField,
+    T: BoundFact + SymbolField,
     K: Ord + Clone,
     DayOf: Fn(&T) -> Result<CivilDay, Error>,
     KeyOf: Fn(&T) -> K,
@@ -150,7 +150,8 @@ where
         } else {
             Vec::new()
         };
-        let merged = merge_rows(existing, incoming, &key_of);
+        let merged = merge_rows(existing, incoming, &key_of)
+            .map_err(|error| Error::check("fact_authority", error.to_string()))?;
         total.add(commit_merge(
             data_dir, dataset, &symbol, &path, merged, &write, &key_text, &payload,
         )?);
@@ -174,8 +175,9 @@ where
     KeyText: Fn(&T) -> String,
     Payload: Fn(&T) -> String,
 {
-    if !merged.committed {
-        for (stored, rejected) in &merged.conflicts {
+    merged.commit(
+        |rows| write(path, rows),
+        |stored, rejected| {
             append_conflict(
                 data_dir,
                 dataset,
@@ -183,22 +185,9 @@ where
                 &key_text(stored),
                 &payload(stored),
                 &payload(rejected),
-            )?;
-        }
-        return Ok(WriteCounts {
-            inserted: 0,
-            unchanged: merged.unchanged,
-            conflicts: merged.conflicts.len() as u64,
-        });
-    }
-    if merged.inserted > 0 {
-        write(path, &merged.rows)?;
-    }
-    Ok(WriteCounts {
-        inserted: merged.inserted,
-        unchanged: merged.unchanged,
-        conflicts: 0,
-    })
+            )
+        },
+    )
 }
 
 pub fn load_klines(

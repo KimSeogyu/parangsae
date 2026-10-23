@@ -1,0 +1,286 @@
+{
+  "kind": "equality-copy-orbits",
+  "states": [
+    {
+      "phase": {
+        "kind": "string",
+        "value": "absent"
+      },
+      "rejected": {
+        "kind": "string",
+        "value": "none"
+      },
+      "rejectedProvenance": {
+        "kind": "string",
+        "value": "none"
+      },
+      "stored": {
+        "kind": "string",
+        "value": "none"
+      },
+      "storedProvenance": {
+        "kind": "string",
+        "value": "none"
+      }
+    },
+    {
+      "phase": {
+        "kind": "string",
+        "value": "present"
+      },
+      "rejected": {
+        "kind": "string",
+        "value": "none"
+      },
+      "rejectedProvenance": {
+        "kind": "string",
+        "value": "none"
+      },
+      "stored": {
+        "kind": "data",
+        "domain": "Values",
+        "value": "a0"
+      },
+      "storedProvenance": {
+        "kind": "data",
+        "domain": "Receipts",
+        "value": "a0"
+      }
+    },
+    {
+      "phase": {
+        "kind": "string",
+        "value": "conflict"
+      },
+      "rejected": {
+        "kind": "data",
+        "domain": "Values",
+        "value": "a0"
+      },
+      "rejectedProvenance": {
+        "kind": "data",
+        "domain": "Receipts",
+        "value": "a0"
+      },
+      "stored": {
+        "kind": "data",
+        "domain": "Values",
+        "value": "a1"
+      },
+      "storedProvenance": {
+        "kind": "data",
+        "domain": "Receipts",
+        "value": "a0"
+      }
+    },
+    {
+      "phase": {
+        "kind": "string",
+        "value": "conflict"
+      },
+      "rejected": {
+        "kind": "data",
+        "domain": "Values",
+        "value": "a0"
+      },
+      "rejectedProvenance": {
+        "kind": "data",
+        "domain": "Receipts",
+        "value": "a0"
+      },
+      "stored": {
+        "kind": "data",
+        "domain": "Values",
+        "value": "a1"
+      },
+      "storedProvenance": {
+        "kind": "data",
+        "domain": "Receipts",
+        "value": "a1"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": 0,
+      "input": {
+        "v": "a0",
+        "provenance": "a0"
+      },
+      "action": "Insert",
+      "to": 1
+    },
+    {
+      "from": 1,
+      "input": {
+        "v": "a0",
+        "provenance": "a0"
+      },
+      "action": "Same",
+      "to": 1
+    },
+    {
+      "from": 1,
+      "input": {
+        "v": "a0",
+        "provenance": "a1"
+      },
+      "action": "Same",
+      "to": 1
+    },
+    {
+      "from": 1,
+      "input": {
+        "v": "a1",
+        "provenance": "a0"
+      },
+      "action": "Clash",
+      "to": 2
+    },
+    {
+      "from": 1,
+      "input": {
+        "v": "a1",
+        "provenance": "a1"
+      },
+      "action": "Clash",
+      "to": 3
+    },
+    {
+      "from": 2,
+      "input": {
+        "v": "a0",
+        "provenance": "a0"
+      },
+      "action": "Clash",
+      "to": 2
+    },
+    {
+      "from": 2,
+      "input": {
+        "v": "a0",
+        "provenance": "a1"
+      },
+      "action": "Clash",
+      "to": 3
+    },
+    {
+      "from": 2,
+      "input": {
+        "v": "a1",
+        "provenance": "a0"
+      },
+      "action": "Same",
+      "to": 2
+    },
+    {
+      "from": 2,
+      "input": {
+        "v": "a1",
+        "provenance": "a1"
+      },
+      "action": "Same",
+      "to": 2
+    },
+    {
+      "from": 2,
+      "input": {
+        "v": "a2",
+        "provenance": "a0"
+      },
+      "action": "Clash",
+      "to": 2
+    },
+    {
+      "from": 2,
+      "input": {
+        "v": "a2",
+        "provenance": "a1"
+      },
+      "action": "Clash",
+      "to": 3
+    },
+    {
+      "from": 3,
+      "input": {
+        "v": "a0",
+        "provenance": "a0"
+      },
+      "action": "Clash",
+      "to": 3
+    },
+    {
+      "from": 3,
+      "input": {
+        "v": "a0",
+        "provenance": "a1"
+      },
+      "action": "Clash",
+      "to": 2
+    },
+    {
+      "from": 3,
+      "input": {
+        "v": "a0",
+        "provenance": "a2"
+      },
+      "action": "Clash",
+      "to": 3
+    },
+    {
+      "from": 3,
+      "input": {
+        "v": "a1",
+        "provenance": "a0"
+      },
+      "action": "Same",
+      "to": 3
+    },
+    {
+      "from": 3,
+      "input": {
+        "v": "a1",
+        "provenance": "a1"
+      },
+      "action": "Same",
+      "to": 3
+    },
+    {
+      "from": 3,
+      "input": {
+        "v": "a1",
+        "provenance": "a2"
+      },
+      "action": "Same",
+      "to": 3
+    },
+    {
+      "from": 3,
+      "input": {
+        "v": "a2",
+        "provenance": "a0"
+      },
+      "action": "Clash",
+      "to": 3
+    },
+    {
+      "from": 3,
+      "input": {
+        "v": "a2",
+        "provenance": "a1"
+      },
+      "action": "Clash",
+      "to": 2
+    },
+    {
+      "from": 3,
+      "input": {
+        "v": "a2",
+        "provenance": "a2"
+      },
+      "action": "Clash",
+      "to": 3
+    }
+  ],
+  "disabled": []
+}

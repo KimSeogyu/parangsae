@@ -1,0 +1,73 @@
+{
+  "kind": "tlc-finite-input-oracle",
+  "scope": "configured-reachable-state-input-product",
+  "domain": "Values",
+  "atoms": [
+    "v1",
+    "v2"
+  ],
+  "stateCount": 5,
+  "checkedCases": 10,
+  "acceptedCases": 10,
+  "disabledCases": 0,
+  "base": {
+    "kind": "tlc-symbolic-completed",
+    "profile": "symbolic-owned-v1",
+    "extractor": "SANY-XML-v1",
+    "xmlSha256": "7339eda444d9055dce49c453faf792ce4016d05cc876d633a7024fc8fc09fe8e",
+    "rootModule": "ManifestWrite",
+    "moduleClosure": [
+      {
+        "name": "ManifestWrite.tla",
+        "sha256": "889164851046b278219b27e7686376db35717bbc8b4db41115150603bf540f58"
+      }
+    ],
+    "standardModules": [
+      "Integers",
+      "Naturals"
+    ],
+    "configSha256": "2dd86a339c6cb5ebabce52ae3ecc6e75bc095243a49ea227456bca87a1fea09a",
+    "jarSha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "dotSha256": "cfac82e6ddc9a121e00030ac0b3937e67ed0a07fe1a24bf20bd8896e70258846",
+    "mode": {
+      "exploration": "breadth-first",
+      "workers": 1,
+      "fingerprint": 0,
+      "seed": 0,
+      "dump": "dot,actionlabels",
+      "source": "isolated-flat-module-snapshot"
+    }
+  },
+  "oracle": {
+    "kind": "tlc-symbolic-completed",
+    "profile": "symbolic-owned-v1",
+    "extractor": "SANY-XML-v1",
+    "xmlSha256": "2cd908e7b1f32bf1aee6d003341b6880cf45345bf2702b4054a793db3f48af97",
+    "rootModule": "SGDOracle0",
+    "moduleClosure": [
+      {
+        "name": "ManifestWrite.tla",
+        "sha256": "889164851046b278219b27e7686376db35717bbc8b4db41115150603bf540f58"
+      },
+      {
+        "name": "SGDOracle0.tla",
+        "sha256": "16f8b56fa5c5d18e0a20a5332f4f20988e105415ce7535a0d6c52c2a37de255c"
+      }
+    ],
+    "standardModules": [
+      "Integers",
+      "Naturals"
+    ],
+    "configSha256": "a945ed881ec2368a4dad8adbbf02b829ffca5768f8249f2b2a5b99fad4c39eb8",
+    "jarSha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "dotSha256": "c160a377885f4ab094d19615244520cc37aace508002fb81bbc4e54405ef4d21",
+    "mode": {
+      "exploration": "breadth-first",
+      "workers": 1,
+      "fingerprint": 0,
+      "seed": 0,
+      "dump": "dot,actionlabels",
+      "source": "isolated-flat-module-snapshot"
+    }
+  }
+}

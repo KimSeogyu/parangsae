@@ -37,6 +37,7 @@ Modules == {
   "parangsae-signals",
   "parangsae-sim",
   "parangsae-strategies",
+  "sgd-symbolic-factwriteenvelope-281ebc3217c8",
   "xtask"
 }
 
@@ -62,6 +63,7 @@ AllowedDependencies == {
   <<"parangsae-backtest", "parangsae-sim">>,
   <<"parangsae-backtest", "parangsae-strategies">>,
   <<"parangsae-collector", "parangsae-core">>,
+  <<"parangsae-collector", "sgd-symbolic-factwriteenvelope-281ebc3217c8">>,
   <<"parangsae-execution", "parangsae-core">>,
   <<"parangsae-signals", "parangsae-core">>,
   <<"parangsae-sim", "parangsae-core">>,

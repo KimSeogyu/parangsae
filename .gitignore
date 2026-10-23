@@ -8,6 +8,7 @@
 
 # Rust / Cargo build output
 /target/
+/.runtime/
 debug/
 **/*.rs.bk
 *.pdb

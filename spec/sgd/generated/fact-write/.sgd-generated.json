@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "files": [
+    "automaton.json",
+    "binding.json",
+    "input-oracle.dot",
+    "input-oracle.log",
+    "input-verification.json",
+    "model.dot",
+    "orbit-proof.json",
+    "row-binding-plan.json",
+    "rust/Cargo.toml",
+    "rust/README.md",
+    "rust/adapter.rs",
+    "rust/src/lib.rs",
+    "semantic.xml",
+    "symbolic-model.json",
+    "tlc.log",
+    "typescript/README.md",
+    "typescript/machine.ts",
+    "typescript/package.json",
+    "typescript/primitive.ts",
+    "typescript/tsconfig.json",
+    "verification.json"
+  ]
+}

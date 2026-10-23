@@ -1,0 +1,788 @@
+{
+  "version": 1,
+  "profile": "rust-whole-row-v1",
+  "crateName": "parangsae-collector",
+  "sources": [
+    {
+      "path": ".cargo/config.toml",
+      "sha256": "783fdc447abb5b8f8b5652157aa9ede64da640813fa89679c29c5251c8e0cbe6"
+    },
+    {
+      "path": "Cargo.toml",
+      "sha256": "05502404a8121199953f814c3f2c939c59aef9b8b95c7dd63edb298c9234b1a3"
+    },
+    {
+      "path": "crates/collector/Cargo.toml",
+      "sha256": "d37d5e31b8472378c153c3a494d6f02257b4f175444abb1cc1da8f8faad527ad"
+    },
+    {
+      "path": "crates/collector/src/civil.rs",
+      "sha256": "a2a4f45a8106e0ed0badb77af123c9506cb6bdc69316b136e0b2a290356e8fda"
+    },
+    {
+      "path": "crates/collector/src/error.rs",
+      "sha256": "d0f8f040dd70a2ec3494ec86afe15a04951a6c8eb3c2e71c36150d2fd0cf9d32"
+    },
+    {
+      "path": "crates/collector/src/external.rs",
+      "sha256": "7228c7da47fed4860bc2ab85ff074c9e0e194dccd7e7591bb18291656318865b"
+    },
+    {
+      "path": "crates/collector/src/fetch.rs",
+      "sha256": "805882af2fa07a3ed16f72c719a0e10948fdd23c91bfbf2335b6dddbdd5ed082"
+    },
+    {
+      "path": "crates/collector/src/lib.rs",
+      "sha256": "55137326d2eeb1dcac415a734086fe447ec375a6522b9c6242e4f6d5bf7e6e9e"
+    },
+    {
+      "path": "crates/collector/src/manifest.rs",
+      "sha256": "cd40869aef8a929898e9b1e21390f22c905867cae15c0e0874814c9b16e3edbd"
+    },
+    {
+      "path": "crates/collector/src/normalize.rs",
+      "sha256": "0006bc5bf2379ae521bab518edd1c783dab845128c1f346f21aab6788ce443d4"
+    },
+    {
+      "path": "crates/collector/src/rest.rs",
+      "sha256": "467717bede849f988ade81027b6832bd0a4b57b6835ec8b62f05820171af1c53"
+    },
+    {
+      "path": "crates/collector/src/run.rs",
+      "sha256": "c9fbcfb7851dd98424184cfbba8569900321de2228b17bbdf2b06a5b3311c005"
+    },
+    {
+      "path": "crates/collector/src/scale.rs",
+      "sha256": "624dac28bd671ed8025460a3402d647f6bd33f58cdd1b2a398a23aa5b917c51a"
+    },
+    {
+      "path": "crates/collector/src/segment.rs",
+      "sha256": "feba70bbdca318b2281362e3e75a74351a190e7a8c9468beb4cb7a1c4015b810"
+    },
+    {
+      "path": "crates/collector/src/store.rs",
+      "sha256": "0197eb155d9df405990af2a7c3f1667f40299e58a44197650c229792a7ab5648"
+    },
+    {
+      "path": "crates/collector/src/vision/check.rs",
+      "sha256": "78acd5ab4e364d6e33d4a1487adf56eb9bfa4147f3eaf13f3bb4538effa36417"
+    },
+    {
+      "path": "crates/collector/src/vision/checksum.rs",
+      "sha256": "92cc4fbd6c66ca6324bd1b0ccfdacf1efca181165e8273fa640188590fd8b5e2"
+    },
+    {
+      "path": "crates/collector/src/vision/listxml.rs",
+      "sha256": "a68208d6b66cf473098e164e11c80fe718ca066651b11fd4508318cc8e21bac8"
+    },
+    {
+      "path": "crates/collector/src/vision/mod.rs",
+      "sha256": "50349408590989c9c3b23d325f51dbad5943530f62afda851a1834e6ec0efaac"
+    },
+    {
+      "path": "crates/collector/src/vision/name.rs",
+      "sha256": "53b5cbfceee63832d12090a98ef15c8e0b1073107fcf024bb773b853bcd70cde"
+    },
+    {
+      "path": "crates/collector/src/vision/parse.rs",
+      "sha256": "5ccb6532c8ea436aa749fbb2cf78b4ce61c9c5783facb80831f0374dbdd33731"
+    },
+    {
+      "path": "crates/collector/src/vision/rows.rs",
+      "sha256": "593eb1b2bbb8d452d725e97dcc3b48a49cf47a39e4429d8b301d15717efc0193"
+    },
+    {
+      "path": "crates/collector/src/ws.rs",
+      "sha256": "672d91270e0454f81e56186f4e639801094512df2cf1c4c44386073f0b78add7"
+    },
+    {
+      "path": "crates/core/Cargo.toml",
+      "sha256": "7dce0a8dec074aab19cccc2f4a349a7841d12db5908b0606fc9c2d65edb30ef2"
+    },
+    {
+      "path": "crates/core/src/bar.rs",
+      "sha256": "51de21f4ced4fb8ee39e30639b2440d74407ed4fae7597db1a23bd03402cbb3e"
+    },
+    {
+      "path": "crates/core/src/causal.rs",
+      "sha256": "33aac602477275e9ba8522986acf815ce321be4acd890f567115caa1f0d762ec"
+    },
+    {
+      "path": "crates/core/src/fixed.rs",
+      "sha256": "5e97a089a42594b1561b69f93c90b466b7b1f9fb265b29930bc39946f80a8095"
+    },
+    {
+      "path": "crates/core/src/instrument_spec/clock.rs",
+      "sha256": "ff6c751b92140d8347d79445f6987e0e0b6260128f0a4f68447c24dab7671fa8"
+    },
+    {
+      "path": "crates/core/src/instrument_spec/decimal.rs",
+      "sha256": "d3f49232930a94e0d8a172cfddfc3bb6a8a329724508b8abb27fac03a35ed80d"
+    },
+    {
+      "path": "crates/core/src/instrument_spec/guard.rs",
+      "sha256": "b62cec4f22b99004270548b34fe4d7a9d63567a109d9836dfb6dc5327e819d4c"
+    },
+    {
+      "path": "crates/core/src/instrument_spec/lookup.rs",
+      "sha256": "cf249032bda617261a0c086f596302c7944bec5b180b1da776ed6eba6a2b98e2"
+    },
+    {
+      "path": "crates/core/src/instrument_spec/mod.rs",
+      "sha256": "438decbd556876830a57d4b624f71f2652586f64d6dd8583eac8e465c48cfc14"
+    },
+    {
+      "path": "crates/core/src/instrument_spec/table.rs",
+      "sha256": "370c3d920fea538f334bdfebc8154d05d462e9a8392e9c48f094accb9378af48"
+    },
+    {
+      "path": "crates/core/src/instrument_spec/types.rs",
+      "sha256": "3bf0af7fad62d10689c6ec10527528d644e2a6b6dd25e9a2bc856a6d9f7641fb"
+    },
+    {
+      "path": "crates/core/src/lib.rs",
+      "sha256": "d355fc09fcfbea21211660b0b6adf2ef4343c8d1aa75b29d7db6cb4f206a0305"
+    },
+    {
+      "path": "crates/core/src/resample.rs",
+      "sha256": "6b7bdd4a841b78cd78041ead5e349be1797eb8dd32af1f82762476e93499c53b"
+    },
+    {
+      "path": "crates/core/src/side.rs",
+      "sha256": "a7f087628255c7203a8a295fff0bb9c23e726a439c0b15e338de870c840f9751"
+    },
+    {
+      "path": "crates/core/src/symbol.rs",
+      "sha256": "aca45352da05d1a8ffe94e4bd1ac5f7591496a9227a62ffbe1513d7ec06759c5"
+    },
+    {
+      "path": "crates/core/src/time.rs",
+      "sha256": "c8c2a54f4335199a3b112c73fdda394d808e9630f681fc72e123bc8a2aecb37e"
+    },
+    {
+      "path": "crates/core/src/timestamps.rs",
+      "sha256": "5ac1b0c3dda970670f00487375ff9f17fe74adf3e1a5887ba696f16b9d57558f"
+    }
+  ],
+  "facts": [
+    {
+      "name": "KlineFact",
+      "rustPath": "crate::vision::KlineFact",
+      "fields": [
+        {
+          "name": "symbol",
+          "rustType": "Symbol",
+          "codec": {
+            "kind": "string",
+            "getters": [
+              "as_str"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "interval_us",
+          "rustType": "i64",
+          "codec": {
+            "kind": "i64",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "open_time",
+          "rustType": "UtcMicros",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "close_time",
+          "rustType": "UtcMicros",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "open_ticks",
+          "rustType": "i64",
+          "codec": {
+            "kind": "i64",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "high_ticks",
+          "rustType": "i64",
+          "codec": {
+            "kind": "i64",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "low_ticks",
+          "rustType": "i64",
+          "codec": {
+            "kind": "i64",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "close_ticks",
+          "rustType": "i64",
+          "codec": {
+            "kind": "i64",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "volume",
+          "rustType": "Qty",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "quote_volume",
+          "rustType": "Amount",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "count",
+          "rustType": "i64",
+          "codec": {
+            "kind": "i64",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "taker_buy_volume",
+          "rustType": "Qty",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "taker_buy_quote_volume",
+          "rustType": "Amount",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "event_ts",
+          "rustType": "EventTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "available_ts",
+          "rustType": "AvailableTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "received_ts",
+          "rustType": "ReceivedTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": false,
+          "provenance": true
+        },
+        {
+          "name": "schema_version",
+          "rustType": "u32",
+          "codec": {
+            "kind": "u32",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": true,
+          "classes": [
+            [
+              1,
+              2
+            ]
+          ]
+        },
+        {
+          "name": "tick_domain",
+          "rustType": "TickDomain",
+          "codec": {
+            "kind": "enum",
+            "getters": [],
+            "rustPath": "crate::vision::TickDomain",
+            "variants": [
+              "Price",
+              "Ratio"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        }
+      ]
+    },
+    {
+      "name": "FundingFact",
+      "rustPath": "crate::vision::FundingFact",
+      "fields": [
+        {
+          "name": "symbol",
+          "rustType": "Symbol",
+          "codec": {
+            "kind": "string",
+            "getters": [
+              "as_str"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "raw_calc_time",
+          "rustType": "UtcMicros",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "funding_time",
+          "rustType": "UtcMicros",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "interval_hours",
+          "rustType": "i64",
+          "codec": {
+            "kind": "i64",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "rate",
+          "rustType": "Ratio",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "event_ts",
+          "rustType": "EventTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "available_ts",
+          "rustType": "AvailableTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "received_ts",
+          "rustType": "ReceivedTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": false,
+          "provenance": true
+        },
+        {
+          "name": "schema_version",
+          "rustType": "u32",
+          "codec": {
+            "kind": "u32",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        }
+      ]
+    },
+    {
+      "name": "MetricsFact",
+      "rustPath": "crate::vision::MetricsFact",
+      "fields": [
+        {
+          "name": "symbol",
+          "rustType": "Symbol",
+          "codec": {
+            "kind": "string",
+            "getters": [
+              "as_str"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "create_time",
+          "rustType": "UtcMicros",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "sum_open_interest",
+          "rustType": "Qty",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "sum_open_interest_value",
+          "rustType": "Amount",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "count_toptrader_long_short_ratio",
+          "rustType": "Ratio",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "sum_toptrader_long_short_ratio",
+          "rustType": "Ratio",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "count_long_short_ratio",
+          "rustType": "Ratio",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "sum_taker_long_short_vol_ratio",
+          "rustType": "Ratio",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "event_ts",
+          "rustType": "EventTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "available_ts",
+          "rustType": "AvailableTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "received_ts",
+          "rustType": "ReceivedTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": false,
+          "provenance": true
+        },
+        {
+          "name": "available_lag_verified",
+          "rustType": "bool",
+          "codec": {
+            "kind": "bool",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "schema_version",
+          "rustType": "u32",
+          "codec": {
+            "kind": "u32",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        }
+      ]
+    },
+    {
+      "name": "BookFact",
+      "rustPath": "crate::vision::BookFact",
+      "fields": [
+        {
+          "name": "symbol",
+          "rustType": "Symbol",
+          "codec": {
+            "kind": "string",
+            "getters": [
+              "as_str"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "timestamp",
+          "rustType": "UtcMicros",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "percentage",
+          "rustType": "Ratio",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "depth",
+          "rustType": "Qty",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "notional",
+          "rustType": "Amount",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "ticks"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "level_schema",
+          "rustType": "u32",
+          "codec": {
+            "kind": "u32",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "event_ts",
+          "rustType": "EventTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "available_ts",
+          "rustType": "AvailableTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": true,
+          "provenance": false
+        },
+        {
+          "name": "received_ts",
+          "rustType": "ReceivedTs",
+          "codec": {
+            "kind": "i64",
+            "getters": [
+              "micros",
+              "micros"
+            ]
+          },
+          "payload": false,
+          "provenance": true
+        },
+        {
+          "name": "schema_version",
+          "rustType": "u32",
+          "codec": {
+            "kind": "u32",
+            "getters": []
+          },
+          "payload": true,
+          "provenance": false
+        }
+      ]
+    }
+  ]
+}

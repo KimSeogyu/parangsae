@@ -6,7 +6,8 @@
 \*
 \* Not modeled: checksum bytes, parquet layout, many keys, or received_ts.
 \* Gap files are derived and are not this machine.
-\* The Rust function is merge_fact in crates/collector/src/manifest.rs.
+\* FactWriteEnvelope refines this relation with complete-row provenance.
+\* Its generated FactOwner is used by crates/collector/src/manifest.rs.
 \* With two values the state space is the absent, present, and conflict phases.
 
 EXTENDS Integers

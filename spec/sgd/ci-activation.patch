@@ -1,0 +1,29 @@
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -212,7 +212,14 @@
+         with:
+           distribution: temurin
+           java-version: "21"
+-      - uses: dtolnay/rust-toolchain@stable
++      - uses: actions/setup-node@v4
++        with:
++          node-version: '24'
++          cache: npm
++          cache-dependency-path: spec/sgd/package-lock.json
++      - uses: dtolnay/rust-toolchain@stable
++        with:
++          components: rustfmt
+       - uses: Swatinem/rust-cache@v2
+       - name: Fetch TLC 2.19 (TLA+ 1.7.4)
+         working-directory: specs/tla
+@@ -220,6 +227,10 @@
+           curl -fsSL -o tla2tools.jar -L \
+             https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+           echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  tla2tools.jar" | sha256sum -c -
++      - name: Install pinned specification compiler
++        run: npm --prefix spec/sgd ci
++      - name: Verify generated Fact sources, models, and erasure
++        run: npm --prefix spec/sgd run verify -- --jar specs/tla/tla2tools.jar
+       - name: cargo fetch (all targets, for offline cargo metadata)
+         run: cargo fetch --locked
+       - name: validate, generate --check, enforce
