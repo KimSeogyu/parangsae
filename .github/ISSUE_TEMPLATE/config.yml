@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Questions and open-ended discussion
+    url: https://github.com/KimSeogyu/parangsae/discussions
+    about: Ask for technical help or explore ideas before opening a concrete work item.

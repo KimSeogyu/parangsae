@@ -377,6 +377,52 @@ fn date_filter_compares_only_that_days_rows_and_still_fails_inside_the_range(
 }
 
 #[test]
+fn missing_in_scope_kline_partition_fails_verify() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let june1 = day(2021, 6, 1)?;
+    ingest(
+        dir.path(),
+        VisionDataset::UmKline,
+        june1,
+        june1,
+        &[ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Daily)?,
+            file_name: "BTCUSDT-1m-2021-06-01.zip".to_owned(),
+            csv: fixture("um_kline_2021-06-01_headerless.csv")?,
+        }],
+    )?;
+    let filter = VerifyFilter::parse(&["um-kline"], Some("2021-06-01"), Some("2021-06-01"))?;
+    let before = run::verify(dir.path(), &filter)?;
+    assert!(before.ok(), "{before}");
+    assert!(before.fault_lines.is_empty(), "{before}");
+
+    std::fs::remove_file(store::fact_path(dir.path(), "um-kline", "BTCUSDT", june1))?;
+
+    let report = run::verify(dir.path(), &filter)?;
+    let expected: Vec<String> = [0, 60_000_000, 120_000_000]
+        .into_iter()
+        .map(|offset| format!("missing parquet row {}", june1.start_us().micros() + offset))
+        .collect();
+    assert!(!report.ok(), "{report}");
+    assert_eq!(report.fault_lines, expected);
+    assert_eq!(report.summary.faults, 3);
+    assert_eq!(
+        report.summary.first_fault.as_deref(),
+        Some(expected[0].as_str())
+    );
+
+    let output = Command::new(collect_bin())
+        .args(["verify", "--data-dir"])
+        .arg(dir.path())
+        .output()?;
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8(output.stdout)?;
+    assert!(stdout.contains("faults=3"), "{stdout}");
+    assert!(stdout.contains(&expected[0]), "{stdout}");
+    Ok(())
+}
+
+#[test]
 fn each_fact_partition_loads_once() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
     let days = [day(2021, 6, 1)?, day(2021, 6, 2)?, day(2021, 6, 3)?];

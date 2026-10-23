@@ -1,0 +1,29 @@
+name: Bug report
+description: Report a concrete mismatch between expected and observed behavior.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep this to one problem. A small example is more useful than a large log bundle.
+        Do not include API keys, credentials, account details, or private trading data.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and observed behavior
+      description: What should happen, and what happened instead? Link an existing spec or issue if useful.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Smallest reproduction or evidence
+      description: A command, short input, failing example, or relevant error is enough. If you cannot reproduce it yet, describe what you know.
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Relevant context
+      description: If known, include the commit or version, affected crate, and environment. For public data issues, name the dataset and time range rather than uploading a full dataset.
+    validations:
+      required: false
