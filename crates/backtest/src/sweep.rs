@@ -716,6 +716,106 @@ mod tests {
     }
 
     #[test]
+    fn a_window_over_the_2024_08_12_mark_gap_finishes() {
+        let day = UtcDate::parse("2024-08-12").unwrap().start_us().micros();
+        let minute = 60_000_000i64;
+        let gap_1002 = day + 10 * 3_600_000_000 + 2 * minute;
+        let gap_1003 = day + 10 * 3_600_000_000 + 3 * minute;
+        assert_eq!(gap_1002, 1_723_456_920_000_000);
+        assert_eq!(gap_1003, 1_723_456_980_000_000);
+        let start = day + 9 * 3_600_000_000;
+        let mut bars = Vec::new();
+        for index in 0..180 {
+            let open_us = start + index * minute;
+            let price = Price::from_ticks(50 * 100_000_000).unwrap();
+            bars.push(Bar {
+                open_time: UtcMicros::from_micros(open_us),
+                close_time: UtcMicros::from_micros(open_us + minute - 1_000),
+                available: UtcMicros::from_micros(open_us + minute),
+                open: price,
+                high: price,
+                low: price,
+                close: price,
+                volume: Qty::from_ticks(100_000_000).unwrap(),
+                count: 1,
+            });
+        }
+        let marks: Vec<Bar> = bars
+            .iter()
+            .copied()
+            .filter(|bar| {
+                let open = bar.open_time.micros();
+                open != gap_1002 && open != gap_1003
+            })
+            .collect();
+        assert_eq!(marks.len(), bars.len() - 2);
+        let tape = Tape::from_parts(bars, marks, Vec::new());
+        let mut params = BTreeMap::new();
+        params.insert("hold_h".to_owned(), 2);
+        params.insert("n".to_owned(), 2);
+        let row = ConfigRow {
+            config_id: String::new(),
+            family: "S02".to_owned(),
+            grid_index: 0,
+            params: params.clone(),
+            start_us: start,
+            end_us: start + 180 * minute,
+            initial_cash: 100_000_000_000_000,
+        };
+        let mut spec = TrialSpec {
+            run_id: "pending".to_owned(),
+            config_id: String::new(),
+            family: row.family.clone(),
+            params: row.params.clone(),
+            attempt: 0,
+            ts: UtcMicros::from_micros(start),
+            run: research_config(row.initial_cash, row.start_us, row.end_us, BarInterval::H1)
+                .unwrap(),
+        };
+        spec.config_id = canonical_config_id(&spec);
+        spec.run_id = format!("S02-00-a{}", spec.attempt);
+        let gap = &spec.run.mark_gaps;
+        assert_eq!(gap.len(), 1);
+        assert_eq!(gap[0].first_open.micros(), gap_1002);
+        assert_eq!(gap[0].last_open.micros(), gap_1003);
+        assert!(gap[0].known_source_absence);
+        let fold = FoldRunner::new(&tape);
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("obj.txt"), b"alpha").unwrap();
+        let pin_path = dir.path().join("sweep-inputs.json");
+        fs::write(
+            &pin_path,
+            "{\"schema\":\"sweep-runner-inputs-v2\",\"objects\":[{\"path\":\"obj.txt\",\"sha256\":\"8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8\"}]}\n",
+        )
+        .unwrap();
+        let pins = SweepPins::load(&pin_path).unwrap();
+        let mut runner = ConfigRunner {
+            fold: &fold,
+            family: row.family,
+            params,
+        };
+        let costs = Costs {
+            taker_fee: FeeBps(5),
+            slippage: SlippageBps(2),
+        };
+        let rows = run_batch(
+            &[spec],
+            &pins,
+            &dir.path().join("trials.jsonl"),
+            &dir.path().join("results.jsonl"),
+            &costs,
+            &mut runner,
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].status, "finished");
+        assert_eq!(rows[0].reason, None);
+        let trials = fs::read_to_string(dir.path().join("trials.jsonl")).unwrap();
+        assert!(trials.contains("\"kind\":\"RunFinished\""));
+        assert!(!trials.contains("RunAborted"));
+    }
+
+    #[test]
     fn one_config_writes_a_finished_trial_and_a_stress_line() {
         let start = 1_704_067_200_000_000 + 3_600_000_000;
         let mut bars = Vec::new();
