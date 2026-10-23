@@ -5948,10 +5948,80 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
             "test",
             "cargo test (unit, proptest, cucumber, execution lock)",
         ),
+        "parangsae-backtest",
+        "lib",
+        "unittests src/lib.rs (target/debug/deps/parangsae_backtest-",
+        2,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-backtest",
+        "test",
+        "tests/backtest_engine.rs",
+        12,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-backtest",
+        "test",
+        "tests/causal.rs",
+        2,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-backtest",
+        "test",
+        "tests/golden.rs",
+        14,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-backtest",
+        "test",
+        "tests/parquet_fix.rs",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-backtest",
+        "test",
+        "tests/tape_reader.rs",
+        6,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
         "parangsae-sim",
         "lib",
         "unittests src/lib.rs (target/debug/deps/parangsae_sim-",
-        0,
+        3,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-sim",
+        "test",
+        "tests/accounting.rs",
+        8,
     ),
     (
         (
@@ -6031,6 +6101,16 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-sim",
         "doctest",
         "Doc-tests parangsae_sim",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-backtest",
+        "doctest",
+        "Doc-tests parangsae_backtest",
         0,
     ),
     (
