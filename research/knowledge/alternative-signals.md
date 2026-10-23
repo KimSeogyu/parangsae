@@ -125,6 +125,8 @@
 
 ### 11) Wikipedia 페이지 조회수와 관심 확산
 
+- **후속 데이터 검증:** [공개 역사 소급 정정과 PIT 계약](public-data-pit-validation.md). 기존 가설의 성과 검증이나 구현 결함 보고와 구분한다.
+
 - **원천:** [공식 Pageviews API](https://doc.wikimedia.org/generated-data-platform/aqs/analytics-api/reference/page-views.html), [접근·CC0 정책](https://doc.wikimedia.org/generated-data-platform/aqs/analytics-api/documentation/access-policy.html).
 - **가설 → 자산:** 사전 고정한 기업·상품 주제의 관심 급증이 다음 날 거래량·변동성에 정보를 보탤 수 있다. 매수/매도 방향보다 확산·과열 보조변수에 적합하다.
 - **시차·역사:** API는 2015-07-01부터 자료를 안내한다. 집계기간이 끝나도 API에 즉시 나타난다고 가정하지 말고 실제 이용 가능 시각을 기록. 종목/페이지명 변경과 redirect를 as-of 처리한다.

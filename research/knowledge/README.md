@@ -14,6 +14,7 @@
 8. [출처별 검토 명세](user-source-coverage.md): 권리·접근·누락과 진행 범위.
 9. [nomore_bet 개별 노트와 매체 검토](naver-nomore-post-notes/README.md): 714편과 선별 시각자료의 상태·한계.
 10. [검색 인프라·채용 링크](infrastructure-and-job.md): AWS 원문과 현재 사양 차이, 확인 불가 공고.
+11. [공개 데이터의 PIT 검증 보완](public-data-pit-validation.md): Wikimedia 소급 정정, GDELT 시각 의미, mempool 관측 조건의 출처별 확인 범위.
 
 ## 수집 상태: 공개 범위 검토 및 남은 접근 제한
 

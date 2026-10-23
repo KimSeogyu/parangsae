@@ -42,4 +42,6 @@
 
 [GDELT](https://gdeltproject.org/data.html)도 광범위 뉴스 발견 후보지만 15분 단위 갱신 등 집계 지연을 초저지연 원문 도착으로 오인하면 안 된다. [DOC API 설명](https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/)을 읽고 검색 결과의 시점·중복·보존기간을 먼저 실측할 것.
 
+제품별 시각 의미와 검증 범위는 [공개 데이터의 PIT 보완](public-data-pit-validation.md)을 함께 읽는다. 다른 GDELT 제품의 설명을 섞지 않는다.
+
 이 문서는 공개 자료의 짧은 요약과 프로젝트 적용 제안이다. 원문·데이터의 자동수집 및 재배포 권한을 부여하지 않는다.
