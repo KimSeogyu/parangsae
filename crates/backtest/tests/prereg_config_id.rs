@@ -26,6 +26,7 @@ fn id_of(preimage: &str) -> String {
         run_id: String::new(),
         config_id: String::new(),
         family: value["family"].as_str().unwrap().to_owned(),
+        prereg_sha256: String::new(),
         params,
         attempt: 1,
         ts: UtcMicros::from_micros(start),

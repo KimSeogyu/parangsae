@@ -5,7 +5,9 @@ use parangsae_core::{
     TimeError, Timestamps, UtcMicros,
 };
 use parangsae_core::{AvailableTs, EventTs, ReceivedTs};
-use parangsae_sim::{Cash, Costs, Fill, FundingEvent, Ledger, MarketOrder, SimError};
+use parangsae_sim::{
+    slippage_cost, Cash, Costs, Fill, FundingEvent, Ledger, MarketOrder, SimError,
+};
 
 use crate::bar::{Bar, BarView, FundingStamp, Strategy, Tape, ONE_MINUTE_US};
 use crate::date::UtcDate;
@@ -49,6 +51,7 @@ pub fn run<S: Strategy>(
     let mut frozen: Option<Cash> = None;
     let mut dropped_orders = 0u64;
     let mut refused_fills = 0u64;
+    let mut slippage_ticks = 0i64;
 
     let scored_bars = scored_len(window, cfg.start);
     for (index, bar) in window.iter().enumerate() {
@@ -71,9 +74,12 @@ pub fn run<S: Strategy>(
             settle_pending(
                 &mut pending,
                 &mut refused_fills,
+                &mut FillSink {
+                    fills: &mut fills,
+                    slippage_ticks: &mut slippage_ticks,
+                },
                 &mut ledger,
                 &mut book,
-                &mut fills,
                 bar,
                 costs,
             )?;
@@ -91,6 +97,7 @@ pub fn run<S: Strategy>(
                 &mut ledger,
                 &mut book,
                 &mut fills,
+                &mut slippage_ticks,
                 mark.close,
                 costs,
                 bar.close_time,
@@ -133,6 +140,10 @@ pub fn run<S: Strategy>(
             flat_funding_stale: 0,
             flat_funding_slot_missing: 0,
             signal_outputs: Vec::new(),
+            slippage_ticks,
+            n_rebalances: 0,
+            n_sign_changes: 0,
+            n_forced_exits: 0,
         },
     )
 }
@@ -237,6 +248,10 @@ pub fn run_targets<S: TargetSignal>(
     let mut flat_funding_stale = 0u64;
     let mut flat_funding_slot_missing = 0u64;
     let mut signal_outputs = Vec::new();
+    let mut slippage_ticks = 0i64;
+    let mut n_rebalances = 0u64;
+    let mut n_sign_changes = 0u64;
+    let mut n_forced_exits = 0u64;
 
     let scored_bars = scored_len(window, cfg.start);
     for (index, bar) in window.iter().enumerate() {
@@ -262,6 +277,7 @@ pub fn run_targets<S: TargetSignal>(
             }
             continue;
         }
+        let mut flattened_here = false;
         if ruined.is_none() {
             funding_i = settle_funding(
                 &FundingPass {
@@ -279,14 +295,23 @@ pub fn run_targets<S: TargetSignal>(
                 || end_open == Some(bar.open_time)
                 || forced_opens.contains(&bar.open_time)
             {
-                pending = flatten_order(&ledger)?.map(HeldOrder::new);
+                if let Some(order) = flatten_order(&ledger)? {
+                    pending = Some(HeldOrder::new(order));
+                    n_forced_exits = n_forced_exits
+                        .checked_add(1)
+                        .ok_or(EngineError::Sim(SimError::Overflow))?;
+                    flattened_here = true;
+                }
             }
             settle_pending(
                 &mut pending,
                 &mut refused_fills,
+                &mut FillSink {
+                    fills: &mut fills,
+                    slippage_ticks: &mut slippage_ticks,
+                },
                 &mut ledger,
                 &mut book,
-                &mut fills,
                 bar,
                 costs,
             )?;
@@ -303,6 +328,7 @@ pub fn run_targets<S: TargetSignal>(
                 &mut ledger,
                 &mut book,
                 &mut fills,
+                &mut slippage_ticks,
                 mark.close,
                 costs,
                 bar.close_time,
@@ -388,6 +414,16 @@ pub fn run_targets<S: TargetSignal>(
                         .map_err(|_| EngineError::Sim(SimError::Negative))?;
                     if window[index + 1..].iter().any(|next| next.count > 0) {
                         pending = Some(HeldOrder::new(MarketOrder { side, qty }));
+                        if !flattened_here {
+                            note_target_change(
+                                &mut n_rebalances,
+                                &mut n_sign_changes,
+                                &mut n_forced_exits,
+                                inside,
+                                ledger.position().0,
+                                lots,
+                            )?;
+                        }
                     } else {
                         dropped_orders += 1;
                     }
@@ -417,8 +453,37 @@ pub fn run_targets<S: TargetSignal>(
             flat_funding_stale,
             flat_funding_slot_missing,
             signal_outputs,
+            slippage_ticks,
+            n_rebalances,
+            n_sign_changes,
+            n_forced_exits,
         },
     )
+}
+
+fn note_target_change(
+    n_rebalances: &mut u64,
+    n_sign_changes: &mut u64,
+    n_forced_exits: &mut u64,
+    inside_forced: bool,
+    old_lots: i64,
+    new_lots: i64,
+) -> Result<(), EngineError> {
+    if inside_forced {
+        *n_forced_exits = n_forced_exits
+            .checked_add(1)
+            .ok_or(EngineError::Sim(SimError::Overflow))?;
+        return Ok(());
+    }
+    *n_rebalances = n_rebalances
+        .checked_add(1)
+        .ok_or(EngineError::Sim(SimError::Overflow))?;
+    if old_lots != 0 && new_lots != 0 && old_lots.signum() != new_lots.signum() {
+        *n_sign_changes = n_sign_changes
+            .checked_add(1)
+            .ok_or(EngineError::Sim(SimError::Overflow))?;
+    }
+    Ok(())
 }
 
 /// Lots held from the last sizing. The same target and the same `accept` do not resize.
@@ -460,12 +525,17 @@ impl HeldOrder {
     }
 }
 
+struct FillSink<'a> {
+    fills: &'a mut Vec<Fill>,
+    slippage_ticks: &'a mut i64,
+}
+
 fn settle_pending(
     pending: &mut Option<HeldOrder>,
     refused_fills: &mut u64,
+    sink: &mut FillSink<'_>,
     ledger: &mut Ledger,
     book: &mut Book,
-    fills: &mut Vec<Fill>,
     bar: &Bar,
     costs: &Costs,
 ) -> Result<(), EngineError> {
@@ -485,7 +555,7 @@ fn settle_pending(
     execute(
         ledger,
         book,
-        fills,
+        sink,
         held.order,
         bar.open,
         costs,
@@ -822,6 +892,7 @@ fn force_flat(
     ledger: &mut Ledger,
     book: &mut Book,
     fills: &mut Vec<Fill>,
+    slippage_ticks: &mut i64,
     price: parangsae_core::Price,
     costs: &Costs,
     ts: UtcMicros,
@@ -838,7 +909,10 @@ fn force_flat(
     execute(
         ledger,
         book,
-        fills,
+        &mut FillSink {
+            fills,
+            slippage_ticks,
+        },
         MarketOrder { side, qty },
         price,
         costs,
@@ -856,7 +930,7 @@ struct Leg {
 fn execute(
     ledger: &mut Ledger,
     book: &mut Book,
-    fills: &mut Vec<Fill>,
+    sink: &mut FillSink<'_>,
     order: MarketOrder,
     price: parangsae_core::Price,
     costs: &Costs,
@@ -867,7 +941,7 @@ fn execute(
         apply_leg(
             ledger,
             book,
-            fills,
+            sink,
             costs,
             Leg {
                 side: order.side,
@@ -881,7 +955,7 @@ fn execute(
         apply_leg(
             ledger,
             book,
-            fills,
+            sink,
             costs,
             Leg {
                 side: order.side,
@@ -915,11 +989,16 @@ fn split_legs(pos: i64, side: Side, qty: i64) -> Result<(i64, i64), EngineError>
 fn apply_leg(
     ledger: &mut Ledger,
     book: &mut Book,
-    fills: &mut Vec<Fill>,
+    sink: &mut FillSink<'_>,
     costs: &Costs,
     leg: Leg,
 ) -> Result<(), EngineError> {
     let qty = Qty::from_ticks(leg.lots).map_err(|_| EngineError::Sim(SimError::Negative))?;
+    let cost = slippage_cost(leg.price, leg.side, qty, costs.slippage).map_err(EngineError::Sim)?;
+    *sink.slippage_ticks = sink
+        .slippage_ticks
+        .checked_add(cost.0)
+        .ok_or(EngineError::Sim(SimError::Overflow))?;
     let pos_before = ledger.position().0;
     let cash_before = i128::from(ledger.cash().0);
     let fill = ledger
@@ -935,7 +1014,7 @@ fn apply_leg(
         .map_err(EngineError::Sim)?;
     let delta = i128::from(ledger.cash().0) - cash_before;
     book.note_fill(pos_before, &fill, delta)?;
-    fills.push(fill);
+    sink.fills.push(fill);
     Ok(())
 }
 
@@ -952,6 +1031,10 @@ struct Accum {
     flat_funding_stale: u64,
     flat_funding_slot_missing: u64,
     signal_outputs: Vec<SignalOutput>,
+    slippage_ticks: i64,
+    n_rebalances: u64,
+    n_sign_changes: u64,
+    n_forced_exits: u64,
 }
 
 fn finish(
@@ -974,6 +1057,10 @@ fn finish(
         flat_funding_stale,
         flat_funding_slot_missing,
         signal_outputs,
+        slippage_ticks,
+        n_rebalances,
+        n_sign_changes,
+        n_forced_exits,
     } = accum;
     let trades = book.into_trades()?;
     let daily = daily_equity(&equity_curve);
@@ -1017,6 +1104,10 @@ fn finish(
         ruined,
         dropped_orders,
         n_refused_fills: refused_fills,
+        slippage_cost: Cash(slippage_ticks),
+        n_rebalances,
+        n_sign_changes,
+        n_forced_exits,
         warmup_bars,
         flat_funding_stale,
         flat_funding_slot_missing,

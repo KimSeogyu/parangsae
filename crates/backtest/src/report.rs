@@ -55,6 +55,14 @@ pub struct Report {
     pub flat_funding_slot_missing: u64,
     /// Minutes a resting order skipped because `count` was 0.
     pub n_refused_fills: u64,
+    /// Cash lost to a worse fill price. The fee is not included.
+    pub slippage_cost: Cash,
+    /// Strategy-initiated target updates that queued a fill outside a forced-flat window.
+    pub n_rebalances: u64,
+    /// Held-position sign flips. Both sides are nonzero.
+    pub n_sign_changes: u64,
+    /// Flattens at a fold end, the dataset end, or a forced-flat window.
+    pub n_forced_exits: u64,
     pub signal_outputs: Vec<SignalOutput>,
     pub overlays: Vec<AppliedOverlay>,
     pub mark_gaps: Vec<MarkAbsence>,

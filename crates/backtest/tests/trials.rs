@@ -37,6 +37,7 @@ fn spec(run_id: &str, start: i64, end: i64) -> TrialSpec {
         run_id: run_id.to_owned(),
         config_id: String::new(),
         family: "S01".to_owned(),
+        prereg_sha256: String::new(),
         params: BTreeMap::new(),
         attempt: 1,
         ts: UtcMicros::from_micros(start),
@@ -157,12 +158,38 @@ fn l1_run_started_is_on_disk_before_compute_and_panic_writes_no_finish() {
     assert!(caught.is_err());
     let text = fs::read_to_string(&trials).unwrap();
     assert!(text.contains("\"kind\":\"RunStarted\""));
+    assert!(text.contains("\"prereg_sha256\":\"\""));
     assert!(text.contains("\"run_id\":\"run-l1\""));
     let expected = trial_id(&in_sample("run-l1").config_id, PIN_GOLDEN, 1);
     assert!(text.contains(&format!("\"trial_id\":\"{expected}\"")));
     assert!(!text.contains("RunFinished"));
     assert!(text.contains("RunAborted"));
     assert!(text.contains("panic"));
+}
+
+#[test]
+fn prereg_sha256_is_on_the_ledger_before_compute() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = write_pins(dir.path());
+    let trials = dir.path().join("trials.jsonl");
+    let mut spec = in_sample("run-prereg");
+    let sha = "ab".repeat(32);
+    spec.prereg_sha256 = sha.clone();
+    let caught = catch_unwind(AssertUnwindSafe(|| {
+        run_batch(
+            &[spec],
+            &pins,
+            &trials,
+            &dir.path().join("results.jsonl"),
+            &batch_costs(0),
+            &mut PanicOnFirstBar,
+        )
+    }));
+    assert!(caught.is_err());
+    let text = fs::read_to_string(&trials).unwrap();
+    assert!(text.contains(&format!("\"prereg_sha256\":\"{sha}\"")));
+    assert!(text.contains("\"kind\":\"RunStarted\""));
+    assert!(!text.contains("RunFinished"));
 }
 
 #[test]

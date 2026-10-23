@@ -395,6 +395,10 @@ pub struct GridPoint<C> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FamilyGrid<C> {
     pub family: String,
+    /// `table_<slug>.csv`. Empty uses [`Self::family`].
+    pub slug: String,
+    /// Sha256 of the prereg file, written on every `RunStarted` before compute.
+    pub prereg_sha256: String,
     pub folds: Vec<Fold>,
     pub points: Vec<GridPoint<C>>,
 }
@@ -417,6 +421,10 @@ pub struct WindowAccounting {
     pub hold_us_sum: i64,
     pub n_refused_fills: u64,
     pub n_dropped_entries: u64,
+    pub slippage_cost_ticks: i64,
+    pub n_rebalances: u64,
+    pub n_sign_changes: u64,
+    pub n_forced_exits: u64,
 }
 
 impl WindowAccounting {
@@ -428,6 +436,10 @@ impl WindowAccounting {
         hold_us_sum: 0,
         n_refused_fills: 0,
         n_dropped_entries: 0,
+        slippage_cost_ticks: 0,
+        n_rebalances: 0,
+        n_sign_changes: 0,
+        n_forced_exits: 0,
     };
 
     fn checked_add(self, other: Self) -> Option<Self> {
@@ -443,6 +455,12 @@ impl WindowAccounting {
             n_dropped_entries: self
                 .n_dropped_entries
                 .checked_add(other.n_dropped_entries)?,
+            slippage_cost_ticks: self
+                .slippage_cost_ticks
+                .checked_add(other.slippage_cost_ticks)?,
+            n_rebalances: self.n_rebalances.checked_add(other.n_rebalances)?,
+            n_sign_changes: self.n_sign_changes.checked_add(other.n_sign_changes)?,
+            n_forced_exits: self.n_forced_exits.checked_add(other.n_forced_exits)?,
         })
     }
 }
@@ -454,6 +472,8 @@ pub struct WindowResult {
     pub net_result_ticks: i64,
     pub round_trips: u64,
     pub fill_notional_ticks: i128,
+    /// Per-bar max drawdown, in `10^8` ratio ticks.
+    pub max_dd_ticks: i64,
     pub accounting: WindowAccounting,
 }
 
@@ -529,6 +549,7 @@ pub fn window_result(initial: Cash, report: &Report) -> Result<WindowResult, Win
         net_result_ticks,
         round_trips,
         fill_notional_ticks: fill_notional,
+        max_dd_ticks: report.metrics.max_drawdown.ticks(),
         accounting: account_report(report),
     })
 }
@@ -543,6 +564,10 @@ fn account_report(report: &Report) -> WindowAccounting {
         hold_us_sum,
         n_refused_fills: report.n_refused_fills,
         n_dropped_entries: 0,
+        slippage_cost_ticks: report.slippage_cost.0,
+        n_rebalances: report.n_rebalances,
+        n_sign_changes: report.n_sign_changes,
+        n_forced_exits: report.n_forced_exits,
     }
 }
 
@@ -631,6 +656,8 @@ pub struct SegmentRun {
     /// Annual Sharpe of this segment's equity, from [`sharpe_ticks`].
     pub sharpe_annual_ticks: Option<i64>,
     pub fill_notional_ticks: i128,
+    /// Per-bar max drawdown. The stitched row also takes the compounded daily drawdown.
+    pub max_dd_ticks: i64,
     pub accounting: WindowAccounting,
 }
 
@@ -651,6 +678,8 @@ pub struct FeeReplay {
     pub sharpe_annual_ticks: Option<i64>,
     /// `sum(|fill notional|) * 365 / sum(end-of-day equity)`, at `10^8`.
     pub turnover_ticks: i64,
+    /// Max of the selected folds' per-bar drawdowns.
+    pub max_dd_ticks: i64,
     pub accounting: WindowAccounting,
 }
 
@@ -1025,6 +1054,7 @@ impl<F> Drive<'_, F> {
             let mut net_result_ticks = 0i64;
             let mut round_trips = 0u64;
             let mut fill_notional_ticks = 0i128;
+            let mut max_dd_ticks = 0i64;
             let mut accounting = WindowAccounting::ZERO;
             for (fold, outcome) in family.folds.iter().zip(folds) {
                 if outcome.selected_flat {
@@ -1065,6 +1095,7 @@ impl<F> Drive<'_, F> {
                 fill_notional_ticks = fill_notional_ticks
                     .checked_add(row.fill_notional_ticks)
                     .ok_or(WalkError::Overflow)?;
+                max_dd_ticks = max_dd_ticks.max(row.max_dd_ticks);
                 accounting = accounting
                     .checked_add(row.accounting)
                     .ok_or(WalkError::Overflow)?;
@@ -1078,6 +1109,7 @@ impl<F> Drive<'_, F> {
                 net_result_ticks,
                 round_trips,
                 turnover_ticks: turnover_of(fill_notional_ticks, &scored_equity)?,
+                max_dd_ticks,
                 accounting,
             });
         }
@@ -1117,6 +1149,7 @@ impl<F> Drive<'_, F> {
                     trial_id: &identity.trial_id,
                     config_id: &identity.config_id,
                     pinned_root: self.ctx.pins.pinned_root(),
+                    prereg_sha256: &family.prereg_sha256,
                     attempt: point.attempt,
                     family: &family.family,
                     ts: start,
@@ -1170,6 +1203,7 @@ impl<F> Drive<'_, F> {
                     round_trips: result.round_trips,
                     sharpe_annual_ticks,
                     fill_notional_ticks: result.fill_notional_ticks,
+                    max_dd_ticks: result.max_dd_ticks,
                     accounting: result.accounting,
                 })
             }
@@ -1223,6 +1257,7 @@ fn config_identity<C>(
         run_id: String::new(),
         config_id: String::new(),
         family: family.family.clone(),
+        prereg_sha256: family.prereg_sha256.clone(),
         params: point.params.clone(),
         attempt: point.attempt,
         ts: bounds.start,
@@ -1268,6 +1303,7 @@ fn replay_from_selection<E>(
     let mut net_result_ticks = 0i64;
     let mut round_trips = 0u64;
     let mut fill_notional_ticks = 0i128;
+    let mut max_dd_ticks = 0i64;
     let mut accounting = WindowAccounting::ZERO;
     for fold in folds {
         if fold.selected_flat {
@@ -1298,6 +1334,7 @@ fn replay_from_selection<E>(
         fill_notional_ticks = fill_notional_ticks
             .checked_add(chosen.fill_notional_ticks)
             .ok_or(WalkError::Overflow)?;
+        max_dd_ticks = max_dd_ticks.max(chosen.max_dd_ticks);
         accounting = accounting
             .checked_add(chosen.accounting)
             .ok_or(WalkError::Overflow)?;
@@ -1311,6 +1348,7 @@ fn replay_from_selection<E>(
         net_result_ticks,
         round_trips,
         turnover_ticks: turnover_of(fill_notional_ticks, &scored_equity)?,
+        max_dd_ticks,
         accounting,
     })
 }

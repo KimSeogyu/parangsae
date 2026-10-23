@@ -84,6 +84,7 @@ fn from_levels(levels: Vec<i64>, round_trips: u64) -> WindowResult {
         net_result_ticks,
         round_trips,
         fill_notional_ticks: 0,
+        max_dd_ticks: 0,
         accounting: parangsae_backtest::WindowAccounting::ZERO,
     }
 }
@@ -102,6 +103,7 @@ fn shaped(initial: i64, days: usize, extra: i64, round_trips: u64) -> WindowResu
         net_result_ticks: extra,
         round_trips,
         fill_notional_ticks: 0,
+        max_dd_ticks: 0,
         accounting: parangsae_backtest::WindowAccounting::ZERO,
     }
 }
@@ -134,6 +136,8 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
     };
     let family = FamilyGrid {
         family: "tie".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 3), point(2, 4)],
     };
@@ -179,6 +183,7 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
         run_id: fold.train[0].run_id.clone(),
         config_id: String::new(),
         family: "tie".to_owned(),
+        prereg_sha256: String::new(),
         params: point(1, 3).params,
         attempt: 3,
         ts: identity.start,
@@ -261,6 +266,8 @@ fn a_later_config_wins_on_train_sharpe_and_oos_restarts() {
         .collect();
     let family = FamilyGrid {
         family: "rank".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 0), point(2, 0)],
     };
@@ -359,6 +366,8 @@ fn an_equal_train_sharpe_keeps_the_earlier_config() {
     let train_end = folds[0].train.end.micros();
     let family = FamilyGrid {
         family: "tie-sharpe".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 0), point(2, 0)],
     };
@@ -422,6 +431,8 @@ fn s01_logs_twelve_config_trials_not_one_per_fold() {
     let points: Vec<_> = (0..12).map(|side| point(side, 0)).collect();
     let family = FamilyGrid {
         family: "S01".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points,
     };
@@ -454,6 +465,7 @@ fn s01_logs_twelve_config_trials_not_one_per_fold() {
         run_id: String::new(),
         config_id: String::new(),
         family: "S01".to_owned(),
+        prereg_sha256: String::new(),
         params: point(0, 0).params,
         attempt: 0,
         ts: bounds.start,
@@ -505,6 +517,8 @@ fn selection_refuses_a_fee_other_than_five_bps_and_writes_no_trial() {
     let folds = btcusdt_schedule(30).unwrap();
     let family = FamilyGrid {
         family: "S01".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 0)],
     };
@@ -563,6 +577,8 @@ fn holdout_window_is_refused_and_the_closure_is_not_called() {
     };
     let family = FamilyGrid {
         family: "hold".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds: vec![fold],
         points: vec![point(1, 1)],
     };
@@ -684,6 +700,8 @@ fn run_toy(dir: &Path) -> (WalkForward, Vec<Seen>, String) {
     let folds = toy_schedule();
     let family = FamilyGrid {
         family: "toy".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(-1, 1), point(1, 1)],
     };
@@ -914,6 +932,8 @@ fn warmup_changes_the_first_decision_and_is_not_scored() {
     let mut warmed = None;
     let family = FamilyGrid {
         family: "warm".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 0)],
     };
@@ -1203,6 +1223,8 @@ fn one_fold(family: &str) -> (FamilyGrid<i64>, i64) {
     (
         FamilyGrid {
             family: family.to_owned(),
+            slug: String::new(),
+            prereg_sha256: String::new(),
             folds,
             points: vec![point(1, 1), point(2, 1)],
         },

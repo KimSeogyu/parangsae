@@ -1,9 +1,10 @@
 //! Append-only `trials.jsonl`. The log is single-writer only: there is no
 //! lock, and concurrent writers are not supported.
 //!
-//! `RunStarted` is fsynced before the caller computes. The next line for that
-//! `run_id` is `RunFinished` or `RunAborted`. A second start with the same
-//! `run_id` is refused. Lines are not rewritten or deleted.
+//! `RunStarted` is fsynced before the caller computes. It carries
+//! `prereg_sha256`, the sha256 of the prereg file hashed at run start.
+//! The next line for that `run_id` is `RunFinished` or `RunAborted`. A second
+//! start with the same `run_id` is refused. Lines are not rewritten or deleted.
 //!
 //! A hard crash that leaves `RunStarted` with no terminal line counts as aborted.
 
@@ -48,6 +49,9 @@ enum Line {
         trial_id: String,
         config_id: String,
         pinned_root: String,
+        /// Sha256 of the prereg file. Empty on rows written before the field existed.
+        #[serde(default)]
+        prereg_sha256: String,
         attempt: u64,
         family: String,
         ts: i64,
@@ -70,6 +74,7 @@ pub(crate) struct StartRecord<'a> {
     pub trial_id: &'a str,
     pub config_id: &'a str,
     pub pinned_root: &'a str,
+    pub prereg_sha256: &'a str,
     pub attempt: u64,
     pub family: &'a str,
     pub ts: i64,
@@ -171,6 +176,7 @@ impl TrialLog {
                 trial_id: start.trial_id.to_owned(),
                 config_id: start.config_id.to_owned(),
                 pinned_root: start.pinned_root.to_owned(),
+                prereg_sha256: start.prereg_sha256.to_owned(),
                 attempt: start.attempt,
                 family: start.family.to_owned(),
                 ts: start.ts,
@@ -324,6 +330,7 @@ mod tests {
                 trial_id: "t",
                 config_id: "c",
                 pinned_root: "p",
+                prereg_sha256: "",
                 attempt: 1,
                 family: "S01",
                 ts: 0,
@@ -345,6 +352,7 @@ mod tests {
                 trial_id,
                 config_id: "c",
                 pinned_root: "p",
+                prereg_sha256: "ab",
                 attempt: 0,
                 family: "S01",
                 ts: 0,
@@ -356,6 +364,8 @@ mod tests {
         log.finish("a", "digest").unwrap();
         log.abort("c", "stopped").unwrap();
         assert_eq!(distinct_trial_count(&path).unwrap(), 2);
+        let text = fs::read_to_string(&path).unwrap();
+        assert_eq!(text.matches("\"prereg_sha256\":\"ab\"").count(), 3);
     }
 
     #[test]

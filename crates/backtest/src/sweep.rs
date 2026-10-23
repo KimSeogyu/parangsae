@@ -208,11 +208,21 @@ struct SweepFile {
 pub(crate) struct ConfigRow {
     pub(crate) config_id: String,
     pub(crate) family: String,
+    /// Table filename stem. Empty falls back to [`Self::family`].
+    #[serde(default)]
+    pub(crate) slug: String,
     pub(crate) grid_index: u32,
     pub(crate) params: BTreeMap<String, i64>,
     pub(crate) start_us: i64,
     pub(crate) end_us: i64,
     pub(crate) initial_cash: i64,
+    /// Repo-root-relative prereg path. Hashed at load, before any trial starts.
+    #[serde(default)]
+    pub(crate) prereg: String,
+    /// After [`load_configs`], the sha256 of the prereg file. The JSON value is
+    /// the expected sha; a mismatch refuses the run.
+    #[serde(default)]
+    pub(crate) prereg_sha256: String,
 }
 
 struct ConfigRunner<'a> {
@@ -316,10 +326,87 @@ pub(crate) fn load_configs(path: &Path) -> Result<Loaded, String> {
             file.schema
         ));
     }
+    let mut configs = file.configs;
+    for row in &mut configs {
+        bind_prereg(path, row)?;
+    }
+    let mut family_sha: BTreeMap<String, String> = BTreeMap::new();
+    for row in &configs {
+        if row.prereg_sha256.is_empty() {
+            continue;
+        }
+        if let Some(prev) = family_sha.get(&row.family) {
+            if prev != &row.prereg_sha256 {
+                return Err(format!("{} prereg sha256 is not one hash", row.family));
+            }
+        } else {
+            family_sha.insert(row.family.clone(), row.prereg_sha256.clone());
+        }
+    }
     Ok(Loaded {
         slippage_bps: file.slippage_bps,
-        configs: file.configs,
+        configs,
     })
+}
+
+fn bind_prereg(inputs: &Path, row: &mut ConfigRow) -> Result<(), String> {
+    let rel = row.prereg.trim();
+    let expected = row.prereg_sha256.trim().to_owned();
+    if rel.is_empty() && expected.is_empty() {
+        row.prereg_sha256.clear();
+        return Ok(());
+    }
+    if rel.is_empty() {
+        return Err(format!(
+            "{} {} has prereg_sha256 without a prereg path",
+            row.family, row.grid_index
+        ));
+    }
+    if !expected.is_empty() && !is_lower_hex64(&expected) {
+        return Err(format!(
+            "{} {} prereg_sha256 is not 64 lowercase hex digits",
+            row.family, row.grid_index
+        ));
+    }
+    let full = resolve_prereg(inputs, rel)?;
+    let got = crate::canon::sha256_file(&full)
+        .map_err(|err| format!("prereg {}: {err}", full.display()))?;
+    if !expected.is_empty() && got != expected {
+        return Err(format!(
+            "prereg sha256 mismatch for {rel}: {got} != {expected}"
+        ));
+    }
+    row.prereg_sha256 = got;
+    Ok(())
+}
+
+fn resolve_prereg(inputs: &Path, rel: &str) -> Result<PathBuf, String> {
+    let path = Path::new(rel);
+    if path.is_absolute() {
+        if path.is_file() {
+            return Ok(path.to_path_buf());
+        }
+        return Err(format!("prereg {rel} was not found"));
+    }
+    let mut dir = inputs.parent();
+    while let Some(current) = dir {
+        let candidate = current.join(rel);
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+        dir = current.parent();
+    }
+    Err(format!(
+        "prereg {rel} was not found from {}",
+        inputs.display()
+    ))
+}
+
+fn is_lower_hex64(text: &str) -> bool {
+    text.len() == 64
+        && text
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn trial_spec(row: &ConfigRow, ts: UtcMicros, attempt: u64) -> Result<TrialSpec, String> {
@@ -329,6 +416,7 @@ fn trial_spec(row: &ConfigRow, ts: UtcMicros, attempt: u64) -> Result<TrialSpec,
         run_id: format!("{}-{:02}-a{attempt}", row.family, row.grid_index),
         config_id: row.config_id.clone(),
         family: row.family.clone(),
+        prereg_sha256: row.prereg_sha256.clone(),
         params: row.params.clone(),
         attempt,
         ts,
@@ -771,12 +859,134 @@ mod tests {
             assert_eq!(spec.run.start.micros(), EARLIEST_US);
             assert_eq!(spec.attempt, 0);
             assert!(spec.run_id.ends_with("-a0"));
+            assert_eq!(spec.prereg_sha256.len(), 64);
+            assert!(!row.slug.is_empty());
         }
         assert_eq!(families.get("S01").copied(), Some(12));
         assert_eq!(families.get("S02").copied(), Some(9));
         assert_eq!(families.get("S03").copied(), Some(8));
         assert_eq!(families.get("S05").copied(), Some(8));
         assert_eq!(families.get("S06").copied(), Some(6));
+    }
+
+    fn prereg_inputs(dir: &Path, prereg: &str, expected: Option<&str>) -> PathBuf {
+        let inputs = dir.join("inputs.json");
+        let mut config = serde_json::json!({
+            "config_id": "abc",
+            "family": "S01",
+            "slug": "tsmom-slow",
+            "grid_index": 0,
+            "params": {"n": 1},
+            "start_us": 1,
+            "end_us": 2,
+            "initial_cash": 1,
+            "prereg": prereg,
+        });
+        if let Some(expected) = expected {
+            config["prereg_sha256"] = serde_json::Value::String(expected.to_owned());
+        }
+        let body = serde_json::json!({
+            "schema": "sweep-runner-inputs-v2",
+            "slippage_bps": 2,
+            "configs": [config],
+        });
+        fs::write(&inputs, body.to_string()).unwrap();
+        inputs
+    }
+
+    #[test]
+    fn a_prereg_sha_mismatch_refuses_before_a_ledger_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("note.md"), b"frozen\n").unwrap();
+        let inputs = prereg_inputs(dir.path(), "note.md", Some(&"0".repeat(64)));
+        let ledger = dir.path().join("trials.jsonl");
+        let err = run_sweep(&SweepRequest {
+            inputs,
+            data_root: dir.path().join("data"),
+            out_dir: dir.path().join("out"),
+            ledger: ledger.clone(),
+            slippage_bps: 2,
+        })
+        .unwrap_err();
+        assert!(err.contains("prereg sha256 mismatch"), "{err}");
+        assert!(!ledger.exists());
+        assert!(!dir.path().join("out").exists());
+    }
+
+    #[test]
+    fn an_omitted_expected_sha_still_records_the_file_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let note = dir.path().join("research").join("prereg").join("note.md");
+        fs::create_dir_all(note.parent().unwrap()).unwrap();
+        fs::write(&note, b"frozen\n").unwrap();
+        let inputs = dir.path().join("research").join("inputs.json");
+        let body = serde_json::json!({
+            "schema": "sweep-runner-inputs-v2",
+            "slippage_bps": 2,
+            "configs": [{
+                "config_id": "abc",
+                "family": "S01",
+                "slug": "tsmom-slow",
+                "grid_index": 0,
+                "params": {"n": 1},
+                "start_us": 1,
+                "end_us": 2,
+                "initial_cash": 1,
+                "prereg": "research/prereg/note.md"
+            }]
+        });
+        fs::write(&inputs, body.to_string()).unwrap();
+        let loaded = load_configs(&inputs).unwrap();
+        assert_eq!(
+            loaded.configs[0].prereg_sha256,
+            crate::canon::sha256_file(&note).unwrap()
+        );
+    }
+
+    #[test]
+    fn a_family_with_two_prereg_hashes_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a.md"), b"one\n").unwrap();
+        fs::write(dir.path().join("b.md"), b"two\n").unwrap();
+        let sha_a = crate::canon::sha256_file(&dir.path().join("a.md")).unwrap();
+        let sha_b = crate::canon::sha256_file(&dir.path().join("b.md")).unwrap();
+        let inputs = dir.path().join("inputs.json");
+        let body = serde_json::json!({
+            "schema": "sweep-runner-inputs-v2",
+            "slippage_bps": 2,
+            "configs": [
+                {
+                    "config_id": "a",
+                    "family": "S01",
+                    "slug": "tsmom-slow",
+                    "grid_index": 0,
+                    "params": {"n": 1},
+                    "start_us": 1,
+                    "end_us": 2,
+                    "initial_cash": 1,
+                    "prereg": "a.md",
+                    "prereg_sha256": sha_a,
+                },
+                {
+                    "config_id": "b",
+                    "family": "S01",
+                    "slug": "tsmom-slow",
+                    "grid_index": 1,
+                    "params": {"n": 2},
+                    "start_us": 1,
+                    "end_us": 2,
+                    "initial_cash": 1,
+                    "prereg": "b.md",
+                    "prereg_sha256": sha_b,
+                }
+            ]
+        });
+        fs::write(&inputs, body.to_string()).unwrap();
+        let err = match load_configs(&inputs) {
+            Err(err) => err,
+            Ok(_) => panic!("two prereg hashes in one family were accepted"),
+        };
+        assert!(err.contains("prereg sha256 is not one hash"), "{err}");
     }
 
     #[test]
@@ -922,16 +1132,20 @@ mod tests {
         let row = ConfigRow {
             config_id: String::new(),
             family: "S02".to_owned(),
+            slug: String::new(),
             grid_index: 0,
             params: params.clone(),
             start_us: start,
             end_us: start + 180 * minute,
             initial_cash: 100_000_000_000_000,
+            prereg: String::new(),
+            prereg_sha256: String::new(),
         };
         let mut spec = TrialSpec {
             run_id: "pending".to_owned(),
             config_id: String::new(),
             family: row.family.clone(),
+            prereg_sha256: String::new(),
             params: row.params.clone(),
             attempt: 0,
             ts: UtcMicros::from_micros(start),
@@ -1037,6 +1251,7 @@ mod tests {
             run_id: "S02-00-a0".to_owned(),
             config_id: String::new(),
             family: "S02".to_owned(),
+            prereg_sha256: String::new(),
             params: params.clone(),
             attempt: 0,
             ts: UtcMicros::from_micros(start),
@@ -1131,6 +1346,7 @@ mod tests {
             run_id: "pending".to_owned(),
             config_id: String::new(),
             family: "S02".to_owned(),
+            prereg_sha256: String::new(),
             params: params.clone(),
             attempt: 0,
             ts: UtcMicros::from_micros(start),
@@ -1272,6 +1488,10 @@ mod tests {
         assert_eq!(sell.price.ticks(), 80 * 100_000_000);
         assert_eq!(buy.price.ticks(), 90 * 100_000_000);
         assert!(buy.ts.micros() > sell.ts.micros());
+        assert_eq!(report.n_rebalances, 2);
+        assert_eq!(report.n_sign_changes, 0);
+        assert_eq!(report.n_forced_exits, 0);
+        assert_eq!(report.slippage_cost.0, 0);
     }
 
     #[test]

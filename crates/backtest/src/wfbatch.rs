@@ -95,6 +95,15 @@ pub fn prepare_families(
             .ok_or_else(|| format!("{name} has no folds"))?
             .test
             .end;
+        let slug = rows
+            .first()
+            .map(|row| row.slug.clone())
+            .filter(|slug| !slug.is_empty())
+            .unwrap_or_else(|| name.clone());
+        let prereg_sha256 = rows
+            .first()
+            .map(|row| row.prereg_sha256.clone())
+            .unwrap_or_default();
         let mut points = Vec::with_capacity(rows.len());
         for row in rows {
             if row.start_us != start.micros() || row.end_us != end.micros() {
@@ -134,6 +143,8 @@ pub fn prepare_families(
         }
         families.push(FamilyGrid {
             family: name,
+            slug,
+            prereg_sha256,
             folds,
             points,
         });
@@ -197,6 +208,13 @@ pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
         cash,
     )?;
     write_fold_daily_returns(&request.out_dir, &result)?;
+    crate::table::write_family_tables(
+        &request.out_dir,
+        &families,
+        &result,
+        &pins,
+        &request.ledger,
+    )?;
     Ok(())
 }
 
@@ -296,6 +314,7 @@ fn window_config_id(
         run_id: String::new(),
         config_id: String::new(),
         family: family.to_owned(),
+        prereg_sha256: String::new(),
         params: params.clone(),
         attempt,
         ts: start,
@@ -768,6 +787,7 @@ mod tests {
             round_trips: 3,
             sharpe_annual_ticks: None,
             turnover_ticks: 25_000_000,
+            max_dd_ticks: 0,
             accounting: crate::walkforward::WindowAccounting::ZERO,
         };
         let family = FamilyOutput {
@@ -918,6 +938,7 @@ S01,cfg-b,trial-b,1,1,OOS_fold_1,2022-01-19,3
             round_trips: 3,
             sharpe_annual_ticks: None,
             fill_notional_ticks: 0,
+            max_dd_ticks: 0,
             accounting: crate::walkforward::WindowAccounting::ZERO,
         }
     }
