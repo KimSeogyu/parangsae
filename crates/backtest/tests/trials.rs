@@ -18,11 +18,12 @@ use std::sync::Arc;
 use parangsae_backtest::fixture::Scripted;
 use parangsae_backtest::{
     canonical_config_id, finish_trial, run_batch, run_fee_grid, trial_id, turnover_ratio,
-    BatchError, FeeGridRunner, FlatBars, SweepPins, TrialError, TrialMetrics, TrialSpec,
-    HOLDOUT_START_US,
+    BatchError, Decision, FeeGridRunner, FlatBars, FlatReason, FundingObs, SignalOutput, SweepPins,
+    Target, TargetEngine, TargetRunner, TargetSignal, TrialError, TrialMetrics, TrialSpec,
+    UtcRange, HOLDOUT_START_US,
 };
-use parangsae_core::{Ratio, UtcMicros};
-use parangsae_sim::{Cash, SlippageBps};
+use parangsae_core::{Causal, DecisionTime, Interval, Ratio, ResampledBar, UtcMicros};
+use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
 use serde_json::Value;
 use support::{at, btc, buy, cfg, costs, sell, series, tape_of};
 
@@ -43,6 +44,11 @@ fn spec(run_id: &str, start: i64, end: i64) -> TrialSpec {
             initial_cash: Cash(1_000 * 100_000_000),
             start: UtcMicros::from_micros(start),
             end: UtcMicros::from_micros(end),
+            holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
+            forced_flat: Vec::new(),
+            mark_gaps: Vec::new(),
+            interval: Interval::ONE_HOUR,
+            lot_ticks: 100_000,
         },
     })
 }
@@ -70,6 +76,13 @@ fn write_pins(dir: &Path) -> SweepPins {
     SweepPins::load(&pin_path).unwrap()
 }
 
+fn batch_costs(slippage: u32) -> Costs {
+    Costs {
+        taker_fee: FeeBps(5),
+        slippage: SlippageBps(slippage),
+    }
+}
+
 fn zero_metrics() -> TrialMetrics {
     let zero = Ratio::from_ticks(0);
     TrialMetrics {
@@ -92,6 +105,7 @@ impl parangsae_backtest::TargetRunner for PanicOnFirstBar {
 
     fn run_targets(
         &mut self,
+        _costs: &Costs,
         _cfg: &parangsae_backtest::RunConfig,
     ) -> Result<TrialMetrics, String> {
         panic!("first bar");
@@ -108,6 +122,7 @@ impl parangsae_backtest::TargetRunner for FlagRunner {
 
     fn run_targets(
         &mut self,
+        _costs: &Costs,
         _cfg: &parangsae_backtest::RunConfig,
     ) -> Result<TrialMetrics, String> {
         self.called.store(true, Ordering::SeqCst);
@@ -131,6 +146,7 @@ fn l1_run_started_is_on_disk_before_compute_and_panic_writes_no_finish() {
             &pins,
             &trials,
             &results,
+            &batch_costs(0),
             &mut PanicOnFirstBar,
         )
     }));
@@ -160,6 +176,7 @@ fn l2_duplicate_run_id_is_refused_and_the_log_is_not_rewritten() {
         &pins,
         &trials,
         &results,
+        &batch_costs(0),
         &mut runner,
     )
     .unwrap();
@@ -170,6 +187,7 @@ fn l2_duplicate_run_id_is_refused_and_the_log_is_not_rewritten() {
         &pins,
         &trials,
         &results,
+        &batch_costs(0),
         &mut runner,
     )
     .unwrap_err();
@@ -206,6 +224,7 @@ fn s01_style_config_id_is_refused_before_compute() {
         &pins,
         &dir.path().join("trials.jsonl"),
         &dir.path().join("results.jsonl"),
+        &batch_costs(0),
         &mut runner,
     )
     .unwrap_err();
@@ -217,6 +236,7 @@ fn s01_style_config_id_is_refused_before_compute() {
         &pins,
         &dir.path().join("trials.jsonl"),
         &dir.path().join("results.jsonl"),
+        &batch_costs(0),
         &mut runner,
     )
     .unwrap_err();
@@ -243,6 +263,7 @@ fn configs_differing_by_one_parameter_get_different_trial_ids() {
         &pins,
         &dir.path().join("trials.jsonl"),
         &dir.path().join("results.jsonl"),
+        &batch_costs(0),
         &mut FlagRunner {
             called: flag(),
             metrics: zero_metrics(),
@@ -271,6 +292,7 @@ fn append_failure_refuses_the_run_before_compute() {
         &pins,
         dir.path(),
         &dir.path().join("results.jsonl"),
+        &batch_costs(0),
         &mut runner,
     )
     .unwrap_err();
@@ -292,7 +314,15 @@ fn holdout_window_is_refused_counts_as_aborted_and_does_not_compute() {
     let start = HOLDOUT_START_US - 60_000_000;
     let spec = spec("run-holdout", start, HOLDOUT_START_US + 60_000_000);
     let config_id = spec.config_id.clone();
-    let err = run_batch(&[spec], &pins, &trials, &results, &mut runner).unwrap_err();
+    let err = run_batch(
+        &[spec],
+        &pins,
+        &trials,
+        &results,
+        &batch_costs(0),
+        &mut runner,
+    )
+    .unwrap_err();
     assert!(matches!(err, BatchError::Holdout { .. }));
     assert!(!called.load(Ordering::SeqCst));
     let text = fs::read_to_string(&trials).unwrap();
@@ -327,6 +357,7 @@ fn window_ending_at_holdout_is_in_sample() {
         &pins,
         &dir.path().join("trials.jsonl"),
         &dir.path().join("results.jsonl"),
+        &batch_costs(0),
         &mut runner,
     )
     .unwrap();
@@ -351,6 +382,7 @@ fn start_equal_holdout_with_end_at_or_before_holdout_is_refused() {
             &pins,
             &dir.path().join(format!("{name}-trials.jsonl")),
             &dir.path().join(format!("{name}-results.jsonl")),
+            &batch_costs(0),
             &mut runner,
         )
         .unwrap_err();
@@ -377,6 +409,7 @@ fn start_on_holdout_is_refused() {
         &pins,
         &dir.path().join("trials.jsonl"),
         &dir.path().join("results.jsonl"),
+        &batch_costs(0),
         &mut runner,
     )
     .unwrap_err();
@@ -399,7 +432,7 @@ fn batch_writes_one_row_per_config_with_fee_grid_and_flat_bars() {
         &base,
     )
     .unwrap();
-    let mut engine = FeeGridRunner::new(&tape, SlippageBps(2), || {
+    let mut engine = FeeGridRunner::new(&tape, || {
         Scripted::new(vec![Some(buy(btc(1))), Some(sell(btc(1)))])
     })
     .with_flat_bars(FlatBars {
@@ -409,7 +442,7 @@ fn batch_writes_one_row_per_config_with_fee_grid_and_flat_bars() {
     let mut second = in_sample("run-b");
     second.family = "S02".to_owned();
     second.attempt = 1;
-    second.run = base;
+    second.run = base.clone();
     let second = seal(second);
     let mut first = in_sample("run-a");
     first.run = base;
@@ -419,6 +452,7 @@ fn batch_writes_one_row_per_config_with_fee_grid_and_flat_bars() {
         &pins,
         &dir.path().join("trials.jsonl"),
         &dir.path().join("results.jsonl"),
+        &batch_costs(2),
         &mut engine,
     )
     .unwrap();
@@ -482,6 +516,7 @@ fn second_terminal_line_is_refused() {
         &pins,
         &trials,
         &dir.path().join("results.jsonl"),
+        &batch_costs(0),
         &mut FlagRunner {
             called: flag(),
             metrics: zero_metrics(),
@@ -501,11 +536,11 @@ fn slippage_and_fee_grid_are_recorded_on_each_results_row() {
     let bars = series(at(12, 0), &[(100, 100), (100, 100), (110, 110)]);
     let tape = tape_of(bars.clone());
     let base = cfg(&bars, 1000);
-    let mut engine = FeeGridRunner::new(&tape, SlippageBps(2), || {
+    let mut engine = FeeGridRunner::new(&tape, || {
         Scripted::new(vec![Some(buy(btc(1))), Some(sell(btc(1)))])
     });
     let mut first = in_sample("run-slip-a");
-    first.run = base;
+    first.run = base.clone();
     let first = seal(first);
     let mut second = in_sample("run-slip-b");
     second.run = base;
@@ -516,6 +551,7 @@ fn slippage_and_fee_grid_are_recorded_on_each_results_row() {
         &pins,
         &dir.path().join("trials.jsonl"),
         &dir.path().join("results.jsonl"),
+        &batch_costs(2),
         &mut engine,
     )
     .unwrap();
@@ -532,6 +568,40 @@ fn slippage_and_fee_grid_are_recorded_on_each_results_row() {
 }
 
 #[test]
+fn passed_costs_change_the_trial_return() {
+    let bars = series(at(12, 0), &[(100, 100), (100, 100), (110, 110)]);
+    let tape = tape_of(bars.clone());
+    let cfg = cfg(&bars, 1000);
+    let make = || Scripted::new(vec![Some(buy(btc(1))), Some(sell(btc(1)))]);
+    let mut engine = FeeGridRunner::new(&tape, make);
+    let plain = Costs {
+        taker_fee: FeeBps(0),
+        slippage: SlippageBps(0),
+    };
+    let fee = Costs {
+        taker_fee: FeeBps(50),
+        slippage: SlippageBps(0),
+    };
+    let slip = Costs {
+        taker_fee: FeeBps(0),
+        slippage: SlippageBps(100),
+    };
+    let plain_return = engine
+        .run_targets(&plain, &cfg)
+        .unwrap()
+        .total_return
+        .ticks();
+    let fee_return = engine.run_targets(&fee, &cfg).unwrap().total_return.ticks();
+    let slip_return = engine
+        .run_targets(&slip, &cfg)
+        .unwrap()
+        .total_return
+        .ticks();
+    assert!(fee_return < plain_return);
+    assert!(slip_return < plain_return);
+}
+
+#[test]
 fn engine_error_aborts_the_trial_and_the_next_config_still_runs() {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
@@ -541,6 +611,7 @@ fn engine_error_aborts_the_trial_and_the_next_config_still_runs() {
         &pins,
         &dir.path().join("trials.jsonl"),
         &dir.path().join("results.jsonl"),
+        &batch_costs(0),
         &mut ClosureRunner {
             run: &mut |cfg: &parangsae_backtest::RunConfig| {
                 which += 1;
@@ -588,6 +659,95 @@ fn turnover_one_round_trip_over_a_year_is_point_two() {
     assert_eq!(ratio.ticks(), 20_000_000);
 }
 
+#[test]
+fn config_holdout_start_refuses_a_window_before_the_default_instant() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = write_pins(dir.path());
+    let start = at(12, 0);
+    let mut spec = spec("run-early-holdout", start, start + 3 * 60_000_000);
+    spec.run.holdout_start = UtcMicros::from_micros(start);
+    let called = flag();
+    let mut runner = FlagRunner {
+        called: Arc::clone(&called),
+        metrics: zero_metrics(),
+    };
+    let err = run_batch(
+        &[spec],
+        &pins,
+        &dir.path().join("trials.jsonl"),
+        &dir.path().join("results.jsonl"),
+        &batch_costs(0),
+        &mut runner,
+    )
+    .unwrap_err();
+    assert!(matches!(err, BatchError::Holdout { .. }));
+    assert!(!called.load(Ordering::SeqCst));
+}
+
+#[test]
+fn target_engine_reports_flat_reasons_and_obeys_forced_flat() {
+    let start = at(12, 0);
+    let bars = series(start, &vec![(50_000, 50_000); 180]);
+    let tape = tape_of(bars);
+    let open = cfg(&tape.bars, 10_000);
+    let mut forced = open.clone();
+    forced.forced_flat = vec![UtcRange {
+        start: UtcMicros::from_micros(start),
+        end: UtcMicros::from_micros(start + 3 * 3_600_000_000),
+    }];
+    let steps = vec![
+        Decision::Flat(FlatReason::FundingStale),
+        Decision::Flat(FlatReason::FundingSlotMissing),
+        Decision::Target(Target::from_f64(1.0).unwrap()),
+    ];
+    let mut flats = TargetEngine::new(&tape, {
+        let steps = steps.clone();
+        move || Repeat::new(steps.clone())
+    });
+    let counted = flats.run_targets(&batch_costs(0), &open).unwrap();
+    assert_eq!(counted.flat_bars.funding_stale, 1);
+    assert_eq!(counted.flat_bars.funding_slot_missing, 1);
+
+    let mut engine = TargetEngine::new(&tape, || {
+        Repeat::new(vec![Decision::Target(Target::from_f64(1.0).unwrap()); 3])
+    });
+    let held = engine.run_targets(&batch_costs(0), &open).unwrap();
+    let flattened = engine.run_targets(&batch_costs(0), &forced).unwrap();
+    assert!(held.turnover.ticks() > 0);
+    assert_eq!(flattened.turnover.ticks(), 0);
+}
+
+struct Repeat {
+    steps: Vec<Decision>,
+    cursor: usize,
+}
+
+impl Repeat {
+    fn new(steps: Vec<Decision>) -> Self {
+        Self { steps, cursor: 0 }
+    }
+}
+
+impl TargetSignal for Repeat {
+    fn on_bar(
+        &mut self,
+        view: Causal<'_, &[ResampledBar]>,
+        _funding: Causal<'_, &[FundingObs]>,
+    ) -> Option<SignalOutput> {
+        let bars = *view.value();
+        let hour = bars.last()?;
+        let decision = self.steps.get(self.cursor).copied()?;
+        self.cursor += 1;
+        let decision_ts = hour.close_time().checked_add_micros(1_000)?;
+        Some(SignalOutput {
+            decision_ts: DecisionTime::from_micros(decision_ts),
+            bar_close_time_us: hour.close_time(),
+            interval: hour.interval(),
+            decision,
+        })
+    }
+}
+
 struct ClosureRunner<F> {
     run: F,
 }
@@ -598,7 +758,11 @@ where
 {
     type Error = String;
 
-    fn run_targets(&mut self, cfg: &parangsae_backtest::RunConfig) -> Result<TrialMetrics, String> {
+    fn run_targets(
+        &mut self,
+        _costs: &Costs,
+        cfg: &parangsae_backtest::RunConfig,
+    ) -> Result<TrialMetrics, String> {
         (self.run)(cfg)
     }
 }

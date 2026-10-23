@@ -1,13 +1,24 @@
 //! Bar loop. Funding, then the queued fill, then the mark, then the decision.
 
-use parangsae_core::{require_regular_grid, Interval, Qty, TimeError, UtcMicros};
-use parangsae_sim::{Cash, Costs, Fill, FundingEvent, Ledger, MarketOrder, Side, SimError};
+use parangsae_core::{
+    require_regular_grid, resample_series, DecisionTime, Interval, Observation, Qty, Side,
+    TimeError, Timestamps, UtcMicros,
+};
+use parangsae_core::{AvailableTs, EventTs, ReceivedTs};
+use parangsae_sim::{Cash, Costs, Fill, FundingEvent, Ledger, MarketOrder, SimError};
 
 use crate::bar::{Bar, BarView, FundingStamp, Strategy, Tape, ONE_MINUTE_US};
+use crate::date::UtcDate;
 use crate::error::EngineError;
-use crate::metrics::{max_drawdown, sharpe_f64, total_return};
+use crate::metrics::{
+    fill_notional_ticks, max_drawdown, sharpe_ticks, total_return, turnover_ticks,
+};
 use crate::report::{daily_equity, Metrics, Report, RoundTrip};
-use crate::tape::TapeError;
+use crate::signal::{
+    funding_visible, Decision, FlatReason, FundingObs, SignalOutput, TargetSignal,
+};
+use crate::sizing::target_qty;
+use crate::tape::{sample_start, TapeError};
 
 /// Headline fee is 5 bps. The grid reruns 2, 4, 5, and 6 with a fresh strategy.
 pub const FEE_GRID_BPS: [u32; 4] = [2, 4, 5, 6];
@@ -21,10 +32,11 @@ pub fn run<S: Strategy>(
     if cfg.initial_cash.0 <= 0 {
         return Err(EngineError::Sim(SimError::Negative));
     }
+    refuse_holdout(tape, cfg)?;
     validate(tape)?;
     let window = time_window(&tape.bars, cfg.start, cfg.end);
     let step = funding_step(&tape.funding)?;
-    require_coverage(tape, window, step)?;
+    require_coverage(tape, window, step, cfg)?;
 
     let mut ledger = Ledger::new(cfg.initial_cash);
     let mut book = Book::default();
@@ -40,28 +52,35 @@ pub fn run<S: Strategy>(
     for (index, bar) in window.iter().enumerate() {
         if ruined.is_none() {
             funding_i = settle_funding(
-                tape,
+                &FundingPass {
+                    tape,
+                    gaps: &cfg.mark_gaps,
+                    index: funding_i,
+                },
                 &mut ledger,
                 &mut book,
                 &mut funding,
                 window,
                 index,
-                funding_i,
             )?;
             if let Some(order) = pending.take() {
-                execute(
-                    &mut ledger,
-                    &mut book,
-                    &mut fills,
-                    order,
-                    bar.open,
-                    costs,
-                    bar.open_time,
-                )?;
+                if bar.is_filler() {
+                    pending = Some(order);
+                } else {
+                    execute(
+                        &mut ledger,
+                        &mut book,
+                        &mut fills,
+                        order,
+                        bar.open,
+                        costs,
+                        bar.open_time,
+                    )?;
+                }
             }
         }
 
-        let mark = find_mark(&tape.marks, bar.open_time)?;
+        let mark = resolve_mark(&tape.marks, bar.open_time, &cfg.mark_gaps)?;
         if let Some(cash) = frozen {
             equity_curve.push((bar.close_time, cash));
             continue;
@@ -94,8 +113,12 @@ pub fn run<S: Strategy>(
         }
     }
 
+    if pending.is_some() {
+        dropped_orders += 1;
+    }
     finish(
         cfg,
+        tape,
         costs,
         window.len(),
         Accum {
@@ -106,6 +129,10 @@ pub fn run<S: Strategy>(
             funding,
             ruined,
             dropped_orders,
+            warmup_bars: 0,
+            flat_funding_stale: 0,
+            flat_funding_slot_missing: 0,
+            signal_outputs: Vec::new(),
         },
     )
 }
@@ -135,12 +162,273 @@ where
     Ok(out)
 }
 
-/// Inclusive start, exclusive end, on bar open time.
+/// One signal's per-bar targets. Fills land on the first non-filler 1m open at
+/// or after the resampled bar's available timestamp.
+pub fn run_targets<S: TargetSignal>(
+    tape: &Tape,
+    signal: &mut S,
+    costs: &Costs,
+    cfg: &RunConfig,
+) -> Result<Report, EngineError> {
+    if cfg.initial_cash.0 <= 0 || cfg.lot_ticks <= 0 {
+        return Err(EngineError::Sim(SimError::Negative));
+    }
+    refuse_holdout(tape, cfg)?;
+    validate(tape)?;
+    let window = time_window(&tape.bars, cfg.start, cfg.end);
+    if let Some(bar) = window.iter().find(|bar| bar.open_time < sample_start()) {
+        return Err(EngineError::BeforeSample(bar.open_time));
+    }
+    let step = funding_step(&tape.funding)?;
+    require_coverage(tape, window, step, cfg)?;
+    let resampled = resample_series(window, cfg.interval).map_err(EngineError::Resample)?;
+    let width = usize::try_from(cfg.interval.micros() / ONE_MINUTE_US)
+        .map_err(|_| EngineError::Sim(SimError::Overflow))?;
+    let funding_rows: Vec<FundingObs> = tape
+        .funding
+        .iter()
+        .map(|stamp| FundingObs {
+            funding_time: stamp.funding_time,
+            available: stamp.available,
+            rate: stamp.rate,
+        })
+        .collect();
+    let forced_opens: Vec<UtcMicros> = cfg
+        .forced_flat
+        .iter()
+        .filter_map(|range| {
+            window
+                .iter()
+                .find(|bar| bar.open_time >= range.start && !bar.is_filler())
+                .map(|bar| bar.open_time)
+        })
+        .collect();
+    let end_open = sample_end_open();
+
+    let mut ledger = Ledger::new(cfg.initial_cash);
+    let mut book = Book::default();
+    let mut fills = Vec::new();
+    let mut funding = Vec::new();
+    let mut equity_curve = Vec::with_capacity(window.len());
+    let mut pending: Option<MarketOrder> = None;
+    let mut funding_i = 0usize;
+    let mut ruined: Option<UtcMicros> = None;
+    let mut frozen: Option<Cash> = None;
+    let mut dropped_orders = 0u64;
+    let mut seen = false;
+    let mut warmup_bars = 0u64;
+    let mut flat_funding_stale = 0u64;
+    let mut flat_funding_slot_missing = 0u64;
+    let mut signal_outputs = Vec::new();
+
+    for (index, bar) in window.iter().enumerate() {
+        if ruined.is_none() {
+            funding_i = settle_funding(
+                &FundingPass {
+                    tape,
+                    gaps: &cfg.mark_gaps,
+                    index: funding_i,
+                },
+                &mut ledger,
+                &mut book,
+                &mut funding,
+                window,
+                index,
+            )?;
+            if bar.open_time == end_open || forced_opens.contains(&bar.open_time) {
+                pending = flatten_order(&ledger)?;
+            }
+            if let Some(order) = pending.take() {
+                if bar.is_filler() {
+                    pending = Some(order);
+                } else {
+                    execute(
+                        &mut ledger,
+                        &mut book,
+                        &mut fills,
+                        order,
+                        bar.open,
+                        costs,
+                        bar.open_time,
+                    )?;
+                }
+            }
+        }
+
+        let mark = resolve_mark(&tape.marks, bar.open_time, &cfg.mark_gaps)?;
+        if let Some(cash) = frozen {
+            equity_curve.push((bar.close_time, cash));
+            continue;
+        }
+        let equity = ledger.equity(mark.close).map_err(EngineError::Sim)?;
+        if equity.0 <= 0 {
+            force_flat(
+                &mut ledger,
+                &mut book,
+                &mut fills,
+                mark.close,
+                costs,
+                bar.close_time,
+            )?;
+            let after = ledger.equity(mark.close).map_err(EngineError::Sim)?;
+            ruined = Some(bar.close_time);
+            frozen = Some(after);
+            equity_curve.push((bar.close_time, after));
+            pending = None;
+            continue;
+        }
+        equity_curve.push((bar.close_time, equity));
+
+        if width == 0 || (index + 1) % width != 0 || resampled.is_empty() {
+            continue;
+        }
+        let hour_index = (index + 1) / width - 1;
+        let hour = &resampled[hour_index];
+        let decision = hour
+            .close_time()
+            .checked_add_micros(1_000)
+            .ok_or(EngineError::Sim(SimError::Overflow))?;
+        let bars_prefix = &resampled[..=hour_index];
+        let fund_prefix = funding_visible(&funding_rows, decision);
+        let bar_obs = Observation::new(decision_stamps(decision), bars_prefix);
+        let fund_obs = Observation::new(decision_stamps(decision), fund_prefix);
+        let view = bar_obs
+            .causal_at(DecisionTime::from_micros(decision))
+            .expect("the prefix is stamped available at the decision");
+        let funding_view = fund_obs
+            .causal_at(DecisionTime::from_micros(decision))
+            .expect("the prefix is stamped available at the decision");
+        match signal.on_bar(view, funding_view) {
+            None if !seen => warmup_bars += 1,
+            None => return Err(EngineError::MissingSignal(decision)),
+            Some(output) if output.bar_close_time_us != hour.close_time() => {
+                return Err(EngineError::MissingSignal(decision));
+            }
+            Some(output) => {
+                seen = true;
+                let inside = cfg
+                    .forced_flat
+                    .iter()
+                    .any(|range| decision >= range.start && decision < range.end);
+                let lots = match output.decision {
+                    Decision::Flat(FlatReason::FundingStale) => {
+                        flat_funding_stale += 1;
+                        0
+                    }
+                    Decision::Flat(FlatReason::FundingSlotMissing) => {
+                        flat_funding_slot_missing += 1;
+                        0
+                    }
+                    Decision::Target(_) => {
+                        if inside {
+                            0
+                        } else {
+                            target_qty(
+                                output.decision.target_ticks(),
+                                equity.0,
+                                mark.close.ticks(),
+                                cfg.lot_ticks,
+                            )
+                            .map_err(EngineError::Sim)?
+                        }
+                    }
+                };
+                let lots = if inside { 0 } else { lots };
+                signal_outputs.push(output);
+                let diff = lots
+                    .checked_sub(ledger.position().0)
+                    .ok_or(EngineError::Sim(SimError::Overflow))?;
+                if diff != 0 {
+                    let side = if diff > 0 { Side::Buy } else { Side::Sell };
+                    let qty_ticks = diff
+                        .checked_abs()
+                        .ok_or(EngineError::Sim(SimError::Overflow))?;
+                    let qty = Qty::from_ticks(qty_ticks)
+                        .map_err(|_| EngineError::Sim(SimError::Negative))?;
+                    if window[index + 1..].iter().any(|next| !next.is_filler()) {
+                        pending = Some(MarketOrder { side, qty });
+                    } else {
+                        dropped_orders += 1;
+                    }
+                }
+            }
+        }
+    }
+
+    if pending.is_some() {
+        dropped_orders += 1;
+    }
+    finish(
+        cfg,
+        tape,
+        costs,
+        window.len(),
+        Accum {
+            ledger,
+            book,
+            equity_curve,
+            fills,
+            funding,
+            ruined,
+            dropped_orders,
+            warmup_bars,
+            flat_funding_stale,
+            flat_funding_slot_missing,
+            signal_outputs,
+        },
+    )
+}
+
+fn decision_stamps(decision: UtcMicros) -> Timestamps {
+    Timestamps {
+        event_ts: EventTs::from_micros(decision),
+        available_ts: AvailableTs::from_micros(decision),
+        received_ts: ReceivedTs::from_micros(decision),
+    }
+}
+
+fn flatten_order(ledger: &Ledger) -> Result<Option<MarketOrder>, EngineError> {
+    let pos = ledger.position().0;
+    if pos == 0 {
+        return Ok(None);
+    }
+    let side = if pos > 0 { Side::Sell } else { Side::Buy };
+    let lots = pos
+        .checked_abs()
+        .ok_or(EngineError::Sim(SimError::Overflow))?;
+    let qty = Qty::from_ticks(lots).map_err(|_| EngineError::Sim(SimError::Negative))?;
+    Ok(Some(MarketOrder { side, qty }))
+}
+
+/// Inclusive UTC range. `end` is exclusive.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UtcRange {
+    pub start: UtcMicros,
+    pub end: UtcMicros,
+}
+
+/// A mark-price hole. Only a short `known_source_absence` may carry the last mark.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MarkAbsence {
+    pub first_open: UtcMicros,
+    pub last_open: UtcMicros,
+    pub known_source_absence: bool,
+}
+
+/// Inclusive start, exclusive end, on bar open time.
+///
+/// `holdout_start`, `forced_flat`, and `mark_gaps` have no default: the caller
+/// writes them down, including an empty list.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunConfig {
     pub initial_cash: Cash,
     pub start: UtcMicros,
     pub end: UtcMicros,
+    pub holdout_start: UtcMicros,
+    pub forced_flat: Vec<UtcRange>,
+    pub mark_gaps: Vec<MarkAbsence>,
+    pub interval: Interval,
+    pub lot_ticks: i64,
 }
 
 fn validate(tape: &Tape) -> Result<(), EngineError> {
@@ -212,9 +500,14 @@ fn time_window(bars: &[Bar], start: UtcMicros, end: UtcMicros) -> &[Bar] {
     &bars[start_i..end_i]
 }
 
-fn require_coverage(tape: &Tape, window: &[Bar], step: i64) -> Result<(), EngineError> {
+fn require_coverage(
+    tape: &Tape,
+    window: &[Bar],
+    step: i64,
+    cfg: &RunConfig,
+) -> Result<(), EngineError> {
     for bar in window {
-        find_mark(&tape.marks, bar.open_time)?;
+        resolve_mark(&tape.marks, bar.open_time, &cfg.mark_gaps)?;
     }
     let times = expected_funding(window, step)?;
     let have: Vec<i64> = tape
@@ -226,7 +519,7 @@ fn require_coverage(tape: &Tape, window: &[Bar], step: i64) -> Result<(), Engine
         if have.binary_search(&ts).is_err() {
             return Err(EngineError::MissingFunding(UtcMicros::from_micros(ts)));
         }
-        find_mark(&tape.marks, UtcMicros::from_micros(ts))?;
+        resolve_mark(&tape.marks, UtcMicros::from_micros(ts), &cfg.mark_gaps)?;
     }
     Ok(())
 }
@@ -274,30 +567,83 @@ fn next_grid(prev: i64, step: i64) -> Result<i64, EngineError> {
         .ok_or(EngineError::Sim(SimError::Overflow))
 }
 
-fn find_mark(marks: &[Bar], open: UtcMicros) -> Result<&Bar, EngineError> {
-    marks
-        .binary_search_by(|bar| bar.open_time.cmp(&open))
-        .map(|index| &marks[index])
-        .map_err(|_| EngineError::MissingMark(open))
+fn resolve_mark<'a>(
+    marks: &'a [Bar],
+    open: UtcMicros,
+    gaps: &[MarkAbsence],
+) -> Result<&'a Bar, EngineError> {
+    if let Ok(index) = marks.binary_search_by(|bar| bar.open_time.cmp(&open)) {
+        return Ok(&marks[index]);
+    }
+    let Some(gap) = gaps
+        .iter()
+        .find(|gap| gap.first_open <= open && open <= gap.last_open)
+    else {
+        return Err(EngineError::MissingMark(open));
+    };
+    let minutes = gap_minutes(gap)?;
+    if !gap.known_source_absence || minutes > 5 {
+        return Err(EngineError::MissingMark(open));
+    }
+    let carry = marks.partition_point(|bar| bar.open_time < gap.first_open);
+    if carry == 0 {
+        return Err(EngineError::MissingMark(open));
+    }
+    Ok(&marks[carry - 1])
+}
+
+fn gap_minutes(gap: &MarkAbsence) -> Result<i64, EngineError> {
+    let span = gap
+        .last_open
+        .micros()
+        .checked_sub(gap.first_open.micros())
+        .ok_or(EngineError::Sim(SimError::Overflow))?;
+    if span < 0 || span % ONE_MINUTE_US != 0 {
+        return Err(EngineError::MissingMark(gap.first_open));
+    }
+    Ok(span / ONE_MINUTE_US + 1)
+}
+
+fn refuse_holdout(tape: &Tape, cfg: &RunConfig) -> Result<(), EngineError> {
+    for bar in tape.bars.iter().chain(tape.marks.iter()) {
+        if bar.open_time >= cfg.holdout_start {
+            return Err(EngineError::HoldoutBar(bar.open_time));
+        }
+    }
+    Ok(())
+}
+
+fn sample_end_open() -> UtcMicros {
+    let holdout = UtcDate::parse("2025-10-01")
+        .expect("2025-10-01 is a valid date")
+        .start_us();
+    UtcMicros::from_micros(holdout.micros() - ONE_MINUTE_US)
+}
+
+struct FundingPass<'a> {
+    tape: &'a Tape,
+    gaps: &'a [MarkAbsence],
+    index: usize,
 }
 
 fn settle_funding(
-    tape: &Tape,
+    pass: &FundingPass<'_>,
     ledger: &mut Ledger,
     book: &mut Book,
     events: &mut Vec<FundingEvent>,
     window: &[Bar],
-    index: usize,
-    mut funding_i: usize,
+    bar_index: usize,
 ) -> Result<usize, EngineError> {
-    let prev = bar_prev(window, index)?;
-    let open = window[index].open_time.micros();
+    let prev = bar_prev(window, bar_index)?;
+    let open = window[bar_index].open_time.micros();
+    let tape = pass.tape;
+    let mut funding_i = pass.index;
     while funding_i < tape.funding.len() && tape.funding[funding_i].funding_time.micros() <= prev {
         funding_i += 1;
     }
     while funding_i < tape.funding.len() && tape.funding[funding_i].funding_time.micros() <= open {
         let stamp = &tape.funding[funding_i];
-        let mark = find_mark(&tape.marks, stamp.funding_time)?;
+        let mark = resolve_mark(&tape.marks, stamp.funding_time, pass.gaps)?;
         let event = ledger
             .apply_funding(stamp.rate, mark.open, stamp.funding_time)
             .map_err(EngineError::Sim)?;
@@ -437,10 +783,15 @@ struct Accum {
     funding: Vec<FundingEvent>,
     ruined: Option<UtcMicros>,
     dropped_orders: u64,
+    warmup_bars: u64,
+    flat_funding_stale: u64,
+    flat_funding_slot_missing: u64,
+    signal_outputs: Vec<SignalOutput>,
 }
 
 fn finish(
     cfg: &RunConfig,
+    tape: &Tape,
     costs: &Costs,
     bars: usize,
     accum: Accum,
@@ -453,6 +804,10 @@ fn finish(
         funding,
         ruined,
         dropped_orders,
+        warmup_bars,
+        flat_funding_stale,
+        flat_funding_slot_missing,
+        signal_outputs,
     } = accum;
     let trades = book.into_trades()?;
     let daily = daily_equity(&equity_curve);
@@ -463,14 +818,22 @@ fn finish(
     let mut levels = Vec::with_capacity(daily.len() + 1);
     levels.push(cfg.initial_cash.0);
     levels.extend(daily.iter().map(|(_, cash)| cash.0));
-    let (sharpe_daily, sharpe_annual) = sharpe_f64(&levels).map_err(EngineError::Sim)?;
+    let (sharpe_daily, sharpe_annual) = sharpe_ticks(&levels).map_err(EngineError::Sim)?;
     let points: Vec<Cash> = equity_curve.iter().map(|(_, cash)| *cash).collect();
+    let mut notional = 0i128;
+    for fill in &fills {
+        notional +=
+            fill_notional_ticks(fill.price.ticks(), fill.qty.ticks()).map_err(EngineError::Sim)?;
+    }
+    let daily_ticks: Vec<i64> = daily.iter().map(|(_, cash)| cash.0).collect();
+    let turnover = turnover_ticks(notional, &daily_ticks).map_err(EngineError::Sim)?;
     let metrics = Metrics {
         days: u32::try_from(daily.len()).map_err(|_| EngineError::Sim(SimError::Overflow))?,
         total_return: total_return(cfg.initial_cash, end).map_err(EngineError::Sim)?,
         max_drawdown: max_drawdown(&points).map_err(EngineError::Sim)?,
         sharpe_daily,
         sharpe_annual,
+        turnover,
         fees_paid: ledger.fees_paid(),
         funding_net: ledger.funding_net(),
         fills: u32::try_from(fills.len()).map_err(|_| EngineError::Sim(SimError::Overflow))?,
@@ -487,6 +850,13 @@ fn finish(
         bars: u64::try_from(bars).map_err(|_| EngineError::Sim(SimError::Overflow))?,
         ruined,
         dropped_orders,
+        warmup_bars,
+        flat_funding_stale,
+        flat_funding_slot_missing,
+        signal_outputs,
+        overlays: tape.overlays.clone(),
+        mark_gaps: cfg.mark_gaps.clone(),
+        forced_flat: cfg.forced_flat.clone(),
     })
 }
 

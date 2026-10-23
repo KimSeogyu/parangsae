@@ -10,8 +10,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use parangsae_backtest::fixture::BuyAndHold;
-use parangsae_backtest::{run, RunConfig, Tape, UtcDate};
-use parangsae_core::{Qty, Symbol};
+use parangsae_backtest::{run, RunConfig, Tape, TapeConfig, UtcDate};
+use parangsae_core::{Interval, Qty, Ratio, Symbol};
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
 
 const SCALE: i64 = 100_000_000;
@@ -31,7 +31,21 @@ fn run_smoke() -> Result<(), String> {
     let symbol = Symbol::new("BTCUSDT").expect("BTCUSDT is a valid symbol");
     let from = UtcDate::parse(&args.from).ok_or_else(|| format!("bad --from {}", args.from))?;
     let to = UtcDate::parse(&args.to).ok_or_else(|| format!("bad --to {}", args.to))?;
-    let tape = Tape::load(&args.root, &symbol, from, to).map_err(|err| err.to_string())?;
+    let holdout = UtcDate::parse("2025-10-01")
+        .expect("holdout date")
+        .start_us();
+    let tape = Tape::load(
+        &args.root,
+        &symbol,
+        from,
+        to,
+        &TapeConfig {
+            holdout_start: holdout,
+            overlays: Vec::new(),
+            funding_root: args.root.clone(),
+        },
+    )
+    .map_err(|err| err.to_string())?;
     let costs = Costs {
         taker_fee: FeeBps(5),
         slippage: SlippageBps(args.slippage_bps),
@@ -40,6 +54,11 @@ fn run_smoke() -> Result<(), String> {
         initial_cash: Cash(1_000_000 * SCALE),
         start: from.start_us(),
         end: to.next().start_us(),
+        holdout_start: holdout,
+        forced_flat: Vec::new(),
+        mark_gaps: Vec::new(),
+        interval: Interval::ONE_HOUR,
+        lot_ticks: 100_000,
     };
     println!("slippage_bps={}", costs.slippage.0);
     println!("taker_fee_bps={}", costs.taker_fee.0);
@@ -56,8 +75,14 @@ fn run_smoke() -> Result<(), String> {
     println!("funding_net_ticks={}", report.metrics.funding_net.0);
     println!("funding_events={}", report.funding.len());
     println!("equity_end_ticks={end}");
-    println!("sharpe_daily={}", fmt_opt(report.metrics.sharpe_daily));
-    println!("sharpe_annual={}", fmt_opt(report.metrics.sharpe_annual));
+    println!(
+        "sharpe_daily_ticks={}",
+        fmt_ratio(report.metrics.sharpe_daily)
+    );
+    println!(
+        "sharpe_annual_ticks={}",
+        fmt_ratio(report.metrics.sharpe_annual)
+    );
     println!("max_drawdown_ticks={}", report.metrics.max_drawdown.ticks());
     println!("dropped_orders={}", report.dropped_orders);
     if let Some(ts) = report.ruined {
@@ -67,10 +92,10 @@ fn run_smoke() -> Result<(), String> {
     Ok(())
 }
 
-fn fmt_opt(value: Option<f64>) -> String {
+fn fmt_ratio(value: Option<Ratio>) -> String {
     match value {
-        Some(sample) if sample.is_finite() => sample.to_string(),
-        Some(_) | None => "none".to_owned(),
+        Some(ratio) => ratio.ticks().to_string(),
+        None => "none".to_owned(),
     }
 }
 

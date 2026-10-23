@@ -24,6 +24,11 @@ pub struct Day {
     pub null_open: bool,
     pub omit_open: bool,
     pub funding_rate: i64,
+    pub funding_available_delta: i64,
+    pub funding_event_delta: i64,
+    pub um_open_us: Option<Vec<i64>>,
+    pub mark_open_us: Option<Vec<i64>>,
+    pub funding_time_us: Option<i64>,
 }
 
 impl Day {
@@ -38,6 +43,11 @@ impl Day {
             null_open: false,
             omit_open: false,
             funding_rate: 7697,
+            funding_available_delta: 0,
+            funding_event_delta: 0,
+            um_open_us: None,
+            mark_open_us: None,
+            funding_time_us: None,
         }
     }
 }
@@ -45,13 +55,23 @@ impl Day {
 pub fn write_day(root: &Path, day: &Day) -> std::io::Result<()> {
     let date = UtcDate::parse(DAY).expect("fixture date");
     let start = date.start_us().micros();
-    write_klines(root, "um-kline", day, start, |index| {
-        (100 + index) * 100_000_000
-    })?;
-    write_klines(root, "mark-price-kline", day, start, |index| {
-        (200 + index) * 100_000_000
-    })?;
-    write_funding(root, day, start)?;
+    write_klines(
+        root,
+        "um-kline",
+        day,
+        start,
+        day.um_open_us.clone(),
+        |index| (100 + index) * 100_000_000,
+    )?;
+    write_klines(
+        root,
+        "mark-price-kline",
+        day,
+        start,
+        day.mark_open_us.clone(),
+        |index| (200 + index) * 100_000_000,
+    )?;
+    write_funding(root, day, day.funding_time_us.unwrap_or(start))?;
     Ok(())
 }
 
@@ -60,6 +80,7 @@ fn write_klines(
     dataset: &str,
     day: &Day,
     start: i64,
+    open_us: Option<Vec<i64>>,
     close_of: impl Fn(i64) -> i64,
 ) -> std::io::Result<()> {
     let n = 3i64;
@@ -79,7 +100,8 @@ fn write_klines(
         vec![day.interval_us; n as usize],
         false,
     );
-    let open_time: Vec<i64> = (0..n).map(|index| start + index * 60_000_000).collect();
+    let open_time =
+        open_us.unwrap_or_else(|| (0..n).map(|index| start + index * 60_000_000).collect());
     let close_time: Vec<i64> = open_time
         .iter()
         .map(|open| open + 60_000_000 - 1_000)
@@ -157,6 +179,59 @@ fn write_klines(
     write_batch(&part(root, dataset), &fields, columns, day.scale)
 }
 
+pub fn write_overlay(path: &Path, open_us: i64, close_ticks: i64) -> std::io::Result<()> {
+    let mut fields = Vec::new();
+    let mut columns: Vec<ArrayRef> = Vec::new();
+    push_utf8(&mut fields, &mut columns, "symbol", vec![SYMBOL], false);
+    push_utf8(
+        &mut fields,
+        &mut columns,
+        "resolution",
+        vec!["daily-archive"],
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "interval_us",
+        vec![60_000_000],
+        false,
+    );
+    let close_time = open_us + 60_000_000 - 1_000;
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "open_time_us",
+        vec![open_us],
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "close_time_us",
+        vec![close_time],
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "available_ts_us",
+        vec![close_time + 1_000],
+        false,
+    );
+    for name in ["open_ticks", "high_ticks", "low_ticks", "close_ticks"] {
+        push_i64(&mut fields, &mut columns, name, vec![close_ticks], false);
+    }
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "volume_ticks",
+        vec![100_000_000],
+        false,
+    );
+    write_batch(path, &fields, columns, "100000000")
+}
+
 fn write_funding(root: &Path, day: &Day, start: i64) -> std::io::Result<()> {
     let mut fields = Vec::new();
     let mut columns: Vec<ArrayRef> = Vec::new();
@@ -186,7 +261,14 @@ fn write_funding(root: &Path, day: &Day, start: i64) -> std::io::Result<()> {
         &mut fields,
         &mut columns,
         "available_ts_us",
-        vec![start],
+        vec![start + day.funding_available_delta],
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "event_ts_us",
+        vec![start + day.funding_event_delta],
         false,
     );
     push_u32(

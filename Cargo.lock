@@ -1410,6 +1410,7 @@ dependencies = [
  "arrow-schema",
  "cucumber",
  "parangsae-core",
+ "parangsae-signals",
  "parangsae-sim",
  "parquet",
  "proptest",

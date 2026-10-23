@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use parangsae_core::Qty;
+use parangsae_core::{Qty, Side};
 
 /// Signed USDT at `10^8` ticks per whole unit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -25,21 +25,6 @@ pub struct SlippageBps(pub u32);
 pub struct Costs {
     pub taker_fee: FeeBps,
     pub slippage: SlippageBps,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Side {
-    Buy,
-    Sell,
-}
-
-impl fmt::Display for Side {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Buy => write!(f, "buy"),
-            Self::Sell => write!(f, "sell"),
-        }
-    }
 }
 
 /// Market order. `qty` must be positive; zero is rejected at the ledger.

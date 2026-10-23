@@ -1,26 +1,33 @@
 //! Cucumber runner for the twelve engine goldens.
 
+#[path = "common/cases.rs"]
+mod cases;
 #[path = "support.rs"]
 mod support;
 
 use std::path::PathBuf;
 
+use cases::{t3, t5, t5_flags, t7};
 use cucumber::{then, when, World as _};
-use parangsae_backtest::{max_drawdown, sharpe_f64, EngineError, Report, FEE_GRID_BPS};
-use parangsae_core::UtcMicros;
-use parangsae_sim::{Cash, Side};
+use parangsae_backtest::fixture::BuyAndHold;
+use parangsae_backtest::{run, EngineError, Report, FEE_GRID_BPS};
+use parangsae_core::{Side, UtcMicros};
+use parangsae_sim::Cash;
 use support::{
-    at, g1, g10_gap, g10_missing_funding, g10_missing_mark, g11, g12, g2, g3, g4_flat,
-    g4_short_pays, g4_short_receives, g5, g6, g7, g8, px, usd, TICK,
+    at, btc, costs, g1, g10_gap, g10_missing_funding, g10_missing_mark, g11, g12, g2, g3, g4_flat,
+    g4_short_pays, g4_short_receives, g5, g6, g7, g8, g9_book, px,
 };
 
 #[derive(Debug, Default, cucumber::World)]
 struct EngineWorld {
     report: Option<Report>,
     error: Option<EngineError>,
-    sharpe: Option<f64>,
+    sharpe_daily: Option<i64>,
+    sharpe_annual: Option<i64>,
     drawdown: Option<i64>,
     grid: Vec<i64>,
+    funding_hidden: bool,
+    funding_visible: bool,
 }
 
 impl EngineWorld {
@@ -92,13 +99,15 @@ fn g8_step(world: &mut EngineWorld) {
         .collect();
 }
 
-#[when("the G9 levels are scored")]
+#[when("the G9 buy-and-hold is run")]
 fn g9_step(world: &mut EngineWorld) {
-    let levels = [100 * TICK, 110 * TICK, 121 * TICK, 121 * TICK];
-    let (daily, _) = sharpe_f64(&levels).unwrap();
-    world.sharpe = daily;
-    let curve = [usd(100), usd(110), usd(99), usd(121)];
-    world.drawdown = Some(max_drawdown(&curve).unwrap().ticks());
+    let (tape, config) = g9_book();
+    let mut strategy = BuyAndHold::new(btc(1));
+    let report = run(&tape, &mut strategy, &costs(0, 0), &config).unwrap();
+    world.sharpe_daily = report.metrics.sharpe_daily.map(|ratio| ratio.ticks());
+    world.sharpe_annual = report.metrics.sharpe_annual.map(|ratio| ratio.ticks());
+    world.drawdown = Some(report.metrics.max_drawdown.ticks());
+    keep(world, report);
 }
 
 #[when("the G10 gapped tape is run")]
@@ -143,6 +152,42 @@ fn g11_step(world: &mut EngineWorld) {
 #[when("the G12 three buys are run")]
 fn g12_step(world: &mut EngineWorld) {
     keep(world, g12());
+}
+
+#[when("the T3 hour target is run")]
+fn t3_step(world: &mut EngineWorld) {
+    keep(world, t3());
+}
+
+#[when("the T5 funding visibility case is run")]
+fn t5_step(world: &mut EngineWorld) {
+    let (hidden, visible) = t5_flags();
+    world.funding_hidden = hidden;
+    world.funding_visible = visible;
+    keep(world, t5().0);
+}
+
+#[when("the T7 two-minute listed gap is run")]
+fn t7_two_step(world: &mut EngineWorld) {
+    match t7(2, 3, true, true) {
+        Ok(report) => keep(world, report),
+        Err(err) => {
+            world.report = None;
+            world.error = Some(err);
+        }
+    }
+}
+
+#[when("the T7 six-minute listed gap is run")]
+fn t7_six_step(world: &mut EngineWorld) {
+    world.report = None;
+    world.error = Some(t7(2, 7, true, true).expect_err("six minute gap"));
+}
+
+#[when("the T7 unlisted gap is run")]
+fn t7_unlisted_step(world: &mut EngineWorld) {
+    world.report = None;
+    world.error = Some(t7(2, 3, false, true).expect_err("unlisted gap"));
 }
 
 #[then(regex = r"^there are (\d+) fills$")]
@@ -210,11 +255,14 @@ fn grid_equities(world: &mut EngineWorld, a: i64, b: i64, c: i64, d: i64) {
     assert_eq!(world.grid, vec![a, b, c, d]);
 }
 
-#[then(regex = r"^the daily sharpe is ([0-9.]+)$")]
-fn daily_sharpe(world: &mut EngineWorld, text: String) {
-    let expected: f64 = text.parse().unwrap();
-    let got = world.sharpe.expect("sharpe");
-    assert!((got - expected).abs() < 1e-9, "{got} vs {expected}");
+#[then(regex = r"^the daily sharpe ticks are (\d+)$")]
+fn daily_sharpe(world: &mut EngineWorld, ticks: i64) {
+    assert_eq!(world.sharpe_daily, Some(ticks));
+}
+
+#[then(regex = r"^the annual sharpe ticks are (\d+)$")]
+fn annual_sharpe(world: &mut EngineWorld, ticks: i64) {
+    assert_eq!(world.sharpe_annual, Some(ticks));
 }
 
 #[then(regex = r"^the max drawdown ticks are (\d+)$")]
@@ -261,6 +309,16 @@ fn equity_frozen(world: &mut EngineWorld) {
 #[then(regex = r"^dropped orders are (\d+)$")]
 fn dropped(world: &mut EngineWorld, n: u64) {
     assert_eq!(world.report().dropped_orders, n);
+}
+
+#[then("the 08:00 funding is hidden at 08:00:30")]
+fn funding_hidden_step(world: &mut EngineWorld) {
+    assert!(world.funding_hidden);
+}
+
+#[then("the 08:00 funding is visible at 08:01:00")]
+fn funding_visible_step(world: &mut EngineWorld) {
+    assert!(world.funding_visible);
 }
 
 #[tokio::main]

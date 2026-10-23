@@ -5,10 +5,13 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-use parangsae_core::{Ratio, UtcMicros};
-use parangsae_sim::{Cash, Costs, Fill, FundingEvent, Side};
+use parangsae_core::{Ratio, Side, UtcMicros};
+use parangsae_sim::{Cash, Costs, Fill, FundingEvent};
 
 use crate::date::UtcDate;
+use crate::engine::{MarkAbsence, UtcRange};
+use crate::signal::{Decision, FlatReason, SignalOutput};
+use crate::tape::AppliedOverlay;
 
 /// A position that left zero. `close_ts` is empty while the trip is still open.
 /// `pnl` is the sum of cash flows in the trip: fills, fees, and funding.
@@ -21,13 +24,14 @@ pub struct RoundTrip {
     pub pnl: Cash,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Metrics {
     pub days: u32,
     pub total_return: Ratio,
     pub max_drawdown: Ratio,
-    pub sharpe_daily: Option<f64>,
-    pub sharpe_annual: Option<f64>,
+    pub sharpe_daily: Option<Ratio>,
+    pub sharpe_annual: Option<Ratio>,
+    pub turnover: Ratio,
     pub fees_paid: Cash,
     pub funding_net: Cash,
     pub fills: u32,
@@ -46,6 +50,13 @@ pub struct Report {
     pub bars: u64,
     pub ruined: Option<UtcMicros>,
     pub dropped_orders: u64,
+    pub warmup_bars: u64,
+    pub flat_funding_stale: u64,
+    pub flat_funding_slot_missing: u64,
+    pub signal_outputs: Vec<SignalOutput>,
+    pub overlays: Vec<AppliedOverlay>,
+    pub mark_gaps: Vec<MarkAbsence>,
+    pub forced_flat: Vec<UtcRange>,
 }
 
 impl Report {
@@ -60,6 +71,10 @@ impl Report {
         fs::write(path.join("fills.csv"), fills_csv(&self.fills))?;
         fs::write(path.join("trades.csv"), trades_csv(&self.trades))?;
         fs::write(path.join("funding.csv"), funding_csv(&self.funding))?;
+        fs::write(
+            path.join("signal_outputs.csv"),
+            signal_csv(&self.signal_outputs),
+        )?;
         fs::write(path.join("metrics.json"), metrics_json(self))?;
         Ok(())
     }
@@ -149,8 +164,9 @@ fn metrics_json(report: &Report) -> String {
             "  \"max_drawdown_ticks\": \"{}\"",
             metrics.max_drawdown.ticks()
         ),
-        json_f64("sharpe_daily", metrics.sharpe_daily),
-        json_f64("sharpe_annual", metrics.sharpe_annual),
+        json_ratio("sharpe_daily_ticks", metrics.sharpe_daily),
+        json_ratio("sharpe_annual_ticks", metrics.sharpe_annual),
+        format!("  \"turnover_ticks\": \"{}\"", metrics.turnover.ticks()),
         format!("  \"fees_paid_ticks\": \"{}\"", metrics.fees_paid.0),
         format!("  \"funding_net_ticks\": \"{}\"", metrics.funding_net.0),
         format!("  \"fills\": \"{}\"", metrics.fills),
@@ -164,13 +180,111 @@ fn metrics_json(report: &Report) -> String {
             None => "  \"ruined_us\": null".to_owned(),
         },
         format!("  \"dropped_orders\": \"{}\"", report.dropped_orders),
+        format!("  \"warmup_bars\": \"{}\"", report.warmup_bars),
+        format!(
+            "  \"flat_funding_stale\": \"{}\"",
+            report.flat_funding_stale
+        ),
+        format!(
+            "  \"flat_funding_slot_missing\": \"{}\"",
+            report.flat_funding_slot_missing
+        ),
+        format!("  \"overlays\": {}", overlays_json(&report.overlays)),
+        format!("  \"mark_gaps\": {}", gaps_json(&report.mark_gaps)),
+        format!("  \"forced_flat\": {}", ranges_json(&report.forced_flat)),
     ];
     format!("{{\n{}\n}}\n", fields.join(",\n"))
 }
 
-fn json_f64(key: &str, value: Option<f64>) -> String {
+fn json_ratio(key: &str, value: Option<Ratio>) -> String {
     match value {
-        Some(sample) if sample.is_finite() => format!("  \"{key}\": {sample}"),
-        Some(_) | None => format!("  \"{key}\": null"),
+        Some(ratio) => format!("  \"{key}\": \"{}\"", ratio.ticks()),
+        None => format!("  \"{key}\": null"),
     }
+}
+
+fn signal_csv(outputs: &[SignalOutput]) -> String {
+    let mut out = String::from(
+        "decision_ts_us,bar_close_time_us,interval_us,decision,flat_reason,target_ticks\n",
+    );
+    for output in outputs {
+        let (decision, reason, target) = match output.decision {
+            Decision::Target(target) => ("target", "", target.ticks().to_string()),
+            Decision::Flat(FlatReason::FundingStale) => ("flat", "funding_stale", "0".to_owned()),
+            Decision::Flat(FlatReason::FundingSlotMissing) => {
+                ("flat", "funding_slot_missing", "0".to_owned())
+            }
+        };
+        out.push_str(&format!(
+            "{},{},{},{},{},{}\n",
+            output.decision_ts.micros().micros(),
+            output.bar_close_time_us.micros(),
+            output.interval.micros(),
+            decision,
+            reason,
+            target
+        ));
+    }
+    out
+}
+
+fn overlays_json(overlays: &[AppliedOverlay]) -> String {
+    if overlays.is_empty() {
+        return "[]".to_owned();
+    }
+    let parts: Vec<String> = overlays
+        .iter()
+        .map(|overlay| {
+            format!(
+                "{{\"dataset\":\"{}\",\"path\":\"{}\",\"sha256\":\"{}\"}}",
+                json_escape(&overlay.dataset),
+                json_escape(&overlay.path),
+                overlay.sha256
+            )
+        })
+        .collect();
+    format!("[{}]", parts.join(","))
+}
+
+fn gaps_json(gaps: &[MarkAbsence]) -> String {
+    if gaps.is_empty() {
+        return "[]".to_owned();
+    }
+    let parts: Vec<String> = gaps
+        .iter()
+        .map(|gap| {
+            format!(
+                "{{\"first_open_us\":\"{}\",\"last_open_us\":\"{}\",\"known_source_absence\":{}}}",
+                gap.first_open.micros(),
+                gap.last_open.micros(),
+                if gap.known_source_absence {
+                    "true"
+                } else {
+                    "false"
+                }
+            )
+        })
+        .collect();
+    format!("[{}]", parts.join(","))
+}
+
+fn ranges_json(ranges: &[UtcRange]) -> String {
+    if ranges.is_empty() {
+        return "[]".to_owned();
+    }
+    let parts: Vec<String> = ranges
+        .iter()
+        .map(|range| {
+            format!(
+                "{{\"start_us\":\"{}\",\"end_us\":\"{}\"}}",
+                range.start.micros(),
+                range.end.micros()
+            )
+        })
+        .collect();
+    format!("[{}]", parts.join(","))
+}
+
+fn json_escape(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('"', "\\\"")
 }
