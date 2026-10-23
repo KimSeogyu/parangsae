@@ -5782,7 +5782,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-collector",
         "lib",
         "unittests src/lib.rs (target/debug/deps/parangsae_collector-",
-        47,
+        43,
     ),
     (
         (
@@ -5792,16 +5792,6 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-collector",
         "bin",
         "unittests src/bin/parangsae-collect.rs",
-        0,
-    ),
-    (
-        (
-            "test",
-            "cargo test (unit, proptest, cucumber, execution lock)",
-        ),
-        "parangsae-collector",
-        "bin",
-        "unittests src/bin/segment-invariants.rs",
         0,
     ),
     (
@@ -5842,7 +5832,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-core",
         "lib",
         "unittests src/lib.rs (target/debug/deps/parangsae_core-",
-        26,
+        17,
     ),
     (
         (
@@ -5851,8 +5841,8 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         ),
         "parangsae-core",
         "test",
-        "tests/feature_reject.rs",
-        1,
+        "tests/causal_gate.rs",
+        2,
     ),
     (
         (
@@ -5883,16 +5873,6 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "test",
         "tests/kline_integrity.rs",
         12,
-    ),
-    (
-        (
-            "test",
-            "cargo test (unit, proptest, cucumber, execution lock)",
-        ),
-        "parangsae-core",
-        "test",
-        "tests/workspace_lints.rs",
-        4,
     ),
     (
         (
@@ -5963,16 +5943,6 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "test",
         "tests/leaky_fail_first.rs",
         5,
-    ),
-    (
-        (
-            "test",
-            "cargo test (unit, proptest, cucumber, execution lock)",
-        ),
-        "parangsae-signals",
-        "test",
-        "tests/producer_gate.rs",
-        1,
     ),
     (
         (
@@ -6061,6 +6031,16 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         ),
         "parangsae-backtest",
         "test",
+        "tests/support.rs",
+        0,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-backtest",
+        "test",
         "tests/parquet_fix.rs",
         0,
     ),
@@ -6112,7 +6092,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "xtask",
         "lib",
         "unittests src/lib.rs (target/debug/deps/xtask-",
-        101,
+        104,
     ),
     (
         (
@@ -6203,13 +6183,6 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "doctest",
         "Doc-tests xtask",
         0,
-    ),
-    (
-        ("test", "test-support constructors"),
-        "parangsae-core",
-        "lib",
-        "unittests src/lib.rs (target/debug/deps/parangsae_core-",
-        27,
     ),
     (
         ("test", "causal gate compile-fail"),
@@ -8077,7 +8050,7 @@ fn skip_trailer_quote(script: &str, start: usize) -> usize {
 }
 
 fn cucumber_runner_wiring_gaps(ci: &str) -> Vec<String> {
-    let runners = ["kline", "vision", "instrument_rules", "feature_reject"];
+    let runners = ["kline", "vision", "instrument_rules"];
     let mut gaps = Vec::new();
     for runner in runners {
         let needle = format!("cucumber-summary --runner {runner}");
