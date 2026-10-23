@@ -395,11 +395,11 @@ fn batch_writes_one_row_per_config_with_fee_grid_and_flat_bars() {
     let direct = run_fee_grid(
         &tape,
         || Scripted::new(vec![Some(buy(btc(1))), Some(sell(btc(1)))]),
-        &costs(5, 0),
+        &costs(5, 2),
         &base,
     )
     .unwrap();
-    let mut engine = FeeGridRunner::new(&tape, SlippageBps(0), || {
+    let mut engine = FeeGridRunner::new(&tape, SlippageBps(2), || {
         Scripted::new(vec![Some(buy(btc(1))), Some(sell(btc(1)))])
     })
     .with_flat_bars(FlatBars {

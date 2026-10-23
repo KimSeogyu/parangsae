@@ -54,8 +54,9 @@ pub struct TrialMetrics {
 
 /// One config in a batch, plus the trial identity written before compute.
 ///
-/// `params` is the grid point. Keys are ASCII and ordered by byte. Values are
-/// integers. `config_id` must be [`canonical_config_id`] of this spec.
+/// `params` is the grid point. Keys are ASCII and ordered by byte. Values are integers.
+/// Non-integer values such as `c = 0.5` are stored as integer ticks at `1e8` scale, and the interval is minutes.
+/// `config_id` must be [`canonical_config_id`] of this spec.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrialSpec {
     pub run_id: String,
@@ -346,10 +347,10 @@ fn sum_notional(report: &Report) -> Result<i128, SimError> {
 /// Annualised Sharpe in `1e8` ticks.
 ///
 /// Daily returns are consecutive level changes at scale `1e18`, then rescaled
-/// to `1e8`. The sample standard deviation uses `n - 1`. The annual factor is
-/// one integer square root of `(n - 1) * 365 * 1e16` (the `1e8` scale sits
-/// inside that root). Fewer than two returns, or a zero sum of squares, is
-/// `None`. The final division is half-even.
+/// to `1e8`. The sample standard deviation uses `n - 1`. Ticks are
+/// `sign(sum) * isqrt(floor(sum^2 * (n - 1) * 365 * 1e16 / sum_sq))`, toward
+/// zero. The `1e16` factor is applied as two `1e8` steps. Fewer than two
+/// returns, or a zero sum of squares, is `None`.
 pub fn annual_sharpe_ticks(levels_ticks: &[i64]) -> Result<Option<i64>, SimError> {
     let returns = level_returns(levels_ticks)?;
     if returns.len() < 2 {
@@ -379,27 +380,39 @@ pub fn annual_sharpe_ticks(levels_ticks: &[i64]) -> Result<Option<i64>, SimError
         return Ok(None);
     }
     let periods = (n - 1).checked_mul(365).ok_or(SimError::Overflow)?;
-    if periods < 0 {
+    if periods <= 0 {
         return Err(SimError::Overflow);
     }
-    let scaled_annual = u128::try_from(periods)
-        .map_err(|_| SimError::Overflow)?
-        .checked_mul(10_000_000_000_000_000)
-        .ok_or(SimError::Overflow)?;
-    let num_root = isqrt(scaled_annual).ok_or(SimError::Overflow)?;
-    let den_root = isqrt(u128::try_from(squares).map_err(|_| SimError::Overflow)?)
-        .ok_or(SimError::Overflow)?;
-    if den_root == 0 {
-        return Ok(None);
-    }
-    let num = sum
-        .checked_mul(i128::try_from(num_root).map_err(|_| SimError::Overflow)?)
-        .ok_or(SimError::Overflow)?;
-    let ticks = div_half_even(
-        num,
-        i128::try_from(den_root).map_err(|_| SimError::Overflow)?,
-    )?;
+    let inside = sharpe_ratio_floor(sum, periods, squares)?;
+    let root = isqrt(inside).ok_or(SimError::Overflow)?;
+    let magnitude = i128::try_from(root).map_err(|_| SimError::Overflow)?;
+    let ticks = if sum < 0 { -magnitude } else { magnitude };
     Ok(Some(i64::try_from(ticks).map_err(|_| SimError::Overflow)?))
+}
+
+/// `floor(sum^2 * periods * 1e16 / squares)` with the scale applied in two `1e8` steps.
+fn sharpe_ratio_floor(sum: i128, periods: i128, squares: i128) -> Result<u128, SimError> {
+    let scale = 100_000_000u128;
+    let sum2 = sum
+        .unsigned_abs()
+        .checked_mul(sum.unsigned_abs())
+        .ok_or(SimError::Overflow)?;
+    let periods = u128::try_from(periods).map_err(|_| SimError::Overflow)?;
+    let squares = u128::try_from(squares).map_err(|_| SimError::Overflow)?;
+    let base = sum2.checked_mul(periods).ok_or(SimError::Overflow)?;
+    let (quot, rem) = (base / squares, base % squares);
+    let rem_scaled = rem.checked_mul(scale).ok_or(SimError::Overflow)?;
+    let once = quot
+        .checked_mul(scale)
+        .ok_or(SimError::Overflow)?
+        .checked_add(rem_scaled / squares)
+        .ok_or(SimError::Overflow)?;
+    let rem = rem_scaled % squares;
+    let rem_scaled = rem.checked_mul(scale).ok_or(SimError::Overflow)?;
+    once.checked_mul(scale)
+        .ok_or(SimError::Overflow)?
+        .checked_add(rem_scaled / squares)
+        .ok_or(SimError::Overflow)
 }
 
 /// `sum |fill notional| * 365 / sum(daily equity)`, in `1e8` ticks.
@@ -775,7 +788,17 @@ mod tests {
     #[test]
     fn sharpe_of_100_200_300_is_the_integer_golden() {
         let ticks = annual_sharpe_ticks(&[100, 200, 300]).unwrap();
-        assert_eq!(ticks, Some(4_052_776_832));
+        assert_eq!(ticks, Some(4_052_776_825));
+    }
+
+    #[test]
+    fn sharpe_at_n_1350_with_large_returns_does_not_overflow() {
+        let mut levels = Vec::with_capacity(1351);
+        for i in 0..=1350 {
+            levels.push(if i % 2 == 0 { 1_000_000 } else { 2_000_000 });
+        }
+        let ticks = annual_sharpe_ticks(&levels).unwrap();
+        assert!(ticks.is_some());
     }
 
     #[test]
