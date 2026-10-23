@@ -16,7 +16,15 @@
     ],
     [
       "parangsae-backtest",
+      "parangsae-signals"
+    ],
+    [
+      "parangsae-backtest",
       "parangsae-sim"
+    ],
+    [
+      "parangsae-backtest",
+      "parangsae-strategies"
     ],
     [
       "parangsae-collector",
@@ -29,6 +37,14 @@
     [
       "parangsae-sim",
       "parangsae-core"
+    ],
+    [
+      "parangsae-strategies",
+      "parangsae-core"
+    ],
+    [
+      "parangsae-strategies",
+      "parangsae-signals"
     ]
   ],
   "allowed_effects": [
@@ -43,6 +59,10 @@
     [
       "parangsae-backtest",
       "net"
+    ],
+    [
+      "parangsae-backtest",
+      "process"
     ],
     [
       "parangsae-collector",
@@ -119,7 +139,8 @@
   ],
   "float_allowed": [
     "parangsae-backtest",
-    "parangsae-signals"
+    "parangsae-signals",
+    "parangsae-strategies"
   ],
   "modules": [
     "parangsae-backtest",
@@ -129,6 +150,7 @@
     "parangsae-regime",
     "parangsae-signals",
     "parangsae-sim",
+    "parangsae-strategies",
     "xtask"
   ],
   "owners": [
@@ -206,6 +228,10 @@
       "Risk/Portfolio"
     ],
     [
+      "crates/strategies/**",
+      "Signal Builder"
+    ],
+    [
       "docs/**",
       "Quant Researcher"
     ],
@@ -262,5 +288,5 @@
       "Ops/Release"
     ]
   ],
-  "spec_sha256": "05d415e173c930bbfcfb8961cb5cc39dbe1389e81f0d9e02705de5fa9c40ab88"
+  "spec_sha256": "e1b01dc6a27cbcdb44da9e1b4f830f1f01fdcac6afee6cc477e51c91c32b4867"
 }

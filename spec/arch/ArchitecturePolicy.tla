@@ -11,7 +11,12 @@
 \*
 \* Encoded so the current tree passes, and recorded here because they are not
 \* the intent:
-\* parangsae-backtest is in FloatAllowed because sharpe_f64 and Report store f64.
+\* parangsae-strategies is in FloatAllowed because the first-batch families
+\* compute with f64. parangsae-backtest stays in FloatAllowed: v1a removed
+\* sharpe_f64 from the library, and tests and examples still spell f64, so
+\* dropping it does not leave enforce clean.
+\* parangsae-backtest is allowed process because examples/readpath_parity.rs
+\* spawns a command. It does not submit an order.
 \* parangsae-core, parangsae-signals, and parangsae-backtest are allowed net
 \* because their tokio dev-dependency keeps Cargo default features, and tokio
 \* defaults include net. parangsae-execution is allowed net and does not use it.
@@ -29,6 +34,7 @@ Modules == {
   "parangsae-regime",
   "parangsae-signals",
   "parangsae-sim",
+  "parangsae-strategies",
   "xtask"
 }
 
@@ -46,14 +52,18 @@ Effects == {"env", "fs_write", "net", "process"}
 
 Capabilities == {"holdout_read", "network_order_submit"}
 
-FloatAllowed == {"parangsae-backtest", "parangsae-signals"}
+FloatAllowed == {"parangsae-backtest", "parangsae-signals", "parangsae-strategies"}
 
 AllowedDependencies == {
   <<"parangsae-backtest", "parangsae-core">>,
+  <<"parangsae-backtest", "parangsae-signals">>,
   <<"parangsae-backtest", "parangsae-sim">>,
+  <<"parangsae-backtest", "parangsae-strategies">>,
   <<"parangsae-collector", "parangsae-core">>,
   <<"parangsae-signals", "parangsae-core">>,
-  <<"parangsae-sim", "parangsae-core">>
+  <<"parangsae-sim", "parangsae-core">>,
+  <<"parangsae-strategies", "parangsae-core">>,
+  <<"parangsae-strategies", "parangsae-signals">>
 }
 
 AllowedStateWriters == {
@@ -72,6 +82,7 @@ AllowedEffects == {
   <<"parangsae-backtest", "env">>,
   <<"parangsae-backtest", "fs_write">>,
   <<"parangsae-backtest", "net">>,
+  <<"parangsae-backtest", "process">>,
   <<"parangsae-collector", "fs_write">>,
   <<"parangsae-collector", "net">>,
   <<"parangsae-collector", "process">>,
@@ -101,6 +112,7 @@ PathOwners == {
   <<"crates/execution/**", "Execution Builder">>,
   <<"crates/regime/**", "Signal Builder">>,
   <<"crates/signals/**", "Signal Builder">>,
+  <<"crates/strategies/**", "Signal Builder">>,
   <<"crates/sim/**", "Risk/Portfolio">>,
   <<"docs/**", "Quant Researcher">>,
   <<"fixtures/backtest/**", "Backtest Builder">>,
