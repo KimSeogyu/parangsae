@@ -100,6 +100,10 @@ Feature: Backtest engine v0
     When an interior minute is unavailable until the next hour
     Then the engine error is resample availability
 
+  Scenario: Delayed funding stays outside the causal prefix
+    When an earlier funding slot is delayed beyond a later available slot
+    Then the delayed funding mutation leaves the signal's funding prefix empty
+
   Scenario Outline: A satisfied target cancels the pending entry after a filler hour
     When a <kind> target follows an untraded hour
     Then there are 0 fills
