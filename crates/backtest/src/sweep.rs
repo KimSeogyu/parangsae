@@ -1346,6 +1346,143 @@ mod tests {
         assert!(warm.funding.iter().all(|event| event.ts.micros() >= scored));
     }
 
+    /// S02 n=2 through [`FamilySignal`] and [`run_targets`].
+    ///
+    /// Hour 2 breaks the channel and would enter. Hour 3 is inside it, so the
+    /// fresh decision is flat. A leaked hold would still be long. Cold has no
+    /// channel, so it emits nothing.
+    #[test]
+    fn s02_warmup_changes_the_first_scored_output_and_does_not_open() {
+        let start = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
+        let hour = 3_600_000_000i64;
+        let hours = 5i64;
+        let scored = start + 3 * hour;
+        let end = start + hours * hour;
+        let bars = hour_bars(
+            start,
+            hours,
+            |hour_index| {
+                if hour_index < 2 {
+                    40_000
+                } else {
+                    48_000
+                }
+            },
+        );
+        let tape = tape_with_funding(bars);
+        let mut params = BTreeMap::new();
+        params.insert("n".to_owned(), 2);
+        params.insert("hold_h".to_owned(), 12);
+        assert_warmup_differs_and_stays_flat(&tape, "S02", &params, start, scored, end);
+    }
+
+    /// S03 θ=0.20, n=24 through [`FamilySignal`] and [`run_targets`].
+    ///
+    /// Hour 193 breaks a quiet channel and would enter. Hour 194 is back inside
+    /// it, so the fresh decision is flat. A leaked hold would still be long.
+    /// Cold has no vol rank, so it emits nothing.
+    #[test]
+    fn s03_warmup_changes_the_first_scored_output_and_does_not_open() {
+        let start = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
+        let hour = 3_600_000_000i64;
+        let hours = 195i64;
+        let scored = start + 194 * hour;
+        let end = start + hours * hour;
+        let bars = hour_bars(start, hours, |hour_index| {
+            if hour_index < 168 {
+                if hour_index % 2 == 0 {
+                    100
+                } else {
+                    200
+                }
+            } else if hour_index == 193 {
+                200
+            } else {
+                150
+            }
+        });
+        let tape = tape_with_funding(bars);
+        let mut params = BTreeMap::new();
+        params.insert("theta".to_owned(), 20_000_000);
+        params.insert("n".to_owned(), 24);
+        params.insert("hold_h".to_owned(), 12);
+        assert_warmup_differs_and_stays_flat(&tape, "S03", &params, start, scored, end);
+    }
+
+    /// S05 L=12, k=2.5 through [`FamilySignal`] and [`run_targets`].
+    ///
+    /// Hour 720 is the quiet extension and would fade. Hour 721 gives back one
+    /// step, so the fresh decision is flat. A leaked hold would still be short.
+    /// Cold has no return history, so it emits nothing.
+    #[test]
+    fn s05_warmup_changes_the_first_scored_output_and_does_not_open() {
+        let start = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
+        let hour = 3_600_000_000i64;
+        let hours = 722i64;
+        let scored = start + 721 * hour;
+        let end = start + hours * hour;
+        let bars = hour_bars(start, hours, s05_usdt);
+        let tape = tape_with_funding(bars);
+        let mut params = BTreeMap::new();
+        params.insert("l".to_owned(), 12);
+        params.insert("k".to_owned(), 250_000_000);
+        params.insert("hold_h".to_owned(), 4);
+        assert_warmup_differs_and_stays_flat(&tape, "S05", &params, start, scored, end);
+    }
+
+    fn assert_warmup_differs_and_stays_flat(
+        tape: &Tape,
+        family: &str,
+        params: &BTreeMap<String, i64>,
+        start: i64,
+        scored: i64,
+        end: i64,
+    ) {
+        let full = run_family(tape, family, params, start, start, end);
+        assert!(
+            full.signal_outputs.iter().any(|output| {
+                output.decision.target_ticks() != 0 && output.bar_close_time_us.micros() < scored
+            }),
+            "{family} full window should signal during warmup"
+        );
+        assert!(
+            full.fills.iter().any(|fill| fill.ts.micros() == scored),
+            "{family} warmup signal fills at the scored open when the whole window is scored: {:?}",
+            full.fills
+        );
+
+        let warm = run_family(tape, family, params, start, scored, end);
+        let cold = run_family(tape, family, params, scored, scored, end);
+        assert!(
+            !warm.signal_outputs.is_empty(),
+            "{family} warmup should change the first scored output"
+        );
+        assert!(
+            cold.signal_outputs.is_empty() && cold.fills.is_empty(),
+            "{family} cold scored window has no feature state"
+        );
+        assert_ne!(warm.signal_outputs.len(), cold.signal_outputs.len());
+        assert_eq!(
+            warm.signal_outputs[0].decision.target_ticks(),
+            0,
+            "{family} warmup state must not be the first scored target"
+        );
+        assert!(warm
+            .signal_outputs
+            .iter()
+            .all(|output| output.bar_close_time_us.micros() >= scored));
+        assert!(
+            warm.fills.is_empty(),
+            "{family} nothing opens at the scored start from warmup state: {:?}",
+            warm.fills
+        );
+        assert!(warm
+            .equity_curve
+            .iter()
+            .all(|(ts, _)| ts.micros() >= scored));
+        assert!(warm.funding.iter().all(|event| event.ts.micros() >= scored));
+    }
+
     fn run_family(
         tape: &Tape,
         family: &str,
@@ -1383,6 +1520,24 @@ mod tests {
         (0..minutes)
             .map(|minute| flat_minute(start_us + minute * 60_000_000, usdt_at(minute)))
             .collect()
+    }
+
+    fn s05_usdt(hour: i64) -> i64 {
+        let mut price = 16i64;
+        let last = hour.min(720);
+        for step in 0..last {
+            if step >= 708 {
+                price *= 3;
+            } else if step % 2 == 0 {
+                price *= 4;
+            } else {
+                price /= 4;
+            }
+        }
+        if hour > 720 {
+            price /= 3;
+        }
+        price
     }
 
     fn s06_usdt(minute: i64) -> i64 {

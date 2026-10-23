@@ -90,20 +90,56 @@ pub fn trial_id(config_id: &str, pinned_root: &str, attempt: u64) -> String {
     sha256_hex(trial_preimage(config_id, pinned_root, attempt).as_bytes())
 }
 
-/// N is the number of distinct `trial_id` values on `RunStarted` lines.
+/// N is the number of distinct `trial_id` values on `RunStarted` lines, plus
+/// one for each legacy `exploratory` row that has no `trial_id`.
 ///
-/// A second fold of the same config is the same trial. `RunFinished` lines
-/// have no `trial_id`. A `RunStarted` with no terminal line still counts:
-/// aborted and invalid runs count.
+/// A second fold of the same config is the same trial. `RunFinished` and
+/// `RunAborted` have no `trial_id` and do not count. A `RunStarted` with no
+/// terminal line still counts: aborted and invalid runs count. Two legacy
+/// rows with the same body still count as two trials. The 13 legacy rows in
+/// `research/trials.jsonl` are this shape; this function does not rewrite them.
 pub fn distinct_trial_count(path: &Path) -> Result<u64, TrialError> {
-    let lines = read_lines(path)?;
+    let text = read_text(path)?;
     let mut ids = BTreeSet::new();
-    for line in lines {
-        if let Line::Started { trial_id, .. } = line {
-            ids.insert(trial_id);
+    let mut legacy = 0u64;
+    for (index, line) in text.lines().enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+        let line_no = index + 1;
+        let value: serde_json::Value =
+            serde_json::from_str(line).map_err(|_| TrialError::Corrupt { line: line_no })?;
+        match value.get("kind").and_then(|kind| kind.as_str()) {
+            Some("exploratory") => {
+                if trial_id_present(&value) {
+                    return Err(TrialError::Corrupt { line: line_no });
+                }
+                legacy = legacy
+                    .checked_add(1)
+                    .ok_or_else(|| TrialError::Io("trial count".to_owned()))?;
+            }
+            Some("RunStarted" | "RunFinished" | "RunAborted") => {
+                let parsed: Line = serde_json::from_value(value)
+                    .map_err(|_| TrialError::Corrupt { line: line_no })?;
+                if let Line::Started { trial_id, .. } = parsed {
+                    ids.insert(trial_id);
+                }
+            }
+            _ => return Err(TrialError::Corrupt { line: line_no }),
         }
     }
-    u64::try_from(ids.len()).map_err(|_| TrialError::Io("trial count".to_owned()))
+    let distinct =
+        u64::try_from(ids.len()).map_err(|_| TrialError::Io("trial count".to_owned()))?;
+    distinct
+        .checked_add(legacy)
+        .ok_or_else(|| TrialError::Io("trial count".to_owned()))
+}
+
+fn trial_id_present(value: &serde_json::Value) -> bool {
+    match value.get("trial_id") {
+        None | Some(serde_json::Value::Null) => false,
+        Some(_) => true,
+    }
 }
 
 /// Append `RunFinished`. A second terminal line for `run_id` is refused.
@@ -192,9 +228,9 @@ fn presence(lines: &[Line], run_id: &str) -> (bool, bool) {
     (started, terminal)
 }
 
-fn read_lines(path: &Path) -> Result<Vec<Line>, TrialError> {
+fn read_text(path: &Path) -> Result<String, TrialError> {
     if !path.exists() {
-        return Ok(Vec::new());
+        return Ok(String::new());
     }
     let text = fs::read_to_string(path).map_err(|err| TrialError::Io(err.to_string()))?;
     if !text.is_empty() && !text.ends_with('\n') {
@@ -202,6 +238,11 @@ fn read_lines(path: &Path) -> Result<Vec<Line>, TrialError> {
             line: text.lines().count(),
         });
     }
+    Ok(text)
+}
+
+fn read_lines(path: &Path) -> Result<Vec<Line>, TrialError> {
+    let text = read_text(path)?;
     let mut out = Vec::new();
     for (index, line) in text.lines().enumerate() {
         if line.is_empty() {
@@ -326,5 +367,25 @@ mod tests {
             "9e4e782b27695b02e88df91e7cdd001051a59d41d97ed798c4ddad6da7619116"
         );
         assert_eq!(distinct_trial_count(&path).unwrap(), 37);
+    }
+
+    #[test]
+    fn legacy_exploratory_rows_without_a_trial_id_each_count() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("trials.jsonl");
+        fs::write(
+            &path,
+            concat!(
+                "{\"kind\":\"exploratory\",\"note\":\"realized-vol\",\"row\":2}\n",
+                "{\"kind\":\"exploratory\",\"note\":\"realized-vol\",\"row\":2}\n",
+                "{\"kind\":\"exploratory\",\"question\":\"session vol\"}\n",
+                "{\"kind\":\"RunStarted\",\"run_id\":\"r\",\"trial_id\":\"t\",\"config_id\":\"c\",\"pinned_root\":\"p\",\"attempt\":0,\"family\":\"S01\",\"ts\":0}\n",
+                "{\"kind\":\"RunStarted\",\"run_id\":\"r2\",\"trial_id\":\"t\",\"config_id\":\"c\",\"pinned_root\":\"p\",\"attempt\":0,\"family\":\"S01\",\"ts\":1}\n",
+                "{\"kind\":\"RunFinished\",\"run_id\":\"r\",\"metrics_digest\":\"d\"}\n",
+                "{\"kind\":\"RunAborted\",\"run_id\":\"r2\",\"reason\":\"stopped\"}\n",
+            ),
+        )
+        .unwrap();
+        assert_eq!(distinct_trial_count(&path).unwrap(), 4);
     }
 }

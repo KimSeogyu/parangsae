@@ -4,8 +4,9 @@
 //! is the hash of the config on the family's outer window. Fold and segment
 //! are fields on `RunStarted`. The out directory receives one OOS file per
 //! family and `fold_daily_returns.csv`: one row per config, fold, and day for
-//! each train (`IS_fold_k`) and test (`OOS_fold_k`) segment. There is no
-//! full-window per-config file.
+//! each train (`IS_fold_k`) and test (`OOS_fold_k`) segment. The CSV is written
+//! only after every trial has finished. Any aborted trial returns before that
+//! write, so the file is not created. There is no full-window per-config file.
 //!
 //! S01, S02, S03, and S05 use the 30-day warmup schedule. S06 uses 365 days.
 //! Selection and the headline row are 5 bps fee and 2 bps slippage, with
@@ -142,6 +143,10 @@ pub fn prepare_families(
 ///
 /// The ledger must be missing or empty. A second batch needs a new ledger,
 /// because run ids are the family, fold, segment, and grid index.
+///
+/// `fold_daily_returns.csv` is written only when every trial finishes. An
+/// aborted trial, including a gate refusal or an engine error, returns here
+/// before that write, so the file is absent.
 pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
     let families = prepare_families(&request.inputs, request.attempt)?;
     if request.ledger.exists() {
@@ -274,6 +279,9 @@ const FOLD_DAY_US: i64 = 86_400_000_000;
 /// [`FoldOutcome`]. Fee-grid replays are not rows. Downstream CSCV PBO,
 /// `sr_var_cross_trial`, skew, and kurtosis read this file. Warmup days are
 /// not rows: `daily_returns` starts at the scored open.
+///
+/// Callers write this only after every trial has finished. Any aborted trial
+/// means this file is not written.
 ///
 /// Columns, in order:
 ///
