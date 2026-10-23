@@ -1,0 +1,315 @@
+name: heavy verification
+
+# Advisory verification only: this workflow is independent of ci.yml's gate.
+# Seogyu approved this .github/ addition on 2026-10-24 at 00:04 KST.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Verification suite
+        type: choice
+        default: all
+        options: [all, tlc, kani, proptest, mutants]
+  schedule:
+    - cron: "0 18 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "specs/tla/**"
+      - "crates/**/src/**"
+      - "Cargo.lock"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: heavy-verify-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tlc: ${{ steps.plan.outputs.tlc }}
+      kani: ${{ steps.plan.outputs.kani }}
+      proptest: ${{ steps.plan.outputs.proptest }}
+      mutants: ${{ steps.plan.outputs.mutants }}
+      run_tlc: ${{ steps.plan.outputs.run_tlc }}
+      run_kani: ${{ steps.plan.outputs.run_kani }}
+      run_proptest: ${{ steps.plan.outputs.run_proptest }}
+      run_mutants: ${{ steps.plan.outputs.run_mutants }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Discover specifications and workspace crates
+        id: plan
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          SUITE: ${{ inputs.suite || 'all' }}
+        run: |
+          python3 - <<'PY'
+          import glob
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          import tomllib
+
+          suite = os.environ['SUITE']
+          if suite not in {'all', 'tlc', 'kani', 'proptest', 'mutants'}:
+              raise SystemExit(f'Unknown suite: {suite}')
+          workspace = tomllib.loads(Path('Cargo.toml').read_text())['workspace']
+          excluded = {p for pattern in workspace.get('exclude', []) for p in glob.glob(pattern)}
+          packages = {}
+          kani = []
+          for pattern in workspace['members']:
+              for member in sorted(glob.glob(pattern)):
+                  if member in excluded:
+                      continue
+                  root = Path(member)
+                  package = tomllib.loads((root / 'Cargo.toml').read_text())['package']['name']
+                  packages[package] = root
+                  sources = [p for folder in ('src', 'tests') for p in (root / folder).rglob('*.rs')]
+                  if any('kani::proof' in p.read_text() for p in sources):
+                      kani.append({'package': package})
+
+          # GitHub paths cannot filter source contents. On source-only pushes,
+          # run heavy checks only for Kani code/crates at either end of the diff.
+          relevant = True
+          if os.environ['EVENT_NAME'] == 'push':
+              before = os.environ.get('PUSH_BEFORE', '')
+              valid = len(before) == 40 and all(c in '0123456789abcdef' for c in before)
+              base = subprocess.run(['git', 'cat-file', '-e', f'{before}^{{commit}}'], capture_output=True) if valid else None
+              if base is not None and base.returncode == 0:
+                  changed = subprocess.check_output(
+                      ['git', 'diff', '--name-only', '--no-renames', before, 'HEAD'], text=True).splitlines()
+                  relevant = any(p == 'Cargo.lock' or p.startswith('specs/tla/') for p in changed)
+                  kani_roots = {str(packages[row['package']]) for row in kani}
+                  for path in changed:
+                      parts = Path(path).parts
+                      if len(parts) < 4 or parts[0] != 'crates' or parts[2] != 'src':
+                          continue
+                      root = '/'.join(parts[:2])
+                      old = subprocess.run(['git', 'grep', '-q', '-e', 'kani', before, '--', f'{root}/src'], capture_output=True)
+                      current = Path(path)
+                      relevant |= root in kani_roots or old.returncode == 0 or (current.is_file() and 'kani' in current.read_text())
+              # An unavailable base fails safe: run every selected suite.
+
+          tlc = []
+          for module in sorted(Path('specs/tla').rglob('*.tla')):
+              # Negative fixtures are intentionally false. Dump/Small configs
+              # are obsolete or reduced render inputs, not full verification.
+              if {'mutants', 'findings'} & set(module.parts):
+                  continue
+              configs = [p for p in sorted(module.parent.glob(f'{module.stem}*.cfg'))
+                         if not p.stem.endswith(('Dump', 'Small'))]
+              if not configs:
+                  raise SystemExit(f'No verification config for {module}')
+              for config in configs:
+                  tlc.append({'directory': str(module.parent), 'module': module.name,
+                              'config': config.name, 'id': str(config.with_suffix('')).replace('/', '-')})
+
+          # Test targets only: no examples, batch binaries, or backtest sweeps.
+          proptest = [{'package': name} for name, root in sorted(packages.items()) if root.parts[0] == 'crates']
+          mutants = [{'package': name, 'shard': shard} for name in
+                     ('parangsae-core', 'parangsae-backtest', 'parangsae-execution', 'parangsae-risk')
+                     if name in packages for shard in range(4)]
+          plans = {'tlc': tlc, 'kani': kani, 'proptest': proptest, 'mutants': mutants}
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for name, rows in plans.items():
+                  enabled = relevant and suite in ('all', name) and bool(rows)
+                  print(f'run_{name}={str(enabled).lower()}', file=output)
+                  # Keep a valid matrix even when an optional suite is absent.
+                  print(f'{name}={json.dumps({"include": rows or [{"package": "absent"}]}, separators=(",", ":"))}', file=output)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              print(f'Selected suite: {suite}; relevant push: {relevant}', file=summary)
+              for name, rows in plans.items():
+                  print(f'- {name}: {len(rows)} matrix entries', file=summary)
+              if not Path('specs/tla/risk').exists():
+                  print('- Risk TLC configs absent; skipped. RiskGate.cfg and RiskGateSafety.cfg are discovered when present.', file=summary)
+              if 'parangsae-risk' not in packages:
+                  print('- Risk crate absent; skipped.', file=summary)
+              print('- PROPTEST_CASES=100000; tests with explicit case counts retain their declared counts.', file=summary)
+          PY
+
+  tlc:
+    name: heavy TLC / ${{ matrix.id }}
+    needs: discover
+    if: needs.discover.outputs.run_tlc == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.discover.outputs.tlc) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Fetch checksum-pinned TLC 2.19 (TLA+ 1.7.4)
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/tla2tools.jar" \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+          echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  $RUNNER_TEMP/tla2tools.jar" | sha256sum -c -
+      - name: Full BFS with configured invariants and properties
+        working-directory: ${{ matrix.directory }}
+        env:
+          CONFIG: ${{ matrix.config }}
+          MODULE: ${{ matrix.module }}
+        run: |
+          # No simulation, depth limit, or liveness suppression. TLC checks
+          # PROPERTY declarations in the unchanged config, with one worker.
+          set +e
+          timeout --signal=TERM --kill-after=60s 320m \
+            java -XX:+UseParallelGC -Xmx12g -cp "$RUNNER_TEMP/tla2tools.jar" tlc2.TLC \
+            -workers 1 -metadir "$RUNNER_TEMP/tlc-states" \
+            -config "$CONFIG" "$MODULE" > "$RUNNER_TEMP/tlc.log" 2>&1
+          status=$?
+          set -e
+          {
+            echo "module=$MODULE config=$CONFIG commit=$GITHUB_SHA exit_code=$status"
+            echo 'Exit 124/137 means incomplete (timeout); it is not verification evidence.'
+            grep -E '^PROPERTY|^PROPERTIES' "$CONFIG" || true
+            tail -c 65536 "$RUNNER_TEMP/tlc.log"
+          } > "$RUNNER_TEMP/tlc-summary.txt"
+          cat "$RUNNER_TEMP/tlc-summary.txt"
+          cat "$RUNNER_TEMP/tlc-summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - name: Upload bounded TLC summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: heavy-tlc-${{ matrix.id }}
+          path: ${{ runner.temp }}/tlc-summary.txt
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
+
+  kani:
+    name: heavy Kani / ${{ matrix.package }}
+    needs: discover
+    if: needs.discover.outputs.run_kani == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.discover.outputs.kani) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: heavy-kani-${{ matrix.package }}
+      - name: Install the same Kani version as ci.yml
+        run: |
+          cargo install --locked kani-verifier --version 0.68.0
+          cargo kani setup
+      - name: Verify all harnesses without a harness filter
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: timeout --signal=TERM --kill-after=60s 300m cargo kani -p "$PACKAGE"
+
+  proptest:
+    name: heavy proptest / ${{ matrix.package }}
+    needs: discover
+    if: needs.discover.outputs.run_proptest == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.discover.outputs.proptest) }}
+    env:
+      PROPTEST_CASES: "100000"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: heavy-proptest-${{ matrix.package }}
+      - name: Run unit and integration tests with high property counts
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: timeout --signal=TERM --kill-after=60s 300m cargo test --locked -p "$PACKAGE" --lib --tests
+
+  mutants:
+    name: heavy mutants (report only) / ${{ matrix.package }} / ${{ matrix.shard }}
+    needs: discover
+    if: needs.discover.outputs.run_mutants == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix: ${{ fromJSON(needs.discover.outputs.mutants) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: heavy-mutants-${{ matrix.package }}
+          save-if: ${{ matrix.shard == 0 }}
+      - name: Install cargo-mutants
+        run: cargo install --locked cargo-mutants --version 27.1.0
+      - name: Test mutation shard and report findings
+        env:
+          PACKAGE: ${{ matrix.package }}
+          SHARD: ${{ matrix.shard }}
+        run: |
+          # All four shards use the same package and denominator. Keep the
+          # unmutated baseline check; findings are advisory, not a green proof.
+          set +e
+          timeout --signal=TERM --kill-after=60s 300m \
+            cargo mutants --in-place --package "$PACKAGE" --no-shuffle \
+            --shard "$SHARD/4" --timeout 300 \
+            > "$RUNNER_TEMP/mutants.log" 2>&1
+          status=$?
+          set -e
+          {
+            echo "package=$PACKAGE shard=$SHARD/4 commit=$GITHUB_SHA exit_code=$status"
+            echo 'Report only: missed/timed-out mutants are findings; exit 124/137 is incomplete.'
+            tail -c 65536 "$RUNNER_TEMP/mutants.log"
+            for file in mutants.out/missed.txt mutants.out/timeout.txt; do
+              if [ -f "$file" ]; then
+                echo "$file (first 16 KiB):"
+                head -c 16384 "$file"
+              fi
+            done
+          } > "$RUNNER_TEMP/mutants-summary.txt"
+          cat "$RUNNER_TEMP/mutants-summary.txt"
+          cat "$RUNNER_TEMP/mutants-summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          # Preserve every tool exit status; job-level continue-on-error makes
+          # findings advisory while keeping failures visible in the run.
+          exit "$status"
+      - name: Upload bounded mutation summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: heavy-mutants-${{ matrix.package }}-${{ matrix.shard }}
+          path: ${{ runner.temp }}/mutants-summary.txt
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
