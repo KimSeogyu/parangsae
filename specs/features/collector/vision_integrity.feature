@@ -165,3 +165,10 @@ Feature: Vision archive integrity
     Then the partition trial reports zero inserts, one unchanged row, and two conflicts
     And the complete original kline and Parquet bytes remain unchanged
     And both rejected payloads are recorded against the first stored row
+
+  Scenario: loaded baseline and incoming rows must belong to the same symbol group
+    Given a BTCUSDT partition containing a copied ETHUSDT baseline row
+    When a BTCUSDT new key is offered to that partition
+    Then the partition trial fails with fact_authority
+    And the complete original kline and Parquet bytes remain unchanged
+    And no new key or conflict log is created

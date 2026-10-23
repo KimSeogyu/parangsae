@@ -1,0 +1,31 @@
+
+****** SANY2 Version 2.1 created 24 February 2014
+
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-LLl4or/models/FactWriteEnvelope.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-LLl4or/java-temp/Integers.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-LLl4or/java-temp/Naturals.tla
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module FactWriteEnvelope
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module FactWriteEnvelope
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 0 and seed 0 with 1 worker on 11 cores with 455MB heap and 64MB offheap memory [pid: 89951] (Mac OS X 26.6.2 aarch64, Amazon.com Inc. 17.0.9 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-LLl4or/models/FactWriteEnvelope.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-LLl4or/java-temp/Integers.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-LLl4or/java-temp/Naturals.tla
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module FactWriteEnvelope
+Starting... (2026-10-24 07:23:44)
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-10-24 07:23:44.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 2.8E-17
+53 states generated, 13 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 3.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 4 and the 95th percentile is 4).
+Finished in 00s at (2026-10-24 07:23:44)

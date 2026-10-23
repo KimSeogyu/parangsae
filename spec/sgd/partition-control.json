@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "profile": "finite-owned",
+  "name": "PartitionMergeControl",
+  "spec": "PartitionMergeControl.tla",
+  "config": "PartitionMergeControl.cfg",
+  "targets": [
+    "typescript",
+    "rust"
+  ],
+  "binding": {
+    "className": "PartitionMergeMachine"
+  }
+}

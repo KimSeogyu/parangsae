@@ -1,0 +1,659 @@
+{
+  "kind": "symbolic-witness",
+  "name": "FactWriteEnvelope",
+  "variables": [
+    "phase",
+    "rejected",
+    "rejectedProvenance",
+    "stored",
+    "storedProvenance"
+  ],
+  "nodes": [
+    {
+      "id": "s0",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "absent"
+        },
+        "rejected": {
+          "kind": "string",
+          "value": "none"
+        },
+        "rejectedProvenance": {
+          "kind": "string",
+          "value": "none"
+        },
+        "stored": {
+          "kind": "string",
+          "value": "none"
+        },
+        "storedProvenance": {
+          "kind": "string",
+          "value": "none"
+        }
+      }
+    },
+    {
+      "id": "s1",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "rejectedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "rejectedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "rejectedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "rejectedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        }
+      }
+    },
+    {
+      "id": "s5",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "rejectedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        }
+      }
+    },
+    {
+      "id": "s6",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "rejectedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        }
+      }
+    },
+    {
+      "id": "s7",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "rejectedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        }
+      }
+    },
+    {
+      "id": "s8",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "conflict"
+        },
+        "rejected": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "rejectedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        }
+      }
+    },
+    {
+      "id": "s9",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "present"
+        },
+        "rejected": {
+          "kind": "string",
+          "value": "none"
+        },
+        "rejectedProvenance": {
+          "kind": "string",
+          "value": "none"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        }
+      }
+    },
+    {
+      "id": "s10",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "present"
+        },
+        "rejected": {
+          "kind": "string",
+          "value": "none"
+        },
+        "rejectedProvenance": {
+          "kind": "string",
+          "value": "none"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v1"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        }
+      }
+    },
+    {
+      "id": "s11",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "present"
+        },
+        "rejected": {
+          "kind": "string",
+          "value": "none"
+        },
+        "rejectedProvenance": {
+          "kind": "string",
+          "value": "none"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p1"
+        }
+      }
+    },
+    {
+      "id": "s12",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "present"
+        },
+        "rejected": {
+          "kind": "string",
+          "value": "none"
+        },
+        "rejectedProvenance": {
+          "kind": "string",
+          "value": "none"
+        },
+        "stored": {
+          "kind": "data",
+          "domain": "Values",
+          "value": "v2"
+        },
+        "storedProvenance": {
+          "kind": "data",
+          "domain": "Receipts",
+          "value": "p2"
+        }
+      }
+    }
+  ],
+  "initial": [
+    "s0"
+  ],
+  "edges": [
+    {
+      "from": "s0",
+      "event": "Insert",
+      "to": "s10"
+    },
+    {
+      "from": "s0",
+      "event": "Insert",
+      "to": "s11"
+    },
+    {
+      "from": "s0",
+      "event": "Insert",
+      "to": "s12"
+    },
+    {
+      "from": "s0",
+      "event": "Insert",
+      "to": "s9"
+    },
+    {
+      "from": "s1",
+      "event": "Clash",
+      "to": "s1"
+    },
+    {
+      "from": "s1",
+      "event": "Clash",
+      "to": "s3"
+    },
+    {
+      "from": "s1",
+      "event": "Same",
+      "to": "s1"
+    },
+    {
+      "from": "s1",
+      "event": "Same",
+      "to": "s1"
+    },
+    {
+      "from": "s10",
+      "event": "Clash",
+      "to": "s6"
+    },
+    {
+      "from": "s10",
+      "event": "Clash",
+      "to": "s8"
+    },
+    {
+      "from": "s10",
+      "event": "Same",
+      "to": "s10"
+    },
+    {
+      "from": "s10",
+      "event": "Same",
+      "to": "s10"
+    },
+    {
+      "from": "s11",
+      "event": "Clash",
+      "to": "s1"
+    },
+    {
+      "from": "s11",
+      "event": "Clash",
+      "to": "s3"
+    },
+    {
+      "from": "s11",
+      "event": "Same",
+      "to": "s11"
+    },
+    {
+      "from": "s11",
+      "event": "Same",
+      "to": "s11"
+    },
+    {
+      "from": "s12",
+      "event": "Clash",
+      "to": "s2"
+    },
+    {
+      "from": "s12",
+      "event": "Clash",
+      "to": "s4"
+    },
+    {
+      "from": "s12",
+      "event": "Same",
+      "to": "s12"
+    },
+    {
+      "from": "s12",
+      "event": "Same",
+      "to": "s12"
+    },
+    {
+      "from": "s2",
+      "event": "Clash",
+      "to": "s2"
+    },
+    {
+      "from": "s2",
+      "event": "Clash",
+      "to": "s4"
+    },
+    {
+      "from": "s2",
+      "event": "Same",
+      "to": "s2"
+    },
+    {
+      "from": "s2",
+      "event": "Same",
+      "to": "s2"
+    },
+    {
+      "from": "s3",
+      "event": "Clash",
+      "to": "s1"
+    },
+    {
+      "from": "s3",
+      "event": "Clash",
+      "to": "s3"
+    },
+    {
+      "from": "s3",
+      "event": "Same",
+      "to": "s3"
+    },
+    {
+      "from": "s3",
+      "event": "Same",
+      "to": "s3"
+    },
+    {
+      "from": "s4",
+      "event": "Clash",
+      "to": "s2"
+    },
+    {
+      "from": "s4",
+      "event": "Clash",
+      "to": "s4"
+    },
+    {
+      "from": "s4",
+      "event": "Same",
+      "to": "s4"
+    },
+    {
+      "from": "s4",
+      "event": "Same",
+      "to": "s4"
+    },
+    {
+      "from": "s5",
+      "event": "Clash",
+      "to": "s5"
+    },
+    {
+      "from": "s5",
+      "event": "Clash",
+      "to": "s7"
+    },
+    {
+      "from": "s5",
+      "event": "Same",
+      "to": "s5"
+    },
+    {
+      "from": "s5",
+      "event": "Same",
+      "to": "s5"
+    },
+    {
+      "from": "s6",
+      "event": "Clash",
+      "to": "s6"
+    },
+    {
+      "from": "s6",
+      "event": "Clash",
+      "to": "s8"
+    },
+    {
+      "from": "s6",
+      "event": "Same",
+      "to": "s6"
+    },
+    {
+      "from": "s6",
+      "event": "Same",
+      "to": "s6"
+    },
+    {
+      "from": "s7",
+      "event": "Clash",
+      "to": "s5"
+    },
+    {
+      "from": "s7",
+      "event": "Clash",
+      "to": "s7"
+    },
+    {
+      "from": "s7",
+      "event": "Same",
+      "to": "s7"
+    },
+    {
+      "from": "s7",
+      "event": "Same",
+      "to": "s7"
+    },
+    {
+      "from": "s8",
+      "event": "Clash",
+      "to": "s6"
+    },
+    {
+      "from": "s8",
+      "event": "Clash",
+      "to": "s8"
+    },
+    {
+      "from": "s8",
+      "event": "Same",
+      "to": "s8"
+    },
+    {
+      "from": "s8",
+      "event": "Same",
+      "to": "s8"
+    },
+    {
+      "from": "s9",
+      "event": "Clash",
+      "to": "s5"
+    },
+    {
+      "from": "s9",
+      "event": "Clash",
+      "to": "s7"
+    },
+    {
+      "from": "s9",
+      "event": "Same",
+      "to": "s9"
+    },
+    {
+      "from": "s9",
+      "event": "Same",
+      "to": "s9"
+    }
+  ],
+  "source": {
+    "dotSha256": "9ff354362fa824c1224de46204c35c88aa0282a4be1e42da58fd5a57fe8aa88a",
+    "stateCount": 13,
+    "edgeCount": 52
+  },
+  "version": 2,
+  "domains": {
+    "Receipts": [
+      "p1",
+      "p2"
+    ],
+    "Values": [
+      "v1",
+      "v2"
+    ]
+  }
+}

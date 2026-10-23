@@ -349,3 +349,48 @@ fn identical_rejected_rows_still_emit_two_conflict_observations_when_state_stutt
     assert_eq!(persisted[0].open_ticks, 10);
     assert_eq!(persisted[0].received_ts, at(1));
 }
+
+#[test]
+fn a_loaded_baseline_and_incoming_rows_must_have_the_same_symbol() {
+    let temp = tempfile::tempdir().unwrap();
+    let mut original = kline(0, 10, 1);
+    original.symbol = Symbol::new("ETHUSDT").unwrap();
+    store::upsert_klines(temp.path(), "um-kline", vec![original.clone()]).unwrap();
+    let source = store::fact_path(temp.path(), "um-kline", "ETHUSDT", day());
+    let target = store::fact_path(temp.path(), "um-kline", "BTCUSDT", day());
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::copy(source, &target).unwrap();
+    let before = std::fs::read(&target).unwrap();
+
+    // This checks the loaded rows against the incoming group, not the file's identity.
+    let incoming = kline(1, 20, 2);
+    let error = store::upsert_klines(temp.path(), "um-kline", vec![incoming.clone()]).unwrap_err();
+    assert_eq!(error.check_name(), Some("fact_authority"));
+    assert_eq!(std::fs::read(&target).unwrap(), before);
+    let loaded = store::load_klines(temp.path(), "um-kline", "BTCUSDT", day()).unwrap();
+    assert_eq!(loaded, vec![original]);
+    assert!(loaded.iter().all(|row| row.open_time != incoming.open_time));
+    assert!(!temp.path().join("conflicts").exists());
+}
+
+#[test]
+fn a_loaded_baseline_and_incoming_rows_must_have_the_same_utc_day() {
+    let temp = tempfile::tempdir().unwrap();
+    let original = kline(1_440, 10, 1);
+    store::upsert_klines(temp.path(), "um-kline", vec![original.clone()]).unwrap();
+    let source = store::fact_path(temp.path(), "um-kline", "BTCUSDT", day().next());
+    let target = store::fact_path(temp.path(), "um-kline", "BTCUSDT", day());
+    std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+    std::fs::copy(source, &target).unwrap();
+    let before = std::fs::read(&target).unwrap();
+
+    // Both row sets must agree on a day before the fold can proceed.
+    let incoming = kline(1, 20, 2);
+    let error = store::upsert_klines(temp.path(), "um-kline", vec![incoming.clone()]).unwrap_err();
+    assert_eq!(error.check_name(), Some("fact_authority"));
+    assert_eq!(std::fs::read(&target).unwrap(), before);
+    let loaded = store::load_klines(temp.path(), "um-kline", "BTCUSDT", day()).unwrap();
+    assert_eq!(loaded, vec![original]);
+    assert!(loaded.iter().all(|row| row.open_time != incoming.open_time));
+    assert!(!temp.path().join("conflicts").exists());
+}

@@ -61,7 +61,7 @@ There is no readiness verdict. Research code does not read live fills, balances,
 | Fixed-point, no silent wrap | `notional` returns `Overflow`; release overflow checks; Kani `widening_mul_fits_in_i128`, `notional_matches_below_one_million`, `notional_overflow_does_not_wrap`; `.cursor/rules/rust-types.mdc` |
 | Kline grid and declared unit | `specs/features/kline_integrity.feature`, cucumber-rs |
 | Gap rejects rows until resync; duplicate id is a no-op | `specs/tla/IngestSegment.tla`, TLC, one worker |
-| Vision fact write keeps the complete first row | `specs/tla/ManifestWrite.tla`, `specs/tla/FactWriteEnvelope.tla`, generated `FactOwner`, collector integrity tests |
+| Vision fact write keeps complete rows and refuses a conflicting partition trial | `specs/tla/ManifestWrite.tla`, `specs/tla/FactWriteEnvelope.tla`, `spec/sgd/PartitionMergeControl.tla`, generated closed data fold, collector integrity tests |
 | Format and lints | `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` |
 | no f64 in money path | `deny(clippy::float_arithmetic)` in sim, backtest, and `crates/backtest/src/bin/batch.rs` |
 | Holdout-crossing entries are counted | `Hold::arm` increments the drop count; `ResultRow.n_dropped_entries` |
@@ -91,4 +91,4 @@ npm --prefix spec/sgd run verify -- --jar specs/tla/tla2tools.jar
 
 TLC and Kani are the `tla` and `kani` jobs in `.github/workflows/ci.yml`. Architecture policy is the `spec-arch` job. `spec validate` uses the same `tla2tools.jar` as the `tla` job.
 
-The collector pilot uses the SDK commit pinned in `spec/sgd/package-lock.json`. Read `spec/sgd/README.md` before regeneration. Keep the generated per-key row contract separate from the handwritten partition fold, storage permissions, and persistence guarantees.
+The collector pilot uses the SDK commit pinned in `spec/sgd/package-lock.json`. Read `spec/sgd/README.md` before regeneration. The generated closed fold combines complete-row roles, finite control, and literal key/group metadata. Its reports are unbound data; physical storage permissions, persistence, and all-target source coverage require separate contracts.

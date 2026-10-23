@@ -905,6 +905,63 @@ fn generated_owned_conflicts(world: &mut VisionWorld) {
         .contains("open=44"));
 }
 
+#[given("a BTCUSDT partition containing a copied ETHUSDT baseline row")]
+fn mismatched_baseline_symbol(world: &mut VisionWorld) {
+    let directory = tempfile::tempdir().expect("temporary partition");
+    let day = CivilDay::new(2026, 9, 1).unwrap();
+    let mut original = bar(1_788_220_800_000_000, 1_788_220_859_999_000, 42);
+    original.symbol = Symbol::new("ETHUSDT").unwrap();
+    store::upsert_klines(directory.path(), "um-kline", vec![original.clone()]).expect("baseline");
+    let source = store::fact_path(directory.path(), "um-kline", "ETHUSDT", day);
+    let target = store::fact_path(directory.path(), "um-kline", "BTCUSDT", day);
+    std::fs::create_dir_all(target.parent().expect("partition directory")).expect("directory");
+    std::fs::copy(source, &target).expect("copy baseline");
+    world.merge_original_bytes = std::fs::read(target).expect("baseline bytes");
+    world.merge_original = Some(original);
+    world.merge_dir = Some(directory);
+}
+
+#[when("a BTCUSDT new key is offered to that partition")]
+fn new_key_against_mismatched_baseline(world: &mut VisionWorld) {
+    let directory = world.merge_dir.as_ref().expect("directory");
+    let result = store::upsert_klines(
+        directory.path(),
+        "um-kline",
+        vec![bar(1_788_220_860_000_000, 1_788_220_919_999_000, 50)],
+    );
+    match result {
+        Ok(counts) => {
+            world.merge_counts = Some(counts);
+            world.check = None;
+        }
+        Err(error) => {
+            world.merge_counts = None;
+            world.check = error.check_name().map(str::to_owned);
+        }
+    }
+}
+
+#[then("the partition trial fails with fact_authority")]
+fn mismatched_baseline_failure(world: &mut VisionWorld) {
+    assert!(world.merge_counts.is_none(), "{:?}", world.merge_counts);
+    assert_eq!(world.check.as_deref(), Some("fact_authority"));
+}
+
+#[then("no new key or conflict log is created")]
+fn mismatched_baseline_has_no_effects(world: &mut VisionWorld) {
+    let directory = world.merge_dir.as_ref().expect("directory");
+    let rows = store::load_klines(
+        directory.path(),
+        "um-kline",
+        "BTCUSDT",
+        CivilDay::new(2026, 9, 1).unwrap(),
+    )
+    .expect("original rows");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].open_time.micros(), 1_788_220_800_000_000);
+    assert!(!directory.path().join("conflicts").exists());
+}
+
 fn bar(open: i64, close: i64, price: i64) -> KlineFact {
     let open_time = UtcMicros::from_micros(open);
     let close_time = UtcMicros::from_micros(close);

@@ -12,6 +12,6 @@
     "types": []
   },
   "include": [
-    "machine.ts", "primitive.ts"
+    "machine.ts", "primitive.ts", "primitive-control.ts"
   ]
 }

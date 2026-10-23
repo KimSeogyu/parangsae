@@ -92,7 +92,7 @@ async function main() {
   const abstract = join(generated, 'manifest-write');
   const check = command === 'verify' ? ['--check'] : [];
   for (const [label, project, out] of [
-    ['Check source-bound FactWriteEnvelope', 'fact-write.json', concrete],
+    ['Check source-bound closed Fact partition', 'partition.json', concrete],
     ['Check original ManifestWrite', 'manifest-write.json', abstract],
   ]) {
     await step(label, process.execPath, [cli, 'build', '--project', join(directory, project), '--jar', jar, '--out', out, ...check]);
@@ -106,17 +106,18 @@ async function main() {
   if (typescript.version !== '7.0.2') throw new Error(`The SDK must supply TypeScript 7.0.2; resolved ${typescript.version}`);
   if (typeof typescript.bin?.tsc !== 'string') throw new Error('The installed TypeScript package has no tsc entry point');
   const tsc = resolve(dirname(typescriptPackage), typescript.bin.tsc);
-  for (const [label, out] of [['whole-row', concrete], ['abstract', abstract]]) {
+  for (const [label, out] of [['closed-partition', concrete], ['abstract', abstract]]) {
     await step(`Check generated ${label} TypeScript 7.0.2 without emission`, process.execPath,
       [tsc, '--noEmit', '--project', join(out, 'typescript/tsconfig.json')]);
   }
   const view = join(root, '.runtime/sgd-view');
   await step('Render fresh Pele witness and symbolic views', process.execPath, [cli, 'visualize',
     '--ir', join(abstract, 'automaton.json'), '--ir', join(abstract, 'symbolic-model.json'),
-    '--ir', join(concrete, 'automaton.json'), '--ir', join(concrete, 'symbolic-model.json'), '--out', view]);
-  process.stdout.write(`${command === 'verify' ? 'Verified existing' : 'Updated'} source/model bindings, original payload contract, erasure, and TypeScript output.\n`);
+    '--ir', join(concrete, 'models/row/automaton.json'), '--ir', join(concrete, 'symbolic-model.json'),
+    '--ir', join(concrete, 'automaton.json'), '--out', view]);
+  process.stdout.write(`${command === 'verify' ? 'Verified existing' : 'Updated'} closed partition source/model bindings, original payload contract, erasure, and TypeScript output.\n`);
   process.stdout.write(`Fresh Pele view: ${join(view, 'index.html')}\n`);
-  process.stdout.write('Scope: per-live-owner whole-row authority. Partition effects, persistence, all-target coverage, and required-CI activation are separate.\n');
+  process.stdout.write('Scope: closed unbound data fold with complete row roles and private finite control. Loaded-resource/writer authority, persistence, all-target coverage, and required-CI activation are separate.\n');
 }
 
 main().catch(error => {

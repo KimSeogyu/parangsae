@@ -1,5 +1,6 @@
-//! Partitioned Parquet. Fact rows use `merge_rows`: a conflict does not rewrite
-//! the partition. Gap files are derived and may be replaced.
+//! Partitioned Parquet consumes generated unbound partition reports. A refused
+//! trial does not rewrite the partition. Paths, reads, writes, and conflict logs
+//! remain ordinary application effects. Gap files are derived and may be replaced.
 
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
@@ -16,7 +17,7 @@ use parquet::file::properties::WriterProperties;
 use serde::Serialize;
 
 use crate::civil::{day_of, CivilDay};
-use crate::manifest::{merge_rows, BoundFact, MergeOutcome};
+use crate::manifest::{fold_partition, PartitionFact, UnboundPartitionReport};
 use crate::vision::{BookFact, FundingFact, Gap, GapKind, KlineFact, MetricsFact, TickDomain};
 use crate::Error;
 
@@ -28,10 +29,24 @@ pub struct WriteCounts {
 }
 
 impl WriteCounts {
-    fn add(&mut self, other: WriteCounts) {
-        self.inserted += other.inserted;
-        self.unchanged += other.unchanged;
-        self.conflicts += other.conflicts;
+    fn add(&mut self, other: WriteCounts) -> Result<(), Error> {
+        let exhausted = || Error::check("write_counts", "cross-partition write counts exceed u64");
+        let next = Self {
+            inserted: self
+                .inserted
+                .checked_add(other.inserted)
+                .ok_or_else(exhausted)?,
+            unchanged: self
+                .unchanged
+                .checked_add(other.unchanged)
+                .ok_or_else(exhausted)?,
+            conflicts: self
+                .conflicts
+                .checked_add(other.conflicts)
+                .ok_or_else(exhausted)?,
+        };
+        *self = next;
+        Ok(())
     }
 }
 
@@ -44,8 +59,6 @@ pub fn upsert_klines(
         data_dir,
         dataset,
         rows,
-        |row| day_of(row.open_time),
-        |row| row.open_time.micros(),
         read_klines_at,
         write_klines,
         kline_key,
@@ -62,8 +75,6 @@ pub fn upsert_funding(
         data_dir,
         dataset,
         rows,
-        |row| day_of(row.funding_time),
-        |row| row.funding_time.micros(),
         read_funding_at,
         write_funding,
         funding_key,
@@ -80,8 +91,6 @@ pub fn upsert_metrics(
         data_dir,
         dataset,
         rows,
-        |row| day_of(row.create_time),
-        |row| row.create_time.micros(),
         read_metrics_at,
         write_metrics,
         metrics_key,
@@ -98,8 +107,6 @@ pub fn upsert_book(
         data_dir,
         dataset,
         rows,
-        |row| day_of(row.timestamp),
-        |row| (row.timestamp.micros(), row.percentage.ticks()),
         read_book_at,
         write_book,
         book_key,
@@ -107,23 +114,17 @@ pub fn upsert_book(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-fn upsert_by_day<T, K, DayOf, KeyOf, Read, Write, KeyText, Payload>(
+fn upsert_by_day<T, Read, Write, KeyText, Payload>(
     data_dir: &Path,
     dataset: &str,
     rows: Vec<T>,
-    day_of_row: DayOf,
-    key_of: KeyOf,
     read: Read,
     write: Write,
     key_text: KeyText,
     payload: Payload,
 ) -> Result<WriteCounts, Error>
 where
-    T: BoundFact + SymbolField,
-    K: Ord + Clone,
-    DayOf: Fn(&T) -> Result<CivilDay, Error>,
-    KeyOf: Fn(&T) -> K,
+    T: PartitionFact,
     Read: Fn(&Path) -> Result<Vec<T>, Error>,
     Write: Fn(&Path, &[T]) -> Result<(), Error>,
     KeyText: Fn(&T) -> String,
@@ -133,13 +134,13 @@ where
         std::collections::BTreeMap::new();
     let mut symbol = String::new();
     for row in rows {
-        let text = row.symbol_text();
+        let text = row.partition_symbol();
         if symbol.is_empty() {
             symbol = text.to_owned();
         } else if symbol != text {
             return Err(Error::check("symbol", "a partition mixes symbols"));
         }
-        let day = day_of_row(&row)?;
+        let day = day_of(UtcMicros::from_micros(row.partition_time()))?;
         grouped.entry(day).or_default().push(row);
     }
     let mut total = WriteCounts::default();
@@ -150,44 +151,52 @@ where
         } else {
             Vec::new()
         };
-        let merged = merge_rows(existing, incoming, &key_of)
+        let closed = fold_partition(existing, incoming)
             .map_err(|error| Error::check("fact_authority", error.to_string()))?;
-        total.add(commit_merge(
-            data_dir, dataset, &symbol, &path, merged, &write, &key_text, &payload,
-        )?);
+        let report = closed
+            .into_report()
+            .map_err(|error| Error::check("fact_authority", error.to_string()))?;
+        let observations = report.counts();
+        let conflicts = match &report {
+            UnboundPartitionReport::Refused { conflicts, .. } => u64::try_from(conflicts.len())
+                .map_err(|_| {
+                    Error::check("write_counts", "partition conflict count exceeds u64")
+                })?,
+            _ => 0,
+        };
+        let counts = WriteCounts {
+            inserted: observations.inserted(),
+            unchanged: observations.unchanged(),
+            conflicts,
+        };
+        let mut next_total = total;
+        next_total.add(counts)?;
+        // Count conversion and cross-day addition finish before any writer/log
+        // effect. This ordinary consumer still does not bind the path or IO.
+        match report {
+            UnboundPartitionReport::Write { rows, .. } => write(&path, &rows)?,
+            UnboundPartitionReport::Noop { rows, .. } => drop(rows),
+            UnboundPartitionReport::Refused {
+                original,
+                conflicts,
+                ..
+            } => {
+                drop(original);
+                for conflict in conflicts {
+                    append_conflict(
+                        data_dir,
+                        dataset,
+                        &symbol,
+                        &key_text(conflict.stored()),
+                        &payload(conflict.stored()),
+                        &payload(conflict.rejected()),
+                    )?;
+                }
+            }
+        }
+        total = next_total;
     }
     Ok(total)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn commit_merge<T, Write, KeyText, Payload>(
-    data_dir: &Path,
-    dataset: &str,
-    symbol: &str,
-    path: &Path,
-    merged: MergeOutcome<T>,
-    write: Write,
-    key_text: KeyText,
-    payload: Payload,
-) -> Result<WriteCounts, Error>
-where
-    Write: Fn(&Path, &[T]) -> Result<(), Error>,
-    KeyText: Fn(&T) -> String,
-    Payload: Fn(&T) -> String,
-{
-    merged.commit(
-        |rows| write(path, rows),
-        |stored, rejected| {
-            append_conflict(
-                data_dir,
-                dataset,
-                symbol,
-                &key_text(stored),
-                &payload(stored),
-                &payload(rejected),
-            )
-        },
-    )
 }
 
 pub fn load_klines(
@@ -964,27 +973,39 @@ fn collect_bool(batches: &[RecordBatch], name: &str) -> Result<Vec<bool>, Error>
     Ok(out)
 }
 
-trait SymbolField {
-    fn symbol_text(&self) -> &str;
-}
+#[cfg(test)]
+mod count_tests {
+    use super::*;
 
-impl SymbolField for KlineFact {
-    fn symbol_text(&self) -> &str {
-        self.symbol.as_str()
-    }
-}
-impl SymbolField for FundingFact {
-    fn symbol_text(&self) -> &str {
-        self.symbol.as_str()
-    }
-}
-impl SymbolField for MetricsFact {
-    fn symbol_text(&self) -> &str {
-        self.symbol.as_str()
-    }
-}
-impl SymbolField for BookFact {
-    fn symbol_text(&self) -> &str {
-        self.symbol.as_str()
+    #[test]
+    fn cross_partition_count_overflow_returns_an_error_without_changing_counts() {
+        for baseline in [
+            WriteCounts {
+                inserted: u64::MAX,
+                unchanged: 0,
+                conflicts: 0,
+            },
+            WriteCounts {
+                inserted: 0,
+                unchanged: u64::MAX,
+                conflicts: 0,
+            },
+            WriteCounts {
+                inserted: 0,
+                unchanged: 0,
+                conflicts: u64::MAX,
+            },
+        ] {
+            let mut total = baseline;
+            let error = total
+                .add(WriteCounts {
+                    inserted: 1,
+                    unchanged: 1,
+                    conflicts: 1,
+                })
+                .unwrap_err();
+            assert_eq!(error.check_name(), Some("write_counts"));
+            assert_eq!(total, baseline);
+        }
     }
 }

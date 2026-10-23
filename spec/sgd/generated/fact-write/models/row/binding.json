@@ -1,0 +1,59 @@
+{
+  "profile": "row-owned",
+  "className": "FactEnvelopeMachine",
+  "row": {
+    "version": 1,
+    "profile": "rust-whole-row-v1",
+    "source": {
+      "manifest": "crates/collector/Cargo.toml",
+      "module": "crate::vision::rows",
+      "facts": [
+        {
+          "name": "KlineFact",
+          "rustPath": "crate::vision::KlineFact",
+          "metadata": [
+            "received_ts"
+          ]
+        },
+        {
+          "name": "FundingFact",
+          "rustPath": "crate::vision::FundingFact",
+          "metadata": [
+            "received_ts"
+          ]
+        },
+        {
+          "name": "MetricsFact",
+          "rustPath": "crate::vision::MetricsFact",
+          "metadata": [
+            "received_ts"
+          ]
+        },
+        {
+          "name": "BookFact",
+          "rustPath": "crate::vision::BookFact",
+          "metadata": [
+            "received_ts"
+          ]
+        }
+      ]
+    },
+    "model": {
+      "payloadInput": "v",
+      "provenanceInput": "provenance",
+      "pairs": [
+        {
+          "name": "stored",
+          "payload": "stored",
+          "provenance": "storedProvenance"
+        },
+        {
+          "name": "rejected",
+          "payload": "rejected",
+          "provenance": "rejectedProvenance"
+        }
+      ]
+    }
+  },
+  "rustCrateMode": "workspace"
+}

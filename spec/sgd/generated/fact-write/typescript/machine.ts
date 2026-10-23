@@ -1,9 +1,10 @@
 // Generated portable closed DTO authority from an audited Rust whole-row schema.
 // It does not prove TypeScript application source coverage or persistence.
 import { createFactEnvelopeMachine as createPrimitiveAuthority, type FactEnvelopeMachineValue as PrimitiveValue, type FactEnvelopeMachineExpression as PrimitiveExpression, type FactEnvelopeMachineSnapshot as PrimitiveSnapshot, type FactEnvelopeMachineReceipt as PrimitiveReceipt, type FactEnvelopeMachineRejection as PrimitiveRejection } from './primitive.js';
+import { createFactEnvelopeMachineControl as createPrivateControl, type FactEnvelopeMachineControl as PrivateControl, type FactEnvelopeMachineControlEvent as ControlEvent, type FactEnvelopeMachineControlNodeId as ControlNode } from './primitive-control.js';
 const rowBrand: unique symbol = Symbol('sgd-row');
 const utf8 = new TextEncoder();
-export type WriteEffect = "Clash" | "Insert" | "Same";
+type WriteEffect = "Clash" | "Insert" | "Same";
 function isSourceAction(value: string): value is WriteEffect { return value === "Clash" || value === "Insert" || value === "Same"; }
 interface Identity { readonly payload: string; readonly provenance: string }
 function unicode(value: string): boolean {
@@ -44,6 +45,67 @@ function lift<T extends Identity>(receipt: PrimitiveReceipt, payload: string, pr
   if (a?.kind === 'state' && b?.kind === 'state' && a.variable === "rejected" && b.variable === "rejectedProvenance") return { ok: true, row: oldRejected };
   return { ok: false };
 }
+
+const closedBrand: unique symbol = Symbol('sgd-closed-partition');
+const maxCount = 18446744073709551615n;
+export interface PartitionCounts { readonly inserted: bigint; readonly unchanged: bigint }
+export interface PartitionGroup { readonly symbol: string; readonly dayIndex: bigint }
+export type PartitionFailureReason = 'invalid-batch' | 'invalid-row' | 'invalid-calendar' | 'wrong-group' | 'broken-binding' | 'row-rejected' | 'controller-rejected' | 'count-overflow' | 'invalid-closed' | 'already-consumed';
+export type PartitionResult<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly reason: PartitionFailureReason };
+function failed(reason: PartitionFailureReason): { readonly ok: false; readonly reason: PartitionFailureReason } { return Object.freeze({ ok: false, reason }); }
+function succeeded<T>(value: T): { readonly ok: true; readonly value: T } { return Object.freeze({ ok: true, value }); }
+class PartitionBoundaryError extends Error {
+  constructor(readonly reason: 'invalid-batch' | 'invalid-row') { super(reason); }
+}
+function snapshotBatch(input: unknown): { readonly baseline: unknown; readonly incoming: unknown } {
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) throw new PartitionBoundaryError('invalid-batch');
+  const keys = Reflect.ownKeys(input);
+  if (keys.length !== 2 || !keys.includes('baseline') || !keys.includes('incoming')) throw new PartitionBoundaryError('invalid-batch');
+  const baseline = Object.getOwnPropertyDescriptor(input, 'baseline');
+  const incoming = Object.getOwnPropertyDescriptor(input, 'incoming');
+  if (baseline === undefined || incoming === undefined || !('value' in baseline) || !('value' in incoming)) throw new PartitionBoundaryError('invalid-batch');
+  return { baseline: baseline.value, incoming: incoming.value };
+}
+function snapshotArray<T>(input: unknown, authenticate: (value: unknown) => T | undefined): readonly T[] {
+  if (!Array.isArray(input)) throw new PartitionBoundaryError('invalid-batch');
+  const descriptor = Object.getOwnPropertyDescriptor(input, 'length');
+  const length: unknown = descriptor?.value;
+  if (typeof length !== 'number' || !Number.isInteger(length) || length < 0 || length > 4294967295) throw new PartitionBoundaryError('invalid-batch');
+  const keys = Reflect.ownKeys(input);
+  if (keys.length !== length + 1 || keys.some(key => key !== 'length' && (typeof key !== 'string' || !/^(0|[1-9][0-9]*)$/.test(key) || Number(key) >= length))) throw new PartitionBoundaryError('invalid-batch');
+  const copy: T[] = [];
+  for (let index = 0; index < length; index += 1) {
+    const item = Object.getOwnPropertyDescriptor(input, index.toString());
+    if (item === undefined || !('value' in item)) throw new PartitionBoundaryError('invalid-batch');
+    const row = authenticate(item.value);
+    if (row === undefined) throw new PartitionBoundaryError('invalid-row');
+    copy.push(row);
+  }
+  return Object.freeze(copy);
+}
+function keyIdentity(key: readonly bigint[]): string { return key.map(value => part(integer64(value))).join(''); }
+function compareKeys(left: readonly bigint[], right: readonly bigint[]): number {
+  for (let index = 0; index < left.length; index += 1) {
+    const a = left[index]; const b = right[index];
+    if (a === undefined || b === undefined) throw new Error('Corrupt generated partition key');
+    if (a < b) return -1;
+    if (a > b) return 1;
+  }
+  return 0;
+}
+const closeSteps = new Map<ControlNode, { readonly event: ControlEvent; readonly next: ControlNode; readonly kind: 'Write' | 'Noop' | 'Refused' }>([
+  ["s1", { event: "CloseNoop", next: "s2", kind: "Noop" }],
+  ["s4", { event: "CloseWrite", next: "s5", kind: "Write" }],
+  ["s7", { event: "CloseRefused", next: "s8", kind: "Refused" }],
+  ["s10", { event: "CloseRefused", next: "s11", kind: "Refused" }],
+]);
+const consumeSteps = new Map<ControlNode, { readonly event: ControlEvent; readonly next: ControlNode }>([
+  ["s11", { event: "ConsumeRefused", next: "s9" }],
+  ["s2", { event: "ConsumeNoop", next: "s0" }],
+  ["s5", { event: "ConsumeWrite", next: "s3" }],
+  ["s8", { event: "ConsumeRefused", next: "s6" }],
+]);
+
 export interface KlineFactRow {
   readonly [rowBrand]: "KlineFact";
   readonly "symbol": string;
@@ -136,20 +198,20 @@ export function createKlineFactRow(input: unknown): KlineFactRow {
   rows0.set(row, identifyKlineFact(row));
   return row;
 }
-export interface KlineFactObservation {
+interface KlineFactObservation {
   readonly stored: KlineFactRow | null;
   readonly rejected: KlineFactRow | null;
   readonly state: PrimitiveSnapshot;
 }
-export type KlineFactWriteResult =
+type KlineFactWriteResult =
   | { readonly ok: true; readonly effect: WriteEffect; readonly receipt: PrimitiveReceipt }
   | { readonly ok: false; readonly reason: 'invalid-row' | 'broken-binding' | PrimitiveRejection['reason']; readonly state: PrimitiveSnapshot };
-export interface KlineFactOwner {
+interface KlineFactOwner {
   readonly read: () => KlineFactObservation;
   readonly write: (row: KlineFactRow) => KlineFactWriteResult;
 }
 /** The authenticated token binds payload and provenance from the same complete immutable DTO. */
-export function createKlineFactOwner(): KlineFactOwner {
+function createKlineFactOwner(): KlineFactOwner {
   const authority = createPrimitiveAuthority();
   let stored: KlineFactIdentity | null = null;
   let rejected: KlineFactIdentity | null = null;
@@ -178,6 +240,113 @@ export function createKlineFactOwner(): KlineFactOwner {
   });
   return Object.freeze({ read, write });
 }
+
+export type KlineFactPartitionReport =
+  | { readonly kind: 'Write' | 'Noop'; readonly rows: readonly KlineFactRow[]; readonly counts: PartitionCounts; readonly group: PartitionGroup | null }
+  | { readonly kind: 'Refused'; readonly original: readonly KlineFactRow[]; readonly conflicts: readonly KlineFactConflict[]; readonly counts: PartitionCounts; readonly group: PartitionGroup | null };
+export interface KlineFactConflict { readonly stored: KlineFactRow; readonly rejected: KlineFactRow }
+export interface KlineFactClosedPartition {
+  readonly [closedBrand]: "KlineFact";
+  readonly counts: PartitionCounts;
+  readonly group: PartitionGroup | null;
+  readonly intoReport: (this: KlineFactClosedPartition) => PartitionResult<KlineFactPartitionReport>;
+}
+interface KlineFactClosedState {
+  readonly controller: PrivateControl;
+  readonly report: KlineFactPartitionReport;
+  consumed: boolean;
+}
+const closed0 = new WeakMap<object, KlineFactClosedState>();
+function keyKlineFact(row: KlineFactRow): readonly bigint[] { return [row["open_time"]]; }
+function authenticateKlineFact(value: unknown): KlineFactRow | undefined {
+  return typeof value === 'object' && value !== null ? rows0.get(value)?.row : undefined;
+}
+/** Complete authenticated rows enter one private trial; this function grants no filesystem authority. */
+export function foldKlineFact(input: { readonly baseline: readonly KlineFactRow[]; readonly incoming: readonly KlineFactRow[] }): PartitionResult<KlineFactClosedPartition> {
+  let baseline: readonly KlineFactRow[];
+  let incoming: readonly KlineFactRow[];
+  try {
+    const batch = snapshotBatch(input);
+    baseline = snapshotArray(batch.baseline, authenticateKlineFact);
+    incoming = snapshotArray(batch.incoming, authenticateKlineFact);
+  } catch (error) { return failed(error instanceof PartitionBoundaryError ? error.reason : 'invalid-batch'); }
+  let group: PartitionGroup | null = null;
+  for (const row of [...baseline, ...incoming]) {
+    const time = row["open_time"];
+    if (time < 0n) return failed('invalid-calendar');
+    const observed = Object.freeze({ symbol: row["symbol"], dayIndex: time / 86_400_000_000n });
+    if (group === null) group = observed;
+    else if (group.symbol !== observed.symbol || group.dayIndex !== observed.dayIndex) return failed('wrong-group');
+  }
+  const controller = createPrivateControl();
+  const owners = new Map<string, { readonly key: readonly bigint[]; readonly owner: KlineFactOwner }>();
+  // Baseline replay is private and uncounted. A later duplicate baseline key replaces its owner.
+  for (const row of baseline) {
+    const owner = createKlineFactOwner();
+    const result = owner.write(row);
+    if (!result.ok || result.effect !== 'Insert') return failed('row-rejected');
+    const key = keyKlineFact(row);
+    owners.set(keyIdentity(key), { key, owner });
+  }
+  let inserted = 0n;
+  let unchanged = 0n;
+  const conflicts: KlineFactConflict[] = [];
+  for (const row of incoming) {
+    const key = keyKlineFact(row);
+    const identity = keyIdentity(key);
+    let entry = owners.get(identity);
+    if (entry === undefined) { entry = { key, owner: createKlineFactOwner() }; owners.set(identity, entry); }
+    const before = entry.owner.read().stored;
+    const result = entry.owner.write(row);
+    if (!result.ok) return failed('row-rejected');
+    const observed = controller.send(result.effect);
+    if (!observed.ok) return failed('controller-rejected');
+    switch (result.effect) {
+      case 'Insert': if (inserted === maxCount) return failed('count-overflow'); inserted += 1n; break;
+      case 'Same': if (unchanged === maxCount) return failed('count-overflow'); unchanged += 1n; break;
+      case 'Clash':
+        if (before === null) return failed('broken-binding');
+        conflicts.push(Object.freeze({ stored: before, rejected: row }));
+        break;
+    }
+  }
+  const step = closeSteps.get(controller.read().nodeId);
+  if (step === undefined) return failed('broken-binding');
+  const closure = controller.send(step.event);
+  if (!closure.ok || closure.after.nodeId !== step.next) return failed('controller-rejected');
+  const counts = Object.freeze({ inserted: step.kind === 'Refused' ? 0n : inserted, unchanged });
+  let report: KlineFactPartitionReport;
+  switch (step.kind) {
+    case 'Write': {
+      const rows: KlineFactRow[] = [];
+      for (const entry of [...owners.values()].sort((left, right) => compareKeys(left.key, right.key))) {
+        const row = entry.owner.read().stored;
+        if (row === null) return failed('broken-binding');
+        rows.push(row);
+      }
+      report = Object.freeze({ kind: 'Write', rows: Object.freeze(rows), counts, group });
+      break;
+    }
+    case 'Noop': report = Object.freeze({ kind: 'Noop', rows: baseline, counts, group }); break;
+    case 'Refused': report = Object.freeze({ kind: 'Refused', original: baseline, conflicts: Object.freeze(conflicts), counts, group }); break;
+  }
+  const intoReport = Object.freeze(function(this: unknown): PartitionResult<KlineFactPartitionReport> {
+    if (typeof this !== 'object' || this === null) return failed('invalid-closed');
+    const state = closed0.get(this);
+    if (state === undefined) return failed('invalid-closed');
+    if (state.consumed) return failed('already-consumed');
+    const consume = consumeSteps.get(state.controller.read().nodeId);
+    if (consume === undefined) return failed('broken-binding');
+    const result = state.controller.send(consume.event);
+    if (!result.ok || result.after.nodeId !== consume.next) return failed('controller-rejected');
+    state.consumed = true;
+    return succeeded(state.report);
+  });
+  const closed: KlineFactClosedPartition = Object.freeze<KlineFactClosedPartition>({ [closedBrand]: "KlineFact", counts, group, intoReport });
+  closed0.set(closed, { controller, report, consumed: false });
+  return succeeded(closed);
+}
+
 
 export interface FundingFactRow {
   readonly [rowBrand]: "FundingFact";
@@ -234,20 +403,20 @@ export function createFundingFactRow(input: unknown): FundingFactRow {
   rows1.set(row, identifyFundingFact(row));
   return row;
 }
-export interface FundingFactObservation {
+interface FundingFactObservation {
   readonly stored: FundingFactRow | null;
   readonly rejected: FundingFactRow | null;
   readonly state: PrimitiveSnapshot;
 }
-export type FundingFactWriteResult =
+type FundingFactWriteResult =
   | { readonly ok: true; readonly effect: WriteEffect; readonly receipt: PrimitiveReceipt }
   | { readonly ok: false; readonly reason: 'invalid-row' | 'broken-binding' | PrimitiveRejection['reason']; readonly state: PrimitiveSnapshot };
-export interface FundingFactOwner {
+interface FundingFactOwner {
   readonly read: () => FundingFactObservation;
   readonly write: (row: FundingFactRow) => FundingFactWriteResult;
 }
 /** The authenticated token binds payload and provenance from the same complete immutable DTO. */
-export function createFundingFactOwner(): FundingFactOwner {
+function createFundingFactOwner(): FundingFactOwner {
   const authority = createPrimitiveAuthority();
   let stored: FundingFactIdentity | null = null;
   let rejected: FundingFactIdentity | null = null;
@@ -276,6 +445,113 @@ export function createFundingFactOwner(): FundingFactOwner {
   });
   return Object.freeze({ read, write });
 }
+
+export type FundingFactPartitionReport =
+  | { readonly kind: 'Write' | 'Noop'; readonly rows: readonly FundingFactRow[]; readonly counts: PartitionCounts; readonly group: PartitionGroup | null }
+  | { readonly kind: 'Refused'; readonly original: readonly FundingFactRow[]; readonly conflicts: readonly FundingFactConflict[]; readonly counts: PartitionCounts; readonly group: PartitionGroup | null };
+export interface FundingFactConflict { readonly stored: FundingFactRow; readonly rejected: FundingFactRow }
+export interface FundingFactClosedPartition {
+  readonly [closedBrand]: "FundingFact";
+  readonly counts: PartitionCounts;
+  readonly group: PartitionGroup | null;
+  readonly intoReport: (this: FundingFactClosedPartition) => PartitionResult<FundingFactPartitionReport>;
+}
+interface FundingFactClosedState {
+  readonly controller: PrivateControl;
+  readonly report: FundingFactPartitionReport;
+  consumed: boolean;
+}
+const closed1 = new WeakMap<object, FundingFactClosedState>();
+function keyFundingFact(row: FundingFactRow): readonly bigint[] { return [row["funding_time"]]; }
+function authenticateFundingFact(value: unknown): FundingFactRow | undefined {
+  return typeof value === 'object' && value !== null ? rows1.get(value)?.row : undefined;
+}
+/** Complete authenticated rows enter one private trial; this function grants no filesystem authority. */
+export function foldFundingFact(input: { readonly baseline: readonly FundingFactRow[]; readonly incoming: readonly FundingFactRow[] }): PartitionResult<FundingFactClosedPartition> {
+  let baseline: readonly FundingFactRow[];
+  let incoming: readonly FundingFactRow[];
+  try {
+    const batch = snapshotBatch(input);
+    baseline = snapshotArray(batch.baseline, authenticateFundingFact);
+    incoming = snapshotArray(batch.incoming, authenticateFundingFact);
+  } catch (error) { return failed(error instanceof PartitionBoundaryError ? error.reason : 'invalid-batch'); }
+  let group: PartitionGroup | null = null;
+  for (const row of [...baseline, ...incoming]) {
+    const time = row["funding_time"];
+    if (time < 0n) return failed('invalid-calendar');
+    const observed = Object.freeze({ symbol: row["symbol"], dayIndex: time / 86_400_000_000n });
+    if (group === null) group = observed;
+    else if (group.symbol !== observed.symbol || group.dayIndex !== observed.dayIndex) return failed('wrong-group');
+  }
+  const controller = createPrivateControl();
+  const owners = new Map<string, { readonly key: readonly bigint[]; readonly owner: FundingFactOwner }>();
+  // Baseline replay is private and uncounted. A later duplicate baseline key replaces its owner.
+  for (const row of baseline) {
+    const owner = createFundingFactOwner();
+    const result = owner.write(row);
+    if (!result.ok || result.effect !== 'Insert') return failed('row-rejected');
+    const key = keyFundingFact(row);
+    owners.set(keyIdentity(key), { key, owner });
+  }
+  let inserted = 0n;
+  let unchanged = 0n;
+  const conflicts: FundingFactConflict[] = [];
+  for (const row of incoming) {
+    const key = keyFundingFact(row);
+    const identity = keyIdentity(key);
+    let entry = owners.get(identity);
+    if (entry === undefined) { entry = { key, owner: createFundingFactOwner() }; owners.set(identity, entry); }
+    const before = entry.owner.read().stored;
+    const result = entry.owner.write(row);
+    if (!result.ok) return failed('row-rejected');
+    const observed = controller.send(result.effect);
+    if (!observed.ok) return failed('controller-rejected');
+    switch (result.effect) {
+      case 'Insert': if (inserted === maxCount) return failed('count-overflow'); inserted += 1n; break;
+      case 'Same': if (unchanged === maxCount) return failed('count-overflow'); unchanged += 1n; break;
+      case 'Clash':
+        if (before === null) return failed('broken-binding');
+        conflicts.push(Object.freeze({ stored: before, rejected: row }));
+        break;
+    }
+  }
+  const step = closeSteps.get(controller.read().nodeId);
+  if (step === undefined) return failed('broken-binding');
+  const closure = controller.send(step.event);
+  if (!closure.ok || closure.after.nodeId !== step.next) return failed('controller-rejected');
+  const counts = Object.freeze({ inserted: step.kind === 'Refused' ? 0n : inserted, unchanged });
+  let report: FundingFactPartitionReport;
+  switch (step.kind) {
+    case 'Write': {
+      const rows: FundingFactRow[] = [];
+      for (const entry of [...owners.values()].sort((left, right) => compareKeys(left.key, right.key))) {
+        const row = entry.owner.read().stored;
+        if (row === null) return failed('broken-binding');
+        rows.push(row);
+      }
+      report = Object.freeze({ kind: 'Write', rows: Object.freeze(rows), counts, group });
+      break;
+    }
+    case 'Noop': report = Object.freeze({ kind: 'Noop', rows: baseline, counts, group }); break;
+    case 'Refused': report = Object.freeze({ kind: 'Refused', original: baseline, conflicts: Object.freeze(conflicts), counts, group }); break;
+  }
+  const intoReport = Object.freeze(function(this: unknown): PartitionResult<FundingFactPartitionReport> {
+    if (typeof this !== 'object' || this === null) return failed('invalid-closed');
+    const state = closed1.get(this);
+    if (state === undefined) return failed('invalid-closed');
+    if (state.consumed) return failed('already-consumed');
+    const consume = consumeSteps.get(state.controller.read().nodeId);
+    if (consume === undefined) return failed('broken-binding');
+    const result = state.controller.send(consume.event);
+    if (!result.ok || result.after.nodeId !== consume.next) return failed('controller-rejected');
+    state.consumed = true;
+    return succeeded(state.report);
+  });
+  const closed: FundingFactClosedPartition = Object.freeze<FundingFactClosedPartition>({ [closedBrand]: "FundingFact", counts, group, intoReport });
+  closed1.set(closed, { controller, report, consumed: false });
+  return succeeded(closed);
+}
+
 
 export interface MetricsFactRow {
   readonly [rowBrand]: "MetricsFact";
@@ -348,20 +624,20 @@ export function createMetricsFactRow(input: unknown): MetricsFactRow {
   rows2.set(row, identifyMetricsFact(row));
   return row;
 }
-export interface MetricsFactObservation {
+interface MetricsFactObservation {
   readonly stored: MetricsFactRow | null;
   readonly rejected: MetricsFactRow | null;
   readonly state: PrimitiveSnapshot;
 }
-export type MetricsFactWriteResult =
+type MetricsFactWriteResult =
   | { readonly ok: true; readonly effect: WriteEffect; readonly receipt: PrimitiveReceipt }
   | { readonly ok: false; readonly reason: 'invalid-row' | 'broken-binding' | PrimitiveRejection['reason']; readonly state: PrimitiveSnapshot };
-export interface MetricsFactOwner {
+interface MetricsFactOwner {
   readonly read: () => MetricsFactObservation;
   readonly write: (row: MetricsFactRow) => MetricsFactWriteResult;
 }
 /** The authenticated token binds payload and provenance from the same complete immutable DTO. */
-export function createMetricsFactOwner(): MetricsFactOwner {
+function createMetricsFactOwner(): MetricsFactOwner {
   const authority = createPrimitiveAuthority();
   let stored: MetricsFactIdentity | null = null;
   let rejected: MetricsFactIdentity | null = null;
@@ -390,6 +666,113 @@ export function createMetricsFactOwner(): MetricsFactOwner {
   });
   return Object.freeze({ read, write });
 }
+
+export type MetricsFactPartitionReport =
+  | { readonly kind: 'Write' | 'Noop'; readonly rows: readonly MetricsFactRow[]; readonly counts: PartitionCounts; readonly group: PartitionGroup | null }
+  | { readonly kind: 'Refused'; readonly original: readonly MetricsFactRow[]; readonly conflicts: readonly MetricsFactConflict[]; readonly counts: PartitionCounts; readonly group: PartitionGroup | null };
+export interface MetricsFactConflict { readonly stored: MetricsFactRow; readonly rejected: MetricsFactRow }
+export interface MetricsFactClosedPartition {
+  readonly [closedBrand]: "MetricsFact";
+  readonly counts: PartitionCounts;
+  readonly group: PartitionGroup | null;
+  readonly intoReport: (this: MetricsFactClosedPartition) => PartitionResult<MetricsFactPartitionReport>;
+}
+interface MetricsFactClosedState {
+  readonly controller: PrivateControl;
+  readonly report: MetricsFactPartitionReport;
+  consumed: boolean;
+}
+const closed2 = new WeakMap<object, MetricsFactClosedState>();
+function keyMetricsFact(row: MetricsFactRow): readonly bigint[] { return [row["create_time"]]; }
+function authenticateMetricsFact(value: unknown): MetricsFactRow | undefined {
+  return typeof value === 'object' && value !== null ? rows2.get(value)?.row : undefined;
+}
+/** Complete authenticated rows enter one private trial; this function grants no filesystem authority. */
+export function foldMetricsFact(input: { readonly baseline: readonly MetricsFactRow[]; readonly incoming: readonly MetricsFactRow[] }): PartitionResult<MetricsFactClosedPartition> {
+  let baseline: readonly MetricsFactRow[];
+  let incoming: readonly MetricsFactRow[];
+  try {
+    const batch = snapshotBatch(input);
+    baseline = snapshotArray(batch.baseline, authenticateMetricsFact);
+    incoming = snapshotArray(batch.incoming, authenticateMetricsFact);
+  } catch (error) { return failed(error instanceof PartitionBoundaryError ? error.reason : 'invalid-batch'); }
+  let group: PartitionGroup | null = null;
+  for (const row of [...baseline, ...incoming]) {
+    const time = row["create_time"];
+    if (time < 0n) return failed('invalid-calendar');
+    const observed = Object.freeze({ symbol: row["symbol"], dayIndex: time / 86_400_000_000n });
+    if (group === null) group = observed;
+    else if (group.symbol !== observed.symbol || group.dayIndex !== observed.dayIndex) return failed('wrong-group');
+  }
+  const controller = createPrivateControl();
+  const owners = new Map<string, { readonly key: readonly bigint[]; readonly owner: MetricsFactOwner }>();
+  // Baseline replay is private and uncounted. A later duplicate baseline key replaces its owner.
+  for (const row of baseline) {
+    const owner = createMetricsFactOwner();
+    const result = owner.write(row);
+    if (!result.ok || result.effect !== 'Insert') return failed('row-rejected');
+    const key = keyMetricsFact(row);
+    owners.set(keyIdentity(key), { key, owner });
+  }
+  let inserted = 0n;
+  let unchanged = 0n;
+  const conflicts: MetricsFactConflict[] = [];
+  for (const row of incoming) {
+    const key = keyMetricsFact(row);
+    const identity = keyIdentity(key);
+    let entry = owners.get(identity);
+    if (entry === undefined) { entry = { key, owner: createMetricsFactOwner() }; owners.set(identity, entry); }
+    const before = entry.owner.read().stored;
+    const result = entry.owner.write(row);
+    if (!result.ok) return failed('row-rejected');
+    const observed = controller.send(result.effect);
+    if (!observed.ok) return failed('controller-rejected');
+    switch (result.effect) {
+      case 'Insert': if (inserted === maxCount) return failed('count-overflow'); inserted += 1n; break;
+      case 'Same': if (unchanged === maxCount) return failed('count-overflow'); unchanged += 1n; break;
+      case 'Clash':
+        if (before === null) return failed('broken-binding');
+        conflicts.push(Object.freeze({ stored: before, rejected: row }));
+        break;
+    }
+  }
+  const step = closeSteps.get(controller.read().nodeId);
+  if (step === undefined) return failed('broken-binding');
+  const closure = controller.send(step.event);
+  if (!closure.ok || closure.after.nodeId !== step.next) return failed('controller-rejected');
+  const counts = Object.freeze({ inserted: step.kind === 'Refused' ? 0n : inserted, unchanged });
+  let report: MetricsFactPartitionReport;
+  switch (step.kind) {
+    case 'Write': {
+      const rows: MetricsFactRow[] = [];
+      for (const entry of [...owners.values()].sort((left, right) => compareKeys(left.key, right.key))) {
+        const row = entry.owner.read().stored;
+        if (row === null) return failed('broken-binding');
+        rows.push(row);
+      }
+      report = Object.freeze({ kind: 'Write', rows: Object.freeze(rows), counts, group });
+      break;
+    }
+    case 'Noop': report = Object.freeze({ kind: 'Noop', rows: baseline, counts, group }); break;
+    case 'Refused': report = Object.freeze({ kind: 'Refused', original: baseline, conflicts: Object.freeze(conflicts), counts, group }); break;
+  }
+  const intoReport = Object.freeze(function(this: unknown): PartitionResult<MetricsFactPartitionReport> {
+    if (typeof this !== 'object' || this === null) return failed('invalid-closed');
+    const state = closed2.get(this);
+    if (state === undefined) return failed('invalid-closed');
+    if (state.consumed) return failed('already-consumed');
+    const consume = consumeSteps.get(state.controller.read().nodeId);
+    if (consume === undefined) return failed('broken-binding');
+    const result = state.controller.send(consume.event);
+    if (!result.ok || result.after.nodeId !== consume.next) return failed('controller-rejected');
+    state.consumed = true;
+    return succeeded(state.report);
+  });
+  const closed: MetricsFactClosedPartition = Object.freeze<MetricsFactClosedPartition>({ [closedBrand]: "MetricsFact", counts, group, intoReport });
+  closed2.set(closed, { controller, report, consumed: false });
+  return succeeded(closed);
+}
+
 
 export interface BookFactRow {
   readonly [rowBrand]: "BookFact";
@@ -450,20 +833,20 @@ export function createBookFactRow(input: unknown): BookFactRow {
   rows3.set(row, identifyBookFact(row));
   return row;
 }
-export interface BookFactObservation {
+interface BookFactObservation {
   readonly stored: BookFactRow | null;
   readonly rejected: BookFactRow | null;
   readonly state: PrimitiveSnapshot;
 }
-export type BookFactWriteResult =
+type BookFactWriteResult =
   | { readonly ok: true; readonly effect: WriteEffect; readonly receipt: PrimitiveReceipt }
   | { readonly ok: false; readonly reason: 'invalid-row' | 'broken-binding' | PrimitiveRejection['reason']; readonly state: PrimitiveSnapshot };
-export interface BookFactOwner {
+interface BookFactOwner {
   readonly read: () => BookFactObservation;
   readonly write: (row: BookFactRow) => BookFactWriteResult;
 }
 /** The authenticated token binds payload and provenance from the same complete immutable DTO. */
-export function createBookFactOwner(): BookFactOwner {
+function createBookFactOwner(): BookFactOwner {
   const authority = createPrimitiveAuthority();
   let stored: BookFactIdentity | null = null;
   let rejected: BookFactIdentity | null = null;
@@ -491,4 +874,110 @@ export function createBookFactOwner(): BookFactOwner {
     return Object.freeze({ ok: true, effect, receipt: pending.receipt });
   });
   return Object.freeze({ read, write });
+}
+
+export type BookFactPartitionReport =
+  | { readonly kind: 'Write' | 'Noop'; readonly rows: readonly BookFactRow[]; readonly counts: PartitionCounts; readonly group: PartitionGroup | null }
+  | { readonly kind: 'Refused'; readonly original: readonly BookFactRow[]; readonly conflicts: readonly BookFactConflict[]; readonly counts: PartitionCounts; readonly group: PartitionGroup | null };
+export interface BookFactConflict { readonly stored: BookFactRow; readonly rejected: BookFactRow }
+export interface BookFactClosedPartition {
+  readonly [closedBrand]: "BookFact";
+  readonly counts: PartitionCounts;
+  readonly group: PartitionGroup | null;
+  readonly intoReport: (this: BookFactClosedPartition) => PartitionResult<BookFactPartitionReport>;
+}
+interface BookFactClosedState {
+  readonly controller: PrivateControl;
+  readonly report: BookFactPartitionReport;
+  consumed: boolean;
+}
+const closed3 = new WeakMap<object, BookFactClosedState>();
+function keyBookFact(row: BookFactRow): readonly bigint[] { return [row["timestamp"], row["percentage"]]; }
+function authenticateBookFact(value: unknown): BookFactRow | undefined {
+  return typeof value === 'object' && value !== null ? rows3.get(value)?.row : undefined;
+}
+/** Complete authenticated rows enter one private trial; this function grants no filesystem authority. */
+export function foldBookFact(input: { readonly baseline: readonly BookFactRow[]; readonly incoming: readonly BookFactRow[] }): PartitionResult<BookFactClosedPartition> {
+  let baseline: readonly BookFactRow[];
+  let incoming: readonly BookFactRow[];
+  try {
+    const batch = snapshotBatch(input);
+    baseline = snapshotArray(batch.baseline, authenticateBookFact);
+    incoming = snapshotArray(batch.incoming, authenticateBookFact);
+  } catch (error) { return failed(error instanceof PartitionBoundaryError ? error.reason : 'invalid-batch'); }
+  let group: PartitionGroup | null = null;
+  for (const row of [...baseline, ...incoming]) {
+    const time = row["timestamp"];
+    if (time < 0n) return failed('invalid-calendar');
+    const observed = Object.freeze({ symbol: row["symbol"], dayIndex: time / 86_400_000_000n });
+    if (group === null) group = observed;
+    else if (group.symbol !== observed.symbol || group.dayIndex !== observed.dayIndex) return failed('wrong-group');
+  }
+  const controller = createPrivateControl();
+  const owners = new Map<string, { readonly key: readonly bigint[]; readonly owner: BookFactOwner }>();
+  // Baseline replay is private and uncounted. A later duplicate baseline key replaces its owner.
+  for (const row of baseline) {
+    const owner = createBookFactOwner();
+    const result = owner.write(row);
+    if (!result.ok || result.effect !== 'Insert') return failed('row-rejected');
+    const key = keyBookFact(row);
+    owners.set(keyIdentity(key), { key, owner });
+  }
+  let inserted = 0n;
+  let unchanged = 0n;
+  const conflicts: BookFactConflict[] = [];
+  for (const row of incoming) {
+    const key = keyBookFact(row);
+    const identity = keyIdentity(key);
+    let entry = owners.get(identity);
+    if (entry === undefined) { entry = { key, owner: createBookFactOwner() }; owners.set(identity, entry); }
+    const before = entry.owner.read().stored;
+    const result = entry.owner.write(row);
+    if (!result.ok) return failed('row-rejected');
+    const observed = controller.send(result.effect);
+    if (!observed.ok) return failed('controller-rejected');
+    switch (result.effect) {
+      case 'Insert': if (inserted === maxCount) return failed('count-overflow'); inserted += 1n; break;
+      case 'Same': if (unchanged === maxCount) return failed('count-overflow'); unchanged += 1n; break;
+      case 'Clash':
+        if (before === null) return failed('broken-binding');
+        conflicts.push(Object.freeze({ stored: before, rejected: row }));
+        break;
+    }
+  }
+  const step = closeSteps.get(controller.read().nodeId);
+  if (step === undefined) return failed('broken-binding');
+  const closure = controller.send(step.event);
+  if (!closure.ok || closure.after.nodeId !== step.next) return failed('controller-rejected');
+  const counts = Object.freeze({ inserted: step.kind === 'Refused' ? 0n : inserted, unchanged });
+  let report: BookFactPartitionReport;
+  switch (step.kind) {
+    case 'Write': {
+      const rows: BookFactRow[] = [];
+      for (const entry of [...owners.values()].sort((left, right) => compareKeys(left.key, right.key))) {
+        const row = entry.owner.read().stored;
+        if (row === null) return failed('broken-binding');
+        rows.push(row);
+      }
+      report = Object.freeze({ kind: 'Write', rows: Object.freeze(rows), counts, group });
+      break;
+    }
+    case 'Noop': report = Object.freeze({ kind: 'Noop', rows: baseline, counts, group }); break;
+    case 'Refused': report = Object.freeze({ kind: 'Refused', original: baseline, conflicts: Object.freeze(conflicts), counts, group }); break;
+  }
+  const intoReport = Object.freeze(function(this: unknown): PartitionResult<BookFactPartitionReport> {
+    if (typeof this !== 'object' || this === null) return failed('invalid-closed');
+    const state = closed3.get(this);
+    if (state === undefined) return failed('invalid-closed');
+    if (state.consumed) return failed('already-consumed');
+    const consume = consumeSteps.get(state.controller.read().nodeId);
+    if (consume === undefined) return failed('broken-binding');
+    const result = state.controller.send(consume.event);
+    if (!result.ok || result.after.nodeId !== consume.next) return failed('controller-rejected');
+    state.consumed = true;
+    return succeeded(state.report);
+  });
+  const closed: BookFactClosedPartition = Object.freeze<BookFactClosedPartition>({ [closedBrand]: "BookFact", counts, group, intoReport });
+  closed3.set(closed, { controller, report, consumed: false });
+  return succeeded(closed);
 }

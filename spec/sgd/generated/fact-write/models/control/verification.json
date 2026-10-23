@@ -1,0 +1,24 @@
+{
+  "kind": "tlc-finite-completed",
+  "profile": "finite-owned-v1",
+  "rootModule": "PartitionMergeControl",
+  "moduleClosure": [
+    {
+      "name": "PartitionMergeControl.tla",
+      "sha256": "80384cc05ce987466a309f0b281a022d6d2c2cec253abd276c70a05ef3a96f3c"
+    }
+  ],
+  "standardModules": [],
+  "configSha256": "c6f0faa262777a9296bc8cf7bc35d7ba69585597759e5a8d2710ab21013b2397",
+  "jarSha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+  "dotSha256": "030db4d6fef0c8de3dc20a42172a295a0aefd7693d3e83029b8a2343ef205cd0",
+  "mode": {
+    "exploration": "breadth-first",
+    "workers": 1,
+    "fingerprint": 0,
+    "seed": 0,
+    "dump": "dot,actionlabels",
+    "source": "isolated-flat-module-snapshot"
+  },
+  "projectSha256": "1cb923914b9fd52bd3ecd529f199a0bc1bf4c7b24c35cde162ee0835c56ba2df"
+}

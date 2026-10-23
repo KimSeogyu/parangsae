@@ -443,7 +443,7 @@ impl sealed::SupportedFact for crate::vision::BookFact {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum WriteEffect {
+enum WriteEffect {
     Clash,
     Insert,
     Same,
@@ -526,7 +526,7 @@ fn lift<T: sealed::SupportedFact>(
 }
 
 // Private state and a sealed concrete Fact bound prohibit arbitrary source equality.
-pub(crate) struct FactOwner<T: BoundFact> {
+struct FactOwner<T: BoundFact> {
     authority: authority::FactEnvelopeMachine,
     stored: Option<T>,
     rejected: Option<T>,
@@ -537,24 +537,24 @@ impl<T: BoundFact> Default for FactOwner<T> {
     }
 }
 impl<T: BoundFact> FactOwner<T> {
-    pub(crate) fn new() -> Self {
+    fn new() -> Self {
         Self {
             authority: authority::FactEnvelopeMachine::new(),
             stored: None,
             rejected: None,
         }
     }
-    pub(crate) fn stored(&self) -> Option<&T> {
+    fn stored(&self) -> Option<&T> {
         self.stored.as_ref()
     }
-    pub(crate) fn rejected(&self) -> Option<&T> {
+    fn rejected(&self) -> Option<&T> {
         self.rejected.as_ref()
     }
-    pub(crate) fn read(&self) -> authority::Snapshot {
+    fn read(&self) -> authority::Snapshot {
         self.authority.read()
     }
 
-    pub(crate) fn write(&mut self, incoming: T) -> Result<WriteEffect, RowError> {
+    fn write(&mut self, incoming: T) -> Result<WriteEffect, RowError> {
         let stored_pair = RowPair {
             payload: "stored",
             provenance: "storedProvenance",
@@ -614,4 +614,378 @@ impl<T: BoundFact> FactOwner<T> {
         self.rejected = next_rejected;
         Ok(effect)
     }
+}
+
+// Closed collection runtime. Keys never cross a sealed Fact family: padding to
+// three components preserves the exact signed tuple ordering for that family.
+use authority::partition_control as control;
+use std::collections::BTreeMap;
+
+mod partition_sealed {
+    pub trait Projection {
+        fn partition_key(&self) -> [i64; 3];
+        fn partition_symbol(&self) -> &str;
+        fn partition_time(&self) -> i64;
+    }
+}
+
+// The private supertrait prevents callers from supplying key or grouping policy.
+pub(crate) trait PartitionFact: BoundFact + partition_sealed::Projection {}
+
+impl PartitionFact for crate::vision::BookFact {}
+impl partition_sealed::Projection for crate::vision::BookFact {
+    fn partition_key(&self) -> [i64; 3] {
+        [self.timestamp.micros(), self.percentage.ticks(), 0]
+    }
+    fn partition_symbol(&self) -> &str {
+        self.symbol.as_str()
+    }
+    fn partition_time(&self) -> i64 {
+        self.timestamp.micros()
+    }
+}
+
+impl PartitionFact for crate::vision::FundingFact {}
+impl partition_sealed::Projection for crate::vision::FundingFact {
+    fn partition_key(&self) -> [i64; 3] {
+        [self.funding_time.micros(), 0, 0]
+    }
+    fn partition_symbol(&self) -> &str {
+        self.symbol.as_str()
+    }
+    fn partition_time(&self) -> i64 {
+        self.funding_time.micros()
+    }
+}
+
+impl PartitionFact for crate::vision::KlineFact {}
+impl partition_sealed::Projection for crate::vision::KlineFact {
+    fn partition_key(&self) -> [i64; 3] {
+        [self.open_time.micros(), 0, 0]
+    }
+    fn partition_symbol(&self) -> &str {
+        self.symbol.as_str()
+    }
+    fn partition_time(&self) -> i64 {
+        self.open_time.micros()
+    }
+}
+
+impl PartitionFact for crate::vision::MetricsFact {}
+impl partition_sealed::Projection for crate::vision::MetricsFact {
+    fn partition_key(&self) -> [i64; 3] {
+        [self.create_time.micros(), 0, 0]
+    }
+    fn partition_symbol(&self) -> &str {
+        self.symbol.as_str()
+    }
+    fn partition_time(&self) -> i64 {
+        self.create_time.micros()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct PartitionCounts {
+    inserted: u64,
+    unchanged: u64,
+}
+impl PartitionCounts {
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn inserted(self) -> u64 {
+        self.inserted
+    }
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn unchanged(self) -> u64 {
+        self.unchanged
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PartitionGroup {
+    symbol: String,
+    day_index: i64,
+}
+impl PartitionGroup {
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn symbol(&self) -> &str {
+        &self.symbol
+    }
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn day_index(&self) -> i64 {
+        self.day_index
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PartitionConflict<T: PartitionFact> {
+    stored: T,
+    rejected: T,
+}
+impl<T: PartitionFact> PartitionConflict<T> {
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn stored(&self) -> &T {
+        &self.stored
+    }
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn rejected(&self) -> &T {
+        &self.rejected
+    }
+    #[allow(dead_code)] // Optional consuming generated API.
+    pub(crate) fn into_rows(self) -> (T, T) {
+        (self.stored, self.rejected)
+    }
+}
+
+#[derive(Debug)]
+pub(crate) enum PartitionError {
+    Row(RowError),
+    Control(control::TransitionError),
+    NegativeTime,
+    MixedGroup,
+    CountExhausted,
+    BrokenComposition,
+}
+impl std::fmt::Display for PartitionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Row(error) => write!(formatter, "{error}"),
+            Self::Control(error) => write!(formatter, "{error}"),
+            Self::NegativeTime => formatter.write_str("PART302: partition time must be a nonnegative i64 microsecond value"),
+            Self::MixedGroup => formatter.write_str("PART303: baseline and incoming rows must share one exact symbol and UTC day index"),
+            Self::CountExhausted => formatter.write_str("PART304: partition observation count is exhausted"),
+            Self::BrokenComposition => formatter.write_str("PART305: generated row and partition control disagree; regenerate from the verified composition"),
+        }
+    }
+}
+impl std::error::Error for PartitionError {}
+
+#[derive(Clone, Copy)]
+enum ReportKind {
+    Write,
+    Noop,
+    Refused,
+}
+
+fn close_event(node: &str) -> Option<control::Event> {
+    match node {
+        "s1" => Some(control::Event::CloseNoop),
+        "s10" => Some(control::Event::CloseRefused),
+        "s4" => Some(control::Event::CloseWrite),
+        "s7" => Some(control::Event::CloseRefused),
+        _ => None,
+    }
+}
+fn consume_event(node: &str) -> Option<(control::Event, ReportKind)> {
+    match node {
+        "s11" => Some((control::Event::ConsumeRefused, ReportKind::Refused)),
+        "s2" => Some((control::Event::ConsumeNoop, ReportKind::Noop)),
+        "s5" => Some((control::Event::ConsumeWrite, ReportKind::Write)),
+        "s8" => Some((control::Event::ConsumeRefused, ReportKind::Refused)),
+        _ => None,
+    }
+}
+
+// This checks consistency within the supplied data only. A path, dataset, loaded
+// baseline, external symbol selection, writer, and persistence are not bound.
+fn checked_group<T: PartitionFact>(
+    baseline: &[T],
+    incoming: &[T],
+) -> Result<Option<PartitionGroup>, PartitionError> {
+    let mut group: Option<PartitionGroup> = None;
+    for row in baseline.iter().chain(incoming) {
+        let time = row.partition_time();
+        if time < 0 {
+            return Err(PartitionError::NegativeTime);
+        }
+        let day_index = time / 86_400_000_000;
+        match &group {
+            Some(expected)
+                if expected.symbol != row.partition_symbol() || expected.day_index != day_index =>
+            {
+                return Err(PartitionError::MixedGroup)
+            }
+            Some(_) => {}
+            None => {
+                group = Some(PartitionGroup {
+                    symbol: row.partition_symbol().to_owned(),
+                    day_index,
+                })
+            }
+        }
+    }
+    Ok(group)
+}
+
+/// A private trial has closed. Consuming it can only produce unbound data.
+/// No raw constructor, observations, controller, Clone, restore, or IO callback.
+pub(crate) struct ClosedPartition<T: PartitionFact> {
+    controller: control::FactEnvelopeMachineControl,
+    owners: BTreeMap<[i64; 3], FactOwner<T>>,
+    original: Vec<T>,
+    conflicts: Vec<PartitionConflict<T>>,
+    counts: PartitionCounts,
+    group: Option<PartitionGroup>,
+}
+impl<T: PartitionFact> ClosedPartition<T> {
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn counts(&self) -> PartitionCounts {
+        self.counts
+    }
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn group(&self) -> Option<&PartitionGroup> {
+        self.group.as_ref()
+    }
+
+    pub(crate) fn into_report(mut self) -> Result<UnboundPartitionReport<T>, PartitionError> {
+        let (event, kind) = consume_event(self.controller.read().node_id)
+            .ok_or(PartitionError::BrokenComposition)?;
+        self.controller
+            .send(event)
+            .map_err(PartitionError::Control)?;
+        let group = self.group;
+        let mut counts = self.counts;
+        Ok(match kind {
+            ReportKind::Write => {
+                let rows = self
+                    .owners
+                    .into_values()
+                    .map(|owner| owner.stored.ok_or(PartitionError::BrokenComposition))
+                    .collect::<Result<Vec<_>, _>>()?;
+                UnboundPartitionReport::Write {
+                    rows,
+                    counts,
+                    group,
+                }
+            }
+            ReportKind::Noop => UnboundPartitionReport::Noop {
+                rows: self.original,
+                counts,
+                group,
+            },
+            ReportKind::Refused => {
+                counts.inserted = 0;
+                UnboundPartitionReport::Refused {
+                    original: self.original,
+                    conflicts: self.conflicts,
+                    counts,
+                    group,
+                }
+            }
+        })
+    }
+}
+
+/// Complete ordinary data after the matching model consume edge. These values
+/// grant no permission to publish, persist, overwrite, or log any external data.
+#[derive(Debug)]
+pub(crate) enum UnboundPartitionReport<T: PartitionFact> {
+    Write {
+        rows: Vec<T>,
+        counts: PartitionCounts,
+        group: Option<PartitionGroup>,
+    },
+    Noop {
+        rows: Vec<T>,
+        counts: PartitionCounts,
+        group: Option<PartitionGroup>,
+    },
+    Refused {
+        original: Vec<T>,
+        conflicts: Vec<PartitionConflict<T>>,
+        counts: PartitionCounts,
+        group: Option<PartitionGroup>,
+    },
+}
+impl<T: PartitionFact> UnboundPartitionReport<T> {
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn counts(&self) -> PartitionCounts {
+        match self {
+            Self::Write { counts, .. }
+            | Self::Noop { counts, .. }
+            | Self::Refused { counts, .. } => *counts,
+        }
+    }
+    #[allow(dead_code)] // Optional read-only generated API.
+    pub(crate) fn group(&self) -> Option<&PartitionGroup> {
+        match self {
+            Self::Write { group, .. } | Self::Noop { group, .. } | Self::Refused { group, .. } => {
+                group.as_ref()
+            }
+        }
+    }
+}
+
+/// All fallible observations happen inside one private trial. An error drops it.
+pub(crate) fn fold_partition<T: PartitionFact>(
+    baseline: Vec<T>,
+    incoming: Vec<T>,
+) -> Result<ClosedPartition<T>, PartitionError> {
+    let group = checked_group(&baseline, &incoming)?;
+    let mut owners = BTreeMap::new();
+    // Baseline replay preserves the existing last-wins rule but emits no incoming
+    // observation. Keep the exact original rows for Noop and whole-batch refusal.
+    for row in &baseline {
+        let mut owner = FactOwner::new();
+        if owner.write(row.clone()).map_err(PartitionError::Row)? != WriteEffect::Insert {
+            return Err(PartitionError::BrokenComposition);
+        }
+        owners.insert(row.partition_key(), owner);
+    }
+    let mut controller = control::FactEnvelopeMachineControl::new();
+    let mut counts = PartitionCounts {
+        inserted: 0,
+        unchanged: 0,
+    };
+    let mut conflicts = Vec::new();
+    for row in incoming {
+        let owner = owners
+            .entry(row.partition_key())
+            .or_insert_with(FactOwner::new);
+        let event = match owner.write(row).map_err(PartitionError::Row)? {
+            WriteEffect::Insert => {
+                counts.inserted = counts
+                    .inserted
+                    .checked_add(1)
+                    .ok_or(PartitionError::CountExhausted)?;
+                control::Event::Insert
+            }
+            WriteEffect::Same => {
+                counts.unchanged = counts
+                    .unchanged
+                    .checked_add(1)
+                    .ok_or(PartitionError::CountExhausted)?;
+                control::Event::Same
+            }
+            WriteEffect::Clash => {
+                conflicts.push(PartitionConflict {
+                    stored: owner
+                        .stored()
+                        .ok_or(PartitionError::BrokenComposition)?
+                        .clone(),
+                    rejected: owner
+                        .rejected()
+                        .ok_or(PartitionError::BrokenComposition)?
+                        .clone(),
+                });
+                control::Event::Clash
+            }
+        };
+        controller.send(event).map_err(PartitionError::Control)?;
+    }
+    let event = close_event(controller.read().node_id).ok_or(PartitionError::BrokenComposition)?;
+    controller.send(event).map_err(PartitionError::Control)?;
+    if matches!(
+        consume_event(controller.read().node_id),
+        Some((_, ReportKind::Refused))
+    ) {
+        counts.inserted = 0;
+    }
+    Ok(ClosedPartition {
+        controller,
+        owners,
+        original: baseline,
+        conflicts,
+        counts,
+        group,
+    })
 }

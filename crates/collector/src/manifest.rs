@@ -1,12 +1,10 @@
 //! Downloaded-object identity and the idempotent write state machine.
 //!
-//! Generated per-key authority implements the checked FactWriteEnvelope model.
-//! Native source equality determines payload identity; complete first rows and
-//! latest rejected rows retain receipt/schema metadata. The partition fold
-//! refuses every provisional insertion after any conflict. Archive manifests
-//! below describe downloaded objects and are a separate resource.
+//! Generated closed partition data folds combine the checked FactWriteEnvelope
+//! row roles with PartitionMergeControl and literal key/group metadata. Reports
+//! are unbound data: physical storage and conflict logging remain ordinary
+//! application code. Archive manifests below describe a separate resource.
 
-use std::collections::BTreeMap;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -30,144 +28,7 @@ pub struct ObjectManifest {
 #[path = "../../../spec/sgd/generated/fact-write/rust/adapter.rs"]
 mod fact_authority;
 
-pub(crate) use fact_authority::{BoundFact, FactOwner, RowError, WriteEffect};
-
-#[derive(Debug)]
-enum MergeDecision<T> {
-    Accepted {
-        rows: Vec<T>,
-        inserted: u64,
-        unchanged: u64,
-    },
-    Refused {
-        original: Vec<T>,
-        unchanged: u64,
-        conflicts: Vec<(T, T)>,
-    },
-}
-
-/// A consumed partition trial. Only `merge_rows` can create this decision.
-#[derive(Debug)]
-pub(crate) struct MergeOutcome<T> {
-    decision: MergeDecision<T>,
-}
-
-impl<T> MergeOutcome<T> {
-    /// Callbacks are storage effects after the complete per-key trial, never guard classifiers.
-    pub(crate) fn commit(
-        self,
-        write: impl FnOnce(&[T]) -> Result<(), super::Error>,
-        mut append_conflict: impl FnMut(&T, &T) -> Result<(), super::Error>,
-    ) -> Result<crate::store::WriteCounts, super::Error> {
-        match self.decision {
-            MergeDecision::Accepted {
-                rows,
-                inserted,
-                unchanged,
-            } => {
-                if inserted > 0 {
-                    write(&rows)?;
-                }
-                Ok(crate::store::WriteCounts {
-                    inserted,
-                    unchanged,
-                    conflicts: 0,
-                })
-            }
-            MergeDecision::Refused {
-                original,
-                unchanged,
-                conflicts,
-            } => {
-                drop(original);
-                for (stored, rejected) in &conflicts {
-                    append_conflict(stored, rejected)?;
-                }
-                Ok(crate::store::WriteCounts {
-                    inserted: 0,
-                    unchanged,
-                    conflicts: conflicts.len() as u64,
-                })
-            }
-        }
-    }
-
-    #[cfg(test)]
-    fn rows(&self) -> &[T] {
-        match &self.decision {
-            MergeDecision::Accepted { rows, .. } => rows,
-            MergeDecision::Refused { original, .. } => original,
-        }
-    }
-
-    #[cfg(test)]
-    fn conflicts(&self) -> &[(T, T)] {
-        match &self.decision {
-            MergeDecision::Accepted { .. } => &[],
-            MergeDecision::Refused { conflicts, .. } => conflicts,
-        }
-    }
-}
-
-/// Replay complete persisted rows, then fold generated per-key decisions.
-/// Persisted keys are expected to be unique. Duplicate baseline keys retain the
-/// previous loader's last-wins behavior; a refused trial returns the original Vec.
-pub(crate) fn merge_rows<T, K>(
-    existing: Vec<T>,
-    incoming: Vec<T>,
-    key_of: impl Fn(&T) -> K,
-) -> Result<MergeOutcome<T>, RowError>
-where
-    T: BoundFact,
-    K: Ord,
-{
-    let original = existing.clone();
-    let mut trial: BTreeMap<K, FactOwner<T>> = BTreeMap::new();
-    for row in existing {
-        let key = key_of(&row);
-        let mut owner = FactOwner::new();
-        if owner.write(row)? != WriteEffect::Insert {
-            return Err(RowError::BrokenBinding);
-        }
-        trial.insert(key, owner);
-    }
-    let mut inserted = 0u64;
-    let mut unchanged = 0u64;
-    let mut conflicts = Vec::new();
-    for row in incoming {
-        let key = key_of(&row);
-        let owner = trial.entry(key).or_default();
-        match owner.write(row)? {
-            WriteEffect::Insert => inserted += 1,
-            WriteEffect::Same => unchanged += 1,
-            WriteEffect::Clash => {
-                let stored = owner.stored().ok_or(RowError::BrokenBinding)?;
-                let rejected = owner.rejected().ok_or(RowError::BrokenBinding)?;
-                conflicts.push((stored.clone(), rejected.clone()));
-            }
-        }
-    }
-    if !conflicts.is_empty() {
-        return Ok(MergeOutcome {
-            decision: MergeDecision::Refused {
-                original,
-                unchanged,
-                conflicts,
-            },
-        });
-    }
-    let rows = trial
-        .into_values()
-        .map(|owner| owner.stored().cloned().ok_or(RowError::BrokenBinding))
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(MergeOutcome {
-        decision: MergeDecision::Accepted {
-            rows,
-            inserted,
-            unchanged,
-        },
-    })
-}
+pub(crate) use fact_authority::{fold_partition, PartitionFact, UnboundPartitionReport};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct ManifestLine {
@@ -347,7 +208,6 @@ mod tests {
     use crate::vision::FundingFact;
     use parangsae_core::{AvailableTs, EventTs, Ratio, Symbol};
     use proptest::prelude::*;
-    use std::cell::{Cell, RefCell};
 
     fn at(micros: i64) -> ReceivedTs {
         ReceivedTs::from_micros(UtcMicros::from_micros(micros))
@@ -370,35 +230,57 @@ mod tests {
 
     #[test]
     fn same_payload_keeps_the_complete_original_received_time() {
-        let mut owner = FactOwner::<FundingFact>::new();
-        assert_eq!(owner.write(funding(0, 1, 1)).unwrap(), WriteEffect::Insert);
-        assert_eq!(owner.write(funding(0, 1, 2)).unwrap(), WriteEffect::Same);
-        let stored = owner.stored().unwrap();
-        assert_eq!(stored, &funding(0, 1, 1));
-        assert_eq!(stored.received_ts, at(1));
-        assert!(owner.rejected().is_none());
+        let report = fold_partition(Vec::new(), vec![funding(0, 1, 1), funding(0, 1, 2)])
+            .unwrap()
+            .into_report()
+            .unwrap();
+        match report {
+            UnboundPartitionReport::Write { rows, counts, .. } => {
+                assert_eq!(rows, vec![funding(0, 1, 1)]);
+                assert_eq!(rows[0].received_ts, at(1));
+                assert_eq!(counts.inserted(), 1);
+                assert_eq!(counts.unchanged(), 1);
+            }
+            _ => panic!("one insert and one Same must close as Write"),
+        }
     }
 
     #[test]
-    fn equal_and_conflicting_inputs_keep_the_first_row_and_latest_rejected_metadata() {
-        let mut owner = FactOwner::<FundingFact>::new();
-        assert_eq!(owner.write(funding(0, 1, 1)).unwrap(), WriteEffect::Insert);
-        assert_eq!(owner.write(funding(0, 2, 2)).unwrap(), WriteEffect::Clash);
-        assert_eq!(owner.write(funding(0, 2, 3)).unwrap(), WriteEffect::Clash);
-        let before_same = owner.read();
-        assert_eq!(owner.write(funding(0, 1, 4)).unwrap(), WriteEffect::Same);
-        assert_eq!(owner.stored().unwrap().rate, Ratio::from_ticks(1));
-        assert_eq!(owner.stored().unwrap().received_ts, at(1));
-        assert_eq!(owner.rejected().unwrap().rate, Ratio::from_ticks(2));
-        assert_eq!(owner.rejected().unwrap().received_ts, at(3));
-        assert_eq!(owner.read().values, before_same.values);
-        assert_eq!(owner.read().revision, "4");
+    fn equal_and_conflicting_inputs_keep_the_complete_first_row_and_every_rejected_metadata() {
+        let original = funding(0, 1, 1);
+        let report = fold_partition(
+            vec![original.clone()],
+            vec![funding(0, 2, 2), funding(0, 2, 3), funding(0, 1, 4)],
+        )
+        .unwrap()
+        .into_report()
+        .unwrap();
+        match report {
+            UnboundPartitionReport::Refused {
+                original: rows,
+                conflicts,
+                counts,
+                ..
+            } => {
+                assert_eq!(rows, vec![original]);
+                assert_eq!(rows[0].received_ts, at(1));
+                assert_eq!(counts.inserted(), 0);
+                assert_eq!(counts.unchanged(), 1);
+                assert_eq!(conflicts.len(), 2);
+                assert!(conflicts
+                    .iter()
+                    .all(|pair| pair.stored().received_ts == at(1)));
+                assert_eq!(conflicts[0].rejected().received_ts, at(2));
+                assert_eq!(conflicts[1].rejected().received_ts, at(3));
+            }
+            _ => panic!("a Clash must refuse the complete trial"),
+        }
     }
 
     #[test]
     fn any_conflict_refuses_new_keys_and_keeps_each_rejected_pair_and_equal_count() {
         let original = funding(0, 1, 1);
-        let outcome = merge_rows(
+        let closed = fold_partition(
             vec![original.clone()],
             vec![
                 funding(1, 5, 5),
@@ -407,123 +289,132 @@ mod tests {
                 funding(0, 3, 4),
                 funding(0, 1, 6),
             ],
-            |row| row.funding_time.micros(),
         )
         .unwrap();
-        assert_eq!(outcome.rows(), &[original]);
-        assert_eq!(outcome.rows()[0].received_ts, at(1));
-        assert_eq!(outcome.conflicts().len(), 2);
-        assert_eq!(outcome.conflicts()[0].1.received_ts, at(3));
-        assert_eq!(outcome.conflicts()[1].1.received_ts, at(4));
-        let writes = Cell::new(0);
-        let logged = RefCell::new(Vec::new());
-        let counts = outcome
-            .commit(
-                |_| {
-                    writes.set(writes.get() + 1);
-                    Ok(())
-                },
-                |stored, rejected| {
-                    logged
-                        .borrow_mut()
-                        .push((stored.received_ts, rejected.received_ts));
-                    Ok(())
-                },
-            )
-            .unwrap();
-        assert_eq!(writes.get(), 0);
-        assert_eq!(*logged.borrow(), vec![(at(1), at(3)), (at(1), at(4))]);
-        assert_eq!(
-            counts,
-            crate::store::WriteCounts {
-                inserted: 0,
-                unchanged: 2,
-                conflicts: 2
+        assert_eq!(closed.counts().inserted(), 0);
+        assert_eq!(closed.counts().unchanged(), 2);
+        match closed.into_report().unwrap() {
+            UnboundPartitionReport::Refused {
+                original: rows,
+                conflicts,
+                counts,
+                ..
+            } => {
+                assert_eq!(rows, vec![original]);
+                assert_eq!(rows[0].received_ts, at(1));
+                assert_eq!(conflicts.len(), 2);
+                assert_eq!(conflicts[0].rejected().received_ts, at(3));
+                assert_eq!(conflicts[1].rejected().received_ts, at(4));
+                assert_eq!(counts.inserted(), 0);
+                assert_eq!(counts.unchanged(), 2);
             }
-        );
+            _ => panic!("provisional insertions cannot escape a refused trial"),
+        }
     }
 
     #[test]
     fn conflict_against_a_new_key_refuses_the_whole_initially_empty_partition() {
-        let outcome = merge_rows(
+        let report = fold_partition(
             Vec::new(),
             vec![funding(0, 1, 1), funding(1, 5, 2), funding(0, 2, 3)],
-            |row| row.funding_time.micros(),
         )
+        .unwrap()
+        .into_report()
         .unwrap();
-        assert!(outcome.rows().is_empty());
-        assert_eq!(outcome.conflicts()[0].0.received_ts, at(1));
-        assert_eq!(outcome.conflicts()[0].1.received_ts, at(3));
-        let counts = outcome
-            .commit(
-                |_| panic!("a refused partition cannot invoke the writer"),
-                |_, _| Ok(()),
-            )
-            .unwrap();
-        assert_eq!(counts.inserted, 0);
-        assert_eq!(counts.conflicts, 1);
-    }
-
-    #[test]
-    fn an_equal_only_trial_never_invokes_the_partition_writer() {
-        let outcome = merge_rows(vec![funding(0, 1, 1)], vec![funding(0, 1, 2)], |row| {
-            row.funding_time.micros()
-        })
-        .unwrap();
-        assert_eq!(outcome.rows()[0].received_ts, at(1));
-        let counts = outcome
-            .commit(
-                |_| panic!("equal-only cannot invoke the writer"),
-                |_, _| panic!("equal-only has no conflicts"),
-            )
-            .unwrap();
-        assert_eq!(
-            counts,
-            crate::store::WriteCounts {
-                inserted: 0,
-                unchanged: 1,
-                conflicts: 0
+        match report {
+            UnboundPartitionReport::Refused {
+                original,
+                conflicts,
+                counts,
+                ..
+            } => {
+                assert!(original.is_empty());
+                assert_eq!(conflicts.len(), 1);
+                assert_eq!(conflicts[0].stored().received_ts, at(1));
+                assert_eq!(conflicts[0].rejected().received_ts, at(3));
+                assert_eq!(counts.inserted(), 0);
             }
-        );
+            _ => panic!("a new conflicting key must refuse the initial trial"),
+        }
     }
 
     #[test]
-    fn conflict_log_failure_remains_an_error_without_partition_writes() {
-        let outcome = merge_rows(vec![funding(0, 1, 1)], vec![funding(0, 2, 2)], |row| {
-            row.funding_time.micros()
-        })
-        .unwrap();
-        let failure = outcome.commit(
-            |_| panic!("refusal cannot write"),
-            |_, _| Err(crate::Error::check("test_log", "unwritable conflict log")),
-        );
-        assert!(failure.is_err());
+    fn an_equal_only_trial_reports_noop_with_the_original_rows() {
+        let report = fold_partition(vec![funding(0, 1, 1)], vec![funding(0, 1, 2)])
+            .unwrap()
+            .into_report()
+            .unwrap();
+        match report {
+            UnboundPartitionReport::Noop { rows, counts, .. } => {
+                assert_eq!(rows[0].received_ts, at(1));
+                assert_eq!(counts.inserted(), 0);
+                assert_eq!(counts.unchanged(), 1);
+            }
+            _ => panic!("equal-only must close as Noop"),
+        }
     }
 
     #[test]
-    fn persisted_duplicate_keys_preserve_the_existing_last_wins_loader_behavior() {
-        let outcome = merge_rows(
-            vec![funding(0, 1, 1), funding(0, 2, 2)],
-            Vec::new(),
-            |row| row.funding_time.micros(),
-        )
-        .unwrap();
-        assert_eq!(outcome.rows().len(), 1);
-        assert_eq!(outcome.rows()[0].rate, Ratio::from_ticks(2));
-        assert_eq!(outcome.rows()[0].received_ts, at(2));
+    fn noop_keeps_duplicate_baselines_but_write_materializes_the_last_complete_row() {
+        let baseline = vec![funding(0, 1, 1), funding(0, 2, 2)];
+        match fold_partition(baseline.clone(), Vec::new())
+            .unwrap()
+            .into_report()
+            .unwrap()
+        {
+            UnboundPartitionReport::Noop { rows, .. } => {
+                assert_eq!(rows.len(), 2);
+                assert_eq!(rows[0].received_ts, at(1));
+                assert_eq!(rows[1].received_ts, at(2));
+            }
+            _ => panic!("an empty incoming batch is Noop"),
+        }
+        match fold_partition(baseline, vec![funding(1, 3, 3)])
+            .unwrap()
+            .into_report()
+            .unwrap()
+        {
+            UnboundPartitionReport::Write { rows, counts, .. } => {
+                assert_eq!(rows.len(), 2);
+                assert_eq!(rows[0].rate, Ratio::from_ticks(2));
+                assert_eq!(rows[0].received_ts, at(2));
+                assert_eq!(rows[1].funding_time.micros(), 1);
+                assert_eq!(counts.inserted(), 1);
+            }
+            _ => panic!("an inserted key must materialize the last baseline row"),
+        }
     }
 
     proptest! {
         #[test]
         fn the_first_complete_fact_survives_later_writes(writes in prop::collection::vec(0i64..6, 1..16)) {
-            let mut owner = FactOwner::<FundingFact>::new();
             let first = writes[0];
-            for (index, value) in writes.into_iter().enumerate() {
-                owner.write(funding(0, value, index as i64)).unwrap();
+            let equal = writes.iter().skip(1).filter(|value| **value == first).count();
+            let different = writes.iter().skip(1).filter(|value| **value != first).count();
+            let incoming = writes.into_iter().enumerate()
+                .map(|(index, value)| funding(0, value, i64::try_from(index).unwrap())).collect();
+            let report = fold_partition(Vec::new(), incoming).unwrap().into_report().unwrap();
+            prop_assert_eq!(report.counts().unchanged(), u64::try_from(equal).unwrap());
+            match report {
+                UnboundPartitionReport::Write { rows, counts, .. } => {
+                    prop_assert_eq!(different, 0);
+                    prop_assert_eq!(counts.inserted(), 1);
+                    prop_assert_eq!(rows.len(), 1);
+                    prop_assert_eq!(rows[0].rate, Ratio::from_ticks(first));
+                    prop_assert_eq!(rows[0].received_ts, at(0));
+                }
+                UnboundPartitionReport::Refused { original, conflicts, counts, .. } => {
+                    prop_assert!(original.is_empty());
+                    prop_assert_eq!(counts.inserted(), 0);
+                    prop_assert_eq!(conflicts.len(), different);
+                    for conflict in conflicts {
+                        prop_assert_eq!(conflict.stored().rate, Ratio::from_ticks(first));
+                        prop_assert_eq!(conflict.stored().received_ts, at(0));
+                        prop_assert_ne!(conflict.rejected().rate, Ratio::from_ticks(first));
+                    }
+                }
+                UnboundPartitionReport::Noop { .. } => prop_assert!(false, "nonempty initial batch cannot be Noop"),
             }
-            let stored = owner.stored().expect("a write happened");
-            prop_assert_eq!(stored.rate, Ratio::from_ticks(first));
-            prop_assert_eq!(stored.received_ts, at(0));
         }
     }
 }
