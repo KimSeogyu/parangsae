@@ -1,7 +1,7 @@
 $ java -XX:+UseParallelGC -Xmx512m -cp /workspace/builder/tools/tla2tools.jar tlc2.TLC -workers 1 -metadir /tmp/tlc-M5_CancelRemainingConsistent -config OrderLifecycle.cfg OrderLifecycle.tla
 TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
-Running breadth-first search Model-Checking with fp 66 and seed -4756959846449733912 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 43532] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
-Parsing file /workspace/builder/execution-tla/mutants/M5_CancelRemainingConsistent/OrderLifecycle.tla
+Running breadth-first search Model-Checking with fp 52 and seed 6199239631702079349 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 229271] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/builder/execution-tla-v3.1/mutants/M5_CancelRemainingConsistent/OrderLifecycle.tla
 Parsing file /tmp/Integers.tla
 Parsing file /tmp/FiniteSets.tla
 Parsing file /tmp/TLC.tla
@@ -13,10 +13,10 @@ Semantic processing of module Sequences
 Semantic processing of module FiniteSets
 Semantic processing of module TLC
 Semantic processing of module OrderLifecycle
-Starting... (2026-10-23 09:59:39)
+Starting... (2026-10-23 10:36:35)
 <<"CELL", "PendingNew", "Ack", {"Acked"}>>
 <<"CELL", "PendingNew", "Fill", {"PartiallyFilled", "Filled"}>>
-<<"CELL", "PendingNew", "CancelRequested", {"PendingCancel"}>>
+<<"CELL", "PendingNew", "CancelRequested", {"PendingCancel", "Canceled"}>>
 <<"CELL", "PendingNew", "CancelDenied", {}>>
 <<"CELL", "PendingNew", "CancelConfirmed", {}>>
 <<"CELL", "PendingNew", "Reject", {"Rejected"}>>
@@ -24,6 +24,7 @@ Starting... (2026-10-23 09:59:39)
 <<"CELL", "PendingNew", "Timeout", {"Unknown"}>>
 <<"CELL", "PendingNew", "QueryFilled", {}>>
 <<"CELL", "PendingNew", "QueryCanceled", {}>>
+<<"CELL", "PendingNew", "QueryExpired", {}>>
 <<"CELL", "PendingNew", "QueryNotFound", {}>>
 <<"CELL", "PendingNew", "RaceFill", {}>>
 <<"CELL", "Acked", "Ack", {"Acked"}>>
@@ -36,6 +37,7 @@ Starting... (2026-10-23 09:59:39)
 <<"CELL", "Acked", "Timeout", {"Unknown"}>>
 <<"CELL", "Acked", "QueryFilled", {}>>
 <<"CELL", "Acked", "QueryCanceled", {}>>
+<<"CELL", "Acked", "QueryExpired", {}>>
 <<"CELL", "Acked", "QueryNotFound", {}>>
 <<"CELL", "Acked", "RaceFill", {}>>
 <<"CELL", "PartiallyFilled", "Ack", {"PartiallyFilled"}>>
@@ -48,6 +50,7 @@ Starting... (2026-10-23 09:59:39)
 <<"CELL", "PartiallyFilled", "Timeout", {"Unknown"}>>
 <<"CELL", "PartiallyFilled", "QueryFilled", {}>>
 <<"CELL", "PartiallyFilled", "QueryCanceled", {}>>
+<<"CELL", "PartiallyFilled", "QueryExpired", {}>>
 <<"CELL", "PartiallyFilled", "QueryNotFound", {}>>
 <<"CELL", "PartiallyFilled", "RaceFill", {}>>
 <<"CELL", "Filled", "Ack", {}>>
@@ -60,18 +63,23 @@ Starting... (2026-10-23 09:59:39)
 <<"CELL", "Filled", "Timeout", {}>>
 <<"CELL", "Filled", "QueryFilled", {}>>
 <<"CELL", "Filled", "QueryCanceled", {}>>
+<<"CELL", "Filled", "QueryExpired", {}>>
 <<"CELL", "Filled", "QueryNotFound", {}>>
 <<"CELL", "Filled", "RaceFill", {}>>
 <<"CELL", "PendingCancel", "Ack", {"PendingCancel"}>>
 <<"CELL", "PendingCancel", "Fill", {"Filled", "PendingCancel"}>>
 <<"CELL", "PendingCancel", "CancelRequested", {"PendingCancel"}>>
-<<"CELL", "PendingCancel", "CancelDenied", {"Acked", "PartiallyFilled"}>>
+<< "CELL",
+   "PendingCancel",
+   "CancelDenied",
+   {"Acked", "PartiallyFilled", "Unknown"} >>
 <<"CELL", "PendingCancel", "CancelConfirmed", {"Canceled"}>>
 <<"CELL", "PendingCancel", "Reject", {}>>
 <<"CELL", "PendingCancel", "Expire", {"Expired"}>>
 <<"CELL", "PendingCancel", "Timeout", {"Unknown"}>>
 <<"CELL", "PendingCancel", "QueryFilled", {}>>
 <<"CELL", "PendingCancel", "QueryCanceled", {}>>
+<<"CELL", "PendingCancel", "QueryExpired", {}>>
 <<"CELL", "PendingCancel", "QueryNotFound", {}>>
 <<"CELL", "PendingCancel", "RaceFill", {}>>
 <<"CELL", "Canceled", "Ack", {}>>
@@ -84,6 +92,7 @@ Starting... (2026-10-23 09:59:39)
 <<"CELL", "Canceled", "Timeout", {}>>
 <<"CELL", "Canceled", "QueryFilled", {}>>
 <<"CELL", "Canceled", "QueryCanceled", {}>>
+<<"CELL", "Canceled", "QueryExpired", {}>>
 <<"CELL", "Canceled", "QueryNotFound", {}>>
 <<"CELL", "Canceled", "RaceFill", {"Canceled"}>>
 <<"CELL", "Rejected", "Ack", {}>>
@@ -96,6 +105,7 @@ Starting... (2026-10-23 09:59:39)
 <<"CELL", "Rejected", "Timeout", {}>>
 <<"CELL", "Rejected", "QueryFilled", {}>>
 <<"CELL", "Rejected", "QueryCanceled", {}>>
+<<"CELL", "Rejected", "QueryExpired", {}>>
 <<"CELL", "Rejected", "QueryNotFound", {}>>
 <<"CELL", "Rejected", "RaceFill", {}>>
 <<"CELL", "Expired", "Ack", {}>>
@@ -108,6 +118,7 @@ Starting... (2026-10-23 09:59:39)
 <<"CELL", "Expired", "Timeout", {}>>
 <<"CELL", "Expired", "QueryFilled", {}>>
 <<"CELL", "Expired", "QueryCanceled", {}>>
+<<"CELL", "Expired", "QueryExpired", {}>>
 <<"CELL", "Expired", "QueryNotFound", {}>>
 <<"CELL", "Expired", "RaceFill", {}>>
 <<"CELL", "Unknown", "Ack", {}>>
@@ -120,19 +131,20 @@ Starting... (2026-10-23 09:59:39)
 <<"CELL", "Unknown", "Timeout", {"Unknown"}>>
 <<"CELL", "Unknown", "QueryFilled", {"Filled"}>>
 <<"CELL", "Unknown", "QueryCanceled", {"Canceled"}>>
-<<"CELL", "Unknown", "QueryNotFound", {"PendingNew"}>>
+<<"CELL", "Unknown", "QueryExpired", {"Expired"}>>
+<<"CELL", "Unknown", "QueryNotFound", {"PendingNew", "Rejected", "Unknown"}>>
 <<"CELL", "Unknown", "RaceFill", {}>>
 Computing initial states...
 Computed 2 initial states...
-Finished computing initial states: 4 distinct states generated at 2026-10-23 09:59:39.
+Finished computing initial states: 4 distinct states generated at 2026-10-23 10:36:35.
 Error: Invariant CancelRemainingConsistent is violated.
 Error: The behavior up to this point is:
 State 1: <Initial predicate>
 /\ flag = FALSE
-/\ epoch = 0
 /\ foreign = FALSE
 /\ killed = FALSE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "None",
@@ -142,7 +154,6 @@ State 1: <Initial predicate>
         leg |-> "none",
         cum |-> 0,
         sent |-> FALSE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "none",
@@ -150,41 +161,25 @@ State 1: <Initial predicate>
         cresp |-> "none",
         cxlReq |-> FALSE,
         rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = 0
+/\ kills = 0
 /\ last = <<"-", "-", "-">>
+/\ gh = (i1 :> [ph |-> FALSE, pk |-> FALSE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = TRUE
 /\ lpos = 0
 
-State 2: <Reconcile line 405, col 3 to line 411, col 73 of module OrderLifecycle>
+State 2: <Reconcile line 513, col 3 to line 519, col 76 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 0
 /\ foreign = FALSE
 /\ killed = FALSE
 /\ fresh = TRUE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "None",
@@ -194,7 +189,6 @@ State 2: <Reconcile line 405, col 3 to line 411, col 73 of module OrderLifecycle
         leg |-> "none",
         cum |-> 0,
         sent |-> FALSE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "none",
@@ -202,41 +196,25 @@ State 2: <Reconcile line 405, col 3 to line 411, col 73 of module OrderLifecycle
         cresp |-> "none",
         cxlReq |-> FALSE,
         rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = 0
+/\ kills = 0
 /\ last = <<"-", "-", "-">>
+/\ gh = (i1 :> [ph |-> FALSE, pk |-> FALSE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = TRUE
 /\ lpos = 0
 
-State 3: <OperatorReset line 414, col 3 to line 419, col 60 of module OrderLifecycle>
+State 3: <OperatorReset line 522, col 3 to line 527, col 71 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 0
 /\ foreign = FALSE
 /\ killed = FALSE
 /\ fresh = TRUE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "None",
@@ -246,7 +224,6 @@ State 3: <OperatorReset line 414, col 3 to line 419, col 60 of module OrderLifec
         leg |-> "none",
         cum |-> 0,
         sent |-> FALSE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "none",
@@ -254,41 +231,25 @@ State 3: <OperatorReset line 414, col 3 to line 419, col 60 of module OrderLifec
         cresp |-> "none",
         cxlReq |-> FALSE,
         rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = 0
+/\ kills = 0
 /\ last = <<"-", "-", "-">>
+/\ gh = (i1 :> [ph |-> FALSE, pk |-> FALSE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = FALSE
 /\ lpos = 0
 
-State 4: <Plan line 166, col 3 to line 178, col 91 of module OrderLifecycle>
+State 4: <Plan line 202, col 3 to line 215, col 94 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 0
 /\ foreign = FALSE
 /\ killed = FALSE
 /\ fresh = TRUE
+/\ ap = (i1 :> TRUE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "PendingNew",
@@ -298,7 +259,6 @@ State 4: <Plan line 166, col 3 to line 178, col 91 of module OrderLifecycle>
         leg |-> "open",
         cum |-> 0,
         sent |-> FALSE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "none",
@@ -306,41 +266,25 @@ State 4: <Plan line 166, col 3 to line 178, col 91 of module OrderLifecycle>
         cresp |-> "none",
         cxlReq |-> FALSE,
         rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = 0
+/\ kills = 0
 /\ last = <<"-", "-", "-">>
+/\ gh = (i1 :> [ph |-> FALSE, pk |-> FALSE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = FALSE
 /\ lpos = 0
 
-State 5: <DispatchAck line 191, col 3 to line 195, col 84 of module OrderLifecycle>
+State 5: <DispatchAck line 228, col 3 to line 234, col 84 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 0
 /\ foreign = FALSE
 /\ killed = FALSE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "PendingNew",
@@ -350,7 +294,6 @@ State 5: <DispatchAck line 191, col 3 to line 195, col 84 of module OrderLifecyc
         leg |-> "open",
         cum |-> 0,
         sent |-> TRUE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "ack",
@@ -358,41 +301,25 @@ State 5: <DispatchAck line 191, col 3 to line 195, col 84 of module OrderLifecyc
         cresp |-> "none",
         cxlReq |-> FALSE,
         rem |-> -1,
-        vst |-> "open",
-        vcum |-> 0,
-        vsubs |-> 1,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "open", vcum |-> 0, vsubs |-> 1, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = 0
+/\ kills = 0
 /\ last = <<"-", "-", "-">>
+/\ gh = (i1 :> [ph |-> FALSE, pk |-> FALSE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = FALSE
 /\ lpos = 0
 
-State 6: <VFill line 248, col 3 to line 253, col 79 of module OrderLifecycle>
+State 6: <VFill line 314, col 3 to line 319, col 90 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 0
 /\ foreign = FALSE
 /\ killed = FALSE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "PendingNew",
@@ -402,7 +329,6 @@ State 6: <VFill line 248, col 3 to line 253, col 79 of module OrderLifecycle>
         leg |-> "open",
         cum |-> 0,
         sent |-> TRUE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "ack",
@@ -410,41 +336,25 @@ State 6: <VFill line 248, col 3 to line 253, col 79 of module OrderLifecycle>
         cresp |-> "none",
         cxlReq |-> FALSE,
         rem |-> -1,
-        vst |-> "open",
-        vcum |-> 1,
-        vsubs |-> 1,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "open", vcum |-> 1, vsubs |-> 1, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = -1
+/\ kills = 0
 /\ last = <<"-", "-", "-">>
+/\ gh = (i1 :> [ph |-> FALSE, pk |-> FALSE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = FALSE
 /\ lpos = 0
 
-State 7: <Kill line 425, col 3 to line 427, col 71 of module OrderLifecycle>
+State 7: <Kill line 533, col 3 to line 537, col 74 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 1
 /\ foreign = FALSE
 /\ killed = TRUE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "PendingNew",
@@ -454,7 +364,6 @@ State 7: <Kill line 425, col 3 to line 427, col 71 of module OrderLifecycle>
         leg |-> "open",
         cum |-> 0,
         sent |-> TRUE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "ack",
@@ -462,41 +371,25 @@ State 7: <Kill line 425, col 3 to line 427, col 71 of module OrderLifecycle>
         cresp |-> "none",
         cxlReq |-> FALSE,
         rem |-> -1,
-        vst |-> "open",
-        vcum |-> 1,
-        vsubs |-> 1,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "open", vcum |-> 1, vsubs |-> 1, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = -1
+/\ kills = 1
 /\ last = <<"-", "-", "-">>
+/\ gh = (i1 :> [ph |-> TRUE, pk |-> TRUE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = TRUE
 /\ lpos = 0
 
-State 8: <KillCancel line 430, col 3 to line 438, col 78 of module OrderLifecycle>
+State 8: <KillCancel line 540, col 3 to line 552, col 89 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 1
 /\ foreign = FALSE
 /\ killed = TRUE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "PendingCancel",
@@ -506,7 +399,6 @@ State 8: <KillCancel line 430, col 3 to line 438, col 78 of module OrderLifecycl
         leg |-> "open",
         cum |-> 0,
         sent |-> TRUE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "ack",
@@ -514,41 +406,25 @@ State 8: <KillCancel line 430, col 3 to line 438, col 78 of module OrderLifecycl
         cresp |-> "none",
         cxlReq |-> TRUE,
         rem |-> -1,
-        vst |-> "open",
-        vcum |-> 1,
-        vsubs |-> 1,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "open", vcum |-> 1, vsubs |-> 1, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = -1
+/\ kills = 1
 /\ last = <<"PendingNew", "CancelRequested", "PendingCancel">>
+/\ gh = (i1 :> [ph |-> TRUE, pk |-> TRUE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = TRUE
 /\ lpos = 0
 
-State 9: <VCancel line 262, col 3 to line 267, col 84 of module OrderLifecycle>
+State 9: <VCancel line 328, col 3 to line 333, col 92 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 1
 /\ foreign = FALSE
 /\ killed = TRUE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "PendingCancel",
@@ -558,7 +434,6 @@ State 9: <VCancel line 262, col 3 to line 267, col 84 of module OrderLifecycle>
         leg |-> "open",
         cum |-> 0,
         sent |-> TRUE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "ack",
@@ -566,41 +441,25 @@ State 9: <VCancel line 262, col 3 to line 267, col 84 of module OrderLifecycle>
         cresp |-> "conf",
         cxlReq |-> TRUE,
         rem |-> -1,
-        vst |-> "canceled",
-        vcum |-> 1,
-        vsubs |-> 1,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "canceled", vcum |-> 1, vsubs |-> 1, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = -1
+/\ kills = 1
 /\ last = <<"PendingNew", "CancelRequested", "PendingCancel">>
+/\ gh = (i1 :> [ph |-> TRUE, pk |-> TRUE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = TRUE
 /\ lpos = 0
 
-State 10: <DCresp line 318, col 3 to line 327, col 56 of module OrderLifecycle>
+State 10: <DCresp line 395, col 3 to line 407, col 56 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 1
 /\ foreign = FALSE
 /\ killed = TRUE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "Canceled",
@@ -610,7 +469,6 @@ State 10: <DCresp line 318, col 3 to line 327, col 56 of module OrderLifecycle>
         leg |-> "open",
         cum |-> 0,
         sent |-> TRUE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "ack",
@@ -618,41 +476,25 @@ State 10: <DCresp line 318, col 3 to line 327, col 56 of module OrderLifecycle>
         cresp |-> "none",
         cxlReq |-> TRUE,
         rem |-> -1,
-        vst |-> "canceled",
-        vcum |-> 1,
-        vsubs |-> 1,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "canceled", vcum |-> 1, vsubs |-> 1, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = -1
+/\ kills = 1
 /\ last = <<"PendingCancel", "CancelConfirmed", "Canceled">>
+/\ gh = (i1 :> [ph |-> TRUE, pk |-> TRUE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = TRUE
 /\ lpos = 0
 
-State 11: <EmitCancelled line 464, col 3 to line 466, col 91 of module OrderLifecycle>
+State 11: <EmitCancelled line 581, col 3 to line 584, col 30 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 1
 /\ foreign = FALSE
 /\ killed = TRUE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "Canceled",
@@ -662,7 +504,6 @@ State 11: <EmitCancelled line 464, col 3 to line 466, col 91 of module OrderLife
         leg |-> "open",
         cum |-> 0,
         sent |-> TRUE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "ack",
@@ -670,41 +511,25 @@ State 11: <EmitCancelled line 464, col 3 to line 466, col 91 of module OrderLife
         cresp |-> "none",
         cxlReq |-> TRUE,
         rem |-> 2,
-        vst |-> "canceled",
-        vcum |-> 1,
-        vsubs |-> 1,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "canceled", vcum |-> 1, vsubs |-> 1, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = -1
+/\ kills = 1
 /\ last = <<"PendingCancel", "CancelConfirmed", "Canceled">>
+/\ gh = (i1 :> [ph |-> TRUE, pk |-> TRUE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = TRUE
 /\ lpos = 0
 
-State 12: <DFill line 302, col 3 to line 315, col 30 of module OrderLifecycle>
+State 12: <DFill line 377, col 3 to line 390, col 30 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 1
 /\ foreign = FALSE
 /\ killed = TRUE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "Canceled",
@@ -714,7 +539,6 @@ State 12: <DFill line 302, col 3 to line 315, col 30 of module OrderLifecycle>
         leg |-> "open",
         cum |-> 1,
         sent |-> TRUE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "ack",
@@ -722,38 +546,22 @@ State 12: <DFill line 302, col 3 to line 315, col 30 of module OrderLifecycle>
         cresp |-> "none",
         cxlReq |-> TRUE,
         rem |-> 2,
-        vst |-> "canceled",
-        vcum |-> 1,
-        vsubs |-> 1,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "canceled", vcum |-> 1, vsubs |-> 1, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = -1
+/\ kills = 1
 /\ last = <<"Canceled", "RaceFill", "Canceled">>
+/\ gh = (i1 :> [ph |-> TRUE, pk |-> TRUE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = TRUE
 /\ lpos = -1
 
-108742 states generated, 37924 distinct states found, 17593 states left on queue.
+92114 states generated, 20223 distinct states found, 6925 states left on queue.
 The depth of the complete state graph search is 12.
-The average outdegree of the complete state graph is 2 (minimum is 0, the maximum 9 and the 95th percentile is 5).
-Finished in 02s at (2026-10-23 09:59:41)
+The average outdegree of the complete state graph is 2 (minimum is 0, the maximum 10 and the 95th percentile is 5).
+Finished in 01s at (2026-10-23 10:36:35)
 
 exit_code=12

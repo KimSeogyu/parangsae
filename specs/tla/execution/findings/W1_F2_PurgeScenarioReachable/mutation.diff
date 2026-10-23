@@ -1,0 +1,10 @@
+# reachability witness (expected to be violated): the F2 scenario (order landed, then purged, then a definitive NotFound and a retry) is reachable in v3.1 and is retried under a fresh id
+--- OrderLifecycle.tla
++++ findings/W1_F2_PurgeScenarioReachable/OrderLifecycle.tla
+@@ -741,4 +741,6 @@
+     (o[i].st = "Unknown" /\ V(i).vst \in {"expired", "canceled", "filled"})
+       ~> (o[i].st # "Unknown")
+ 
++PurgedOrderNeverRetried == ~(\E i \in Intents : o[i].att > 0 /\ v[i][0].vsubs > 0)
++
+ =============================================================================

@@ -1,0 +1,156 @@
+$ java -XX:+UseParallelGC -Xmx4g -cp tla2tools.jar tlc2.TLC -workers 1 -metadir <tmp> -config OrderLifecycleTwoIntentSafety.cfg OrderLifecycle.tla   (stopped manually at ~10:55:35 KST; partial, not a completed check)
+TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
+Running breadth-first search Model-Checking with fp 100 and seed -5892946321423404807 with 1 worker on 8 cores with 3641MB heap and 64MB offheap memory [pid: 221962] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/builder/execution-tla-v3.1/OrderLifecycle.tla
+Parsing file /tmp/Integers.tla
+Parsing file /tmp/FiniteSets.tla
+Parsing file /tmp/TLC.tla
+Parsing file /tmp/Naturals.tla
+Parsing file /tmp/Sequences.tla
+Semantic processing of module Naturals
+Semantic processing of module Integers
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module TLC
+Semantic processing of module OrderLifecycle
+Starting... (2026-10-23 10:35:50)
+<<"CELL", "PendingNew", "Ack", {"Acked"}>>
+<<"CELL", "PendingNew", "Fill", {"PartiallyFilled", "Filled"}>>
+<<"CELL", "PendingNew", "CancelRequested", {"PendingCancel", "Canceled"}>>
+<<"CELL", "PendingNew", "CancelDenied", {}>>
+<<"CELL", "PendingNew", "CancelConfirmed", {}>>
+<<"CELL", "PendingNew", "Reject", {"Rejected"}>>
+<<"CELL", "PendingNew", "Expire", {"Expired"}>>
+<<"CELL", "PendingNew", "Timeout", {"Unknown"}>>
+<<"CELL", "PendingNew", "QueryFilled", {}>>
+<<"CELL", "PendingNew", "QueryCanceled", {}>>
+<<"CELL", "PendingNew", "QueryExpired", {}>>
+<<"CELL", "PendingNew", "QueryNotFound", {}>>
+<<"CELL", "PendingNew", "RaceFill", {}>>
+<<"CELL", "Acked", "Ack", {"Acked"}>>
+<<"CELL", "Acked", "Fill", {"PartiallyFilled", "Filled"}>>
+<<"CELL", "Acked", "CancelRequested", {"PendingCancel"}>>
+<<"CELL", "Acked", "CancelDenied", {}>>
+<<"CELL", "Acked", "CancelConfirmed", {}>>
+<<"CELL", "Acked", "Reject", {}>>
+<<"CELL", "Acked", "Expire", {"Expired"}>>
+<<"CELL", "Acked", "Timeout", {"Unknown"}>>
+<<"CELL", "Acked", "QueryFilled", {}>>
+<<"CELL", "Acked", "QueryCanceled", {}>>
+<<"CELL", "Acked", "QueryExpired", {}>>
+<<"CELL", "Acked", "QueryNotFound", {}>>
+<<"CELL", "Acked", "RaceFill", {}>>
+<<"CELL", "PartiallyFilled", "Ack", {"PartiallyFilled"}>>
+<<"CELL", "PartiallyFilled", "Fill", {"PartiallyFilled", "Filled"}>>
+<<"CELL", "PartiallyFilled", "CancelRequested", {"PendingCancel"}>>
+<<"CELL", "PartiallyFilled", "CancelDenied", {}>>
+<<"CELL", "PartiallyFilled", "CancelConfirmed", {}>>
+<<"CELL", "PartiallyFilled", "Reject", {}>>
+<<"CELL", "PartiallyFilled", "Expire", {"Expired"}>>
+<<"CELL", "PartiallyFilled", "Timeout", {"Unknown"}>>
+<<"CELL", "PartiallyFilled", "QueryFilled", {}>>
+<<"CELL", "PartiallyFilled", "QueryCanceled", {}>>
+<<"CELL", "PartiallyFilled", "QueryExpired", {}>>
+<<"CELL", "PartiallyFilled", "QueryNotFound", {}>>
+<<"CELL", "PartiallyFilled", "RaceFill", {}>>
+<<"CELL", "Filled", "Ack", {}>>
+<<"CELL", "Filled", "Fill", {}>>
+<<"CELL", "Filled", "CancelRequested", {}>>
+<<"CELL", "Filled", "CancelDenied", {}>>
+<<"CELL", "Filled", "CancelConfirmed", {}>>
+<<"CELL", "Filled", "Reject", {}>>
+<<"CELL", "Filled", "Expire", {}>>
+<<"CELL", "Filled", "Timeout", {}>>
+<<"CELL", "Filled", "QueryFilled", {}>>
+<<"CELL", "Filled", "QueryCanceled", {}>>
+<<"CELL", "Filled", "QueryExpired", {}>>
+<<"CELL", "Filled", "QueryNotFound", {}>>
+<<"CELL", "Filled", "RaceFill", {}>>
+<<"CELL", "PendingCancel", "Ack", {"PendingCancel"}>>
+<<"CELL", "PendingCancel", "Fill", {"Filled", "PendingCancel"}>>
+<<"CELL", "PendingCancel", "CancelRequested", {"PendingCancel"}>>
+<< "CELL",
+   "PendingCancel",
+   "CancelDenied",
+   {"Acked", "PartiallyFilled", "Unknown"} >>
+<<"CELL", "PendingCancel", "CancelConfirmed", {"Canceled"}>>
+<<"CELL", "PendingCancel", "Reject", {}>>
+<<"CELL", "PendingCancel", "Expire", {"Expired"}>>
+<<"CELL", "PendingCancel", "Timeout", {"Unknown"}>>
+<<"CELL", "PendingCancel", "QueryFilled", {}>>
+<<"CELL", "PendingCancel", "QueryCanceled", {}>>
+<<"CELL", "PendingCancel", "QueryExpired", {}>>
+<<"CELL", "PendingCancel", "QueryNotFound", {}>>
+<<"CELL", "PendingCancel", "RaceFill", {}>>
+<<"CELL", "Canceled", "Ack", {}>>
+<<"CELL", "Canceled", "Fill", {}>>
+<<"CELL", "Canceled", "CancelRequested", {}>>
+<<"CELL", "Canceled", "CancelDenied", {}>>
+<<"CELL", "Canceled", "CancelConfirmed", {}>>
+<<"CELL", "Canceled", "Reject", {}>>
+<<"CELL", "Canceled", "Expire", {}>>
+<<"CELL", "Canceled", "Timeout", {}>>
+<<"CELL", "Canceled", "QueryFilled", {}>>
+<<"CELL", "Canceled", "QueryCanceled", {}>>
+<<"CELL", "Canceled", "QueryExpired", {}>>
+<<"CELL", "Canceled", "QueryNotFound", {}>>
+<<"CELL", "Canceled", "RaceFill", {"Canceled"}>>
+<<"CELL", "Rejected", "Ack", {}>>
+<<"CELL", "Rejected", "Fill", {}>>
+<<"CELL", "Rejected", "CancelRequested", {}>>
+<<"CELL", "Rejected", "CancelDenied", {}>>
+<<"CELL", "Rejected", "CancelConfirmed", {}>>
+<<"CELL", "Rejected", "Reject", {}>>
+<<"CELL", "Rejected", "Expire", {}>>
+<<"CELL", "Rejected", "Timeout", {}>>
+<<"CELL", "Rejected", "QueryFilled", {}>>
+<<"CELL", "Rejected", "QueryCanceled", {}>>
+<<"CELL", "Rejected", "QueryExpired", {}>>
+<<"CELL", "Rejected", "QueryNotFound", {}>>
+<<"CELL", "Rejected", "RaceFill", {}>>
+<<"CELL", "Expired", "Ack", {}>>
+<<"CELL", "Expired", "Fill", {}>>
+<<"CELL", "Expired", "CancelRequested", {}>>
+<<"CELL", "Expired", "CancelDenied", {}>>
+<<"CELL", "Expired", "CancelConfirmed", {}>>
+<<"CELL", "Expired", "Reject", {}>>
+<<"CELL", "Expired", "Expire", {}>>
+<<"CELL", "Expired", "Timeout", {}>>
+<<"CELL", "Expired", "QueryFilled", {}>>
+<<"CELL", "Expired", "QueryCanceled", {}>>
+<<"CELL", "Expired", "QueryExpired", {}>>
+<<"CELL", "Expired", "QueryNotFound", {}>>
+<<"CELL", "Expired", "RaceFill", {}>>
+<<"CELL", "Unknown", "Ack", {}>>
+<<"CELL", "Unknown", "Fill", {}>>
+<<"CELL", "Unknown", "CancelRequested", {"Unknown"}>>
+<<"CELL", "Unknown", "CancelDenied", {}>>
+<<"CELL", "Unknown", "CancelConfirmed", {}>>
+<<"CELL", "Unknown", "Reject", {}>>
+<<"CELL", "Unknown", "Expire", {}>>
+<<"CELL", "Unknown", "Timeout", {"Unknown"}>>
+<<"CELL", "Unknown", "QueryFilled", {"Filled"}>>
+<<"CELL", "Unknown", "QueryCanceled", {"Canceled"}>>
+<<"CELL", "Unknown", "QueryExpired", {"Expired"}>>
+<<"CELL", "Unknown", "QueryNotFound", {"PendingNew", "Rejected", "Unknown"}>>
+<<"CELL", "Unknown", "RaceFill", {}>>
+Computing initial states...
+Computed 2 initial states...
+Finished computing initial states: 4 distinct states generated at 2026-10-23 10:35:51.
+Progress(10) at 2026-10-23 10:35:54: 102,719 states generated (102,719 s/min), 29,793 distinct states found (29,793 ds/min), 15,187 states left on queue.
+Progress(16) at 2026-10-23 10:36:54: 4,392,741 states generated (4,290,022 s/min), 989,563 distinct states found (959,770 ds/min), 344,128 states left on queue.
+Progress(18) at 2026-10-23 10:37:54: 9,535,371 states generated (5,142,630 s/min), 1,967,574 distinct states found (978,011 ds/min), 553,679 states left on queue.
+Progress(20) at 2026-10-23 10:38:54: 13,725,899 states generated (4,190,528 s/min), 2,721,967 distinct states found (754,393 ds/min), 676,990 states left on queue.
+Progress(20) at 2026-10-23 10:39:54: 16,984,978 states generated (3,259,079 s/min), 3,292,003 distinct states found (570,036 ds/min), 753,118 states left on queue.
+Progress(21) at 2026-10-23 10:40:54: 21,472,701 states generated (4,487,723 s/min), 4,075,592 distinct states found (783,589 ds/min), 855,678 states left on queue.
+Progress(22) at 2026-10-23 10:41:54: 26,697,805 states generated (5,225,104 s/min), 4,989,593 distinct states found (914,001 ds/min), 976,847 states left on queue.
+Progress(23) at 2026-10-23 10:42:54: 31,527,116 states generated (4,829,311 s/min), 5,829,560 distinct states found (839,967 ds/min), 1,083,679 states left on queue.
+Progress(24) at 2026-10-23 10:43:54: 36,165,222 states generated (4,638,106 s/min), 6,657,768 distinct states found (828,208 ds/min), 1,208,305 states left on queue.
+Progress(24) at 2026-10-23 10:44:54: 41,786,510 states generated (5,621,288 s/min), 7,652,772 distinct states found (995,004 ds/min), 1,350,742 states left on queue.
+Progress(25) at 2026-10-23 10:47:54: 44,242,685 states generated (2,456,175 s/min), 8,089,620 distinct states found (436,848 ds/min), 1,417,070 states left on queue.
+Progress(25) at 2026-10-23 10:50:57: 47,150,921 states generated (2,908,236 s/min), 8,602,988 distinct states found (513,368 ds/min), 1,491,178 states left on queue.
+Progress(25) at 2026-10-23 10:52:29: 51,033,844 states generated (3,882,923 s/min), 9,290,482 distinct states found (687,494 ds/min), 1,590,640 states left on queue.
+Progress(26) at 2026-10-23 10:53:29: 55,954,169 states generated (4,920,325 s/min), 10,153,436 distinct states found (862,954 ds/min), 1,711,642 states left on queue.
+Progress(26) at 2026-10-23 10:54:29: 61,569,906 states generated (5,615,737 s/min), 11,127,135 distinct states found (973,699 ds/min), 1,834,684 states left on queue.
+Progress(27) at 2026-10-23 10:55:29: 67,087,132 states generated (5,517,226 s/min), 12,075,999 distinct states found (948,864 ds/min), 1,951,222 states left on queue.
+exit 143

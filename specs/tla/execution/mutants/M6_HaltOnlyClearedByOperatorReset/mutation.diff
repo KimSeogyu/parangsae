@@ -1,12 +1,12 @@
 # a clean reconciliation re-arms the book (clears the latch) without OperatorReset
 --- OrderLifecycle.tla
 +++ mutants/M6_HaltOnlyClearedByOperatorReset/OrderLifecycle.tla
-@@ -406,7 +406,7 @@
+@@ -514,7 +514,7 @@
    /\ \A j \in Intents : Quiet(j)
    /\ IF Matches
       THEN /\ fresh' = TRUE
--          /\ UNCHANGED <<halted, flag>>          \* a match keeps the latch set
-+          /\ halted' = FALSE /\ flag' = FALSE
-      ELSE /\ Halt /\ fresh' = FALSE
-   /\ UNCHANGED <<o, riskHalted, epoch, killed, lpos, pos, foreign, last>>
+-          /\ UNCHANGED <<halted, flag, ap, gh>>   \* a match keeps the latch set
++          /\ halted' = FALSE /\ flag' = FALSE /\ UNCHANGED <<ap, gh>>
+      ELSE /\ HaltG /\ fresh' = FALSE
+   /\ UNCHANGED <<o, v, riskHalted, kills, killed, lpos, pos, foreign, last>>
  
