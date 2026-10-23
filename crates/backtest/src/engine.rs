@@ -379,7 +379,13 @@ pub fn run_targets<S: TargetSignal>(
                 let diff = lots
                     .checked_sub(ledger.position().0)
                     .ok_or(EngineError::Sim(SimError::Overflow))?;
-                if diff != 0 {
+                let before = std::env::var_os("CAUSAL_BEFORE").is_some();
+                if decision.micros() == 1730149200000000 && pending.is_some() {
+                    eprintln!("TRIGGER before={before} diff={diff} position={} pending_refused={}", ledger.position().0, pending.as_ref().unwrap().refused);
+                }
+                if diff == 0 {
+                    if !before { pending = None; }
+                } else {
                     let side = if diff > 0 { Side::Buy } else { Side::Sell };
                     let qty_ticks = diff
                         .checked_abs()
@@ -387,8 +393,13 @@ pub fn run_targets<S: TargetSignal>(
                     let qty = Qty::from_ticks(qty_ticks)
                         .map_err(|_| EngineError::Sim(SimError::Negative))?;
                     if window[index + 1..].iter().any(|next| next.count > 0) {
-                        pending = Some(HeldOrder::new(MarketOrder { side, qty }));
+                        let order = MarketOrder { side, qty };
+                        // An unchanged order retains its one-refusal history.
+                        if before || !pending.as_ref().is_some_and(|held| held.order == order) {
+                            pending = Some(HeldOrder::new(order));
+                        }
                     } else {
+                        if !before { pending = None; }
                         dropped_orders += 1;
                     }
                 }

@@ -1589,3 +1589,46 @@ mod tests {
         Tape::from_parts(bars, marks, funding)
     }
 }
+
+#[cfg(test)]
+mod causal_impact_diagnostic {
+    use super::*;
+    #[test]
+    fn real_data_before_after() {
+        let input = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../research/sweep-inputs-v2.json");
+        let families = crate::wfbatch::prepare_families(&input, 1).unwrap();
+        let pins = SweepPins::load(&input).unwrap();
+        let trigger = 1730149200000000;
+        let mut first = trigger;
+        for f in &families { for fold in &f.folds {
+            for (warmup, segment) in [(fold.train_warmup, fold.train), (fold.test_warmup, fold.test)] {
+                if segment.start.micros() <= trigger && segment.end.micros() > trigger { first = first.min(warmup.start.micros()); }
+            }
+        }}
+        let last = 1730246400000000; // 2024-10-30 00:00 UTC.
+        let tape = load_pinned_tape(Path::new("/workspace/data/parangsae"), &pins, first, last).unwrap();
+        for family in &families { for (fi, fold) in family.folds.iter().enumerate() {
+            for (segment_name, warmup, segment) in [("train", fold.train_warmup, fold.train), ("test", fold.test_warmup, fold.test)] {
+                if segment.start.micros() > trigger || segment.end.micros() <= trigger { continue; }
+                let end = last.min(segment.end.micros());
+                for (index, point) in family.points.iter().enumerate() {
+                    for (fee, slip) in [(2,2), (4,2), (5,2), (6,2), (5,5)] {
+                        if segment_name == "train" && (fee != 5 || slip != 2) { continue; }
+                        let costs = Costs { taker_fee: FeeBps(fee), slippage: SlippageBps(slip) };
+                        let run = |before| {
+                            if before { std::env::set_var("CAUSAL_BEFORE", "1"); } else { std::env::remove_var("CAUSAL_BEFORE"); }
+                            let mut signal = FamilySignal::new(&point.config.family, &point.config.params).unwrap();
+                            let cfg = research_config(point.config.initial_cash, warmup.start.micros(), segment.start.micros(), end, signal.interval, false).unwrap();
+                            run_targets(&tape, &mut signal, &costs, &cfg).unwrap()
+                        };
+                        eprintln!("CASE {} fold={} {} c{} fee={} slip={}", family.family, fi+1, segment_name, index, fee, slip);
+                        let before = run(true); let after = run(false);
+                        println!("IMPACT {} fold={} {} c{} fee={} slip={} fills_changed={} equity_changed={} refused_before={} refused_after={}",
+                            family.family, fi+1, segment_name, index, fee, slip, before.fills != after.fills,
+                            before.equity_curve != after.equity_curve, before.n_refused_fills, after.n_refused_fills);
+                    }
+                }
+            }
+        }}
+    }
+}
