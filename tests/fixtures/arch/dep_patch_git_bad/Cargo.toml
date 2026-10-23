@@ -1,0 +1,9 @@
+[workspace]
+resolver = "2"
+members = [
+    "sim",
+    "execution",
+]
+
+[patch."__GIT_URL__"]
+parangsae-execution = { path = "execution" }

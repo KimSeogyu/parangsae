@@ -22,6 +22,9 @@ sha2 = "0.11.1"
 url = "2.5.8"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
+[lints.clippy]
+float_arithmetic = "deny"
+
 [dev-dependencies]
 cucumber = "=0.22.1"
 proptest = "1.12.0"

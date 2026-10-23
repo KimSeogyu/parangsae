@@ -9,6 +9,7 @@ members = [
     "crates/execution",
     "crates/sim",
     "crates/backtest",
+    "xtask",
 ]
 
 [workspace.package]
