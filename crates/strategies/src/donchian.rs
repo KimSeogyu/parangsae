@@ -26,30 +26,57 @@ impl Donchian {
         })
     }
 
+    /// Channel only. The hold is not stepped.
+    pub fn observe(&mut self, row: &Observation<ResampledBar>) -> Result<(), StrategyError> {
+        let _ready = self.ingest(row)?;
+        Ok(())
+    }
+
     pub fn push(
         &mut self,
         row: &Observation<ResampledBar>,
         _book: Option<crate::DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
+        let ready = self.ingest(row)?;
+        if !ready.channel_ready || ready.decision_us < WARMUP_30D_US {
+            return Ok(None);
+        }
+        let side = self.hold.step(ready.decision_us, ready.signal_side)?;
+        Ok(Some(emitted(
+            &ready.bar,
+            ready.decision_us,
+            side_target(side)?,
+        )))
+    }
+
+    fn ingest(&mut self, row: &Observation<ResampledBar>) -> Result<ChannelReady, StrategyError> {
         let view = self.cursor.admit(row)?;
         let decision_us = decision_micros(&view);
-        let bar = view.value();
-        let ready = self.prev.len() >= self.n;
+        let bar = *view.value();
+        let channel_ready = self.prev.len() >= self.n;
         let signal_side = channel_side(&self.prev, self.n, bar.close().ticks());
         self.prev.push_back((bar.high().ticks(), bar.low().ticks()));
         if self.prev.len() > self.n {
             self.prev.pop_front();
         }
-        if !ready || decision_us < WARMUP_30D_US {
-            return Ok(None);
-        }
-        let side = self.hold.step(decision_us, signal_side)?;
-        Ok(Some(emitted(bar, decision_us, side_target(side)?)))
+        Ok(ChannelReady {
+            bar,
+            decision_us,
+            channel_ready,
+            signal_side,
+        })
     }
 
     pub(crate) fn dropped_entries(&self) -> u64 {
         self.hold.dropped()
     }
+}
+
+struct ChannelReady {
+    bar: ResampledBar,
+    decision_us: i64,
+    channel_ready: bool,
+    signal_side: i8,
 }
 
 pub(crate) fn positive_usize(value: i64, name: &'static str) -> Result<usize, StrategyError> {

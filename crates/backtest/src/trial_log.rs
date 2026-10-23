@@ -7,6 +7,7 @@
 //!
 //! A hard crash that leaves `RunStarted` with no terminal line counts as aborted.
 
+use std::collections::BTreeSet;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -87,6 +88,22 @@ pub fn trial_preimage(config_id: &str, pinned_root: &str, attempt: u64) -> Strin
 
 pub fn trial_id(config_id: &str, pinned_root: &str, attempt: u64) -> String {
     sha256_hex(trial_preimage(config_id, pinned_root, attempt).as_bytes())
+}
+
+/// N is the number of distinct `trial_id` values on `RunStarted` lines.
+///
+/// A second fold of the same config is the same trial. `RunFinished` lines
+/// have no `trial_id`. A `RunStarted` with no terminal line still counts:
+/// aborted and invalid runs count.
+pub fn distinct_trial_count(path: &Path) -> Result<u64, TrialError> {
+    let lines = read_lines(path)?;
+    let mut ids = BTreeSet::new();
+    for line in lines {
+        if let Line::Started { trial_id, .. } = line {
+            ids.insert(trial_id);
+        }
+    }
+    u64::try_from(ids.len()).map_err(|_| TrialError::Io("trial count".to_owned()))
 }
 
 /// Append `RunFinished`. A second terminal line for `run_id` is refused.
@@ -274,5 +291,40 @@ mod tests {
             })
             .unwrap_err();
         assert_eq!(err, TrialError::Corrupt { line: 1 });
+    }
+
+    #[test]
+    fn n_counts_distinct_trial_ids_including_an_aborted_start() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("trials.jsonl");
+        let log = TrialLog::new(&path);
+        for (run_id, trial_id) in [("a", "same"), ("b", "same"), ("c", "other")] {
+            log.begin(StartRecord {
+                run_id,
+                trial_id,
+                config_id: "c",
+                pinned_root: "p",
+                attempt: 0,
+                family: "S01",
+                ts: 0,
+                fold: Some(1),
+                segment: Some("train"),
+            })
+            .unwrap();
+        }
+        log.finish("a", "digest").unwrap();
+        log.abort("c", "stopped").unwrap();
+        assert_eq!(distinct_trial_count(&path).unwrap(), 2);
+    }
+
+    #[test]
+    fn attempt0_ledger_is_unchanged_and_n_is_distinct() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../research/ledger/wf-batch/attempt0-06ea184-trials.jsonl");
+        assert_eq!(
+            crate::canon::sha256_file(&path).unwrap(),
+            "9e4e782b27695b02e88df91e7cdd001051a59d41d97ed798c4ddad6da7619116"
+        );
+        assert_eq!(distinct_trial_count(&path).unwrap(), 37);
     }
 }

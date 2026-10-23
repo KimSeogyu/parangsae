@@ -57,7 +57,7 @@ Views used:
 
 ### 2.3 Walk-forward (dates are UTC, inclusive)
 - Rolling: train 365 d, purge 2 d, then test 90 d, step 90 d. `train_k = [test_k − 2 d − 365 d, test_k − 2 d)`.
-- Train-window trades are closed at the train end (marked at the mark close), so no train label uses test-period prices. Embargo is 1 d; it applies only to the CSCV blocks of §6.
+- Train-window trades are flattened at the open of the last `count > 0` minute before the train end, and that flatten pays costs, so no train label uses test-period prices. Embargo is 1 d; it applies only to the CSCV blocks of §6.
 - **Remainder rule:** a final remainder < 45 d is appended to the last fold. A remainder ≥ 45 d becomes its own fold.
 - **Warmup:** there are no decisions in the warmup period. It is only the feature lookback, read from ≥ 2020-12-18.
 

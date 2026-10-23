@@ -170,8 +170,10 @@ where
 /// the next 1m open whose `count` is greater than zero. One order that waits
 /// through several `count = 0` minutes increments `n_refused_fills` once.
 ///
-/// Bars from `cfg.warmup_start` through `cfg.start` are in the signal's causal
-/// prefix. That span has no decision, fill, funding settlement, or equity point.
+/// Bars from `cfg.warmup_start` up to `cfg.start` are fed through
+/// [`TargetSignal::on_warmup_bar`]. That span has no decision, order, sizing,
+/// fill, funding settlement, or equity point. A hold or held target built
+/// there is not a position: the first scored bar decides from a flat book.
 ///
 /// `cfg.flatten_before` flattens at the last scored minute before that instant
 /// with `count > 0`. A window that contains 2025-09-30 23:59 UTC also flattens
@@ -239,6 +241,25 @@ pub fn run_targets<S: TargetSignal>(
     let scored_bars = scored_len(window, cfg.start);
     for (index, bar) in window.iter().enumerate() {
         if bar.open_time < cfg.start {
+            if width > 0 && (index + 1) % width == 0 && !resampled.is_empty() {
+                let hour_index = (index + 1) / width - 1;
+                let hour = &resampled[hour_index];
+                let decision = hour
+                    .close_time()
+                    .checked_add_micros(1_000)
+                    .ok_or(EngineError::Sim(SimError::Overflow))?;
+                let bars_prefix = &resampled[..=hour_index];
+                let fund_prefix = funding_visible(&funding_rows, decision);
+                let bar_obs = Observation::new(decision_stamps(decision), bars_prefix);
+                let fund_obs = Observation::new(decision_stamps(decision), fund_prefix);
+                let view = bar_obs
+                    .causal_at(DecisionTime::from_micros(decision))
+                    .expect("the prefix is stamped available at the decision");
+                let funding_view = fund_obs
+                    .causal_at(DecisionTime::from_micros(decision))
+                    .expect("the prefix is stamped available at the decision");
+                signal.on_warmup_bar(view, funding_view);
+            }
             continue;
         }
         if ruined.is_none() {

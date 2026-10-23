@@ -556,6 +556,8 @@ fn now_us() -> Result<i64, String> {
 
 struct FamilySignal {
     strategy: parangsae_strategies::Strategy,
+    family: String,
+    params: BTreeMap<String, i64>,
     interval: BarInterval,
     seen: Vec<Observation<ResampledBar>>,
 }
@@ -567,6 +569,8 @@ impl FamilySignal {
         let interval = strategy.interval();
         Ok(Self {
             strategy,
+            family: family.to_owned(),
+            params: params.clone(),
             interval,
             seen: Vec::new(),
         })
@@ -575,34 +579,82 @@ impl FamilySignal {
     fn dropped_entries(&self) -> u64 {
         self.strategy.dropped_entries()
     }
+
+    /// Bars already pushed stay put. A broken prefix rebuilds the strategy and
+    /// replays from the first row. Warmup rows call `observe`. The last row of
+    /// a scored bar is the only `push`.
+    fn absorb(
+        &mut self,
+        rows: &[ResampledBar],
+        decide_last: bool,
+        book: Option<parangsae_strategies::DecisionBook>,
+    ) -> Option<SignalOutput> {
+        let fresh = self.fresh_rows(rows);
+        let last = fresh.len().saturating_sub(1);
+        let mut output = None;
+        for (index, row) in fresh.into_iter().enumerate() {
+            if decide_last && index == last {
+                let Some(marked) = book else {
+                    panic::panic_any("scored bar has no book");
+                };
+                output = match self.strategy.push(&row, Some(marked)) {
+                    Ok(value) => value,
+                    Err(err) => panic::panic_any(err.to_string()),
+                };
+            } else if let Err(err) = self.strategy.observe(&row) {
+                panic::panic_any(err.to_string());
+            }
+            self.seen.push(row);
+        }
+        output
+    }
+
+    fn fresh_rows(&mut self, rows: &[ResampledBar]) -> Vec<Observation<ResampledBar>> {
+        if !self.prefix_holds(rows) {
+            match parangsae_strategies::Strategy::from_params(&self.family, &self.params) {
+                Ok(strategy) => self.strategy = strategy,
+                Err(err) => panic::panic_any(err.to_string()),
+            }
+            self.seen.clear();
+        }
+        rows[self.seen.len()..]
+            .iter()
+            .copied()
+            .map(bar_observation)
+            .collect()
+    }
+
+    fn prefix_holds(&self, rows: &[ResampledBar]) -> bool {
+        self.seen.len() <= rows.len()
+            && self
+                .seen
+                .iter()
+                .zip(rows)
+                .all(|(seen, row)| seen.value().open_time() == row.open_time())
+    }
 }
 
 impl TargetSignal for FamilySignal {
+    fn on_warmup_bar(
+        &mut self,
+        bars: Causal<'_, &[ResampledBar]>,
+        _funding: Causal<'_, &[FundingObs]>,
+    ) {
+        self.absorb(bars.value(), false, None);
+    }
+
     fn on_bar(
         &mut self,
         bars: Causal<'_, &[ResampledBar]>,
         _funding: Causal<'_, &[FundingObs]>,
         book: BookState,
     ) -> Option<SignalOutput> {
-        let rows = *bars.value();
-        if self.seen.len() + 1 == rows.len() {
-            if let Some(bar) = rows.last() {
-                self.seen.push(bar_observation(*bar));
-            }
-        } else if self.seen.len() != rows.len() {
-            self.seen.clear();
-            self.seen.extend(rows.iter().copied().map(bar_observation));
-        }
-        let row = self.seen.last()?;
         let marked = parangsae_strategies::DecisionBook {
             equity_ticks: book.equity_ticks,
             position_lots: book.position_lots,
             mark_ticks: book.mark_ticks,
         };
-        match self.strategy.push(row, Some(marked)) {
-            Ok(output) => output,
-            Err(err) => panic::panic_any(err.to_string()),
-        }
+        self.absorb(bars.value(), true, Some(marked))
     }
 }
 
@@ -625,8 +677,9 @@ fn bar_observation(bar: ResampledBar) -> Observation<ResampledBar> {
 mod tests {
     use super::*;
     use crate::batch::run_batch;
-    use crate::{canonical_config_id, Bar, FundingStamp, RunConfig};
-    use parangsae_core::{Price, Qty, UtcMicros};
+    use crate::report::Report;
+    use crate::{canonical_config_id, run_targets, selection_costs, Bar, FundingStamp, RunConfig};
+    use parangsae_core::{Price, Qty, Ratio, UtcMicros};
     use parangsae_sim::{Cash, FeeBps, SlippageBps};
 
     const ALPHA_SHA: &str = "8ed3f6ad685b959ead7022518e1af76cd816f8e8ec7ccdda1ed4018e8f2223f8";
@@ -1159,5 +1212,225 @@ mod tests {
         let held = research_config(1_000, 20, 20, 30, BarInterval::H1, false).unwrap();
         assert!(held.flatten_before.is_none());
         assert_eq!(held.warmup_start, held.start);
+    }
+
+    /// S01 n=24 through [`FamilySignal`] and [`run_targets`].
+    ///
+    /// Hour 24 is still warmup and would enter. The first scored hour is flat
+    /// on a fresh decision. A cold scored window has no ring, so it emits nothing.
+    #[test]
+    fn s01_warmup_changes_the_first_scored_output_and_does_not_open() {
+        let start = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
+        let hour = 3_600_000_000i64;
+        let hours = 29i64;
+        let scored = start + 25 * hour;
+        let end = start + hours * hour;
+        let bars = hour_bars(
+            start,
+            hours,
+            |hour_index| {
+                if hour_index == 24 {
+                    40_800
+                } else {
+                    40_000
+                }
+            },
+        );
+        let tape = tape_with_funding(bars);
+        let mut params = BTreeMap::new();
+        params.insert("c".to_owned(), 100_000_000);
+        params.insert("interval".to_owned(), 60);
+        params.insert("n".to_owned(), 24);
+
+        let full = run_family(&tape, "S01", &params, start, start, end);
+        assert!(
+            full.signal_outputs.iter().any(|output| {
+                output.decision.target_ticks() != 0 && output.bar_close_time_us.micros() < scored
+            }),
+            "full window should enter before the scored start"
+        );
+        assert!(
+            full.fills.iter().any(|fill| fill.ts.micros() == scored),
+            "the warmup entry fills at the scored open when the whole window is scored"
+        );
+
+        let warm = run_family(&tape, "S01", &params, start, scored, end);
+        let cold = run_family(&tape, "S01", &params, scored, scored, end);
+        assert!(
+            !warm.signal_outputs.is_empty(),
+            "warmup should reach the tsmom ring"
+        );
+        assert!(
+            cold.signal_outputs.is_empty() && cold.fills.is_empty(),
+            "cold scored window is the same four hours with an empty ring"
+        );
+        assert_ne!(
+            warm.signal_outputs.len(),
+            cold.signal_outputs.len(),
+            "warm and cold first scored outputs differ"
+        );
+        assert_eq!(
+            warm.signal_outputs[0].decision.target_ticks(),
+            0,
+            "a warmup entry must not be the first scored target"
+        );
+        assert!(warm
+            .signal_outputs
+            .iter()
+            .all(|output| output.bar_close_time_us.micros() >= scored));
+        assert!(
+            warm.fills.is_empty(),
+            "nothing opens at the scored start from warmup state: {:?}",
+            warm.fills
+        );
+        assert!(warm
+            .equity_curve
+            .iter()
+            .all(|(ts, _)| ts.micros() >= scored));
+        assert!(warm.funding.iter().all(|event| event.ts.micros() >= scored));
+    }
+
+    /// S06 W=2 through [`FamilySignal`] and [`run_targets`].
+    ///
+    /// The last warmup block has a non-zero season signal. The first scored
+    /// block is flat. Cold has no history, so it emits nothing.
+    #[test]
+    fn s06_warmup_changes_the_first_scored_output_and_does_not_open() {
+        let start = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
+        let day = 86_400_000_000i64;
+        let scored = start + 2 * day;
+        let end = start + 3 * day;
+        let bars = minute_bars(start, 3 * 1_440, s06_usdt);
+        let tape = tape_with_funding(bars);
+        let mut params = BTreeMap::new();
+        params.insert("k".to_owned(), 100_000_000);
+        params.insert("w_days".to_owned(), 2);
+
+        let full = run_family(&tape, "S06", &params, start, start, end);
+        assert!(
+            full.signal_outputs.iter().any(|output| {
+                output.decision.target_ticks() != 0 && output.bar_close_time_us.micros() < scored
+            }),
+            "full window should signal during warmup"
+        );
+        assert!(
+            full.fills.iter().any(|fill| fill.ts.micros() == scored),
+            "that warmup signal fills at the scored open when the whole window is scored"
+        );
+
+        let warm = run_family(&tape, "S06", &params, start, scored, end);
+        let cold = run_family(&tape, "S06", &params, scored, scored, end);
+        assert!(
+            !warm.signal_outputs.is_empty(),
+            "warmup should fill the season histogram"
+        );
+        assert!(
+            cold.signal_outputs.is_empty() && cold.fills.is_empty(),
+            "cold scored day has no block history"
+        );
+        assert_ne!(warm.signal_outputs.len(), cold.signal_outputs.len());
+        assert_eq!(warm.signal_outputs[0].decision.target_ticks(), 0);
+        assert!(warm
+            .signal_outputs
+            .iter()
+            .all(|output| output.bar_close_time_us.micros() >= scored));
+        assert!(
+            warm.fills.is_empty(),
+            "nothing opens at the scored start from warmup state: {:?}",
+            warm.fills
+        );
+        assert!(warm
+            .equity_curve
+            .iter()
+            .all(|(ts, _)| ts.micros() >= scored));
+        assert!(warm.funding.iter().all(|event| event.ts.micros() >= scored));
+    }
+
+    fn run_family(
+        tape: &Tape,
+        family: &str,
+        params: &BTreeMap<String, i64>,
+        warmup: i64,
+        start: i64,
+        end: i64,
+    ) -> Report {
+        let mut signal = FamilySignal::new(family, params).unwrap();
+        let cfg = research_config(
+            1_000_000 * 100_000_000,
+            warmup,
+            start,
+            end,
+            signal.interval,
+            true,
+        )
+        .unwrap();
+        run_targets(tape, &mut signal, &selection_costs(), &cfg).unwrap()
+    }
+
+    fn hour_bars(start_us: i64, hours: i64, close_usdt: impl Fn(i64) -> i64) -> Vec<Bar> {
+        let mut bars = Vec::with_capacity(usize::try_from(hours * 60).unwrap());
+        for hour in 0..hours {
+            let px = close_usdt(hour);
+            for minute in 0..60 {
+                let index = hour * 60 + minute;
+                bars.push(flat_minute(start_us + index * 60_000_000, px));
+            }
+        }
+        bars
+    }
+
+    fn minute_bars(start_us: i64, minutes: i64, usdt_at: impl Fn(i64) -> i64) -> Vec<Bar> {
+        (0..minutes)
+            .map(|minute| flat_minute(start_us + minute * 60_000_000, usdt_at(minute)))
+            .collect()
+    }
+
+    fn s06_usdt(minute: i64) -> i64 {
+        let day = minute / 1_440;
+        let within = minute % 1_440;
+        match day {
+            0 if within < 239 => 40_000,
+            0 => 48_000,
+            1 if within < 239 => 48_000,
+            1 => 50_000,
+            _ => 50_000,
+        }
+    }
+
+    fn flat_minute(open_us: i64, usdt: i64) -> Bar {
+        let price = Price::from_ticks(usdt * 100_000_000).unwrap();
+        let open_time = UtcMicros::from_micros(open_us);
+        let close_time = UtcMicros::from_micros(open_us + 60_000_000 - 1_000);
+        Bar {
+            open_time,
+            close_time,
+            available: UtcMicros::from_micros(close_time.micros() + 1_000),
+            open: price,
+            high: price,
+            low: price,
+            close: price,
+            volume: Qty::from_ticks(100_000_000).unwrap(),
+            count: 1,
+        }
+    }
+
+    fn tape_with_funding(bars: Vec<Bar>) -> Tape {
+        let first = bars[0].open_time.micros();
+        let last = bars.last().unwrap().open_time.micros();
+        let step = 8 * 3_600_000_000;
+        let mut funding = Vec::new();
+        let mut ts = first;
+        while ts <= last {
+            let stamp = UtcMicros::from_micros(ts);
+            funding.push(FundingStamp {
+                funding_time: stamp,
+                available: stamp,
+                rate: Ratio::from_ticks(0),
+                interval_hours: 8,
+            });
+            ts += step;
+        }
+        let marks = bars.clone();
+        Tape::from_parts(bars, marks, funding)
     }
 }

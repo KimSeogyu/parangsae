@@ -1,7 +1,7 @@
 //! Event-driven backtest for one BTCUSDT USD-M stream.
 //!
 //! `run` walks 1m bars, settles funding on the pre-fill position, fills the
-//! previous decision at this bar's open, then marks equity on the mark close.
+//! previous decision at this bar's open, then marks equity at the mark price.
 //! The strategy sees a [`BarView`] of bars whose stored `available_ts` is at or
 //! before the current bar's stored `available_ts`.
 //!
@@ -50,7 +50,7 @@ pub use signal::{
 pub use sizing::{abs_notional_ticks, target_qty};
 pub use sweep::{run_sweep, FoldRunner, SweepRequest, WindowConfig, WindowOutput};
 pub use tape::{funding_available, planned_paths, AppliedOverlay, Overlay, TapeConfig};
-pub use trial_log::{finish_trial, trial_id, TrialError};
+pub use trial_log::{distinct_trial_count, finish_trial, trial_id, TrialError};
 pub use walkforward::{
     btcusdt_schedule, check_window_result, daily_return_tick, fold_schedule, forced_flat_at,
     run_walk_forward, selection_costs, window_result, FamilyGrid, FamilyOutput, FeeReplay, Fold,

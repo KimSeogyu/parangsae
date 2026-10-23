@@ -3,7 +3,9 @@
 //! Each config is one trial. Train and test are both logged, and `config_id`
 //! is the hash of the config on the family's outer window. Fold and segment
 //! are fields on `RunStarted`. The out directory receives one OOS file per
-//! family: stitched test results only. There is no full-window per-config file.
+//! family and `fold_daily_returns.csv`: one row per config, fold, and day for
+//! each train (`IS_fold_k`) and test (`OOS_fold_k`) segment. There is no
+//! full-window per-config file.
 //!
 //! S01, S02, S03, and S05 use the 30-day warmup schedule. S06 uses 365 days.
 //! Selection and the headline row are 5 bps fee and 2 bps slippage, with
@@ -15,6 +17,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use parangsae_core::{Interval, UtcMicros, SCALE};
+
+use crate::date::UtcDate;
 use parangsae_sim::Cash;
 use serde::Serialize;
 
@@ -24,7 +28,7 @@ use crate::metrics::{max_drawdown, total_return};
 use crate::sweep::{load_configs, load_pinned_tape, ConfigRow};
 use crate::walkforward::{
     btcusdt_schedule, run_walk_forward, selection_costs, FamilyGrid, FamilyOutput, GridPoint,
-    WalkContext, WalkForward, SESSION_WARMUP_DAYS, WARMUP_DAYS,
+    SegmentRun, WalkContext, WalkForward, SESSION_WARMUP_DAYS, WARMUP_DAYS,
 };
 use crate::WindowConfig;
 
@@ -37,10 +41,15 @@ pub struct WfBatchRequest {
     pub data_root: PathBuf,
     pub out_dir: PathBuf,
     pub ledger: PathBuf,
+    /// Ledger attempt. `trial_id` is `sha256` of `{attempt, config_id, pinned_root}`.
+    pub attempt: u64,
 }
 
 /// Load the sweep file, check every `config_id`, and build one grid per family.
-pub fn prepare_families(inputs: &Path) -> Result<Vec<FamilyGrid<WindowConfig>>, String> {
+pub fn prepare_families(
+    inputs: &Path,
+    attempt: u64,
+) -> Result<Vec<FamilyGrid<WindowConfig>>, String> {
     let loaded = load_configs(inputs)?;
     if loaded.slippage_bps != selection_costs().slippage.0 {
         return Err(format!(
@@ -96,7 +105,14 @@ pub fn prepare_families(inputs: &Path) -> Result<Vec<FamilyGrid<WindowConfig>>, 
                     end.micros()
                 ));
             }
-            let id = window_config_id(&row.family, &row.params, row.initial_cash, start, end)?;
+            let id = window_config_id(
+                &row.family,
+                &row.params,
+                row.initial_cash,
+                start,
+                end,
+                attempt,
+            )?;
             if id != row.config_id {
                 return Err(format!(
                     "{} config_id {} is not the fold-window hash {id}",
@@ -110,7 +126,7 @@ pub fn prepare_families(inputs: &Path) -> Result<Vec<FamilyGrid<WindowConfig>>, 
                     initial_cash: row.initial_cash,
                 },
                 params: row.params.clone(),
-                attempt: 0,
+                attempt,
             });
         }
         families.push(FamilyGrid {
@@ -127,7 +143,7 @@ pub fn prepare_families(inputs: &Path) -> Result<Vec<FamilyGrid<WindowConfig>>, 
 /// The ledger must be missing or empty. A second batch needs a new ledger,
 /// because run ids are the family, fold, segment, and grid index.
 pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
-    let families = prepare_families(&request.inputs)?;
+    let families = prepare_families(&request.inputs, request.attempt)?;
     if request.ledger.exists() {
         let text = fs::read_to_string(&request.ledger)
             .map_err(|err| format!("read {}: {err}", request.ledger.display()))?;
@@ -171,6 +187,7 @@ pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
         &warmup_by_family(&families),
         cash,
     )?;
+    write_fold_daily_returns(&request.out_dir, &result)?;
     Ok(())
 }
 
@@ -202,13 +219,14 @@ fn window_config_id(
     cash: i64,
     start: UtcMicros,
     end: UtcMicros,
+    attempt: u64,
 ) -> Result<String, String> {
     let spec = TrialSpec {
         run_id: String::new(),
         config_id: String::new(),
         family: family.to_owned(),
         params: params.clone(),
-        attempt: 0,
+        attempt,
         ts: start,
         run: RunConfig {
             initial_cash: Cash(cash),
@@ -244,6 +262,139 @@ pub fn write_oos(
         let text = serde_json::to_string_pretty(&file).map_err(|err| err.to_string())?;
         fs::write(&path, format!("{text}\n"))
             .map_err(|err| format!("write {}: {err}", path.display()))?;
+    }
+    Ok(())
+}
+
+const FOLD_DAY_US: i64 = 86_400_000_000;
+
+/// `fold_daily_returns.csv` under `dir`.
+///
+/// One row per config, fold, and UTC day, for every train and test segment in
+/// [`FoldOutcome`]. Fee-grid replays are not rows. Downstream CSCV PBO,
+/// `sr_var_cross_trial`, skew, and kurtosis read this file. Warmup days are
+/// not rows: `daily_returns` starts at the scored open.
+///
+/// Columns, in order:
+///
+/// `family,config_id,trial_id,grid_index,fold,window,day,daily_return_ticks`
+///
+/// * `window` is `IS_fold_k` for train and `OOS_fold_k` for test. `k` is the
+///   1-based fold index.
+/// * `day` is the UTC date of that return, `YYYY-MM-DD`. Row 0 is the scored
+///   start. Later rows step one UTC day.
+/// * `daily_return_ticks` is `trunc((next - prev) * 1e8 / prev)`.
+///
+/// Rows are sorted by family, grid index, fold, train then test, then day.
+/// The file ends with a newline. Fields contain no commas.
+pub fn write_fold_daily_returns(dir: &Path, result: &WalkForward) -> Result<(), String> {
+    fs::create_dir_all(dir).map_err(|err| format!("create {}: {err}", dir.display()))?;
+    let mut rows = Vec::new();
+    for family in &result.families {
+        for fold in &family.folds {
+            for run in &fold.train {
+                push_fold_rows(&mut rows, &family.family, fold.fold_index, true, run)?;
+            }
+            for run in &fold.test {
+                push_fold_rows(&mut rows, &family.family, fold.fold_index, false, run)?;
+            }
+        }
+    }
+    rows.sort_by(|left, right| {
+        (
+            &left.family,
+            left.grid_index,
+            left.fold,
+            !left.train,
+            &left.day,
+        )
+            .cmp(&(
+                &right.family,
+                right.grid_index,
+                right.fold,
+                !right.train,
+                &right.day,
+            ))
+    });
+    let mut text =
+        String::from("family,config_id,trial_id,grid_index,fold,window,day,daily_return_ticks\n");
+    for row in &rows {
+        let window = if row.train {
+            format!("IS_fold_{}", row.fold)
+        } else {
+            format!("OOS_fold_{}", row.fold)
+        };
+        for field in [
+            row.family.as_str(),
+            row.config_id.as_str(),
+            row.trial_id.as_str(),
+            window.as_str(),
+            row.day.as_str(),
+        ] {
+            if field.contains([',', '\n', '\r']) {
+                return Err(format!("fold return field {field} contains a comma"));
+            }
+        }
+        text.push_str(&format!(
+            "{},{},{},{},{},{},{},{}\n",
+            row.family,
+            row.config_id,
+            row.trial_id,
+            row.grid_index,
+            row.fold,
+            window,
+            row.day,
+            row.ret
+        ));
+    }
+    let path = dir.join("fold_daily_returns.csv");
+    fs::write(&path, text).map_err(|err| format!("write {}: {err}", path.display()))?;
+    Ok(())
+}
+
+struct FoldRow {
+    family: String,
+    config_id: String,
+    trial_id: String,
+    grid_index: usize,
+    fold: u32,
+    train: bool,
+    day: String,
+    ret: i64,
+}
+
+fn push_fold_rows(
+    rows: &mut Vec<FoldRow>,
+    family: &str,
+    fold: u32,
+    train: bool,
+    run: &SegmentRun,
+) -> Result<(), String> {
+    if run.start_us % FOLD_DAY_US != 0 {
+        return Err(format!(
+            "{} start {} is not a UTC midnight",
+            run.run_id, run.start_us
+        ));
+    }
+    for (index, ret) in run.daily_returns.iter().enumerate() {
+        let offset = i64::try_from(index)
+            .map_err(|_| "day index".to_owned())?
+            .checked_mul(FOLD_DAY_US)
+            .ok_or_else(|| format!("{} day offset overflowed", run.run_id))?;
+        let ts = run
+            .start_us
+            .checked_add(offset)
+            .ok_or_else(|| format!("{} day overflowed", run.run_id))?;
+        rows.push(FoldRow {
+            family: family.to_owned(),
+            config_id: run.config_id.clone(),
+            trial_id: run.trial_id.clone(),
+            grid_index: run.grid_index,
+            fold,
+            train,
+            day: UtcDate::from_micros(UtcMicros::from_micros(ts)).to_string(),
+            ret: *ret,
+        });
     }
     Ok(())
 }
@@ -382,7 +533,7 @@ mod tests {
     use std::collections::BTreeMap;
     use std::path::PathBuf;
 
-    use super::{prepare_families, write_oos};
+    use super::{prepare_families, write_fold_daily_returns, write_oos};
     use crate::walkforward::{
         FamilyOutput, FeeReplay, FoldOutcome, SegmentRun, WalkForward, SESSION_WARMUP_DAYS,
         WARMUP_DAYS,
@@ -392,7 +543,10 @@ mod tests {
     fn sweep_inputs_are_forty_three_configs_and_s06_uses_the_year_schedule() {
         let path =
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../research/sweep-inputs-v2.json");
-        let families = prepare_families(&path).unwrap();
+        let families = prepare_families(&path, 1).unwrap();
+        assert!(families
+            .iter()
+            .all(|family| family.points.iter().all(|point| point.attempt == 1)));
         let counts: BTreeMap<_, _> = families
             .iter()
             .map(|family| (family.family.as_str(), family.points.len()))
@@ -485,12 +639,79 @@ mod tests {
         assert_eq!(rows[2]["daily_returns"], value["daily_returns"]);
     }
 
+    #[test]
+    fn fold_daily_returns_are_one_row_per_config_fold_and_day() {
+        let initial = 1_000 * 100_000_000;
+        let train_start = crate::UtcDate::parse("2021-01-17")
+            .unwrap()
+            .start_us()
+            .micros();
+        let test_start = crate::UtcDate::parse("2022-01-19")
+            .unwrap()
+            .start_us()
+            .micros();
+        let mut train = segment();
+        train.start_us = train_start;
+        train.daily_returns = vec![1, 2];
+        train.grid_index = 1;
+        train.config_id = "cfg-b".to_owned();
+        train.trial_id = "trial-b".to_owned();
+        let mut earlier = segment();
+        earlier.start_us = train_start;
+        earlier.daily_returns = vec![7];
+        earlier.grid_index = 0;
+        earlier.config_id = "cfg-a".to_owned();
+        earlier.trial_id = "trial-a".to_owned();
+        let mut test = segment();
+        test.start_us = test_start;
+        test.daily_returns = vec![3];
+        test.grid_index = 1;
+        test.config_id = "cfg-b".to_owned();
+        test.trial_id = "trial-b".to_owned();
+        let family = FamilyOutput {
+            family: "S01".to_owned(),
+            folds: vec![FoldOutcome {
+                fold_index: 1,
+                train: vec![train, earlier],
+                test: vec![test],
+                selected_index: 1,
+                selected_config_id: "cfg-b".to_owned(),
+            }],
+            stitched_oos_daily_returns: vec![3],
+            stitched_oos_equity: vec![initial, initial],
+            oos_round_trips: 0,
+            n_trials: 2,
+            fee_replays: Vec::new(),
+        };
+        let dir = tempfile::tempdir().unwrap();
+        write_fold_daily_returns(
+            dir.path(),
+            &WalkForward {
+                families: vec![family],
+                n_trials: 2,
+            },
+        )
+        .unwrap();
+        let text = std::fs::read_to_string(dir.path().join("fold_daily_returns.csv")).unwrap();
+        assert_eq!(
+            text,
+            "\
+family,config_id,trial_id,grid_index,fold,window,day,daily_return_ticks
+S01,cfg-a,trial-a,0,1,IS_fold_1,2021-01-17,7
+S01,cfg-b,trial-b,1,1,IS_fold_1,2021-01-17,1
+S01,cfg-b,trial-b,1,1,IS_fold_1,2021-01-18,2
+S01,cfg-b,trial-b,1,1,OOS_fold_1,2022-01-19,3
+"
+        );
+    }
+
     fn segment() -> SegmentRun {
         SegmentRun {
             grid_index: 0,
             run_id: "S01-f01-test-c0".to_owned(),
             trial_id: "t".to_owned(),
             config_id: "abc".to_owned(),
+            start_us: 1_610_841_600_000_000,
             daily_returns: vec![10_000_000],
             equity_ticks: vec![1, 2],
             net_result_ticks: 1,

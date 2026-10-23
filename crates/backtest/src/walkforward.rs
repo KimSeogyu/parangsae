@@ -9,10 +9,10 @@
 //! Bars from `warmup_start_us` are fed to the signal. There is no decision,
 //! fill, funding settlement, or equity point before `start_us`.
 //!
-//! Forced flat fills at the open of the last minute before the window end with
-//! `count > 0`, not at that minute's mark close and not at a hardcoded
-//! sample-end instant. The closure sets [`RunConfig::flatten_before`] to the
-//! scored `end_us` and pays `costs`. [`forced_flat_at`] is `[end - 1 minute, end)`.
+//! Train and test windows flatten at the open of the last minute before the
+//! window end with `count > 0`, and that fill pays `costs`. The closure sets
+//! [`RunConfig::flatten_before`] to the scored `end_us`. [`forced_flat_at`] is
+//! `[end - 1 minute, end)`.
 //!
 //! Train selection uses only that fold's train annual Sharpe from
 //! [`sharpe_ticks`] at the costs from [`selection_costs`] (5 bps fee, 2 bps
@@ -528,6 +528,8 @@ pub struct SegmentRun {
     pub run_id: String,
     pub trial_id: String,
     pub config_id: String,
+    /// Inclusive scored start, UTC midnight microseconds.
+    pub start_us: i64,
     pub daily_returns: Vec<i64>,
     pub equity_ticks: Vec<i64>,
     pub net_result_ticks: i64,
@@ -648,7 +650,8 @@ impl<E: std::fmt::Debug + std::fmt::Display> std::error::Error for WalkError<E> 
 /// `warmup_start_us` and `start_us` are inclusive. `end_us` is exclusive. All
 /// three are UTC midnight microseconds. The signal reads bars from
 /// `warmup_start_us`. Fills, funding, and scoring start at `start_us`. The
-/// closure flattens at `end_us`, at that minute's open.
+/// closure flattens at the open of the last `count > 0` minute before
+/// `end_us`, and that fill pays `costs`.
 ///
 /// Selection reads the train annual Sharpe only. The test result is stored
 /// and, for the selected config, appended to that family's OOS series. The
@@ -942,6 +945,7 @@ impl<F> Drive<'_, F> {
                     run_id,
                     trial_id: identity.trial_id.clone(),
                     config_id: identity.config_id.clone(),
+                    start_us: start,
                     daily_returns: result.daily_returns,
                     equity_ticks: result.equity_ticks,
                     net_result_ticks: result.net_result_ticks,

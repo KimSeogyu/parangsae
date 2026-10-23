@@ -3,12 +3,13 @@
 //! ```text
 //! cargo run -p parangsae-backtest --bin wf_batch -- \
 //!   --inputs research/sweep-inputs-v2.json \
-//!   --out runs/wf-batch
+//!   --out runs/wf-batch-attempt1 \
+//!   --attempt 1
 //! ```
 //!
-//! `--data-root` defaults to `/workspace/data/parangsae`. The ledger defaults
-//! to `{out}/trials.jsonl`. Stdout names the files it wrote. It does not print
-//! returns.
+//! `--attempt` is required. `--data-root` defaults to `/workspace/data/parangsae`.
+//! The ledger defaults to `{out}/trials.jsonl`. Stdout names the files it wrote.
+//! It does not print returns.
 
 #![deny(clippy::float_arithmetic)]
 
@@ -45,7 +46,7 @@ fn run() -> Result<Vec<String>, String> {
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.file_name())
         .filter_map(|name| name.into_string().ok())
-        .filter(|name| name.ends_with(".json"))
+        .filter(|name| name.ends_with(".json") || name == "fold_daily_returns.csv")
         .collect();
     names.sort();
     for name in names {
@@ -59,6 +60,7 @@ fn parse_args(raw: impl Iterator<Item = String>) -> Result<WfBatchRequest, Strin
     let mut data_root = None;
     let mut out_dir = None;
     let mut ledger = None;
+    let mut attempt = None;
     let mut raw = raw;
     while let Some(arg) = raw.next() {
         if arg == "--help" {
@@ -81,22 +83,31 @@ fn parse_args(raw: impl Iterator<Item = String>) -> Result<WfBatchRequest, Strin
             "--data-root" => data_root = Some(PathBuf::from(value)),
             "--out" => out_dir = Some(PathBuf::from(value)),
             "--ledger" => ledger = Some(PathBuf::from(value)),
+            "--attempt" => {
+                attempt = Some(
+                    value
+                        .parse::<u64>()
+                        .map_err(|_| format!("attempt {value} is not a u64"))?,
+                );
+            }
             other => return Err(format!("unknown argument {other}\n{}", usage())),
         }
     }
     let out_dir = out_dir.ok_or_else(|| format!("missing --out\n{}", usage()))?;
     let ledger = ledger.unwrap_or_else(|| out_dir.join("trials.jsonl"));
+    let attempt = attempt.ok_or_else(|| format!("missing --attempt\n{}", usage()))?;
     Ok(WfBatchRequest {
         inputs: inputs.ok_or_else(|| format!("missing --inputs\n{}", usage()))?,
         data_root: data_root.unwrap_or_else(|| PathBuf::from(DEFAULT_DATA_ROOT)),
         out_dir,
         ledger,
+        attempt,
     })
 }
 
 fn usage() -> String {
     format!(
-        "usage: wf_batch --inputs <sweep-inputs-v2.json> --out <dir> [--data-root <parquet-root>] [--ledger <trials.jsonl>]\n  --data-root defaults to {DEFAULT_DATA_ROOT}\n  --ledger defaults to <out>/trials.jsonl"
+        "usage: wf_batch --inputs <sweep-inputs-v2.json> --out <dir> --attempt <n> [--data-root <parquet-root>] [--ledger <trials.jsonl>]\n  --data-root defaults to {DEFAULT_DATA_ROOT}\n  --ledger defaults to <out>/trials.jsonl"
     )
 }
 
@@ -113,11 +124,14 @@ mod tests {
 
     #[test]
     fn data_root_defaults_to_the_parangsae_layout() {
-        let request =
-            parse_args(owned(&["--inputs", "in.json", "--out", "out"]).into_iter()).unwrap();
+        let request = parse_args(
+            owned(&["--inputs", "in.json", "--out", "out", "--attempt", "1"]).into_iter(),
+        )
+        .unwrap();
         assert_eq!(request.data_root, PathBuf::from(DEFAULT_DATA_ROOT));
         assert_eq!(request.ledger, PathBuf::from("out/trials.jsonl"));
         assert_eq!(request.inputs, PathBuf::from("in.json"));
+        assert_eq!(request.attempt, 1);
         let rooted = parse_args(
             owned(&[
                 "--inputs",
@@ -128,11 +142,18 @@ mod tests {
                 "out",
                 "--ledger",
                 "log.jsonl",
+                "--attempt=1",
             ])
             .into_iter(),
         )
         .unwrap();
         assert_eq!(rooted.data_root, PathBuf::from("data"));
         assert_eq!(rooted.ledger, PathBuf::from("log.jsonl"));
+        assert_eq!(rooted.attempt, 1);
+        let missing = parse_args(owned(&["--inputs", "in.json", "--out", "out"]).into_iter());
+        match missing {
+            Err(message) => assert!(message.contains("missing --attempt"), "{message}"),
+            Ok(_) => panic!("missing --attempt was accepted"),
+        }
     }
 }

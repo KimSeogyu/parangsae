@@ -43,19 +43,40 @@ impl Season {
         })
     }
 
+    /// Block histogram only. No target is emitted.
+    pub fn observe(&mut self, row: &Observation<ResampledBar>) -> Result<(), StrategyError> {
+        let _ready = self.ingest(row)?;
+        Ok(())
+    }
+
     pub fn push(
         &mut self,
         row: &Observation<ResampledBar>,
         _book: Option<crate::DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
+        let mut ready = self.ingest(row)?;
+        if !ready.armed || ready.decision_us < WARMUP_365D_US {
+            return Ok(None);
+        }
+        if ready.side != 0 && !hold_fits(ready.decision_us, H4_US) {
+            ready.side = 0;
+        }
+        Ok(Some(emitted(
+            &ready.bar,
+            ready.decision_us,
+            side_target(ready.side)?,
+        )))
+    }
+
+    fn ingest(&mut self, row: &Observation<ResampledBar>) -> Result<SeasonReady, StrategyError> {
         let view = self.cursor.admit(row)?;
         let decision_us = decision_micros(&view);
-        let bar = view.value();
+        let bar = *view.value();
         let block = block_index(bar.open_time().micros())?;
         let next = (block + 1) % BLOCKS;
-        let ready = self.hist[next].len() >= self.w;
+        let armed = self.hist[next].len() >= self.w;
         let mut side = 0i8;
-        if ready {
+        if armed {
             if let Some((mean, t)) = mean_t(&self.hist[next]) {
                 if at_least(t, self.k) {
                     side = sign_of(mean);
@@ -67,14 +88,20 @@ impl Season {
         if self.hist[block].len() > self.w {
             self.hist[block].pop_front();
         }
-        if !ready || decision_us < WARMUP_365D_US {
-            return Ok(None);
-        }
-        if side != 0 && !hold_fits(decision_us, H4_US) {
-            side = 0;
-        }
-        Ok(Some(emitted(bar, decision_us, side_target(side)?)))
+        Ok(SeasonReady {
+            bar,
+            decision_us,
+            armed,
+            side,
+        })
     }
+}
+
+struct SeasonReady {
+    bar: ResampledBar,
+    decision_us: i64,
+    armed: bool,
+    side: i8,
 }
 
 fn block_index(open_us: i64) -> Result<usize, StrategyError> {
