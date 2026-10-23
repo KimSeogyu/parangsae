@@ -3,9 +3,9 @@
 //! Needs the store and `duckdb` on PATH. A missing piece exits with the path
 //! that was required.
 //!
-//! Every scan uses the hive file list with `date < 2025-10-01`. `um_1m_resolved`
-//! is that list plus the sha-pinned overlay. This example does not `.read` the
-//! full-store SQL: those views glob holdout parquet.
+//! Every scan uses the hive file list with `2020-12-18 <= date < 2025-10-01`.
+//! `um_1m_resolved` is that list plus the sha-pinned overlay. This example does
+//! not `.read` the full-store SQL: those views glob holdout parquet.
 //!
 //! ```text
 //! cargo run -p parangsae-backtest --example readpath_parity
@@ -22,6 +22,7 @@ const STORE: &str = "/workspace/data/parangsae";
 const FUNDING_ROOT: &str = "/workspace/data/parangsae/runs/funding-4db8a75";
 const OVERLAY: &str = "/workspace/data/parangsae/runs/resolutions/um-kline-2023-11-10.parquet";
 const OVERLAY_SHA: &str = "d5f6bcd61688cac971b6d276ea4fa0826c86d998b7adc06557686da6bdcfb8ea";
+const SAMPLE_START_DATE: &str = "2020-12-18";
 const HOLDOUT_DATE: &str = "2025-10-01";
 
 /// In-sample rows. 2,517,120 = 1,748 days × 1,440. The full-store views are larger
@@ -182,6 +183,11 @@ fn compare_funding_rule(tape: &Tape, files: &[PathBuf]) -> Result<(), String> {
     Ok(())
 }
 
+/// `2020-12-18 <= date < 2025-10-01`. Hive directory names sort in that order.
+fn in_sample_date(date: &str) -> bool {
+    (SAMPLE_START_DATE..HOLDOUT_DATE).contains(&date)
+}
+
 fn in_sample_parts(root: &Path, dataset: &str) -> Result<Vec<PathBuf>, String> {
     let dir = root.join("parquet").join(dataset).join("symbol=BTCUSDT");
     if !dir.is_dir() {
@@ -195,7 +201,7 @@ fn in_sample_parts(root: &Path, dataset: &str) -> Result<Vec<PathBuf>, String> {
         let Some(date) = name.strip_prefix("date=") else {
             continue;
         };
-        if date >= HOLDOUT_DATE {
+        if !in_sample_date(date) {
             continue;
         }
         let part = entry.path().join("part.parquet");
@@ -418,12 +424,22 @@ fn duck_count_query(query: &str) -> Result<i64, String> {
 }
 
 fn duck_exec(query: &str) -> Result<Vec<Vec<String>>, String> {
+    // The resolved view names every in-sample parquet file. That text is past
+    // Linux's 128 KiB per-argument limit, so duckdb reads it from a file.
+    let path = std::env::temp_dir().join(format!("readpath-parity-{}.sql", std::process::id()));
+    let mut script = query.to_owned();
+    if !script.trim_end().ends_with(';') {
+        script.push(';');
+    }
+    fs::write(&path, script).map_err(|err| format!("write {}: {err}", path.display()))?;
     let output = Command::new("duckdb")
         .arg("-csv")
         .arg("-c")
-        .arg(query)
-        .output()
-        .map_err(|err| format!("duckdb failed to start: {err}"))?;
+        .arg(format!(".read {}", path.display()))
+        .output();
+    let removed = fs::remove_file(&path);
+    let output = output.map_err(|err| format!("duckdb failed to start: {err}"))?;
+    removed.map_err(|err| format!("remove {}: {err}", path.display()))?;
     command_rows(output)
 }
 
@@ -496,5 +512,38 @@ fn require_file(path: &Path) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!("missing file {}", path.display()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::in_sample_parts;
+
+    #[test]
+    fn in_sample_parts_drops_days_before_sample_start_and_from_the_holdout() {
+        let dir = tempfile::tempdir().unwrap();
+        for date in ["2020-12-17", "2020-12-18", "2025-09-30", "2025-10-01"] {
+            let part = dir
+                .path()
+                .join("parquet/um-kline/symbol=BTCUSDT")
+                .join(format!("date={date}"))
+                .join("part.parquet");
+            std::fs::create_dir_all(part.parent().unwrap()).unwrap();
+            std::fs::write(&part, b"").unwrap();
+        }
+        let files = in_sample_parts(dir.path(), "um-kline").unwrap();
+        let dates: Vec<String> = files
+            .iter()
+            .map(|path| {
+                path.parent()
+                    .and_then(|dir| dir.file_name())
+                    .map(|name| name.to_string_lossy().into_owned())
+                    .unwrap_or_default()
+            })
+            .collect();
+        assert_eq!(
+            dates,
+            vec!["date=2020-12-18".to_owned(), "date=2025-09-30".to_owned()]
+        );
     }
 }
