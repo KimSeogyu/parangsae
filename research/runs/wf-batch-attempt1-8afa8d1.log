@@ -1,0 +1,9 @@
+data_root=/workspace/data/parangsae
+ledger=/workspace/research/runs/wf-batch-attempt1-8afa8d1/trials.jsonl
+S01.json=/workspace/research/runs/wf-batch-attempt1-8afa8d1/S01.json
+S02.json=/workspace/research/runs/wf-batch-attempt1-8afa8d1/S02.json
+S03.json=/workspace/research/runs/wf-batch-attempt1-8afa8d1/S03.json
+S05.json=/workspace/research/runs/wf-batch-attempt1-8afa8d1/S05.json
+S06.json=/workspace/research/runs/wf-batch-attempt1-8afa8d1/S06.json
+fold_daily_returns.csv=/workspace/research/runs/wf-batch-attempt1-8afa8d1/fold_daily_returns.csv
+EXIT 0

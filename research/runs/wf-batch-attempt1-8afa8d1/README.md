@@ -1,0 +1,1 @@
+Attempt-1 wf_batch outputs (code 8afa8d1). fold_daily_returns.csv (46.7 MB, sha256 4662bda072430551e4d504d98924b7ac129dbe032c37f7b1ec614e5533ae21e7) is omitted (>20 MB); it stays at /workspace/research/runs/wf-batch-attempt1-8afa8d1/ and /workspace/research/keep/wf-batch-attempt1-8afa8d1/.
