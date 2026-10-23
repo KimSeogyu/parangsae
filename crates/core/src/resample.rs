@@ -77,7 +77,7 @@ impl ResampledBar {
     ///
     /// OHLC is the first open, the max high, the min low, and the last close.
     /// Volume is a checked sum. `close_time` is `open + interval - 1ms`.
-    /// `available` is the last minute's stored available timestamp.
+    /// Every minute must be available at its own open + 1m before folding.
     pub fn from_minutes(minutes: &[Bar], interval: Interval) -> Result<Self, ResampleError> {
         if interval != Interval::ONE_HOUR && interval != Interval::FOUR_HOURS {
             return Err(ResampleError::Interval);
@@ -119,6 +119,16 @@ impl ResampledBar {
         let mut low = minutes[0].low.ticks();
         let mut volume: i64 = 0;
         for bar in minutes {
+            let expected = bar
+                .open_time
+                .checked_add_micros(minute)
+                .ok_or(ResampleError::Overflow)?;
+            if bar.available != expected {
+                return Err(ResampleError::Available {
+                    expected,
+                    got: bar.available,
+                });
+            }
             high = high.max(bar.high.ticks());
             low = low.min(bar.low.ticks());
             volume = volume

@@ -364,3 +364,46 @@ proptest! {
         }
     }
 }
+
+#[test]
+fn flat_target_cancels_an_unfilled_order_after_a_filler_hour() {
+    for flat in [cases::stale(), cases::tgt(0.0)] {
+        let report =
+            cases::filler_hour_targets(vec![Some(cases::tgt(1.0)), Some(flat), Some(flat)], 1);
+        assert!(report.fills.is_empty(), "{:?}", report.fills);
+        assert_eq!(report.n_refused_fills, 1);
+        assert_eq!(report.dropped_orders, 0);
+    }
+}
+
+#[test]
+fn unchanged_target_keeps_one_refusal_across_filler_hours() {
+    let report = cases::filler_hour_targets(vec![Some(cases::tgt(1.0)); 4], 2);
+    assert_eq!(report.fills.len(), 1);
+    assert_eq!(report.fills[0].ts.micros(), at(15, 0));
+    assert_eq!(report.n_refused_fills, 1);
+}
+
+#[test]
+fn changed_target_replaces_the_order_after_a_filler_hour() {
+    let report = cases::filler_hour_targets(
+        vec![
+            Some(cases::tgt(1.0)),
+            Some(cases::tgt(-1.0)),
+            Some(cases::tgt(-1.0)),
+        ],
+        1,
+    );
+    assert_eq!(report.fills.len(), 1);
+    assert_eq!(report.fills[0].side, Side::Sell);
+    assert_eq!(report.fills[0].ts.micros(), at(14, 0));
+    assert_eq!(report.n_refused_fills, 1);
+}
+
+#[test]
+fn delayed_interior_minute_never_reaches_the_signal() {
+    assert!(matches!(
+        cases::delayed_interior_minute(),
+        EngineError::Resample(parangsae_core::ResampleError::Available { .. })
+    ));
+}
