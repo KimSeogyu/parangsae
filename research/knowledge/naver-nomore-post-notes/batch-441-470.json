@@ -1,0 +1,893 @@
+[
+  {
+    "id": "220845775779",
+    "title": "외국계 금융사가 떠나는 이유 기사를 보며",
+    "date": "2016. 10. 26.",
+    "url": "https://blog.naver.com/nomore_bet/220845775779",
+    "inventory_index": 441,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융산업",
+      "진입과철수"
+    ],
+    "summary_ko": "외국계 금융사의 한국 철수를 다룬 설명이 다른 시장에도 적용되는지 반문한다. 철수 사례뿐 아니라 남은 회사가 평가하는 기업금융·연금·외환 수요를 함께 보자는 관점이다.",
+    "developer_note_ko": "철수 기업만 모은 표본의 선택 편향을 피한다. 회사별 자본 사정과 국내 사업의 수익성을 분리해 비교한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "0dddd1b4b20d5543a144495962cf24bf5ca683e041b1eff670bb4422eb843336",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "5e034c17ceff98f2a34b4153b0902bc12722e41209fbfac2f52a583d711cd03c",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1033,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220841784456",
+    "title": "워런 버핏, 버크셔 내 재보험사의 역할 축소",
+    "date": "2016. 10. 21.",
+    "url": "https://blog.naver.com/nomore_bet/220841784456",
+    "inventory_index": 442,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "보험플로트",
+      "재보험",
+      "재난채권"
+    ],
+    "summary_ko": "버핏의 투자 역량을 종목 선택뿐 아니라 보험을 통한 자금 조달 구조에서 설명한다. 저금리와 재난채권의 경쟁이 재보험 사업의 역할을 바꿀 수 있다는 당시 전망이다.",
+    "developer_note_ko": "보험 자금을 무조건 공짜인 영구자본으로 모델링하지 않는다. 보험금 지급·인수손익·유동성 제약과 투자 수익을 나눠 기록한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "63782d2ac592f87fc68e302848f9445a98fb4dde674cb0efb8e6536335d34a45",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "ceec6ce509f0c3877b5430667ba3c66dff02c52de4bf4a39c9c9407d03bc5448",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1969,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220838978481",
+    "title": "외국계 철수 × 스페인계 은행마저 그리고 핀테크",
+    "date": "2016. 10. 18.",
+    "url": "https://blog.naver.com/nomore_bet/220838978481",
+    "inventory_index": 443,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "외국계은행",
+      "사업재편"
+    ],
+    "summary_ko": "스페인계 은행의 한국 철수 기사를 통해 세계적 규제·조달 비용·영업 재편의 영향을 살핀다. 핀테크와 소매금융 집중이 국내 지점 정리와 연결되는 점에 관심을 둔다.",
+    "developer_note_ko": "한 지점의 철수로 한국 금융시장 전체의 매력 저하를 확정하지 않는다. 본사 전략과 현지 사업 요인을 구분한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "496f348565672e00edd0fc8632cbd027bd76a90f507a887a4cfb76a025ff67f3",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "69d6f5d501e6ac5858bf2b20e45be62028894a572d2e9438786de0c13d6928c0",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 915,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220829237672",
+    "title": "파생상품과 규제, 그리고 복잡성의 증가",
+    "date": "2016. 10. 6.",
+    "url": "https://blog.naver.com/nomore_bet/220829237672",
+    "inventory_index": 444,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "규제",
+      "복잡성",
+      "모형위험"
+    ],
+    "summary_ko": "복잡한 규제가 계산 시스템 의존과 우회 상품을 늘려 오히려 새로운 취약성을 만들 수 있다고 주장한다. 다른 산업 사례를 빌려 규칙의 목적과 실제 행동의 차이를 설명한다.",
+    "developer_note_ko": "계산 결과의 출처·가정·실패 조건을 추적하고 단순한 위험 지표와 교차 확인한다. 과거 규제 설명이나 우회 사례를 현행 준법 지침으로 채택하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "c1ea1fb0132788e13a4bea4664d3b53bbc25983d2377f3f2d170cec236c6bcda",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "2878e2470baf1fb4e77c1e38776b268b5c53fd6050c11223c690afd716ab3627",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2339,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220828330419",
+    "title": "금융공학관련 기사 - 하버드·MIT 금융천재들이 주식으로 망한 사연을 보며",
+    "date": "2016. 10. 5.",
+    "url": "https://blog.naver.com/nomore_bet/220828330419",
+    "inventory_index": 445,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "LTCM",
+      "꼬리위험",
+      "헤지유동성"
+    ],
+    "summary_ko": "LTCM 실패를 단순한 수학자 오만으로 설명하는 기사에 반론을 제기한다. 희귀 위험을 헤지할 거래 상대와 유동성이 부족할 수 있으며, 제한된 포지션 자체가 중요하다는 문제의식이다.",
+    "developer_note_ko": "이론적 헤지 가능성과 실제 체결·담보·청산 가능성을 분리한다. 희귀 사건 상품이 반드시 저렴하다는 일반화나 단순 기댓값을 시장 가격식으로 사용하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "1f5459a617bb64446138d985a6c1bbef7ca47911fd437b23b421d197bd8adc35",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "c7c136883a3abb65ec8b031a7ebfe8ff995a90bd62cce2d6217bffd4089eb46a",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1624,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220824558584",
+    "title": "금융공학과 유사한 기상청 슈퍼컴퓨터 활용",
+    "date": "2016. 9. 30.",
+    "url": "https://blog.naver.com/nomore_bet/220824558584",
+    "inventory_index": 446,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "수치모형",
+      "계산인프라"
+    ],
+    "summary_ko": "기상예보를 비유로 연산 장비만 늘려서는 좋은 예측이 보장되지 않는다고 설명한다. 관측 자료·모델·전문가 판단과 세밀한 계산에 드는 비용을 함께 고려한다. 개인 일화는 생략한다.",
+    "developer_note_ko": "데이터 품질과 검증 성능을 장비 처리량과 별도로 측정한다. 자료 해상도나 표본 수 증가를 예측력 향상의 보장으로 간주하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "8b83ae8a4ee17d08181e59b84acb6de465cd0c68662d6d02f3b5cb3dc93fce9d",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "b8c4bf23432c73106e68a74ebd82504183e8dc96a19ceeec280bb5e13b8e7826",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1604,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220823658833",
+    "title": "오버워치 블리자드 주식 매수, 그 이후",
+    "date": "2016. 9. 29.",
+    "url": "https://blog.naver.com/nomore_bet/220823658833",
+    "inventory_index": 447,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "투자회고",
+      "환노출",
+      "산업테마"
+    ],
+    "summary_ko": "게임회사 투자 이후 환율 효과와 추가 투자 고민을 기록한다. 물 산업·주가지수 하락·GPU 성장이라는 서로 다른 가설을 기사와 개인 경험에 연결한 당시 투자 일지다.",
+    "developer_note_ko": "기초자산 수익과 환차손익을 분리한다. 실현 결과·미실행 아이디어·나중에 알게 된 정보를 구별하고 제시된 수익률을 검증된 전략 성과로 사용하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "43b5fd3beb9c9ed883b9c4b54f90014744bc14804f73eac17173da5877863f43",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "7e9f1347b969b5e36a449365a831b904a84563ebd53b321a15c6d291dc53f14f",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3292,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220821813944",
+    "title": "GPU, GPGPU × NVIDIA, AMD 투자에 관하여",
+    "date": "2016. 9. 28.",
+    "url": "https://blog.naver.com/nomore_bet/220821813944",
+    "inventory_index": 448,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "GPU",
+      "병렬계산",
+      "채용신호"
+    ],
+    "summary_ko": "CPU와 GPU를 문제 유형에 맞는 작업 분담으로 비유하고 금융 계산 수요와 GPU 산업 전망을 연결한다. 채용공고에서 제품 협력 가능성을 추론하지만 공식 확정 정보로 제시된 것은 아니다.",
+    "developer_note_ko": "병렬화 적합도·전송 비용·정확도를 먼저 측정한다. 채용 기반 사업 신호는 게시 시점과 추론 근거를 보존하고 실제 계약·매출과 별도 검증한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "0b68403c72a49352aadec3f607d3105b367a1a087a21588e826072368a003b65",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "5b45e7f1c701d3eab59a27ccc507fe9d59278b38a5235c27f351270b60fcf1b8",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3303,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220818968062",
+    "title": "금융공학 채용 - 신영증권, 금융공학전공 우대",
+    "date": "2016. 9. 27.",
+    "url": "https://blog.naver.com/nomore_bet/220818968062",
+    "inventory_index": 449,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용",
+      "금융공학"
+    ],
+    "summary_ko": "2016년 신영증권 공고의 금융공학 우대를 소개하고 해당 회사의 파생결합상품 업무에 대한 개인 평가를 덧붙인다.",
+    "developer_note_ko": "과거 채용 안내로 보관한다. 현재 모집 여부·요건은 확인하지 않았으며 회사에 대한 인상은 객관적 역량 지표로 전환하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "89f6d177b9821a93452fa9bcf6f064faa65bba57dff6b3c5a936c5cd8ef1e585",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "9e920b1dc7c90013847037d8ac81a8aca15227e751ea8a59135acc878d241669",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 392,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220807691716",
+    "title": "외국계 증권사들, 국내 시장에 출사표 기사를 보며",
+    "date": "2016. 9. 14.",
+    "url": "https://blog.naver.com/nomore_bet/220807691716",
+    "inventory_index": 450,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "구조화상품",
+      "금융산업",
+      "중국시장"
+    ],
+    "summary_ko": "당시 유럽·중국계 증권사의 한국 진출 계획에서 구조화상품과 중국 투자 수요를 읽는다. 회사별 사업 방향을 금융업의 기회와 필요 역량을 생각하는 자료로 삼는다.",
+    "developer_note_ko": "진출 계획과 실제 영업 개시·수익을 구분한다. 보험부채 평가에 관한 회계기준 언급은 별도 원문 확인 없이 시스템 요구사항으로 옮기지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "29d9721b5228b0e9b5b15468e1e35b03a21ab727b42b217afdae16d03ea0918b",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "ae1ff92f3a48c08ad3e1d49eebaa8df7eae62235ef4eef4750da6bdd67b1e5b7",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1905,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220810733266",
+    "title": "금융공학채용 - 금융감독원, 금융공학 분야",
+    "date": "2016. 9. 12.",
+    "url": "https://blog.naver.com/nomore_bet/220810733266",
+    "inventory_index": 451,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용",
+      "금융공학"
+    ],
+    "summary_ko": "금융감독원의 2016년 공고에서 금융공학이 별도 채용 분야로 등장한 점을 소개한다. 구조화상품과 핀테크가 해당 역량 수요를 늘릴 것이라는 저자의 전망이다.",
+    "developer_note_ko": "과거 직무 분류 자료로 활용한다. 한 공고를 산업 전체의 현재 고용 추세나 채용 보장으로 확대하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "d954a687d8604a2feef08e74f9455998f5cef0bec5251fed497ffb2698809796",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "edc46290cc9470e6cf91e69ea8292f955376b437de61d2c86bfa3e4c0b621a3b",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 452,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220806796223",
+    "title": "중국과 금에 관련된 기사를 읽고",
+    "date": "2016. 9. 8.",
+    "url": "https://blog.naver.com/nomore_bet/220806796223",
+    "inventory_index": 452,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금",
+      "달러",
+      "거시가설"
+    ],
+    "summary_ko": "중국의 금 확보를 미국 달러자산 수요와 연결하는 기사의 가설을 검토한다. 국제 금융의 협상력과 환노출 헤지라는 관점으로 금 보유를 해석하지만 국가 간 공조는 확인된 사실이 아니다.",
+    "developer_note_ko": "공식 보유 통계·추정치·정치적 풍자를 구분한다. 금과 달러의 상관관계를 고정하거나 서사만으로 금 가격의 내재가치를 산출하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "1f6fe53bee37371ef8124b31cbf948e55782caeede2be305fa87406ffab7325e",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "e9b3a62a8420cf230e431dec6c27e02d0e5c21d6968ae86dd918a1ba6959919f",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2341,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220806856659",
+    "title": "유커, 홍콩서 보험 사재기 관련 기사를 보며",
+    "date": "2016. 9. 7.",
+    "url": "https://blog.naver.com/nomore_bet/220806856659",
+    "inventory_index": 453,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "해외보험",
+      "환헤지",
+      "레버리지"
+    ],
+    "summary_ko": "중국인의 홍콩 보험 구매를 보험료 차이·달러자산 확보·담보 대출 등의 동기와 연결한다. 저자는 투자 활용에 관심을 보이면서도 가입 가능성과 지급 절차는 알지 못한다고 밝힌다.",
+    "developer_note_ko": "보험·담보 대출·재투자의 현금흐름과 통화 위험을 각각 모델링한다. 기사 속 세금·가입 자격·금리 조건은 현행 사실이나 무위험 차익으로 취급하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "361a7ac99ad707d70c07147b459d22dc12f4e1d21893d3a4e92044d69f5f43df",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "f14f9f046e14fcd379d3c8d8abc800abde1e6ec9b2cafd2e5ebc1acee0e28bd5",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1819,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220805891427",
+    "title": "중국 안방 보험 × 버크셔 해서웨이",
+    "date": "2016. 9. 6.",
+    "url": "https://blog.naver.com/nomore_bet/220805891427",
+    "inventory_index": 454,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "보험인수",
+      "자금조달",
+      "중국자본"
+    ],
+    "summary_ko": "중국 자본의 해외 보험사 인수를 보험료 운용과 역외 자산 수요 관점에서 살핀다. 버크셔의 자금 조달 방식과 비교하며 동기를 추측하되 불투명한 지배구조에 관한 기사도 함께 소개한다.",
+    "developer_note_ko": "인수 확정·추진·소문을 분리한다. 실소유자와 자금 이동에 관한 의혹은 확인된 사실로 저장하지 않고 자산·부채의 통화와 만기를 함께 점검한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "89da5589f08b63bfee8bc57d126e42f8b0c92ec13b1f3bbac9acbe124956eafc",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "da53317eecd0c3a90c53aae90582ad5893638688197c96b4f31a5f23fac89a7b",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3594,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220802842233",
+    "title": "보험사 망하게 하는 저금리 쇼크 기사를 보며",
+    "date": "2016. 9. 2.",
+    "url": "https://blog.naver.com/nomore_bet/220802842233",
+    "inventory_index": 455,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "보험ALM",
+      "저금리",
+      "위험추구"
+    ],
+    "summary_ko": "고금리 시절 약속한 보험 지급과 낮아진 자산 수익률 사이의 부담을 설명한다. 일본 사례를 통해 부족한 수익을 메우려는 위험 투자 확대를 경계하고 자신의 해지 경험을 돌아본다.",
+    "developer_note_ko": "보험부채 보증 조건과 자산 듀레이션·재투자 위험을 분리한다. 오래된 보험 유지 여부는 일반화하지 않으며 지급능력과 해지 조건도 함께 검토해야 한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "7314c5474e2b3e5102058554af595053a0271ae2cf58801212f6237232acb685",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "e5155a0a8a7663bdfe6e93852b0faf27cf97809c0d9d6fa881a713940c7c26bd",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2392,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220794394273",
+    "title": "월가 은행에는 인제 프랍 트레이더가 없다?",
+    "date": "2016. 8. 23.",
+    "url": "https://blog.naver.com/nomore_bet/220794394273",
+    "inventory_index": 456,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "프랍트레이딩",
+      "자본효율",
+      "직무구분"
+    ],
+    "summary_ko": "씨티의 프랍 데스크 정리 기사를 계기로 자기자본 거래·시장조성·고객 거래의 차이를 설명한다. 규제와 자본 비용이 은행 내 사업 구성을 바꾸어도 거래 활동 자체가 사라지는 것은 아니라고 본다.",
+    "developer_note_ko": "전략 수익률뿐 아니라 필요 자본·고객 목적·재고 위험을 분리해 평가한다. 당시 규제나 특정 은행의 사례를 모든 기관의 현재 거래 가능 범위로 일반화하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "e7e019b92b1374b00e94dec6449db0560d3a504c50cc44d5434cfd7e82cf4b68",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "161ff89e2259ef3354d0ffa247f20a780d36913014da916839baadfd8c6c5895",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1868,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220788579766",
+    "title": "금융공학채용 - 유안타증권 리스크 퀀트 공고로 본 금융공학 채용 흐름",
+    "date": "2016. 8. 16.",
+    "url": "https://blog.naver.com/nomore_bet/220788579766",
+    "inventory_index": 457,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "리스크퀀트",
+      "병렬컴퓨팅",
+      "채용"
+    ],
+    "summary_ko": "2016년 유안타증권 공고에서 변동성 표면, 프로그래밍, 병렬계산 경험을 함께 요구한 점을 짚는다. 금융공학에 수학뿐 아니라 실제 계산을 구현하는 능력이 필요하다는 취지다.",
+    "developer_note_ko": "요구 역량을 데이터·모형·성능 검증 항목으로 나눈다. 공고 이미지와 연결 교육 자료는 이번 복구에서 검토하지 않았고 현재 채용 정보도 아니다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "d17423f0310631a5bcba99d4ecb486860ada9801f5531d1a1dd477794b914d3e",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "69c3019d0713162f26cc9885ecce89183571f93ba0ae3e9d1a61119ca083703d",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 759,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220785841658",
+    "title": "금융위기 이후 금융공학자, 퀀트의 업무 영역 변화",
+    "date": "2016. 8. 12.",
+    "url": "https://blog.naver.com/nomore_bet/220785841658",
+    "inventory_index": 458,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트직무",
+      "구현역량"
+    ],
+    "summary_ko": "금융위기 이후 업무 통합으로 수학적 모형 연구와 프로그래밍·시스템 구현을 함께 맡는 퀀트가 필요해졌다는 경험적 견해다. 교육과 실제 업무 요구 사이의 간극을 지적한다.",
+    "developer_note_ko": "연구식·데이터 변환·구현·운영 검증의 인수 기준을 연결한다. 저자의 개인적 학습 비중 권고를 모든 직무에 동일하게 적용하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "f5da878e64af86e9d7bc961bebd4dea395a7d91f5ba4e480cfc052c46815037b",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "8851f4ffe6b11cc33dc21e144ac80592f378c1281a4829201dc24edb4fe6b2a5",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 871,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220782246286",
+    "title": "트레이더가 되고 싶은 트랙 레코드 좋은 친구들 - #2",
+    "date": "2016. 8. 8.",
+    "url": "https://blog.naver.com/nomore_bet/220782246286",
+    "inventory_index": 459,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "트랙레코드",
+      "투자제약",
+      "채용"
+    ],
+    "summary_ko": "개인 투자 성과가 기관의 투자 대상·승인·준법·위험 한도 아래서도 유지되는지 질문해야 한다고 설명한다. 채용 동기와 평가자의 시각은 다양하며 보편적 면접 법칙은 아니라는 점도 밝힌다.",
+    "developer_note_ko": "기관 제약을 반영한 별도 모의 장부를 만들고 승인·정보 출처를 기록한다. 높은 개인 수익률을 동일 규모와 유동성에서 재현 가능한 성과로 간주하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "27e26866fa00465e79cad0951ad1dd5243cca6205531822c7d26e4e90dacb467",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "70d75e84451ed0f56164ba15d5b0b0871119c66cc195b656d5a91eb88c09c051",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3725,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220780286718",
+    "title": "트레이더가 되고 싶은 트랙 레코드 좋은 친구들 - #1",
+    "date": "2016. 8. 5.",
+    "url": "https://blog.naver.com/nomore_bet/220780286718",
+    "inventory_index": 460,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "트랙레코드",
+      "위험관리",
+      "규모효과"
+    ],
+    "summary_ko": "높은 개인 수익률만으로 전문 트레이더 역량을 평가하기 어렵다는 글이다. 자동차 속도와 제동을 비유로 손실 통제와 운용 규모가 함께 확인되어야 한다고 강조한다.",
+    "developer_note_ko": "수익과 함께 최대 낙폭·레버리지·집중도·청산 소요시간을 제시한다. 작은 원금의 성과를 대규모 자금에도 그대로 확대하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "8883418722730e4116721d45c6e5cdb1bc691d43faa401ccbc269519b7b19439",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "430c8e980abadc8a2e7cb0b9d852ddfbb847f7017c80f522de5a204f4fa9da86",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1974,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220772814962",
+    "title": "금융공학채용 - SK트레이딩인터내셔널",
+    "date": "2016. 7. 28.",
+    "url": "https://blog.naver.com/nomore_bet/220772814962",
+    "inventory_index": 461,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채용",
+      "원자재",
+      "리스크퀀트"
+    ],
+    "summary_ko": "에너지·원자재 거래 회사의 2016년 채용공고를 보고 금융기관 수준의 위험 관리 역량을 요구한다고 해석한다. 산업 기반과 특화된 상품 지식의 중요성에 주목한다.",
+    "developer_note_ko": "현물 인도·저장·운송 제약을 금융가격 데이터와 별도로 다룬다. 공고 원문 이미지·연결 페이지와 현재 채용 상태는 미검토다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "43aa3c668d1fe37d38a3b43d9a01e8c6fc9ea19fcac5c0f887e1c92601764bd9",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "ffe8305fc1016d3eb152d94a56cf45f687f4332b78397db334062f82c473a067",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 411,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220772729941",
+    "title": "오너리스크 × 투자자 입장에서 문제점",
+    "date": "2016. 7. 27.",
+    "url": "https://blog.naver.com/nomore_bet/220772729941",
+    "inventory_index": 462,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "지배구조",
+      "오너리스크"
+    ],
+    "summary_ko": "기업 오너의 행동에서 생기는 위험을 일반적 시장·신용 위험과 대비한다. 정보 접근과 책임 추궁이 어려워 관리가 힘들다는 저자의 문제 제기다.",
+    "developer_note_ko": "관찰된 사건과 의혹을 구분하고 최초 공개 시각을 보존한다. 계량화·헤지가 전혀 불가능하다는 단정을 채택하지 않으며 분산·비중 제한 등 노출 관리와 구분한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "f87e7c38609a897bc22be71d3c41d5265fe8dc3cd7a4e19ec93bae857977de69",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "62736b029a3cbf51e38f59231268b37aa1a312e04dd3d3c70e96fb5b0ff68abd",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1454,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220767647026",
+    "title": "IMF 특수 인출권(SDR) × 중국의 기축통화 어택",
+    "date": "2016. 7. 21.",
+    "url": "https://blog.naver.com/nomore_bet/220767647026",
+    "inventory_index": 463,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "SDR",
+      "통화체제",
+      "거시가설"
+    ],
+    "summary_ko": "위안화의 SDR 편입과 SDR 표시 채권·외환보유액 발표를 중국의 달러 의존 축소 시도라는 관점으로 묶는다. 금 투자까지 연결하지만 실제 정책 효과를 검증한 글은 아니다.",
+    "developer_note_ko": "SDR 같은 준비자산·계산 단위와 민간 지급 통화를 구별한다. 발표·시행·시장 활성화를 별도 이벤트로 저장하고 정치경제 해석을 사실 라벨로 만들지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "6f8582558a5b5a5386c0de578bf87e1ac93cc64c7040b15070517d2b2b5f49a6",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "ffda08795f8e5e1ddb1bc0f3d1320e61a26dd88bb93f3f46fa80884c45a0e61b",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 4537,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220766000363",
+    "title": "스왑 선물 채권 트레이딩 책 저자의 인터뷰를 보며",
+    "date": "2016. 7. 20.",
+    "url": "https://blog.naver.com/nomore_bet/220766000363",
+    "inventory_index": 464,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "멀티커런시",
+      "평가커브",
+      "헤지쏠림"
+    ],
+    "summary_ko": "금리 트레이딩 서적 저자 인터뷰에서 해외 영업을 위한 선물환·다중통화 평가 역량을 강조한다. 국내 헤지 수요가 같은 방향에 몰리면 거래 조건이 불리해질 수 있다고 해석한다.",
+    "developer_note_ko": "통화·담보 조건·할인 곡선·베이시스를 구분한다. 이 글은 책 자체의 독후 검토가 아니며 헤지 쏠림은 실제 포지션·유동성 자료로 따로 확인한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "ddeca561361103773df7aae2edd5c6a287a070acc4f75ac51f4f08de0d697382",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "91cdac3cb9fa132d6616f51a74ecee31f47e2d0b3910ee8e27e6510d9005022d",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1765,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220762759457",
+    "title": "청소년 금융, 금융은 돈장사인데",
+    "date": "2016. 7. 18.",
+    "url": "https://blog.naver.com/nomore_bet/220762759457",
+    "inventory_index": 465,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융교육",
+      "현금흐름",
+      "유동화"
+    ],
+    "summary_ko": "청소년에게 금융공학을 설명하기 전에 금융의 기본 역할부터 이해시켜야 한다는 글이다. 외환·신용·유동화를 통해 현재 자금과 미래 현금흐름을 교환하는 관점으로 풀어낸다.",
+    "developer_note_ko": "금융상품을 통화·지급 시점·권리·조건으로 표현한다. 교육용 단순화를 실제 상품의 신용·옵션·법적 구조와 혼동하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "7f9a131f5c686e49b4b2f031786d398fa764b8cba9bc1ff42fae8c70ea369920",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "1e5235566cfc62835c0d6cfcec905b5eeef17789594999de8e69e0856203b346",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 1488,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220760936670",
+    "title": "포켓몬 Go, 서든어택2 개발사들의 주가를 보며",
+    "date": "2016. 7. 13.",
+    "url": "https://blog.naver.com/nomore_bet/220760936670",
+    "inventory_index": 466,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "게임산업",
+      "제품신호",
+      "성장가설"
+    ],
+    "summary_ko": "게임 출시와 사용자 경험을 기업의 개발 역량·사업 지속성에 관한 투자 가설로 연결한다. 성공작과 부진작을 대비하지만 주가 움직임의 원인을 실증적으로 분리한 분석은 아니다. 가족 일화는 생략한다.",
+    "developer_note_ko": "제품 개발사·유통사·지분 관계와 실제 수익 귀속을 확인한다. 개인 사용 경험·흥행 지표·가격 반응을 구분하고 출시 후 정보를 사전 신호로 소급하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "3529a2cae0f8b3bc1f3f7972e093a3661158b56eb82ca410e848b6987368c468",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "2dc18283c3618b98f75091d46230a3046c9b134af370acfedc39f92c163b8354",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3648,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220758940537",
+    "title": "인베스팅 닷 컴 × 무료 마켓 데이터",
+    "date": "2016. 7. 11.",
+    "url": "https://blog.naver.com/nomore_bet/220758940537",
+    "inventory_index": 467,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "시장데이터",
+      "경제캘린더"
+    ],
+    "summary_ko": "Investing.com 앱을 가볍게 시세와 경제지표 일정을 확인하는 도구로 소개한다. 무료 접근과 사용 편의성에 관한 2016년의 이용 소감이다.",
+    "developer_note_ko": "현재 데이터 지연·출처·사용 조건·자동 수집 허용 여부는 별도 확인 대상이다. 앱에서 보이는 가격을 실행 가능한 실시간 호가로 가정하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "7e884744499b36e91365ecd81fe8bc90d7eec523ba156159c10073259d2b90ab",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "8e40df22cfcb811b972918770b06e4da7b67ade8078981b7590c236be6c8e4da",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 532,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220756789860",
+    "title": "공정위 CD금리 담합 조사결과를 보며",
+    "date": "2016. 7. 8.",
+    "url": "https://blog.naver.com/nomore_bet/220756789860",
+    "inventory_index": 468,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "CD금리",
+      "금리지표",
+      "조사해석"
+    ],
+    "summary_ko": "CD금리 담합 조사 결과를 두고 발행자 신용 차이와 금융기관 내부 부서의 유인을 고려해야 한다고 주장한다. 금리 동행 여부만으로 담합을 추론하는 접근에 의문을 제기한다.",
+    "developer_note_ko": "만기·유동성·발행자·관측 방식이 다른 금리를 단순 비교하지 않는다. 저자의 유인 해석이나 증거 부족을 위법 여부에 관한 독립 결론으로 바꾸지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "8a163d9533338ce027d9580ef21ca6bc31c26c9d321b0ddf706c5f59e7fcb845",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "7d566926e07ca4ef12c7a9f1e1e1170f5d376e0a8d61c5e13547b520df80455a",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 2226,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220754048716",
+    "title": "금융공학자료 × 직관적으로 블랙숄즈 이해하기",
+    "date": "2016. 7. 5.",
+    "url": "https://blog.naver.com/nomore_bet/220754048716",
+    "inventory_index": 469,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "블랙숄즈",
+      "교육자료"
+    ],
+    "summary_ko": "옵션 가격을 주가 경로·기댓값·변동성의 시각적 설명으로 익히는 외부 교육 사이트를 짧게 추천한다. 링크된 자료의 내용 자체는 이번 검토에 포함되지 않는다.",
+    "developer_note_ko": "교육자료 안내와 해당 이론의 검증 완료를 구별한다. 구현 전 측도·할인·배당·변동성 가정을 명시하고 독립적인 기준값으로 테스트한다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "999e5ffe37aad143430d483347d2119166710f178030799413e1c3540f820a82",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "e013ca5880daf4e627d648b8d95cb89fcb0a722d2ce4176366404d8866207273",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 329,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  },
+  {
+    "id": "220736719942",
+    "title": "오버워치 × 액트비온블리자드 주식",
+    "date": "2016. 6. 15.",
+    "url": "https://blog.naver.com/nomore_bet/220736719942",
+    "inventory_index": 470,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "게임산업",
+      "제품경험",
+      "투자일지"
+    ],
+    "summary_ko": "오버워치의 접근성·역할 균형·장기 이용 가능성을 경험한 뒤 회사의 성장성에 투자한 이유를 설명한다. VR과 e스포츠 확장도 가설로 연결한다. 가족·사생활 일화는 연구와 무관해 생략한다.",
+    "developer_note_ko": "재미라는 정성 평가를 이용자 유지율·매출·평가가치와 분리한다. 개인 집중 투자와 흥행 서사를 검증된 종목 선정 규칙으로 복제하지 않는다.",
+    "limitations": [
+      "이번 복구는 공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크·첨부 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "12a401ef0e19dfdf9b8193b85c96bea83f48423f4f6308b7bfa2b442fd78c504",
+    "hash_basis": "Collector HTML string encoded as UTF-8; may use cached public HTML; not normalized text or a byte-for-byte server archive",
+    "recovery_status": "rewritten_after_public_body_refetch_and_reread",
+    "recovery_checked_at_utc": "2026-10-23T08:06:36+00:00",
+    "recovery_source_document_sha256": "0f883f1b2ae703dd58c11ff875ab4728e1e984880c259bb126410e324f9d2667",
+    "recovery_hash_basis": "SHA-256 of refetched public HTML decoded using response charset (or UTF-8), encoded as UTF-8; not extracted body text.",
+    "recovery_text_chars": 3651,
+    "images_reviewed_in_this_batch": false,
+    "external_links_reviewed": false,
+    "attachments_reviewed": false,
+    "claims_independently_verified": false
+  }
+]

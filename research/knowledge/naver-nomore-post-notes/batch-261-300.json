@@ -1,0 +1,842 @@
+[
+  {
+    "id": "221380784008",
+    "title": "재테크 입문자가 경제 기사 읽기 보다 먼저 해야 할 일 - 숫자에 대한 감 #3",
+    "date": "2018. 10. 19.",
+    "url": "https://blog.naver.com/nomore_bet/221380784008",
+    "inventory_index": 261,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "경제문해력",
+      "퍼센트",
+      "복리"
+    ],
+    "summary_ko": "저자는 작은 증감률을 체감하려면 익숙한 몸무게 변화나 원금이 두 배가 되는 시간으로 바꾸어 보라고 제안한다. 72법칙은 정밀한 투자 판단보다 비율 감각을 기르는 교육 도구로 다룬다.",
+    "developer_note_ko": "비율 표시에는 기준 금액·절대 변화량·시간 환산을 병기하는 학습 UI를 고려할 수 있다. 배가기간은 일정 성장률 가정과 근사치임을 밝히고, %와 %포인트를 구분한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "73531173c86c407d2968cd5adf9fc972c528738198cb5222d09b1e7740383ea9"
+  },
+  {
+    "id": "221380021305",
+    "title": "재테크 입문자가 경제 기사 읽기 보다 먼저 해야할 일 - 숫자에 대한 감 #2",
+    "date": "2018. 10. 18.",
+    "url": "https://blog.naver.com/nomore_bet/221380021305",
+    "inventory_index": 262,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "경제문해력",
+      "규모비교",
+      "비금전지표"
+    ],
+    "summary_ko": "저자는 인구·고용 인원·금 보유량처럼 분야별 대표 규모를 기억하면 경제 뉴스의 숫자와 과장된 주장을 가늠하기 쉬워진다고 설명한다. 제시된 수치는 당시 비교 사례다.",
+    "developer_note_ko": "비금전 지표도 단위·지역·기준일을 함께 저장하고, 검증된 기준값과 비교하는 규모 점검 기능을 생각할 수 있다. 서로 다른 모집단이나 시점의 수치를 무조건 나누지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "1b32ff67600025cffc62142fd8ace48a1769b70d161fd90c04d3ba3df80fb839"
+  },
+  {
+    "id": "221379023036",
+    "title": "경제 공부, 경제 기사 흡수력 증진에 관하여 추가하자면",
+    "date": "2018. 10. 17.",
+    "url": "https://blog.naver.com/nomore_bet/221379023036",
+    "inventory_index": 263,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "경제학습",
+      "보도자료",
+      "기준규모"
+    ],
+    "summary_ko": "저자는 입문자가 장문 보고서나 기사부터 읽기보다 기획재정부·한국은행 보도자료에서 대표 숫자를 익히는 방식을 권한다. 외환보유액을 기준점으로 기업가치와 매출 규모를 비교하는 예를 든다.",
+    "developer_note_ko": "지표 카드에 원출처·발표일·단위와 비교 기준을 연결하는 설계를 검토할 수 있다. 외환보유액·시가총액 같은 잔액과 연간 매출 같은 흐름은 성격이 다름을 표시한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "805d1579bf5706bee39a85969c9ca315e4bb21f58879ebeb856d4ea18c026f6a"
+  },
+  {
+    "id": "221378598745",
+    "title": "재테크 입문자가 경제 기사 읽기 보다 먼저 해야할 일 - 숫자에 대한 감 #1",
+    "date": "2018. 10. 16.",
+    "url": "https://blog.naver.com/nomore_bet/221378598745",
+    "inventory_index": 264,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "경제문해력",
+      "규모감각",
+      "단위"
+    ],
+    "summary_ko": "저자는 경제 기사 이해의 장애가 용어뿐 아니라 숫자의 크기를 체감하지 못하는 데 있다고 본다. 금액·비금전 수량·변화율·확률을 나누고, 국부나 세입 같은 기준 규모를 익힐 것을 제안한다.",
+    "developer_note_ko": "숫자 추출 결과를 통화·수량·변화율·확률로 분류하고 단위와 기준시점을 보존할 수 있다. 큰 금액의 비교는 최신값처럼 재사용하지 말고 해당 연도의 학습 예제로 남긴다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "1e6806feff794f3b66a226688a25627b2931e4d8544172d85b2ea5a97600c7ae"
+  },
+  {
+    "id": "221377341849",
+    "title": "브렉시트, 지극히 금융적인 시각으로 봤던",
+    "date": "2018. 10. 15.",
+    "url": "https://blog.naver.com/nomore_bet/221377341849",
+    "inventory_index": 265,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "브렉시트",
+      "금융허브",
+      "규제"
+    ],
+    "summary_ko": "저자는 금융산업의 이익만 보고 브렉시트 가능성을 낮게 본 자신의 시각을 돌아본다. 런던과 뉴욕의 금융 특화를 역사로 설명하고, 당시 패스포팅 상실 우려가 금융사 거점 선택에 미칠 영향을 논한다.",
+    "developer_note_ko": "사건 시나리오에 경제적 손익뿐 아니라 정치적 선택과 인허가 경로를 분리해 기록할 수 있다. 당시 이전 보도와 저자의 역사 해석은 현재 거점 현황이나 검증된 인과관계로 취급하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "0db9a5cc508a8647fca132fab3bd0cecc1fa4f813b268805b06b4676f2caf407"
+  },
+  {
+    "id": "221376112225",
+    "title": "금융공학 블로그, 현직 퀀트 블로그 하나 또 소개",
+    "date": "2018. 10. 12.",
+    "url": "https://blog.naver.com/nomore_bet/221376112225",
+    "inventory_index": 266,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융공학교육",
+      "실무연결",
+      "자료소개"
+    ],
+    "summary_ko": "저자는 학생 때 수학적 도구의 실무 목적을 몰라 어려웠던 경험을 회고하며 현직 퀀트의 금융수학 블로그를 소개한다. 수식이 어떤 비즈니스 문제를 해결하는지 설명하는 교육을 높이 평가한다.",
+    "developer_note_ko": "학습 노트에 수식·사용 목적·입력 데이터·실무 제약을 연결하는 형식을 적용할 수 있다. 소개된 외부 블로그의 내용과 품질은 이 글의 본문만으로 검토한 것으로 표시하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "5778bca2b8bef960077ddf36aff10ef8e9671dbe26d522576afdb86f6c512e21"
+  },
+  {
+    "id": "221370775088",
+    "title": "금융공학, 깊이에의 강요가 필요없는 금융공학 블로그 소개",
+    "date": "2018. 10. 4.",
+    "url": "https://blog.naver.com/nomore_bet/221370775088",
+    "inventory_index": 267,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융공학교육",
+      "자료소개",
+      "금융사"
+    ],
+    "summary_ko": "저자는 자신의 블로그가 금융공학에서 여러 주제로 넓어진 과정을 설명하고, 금융공학의 인물·이론·역사를 깊게 다루는 이웃 블로그를 소개한다. 업계 초년생과 학생에게 도움이 될 것이라는 당시 평가다.",
+    "developer_note_ko": "자료 카탈로그에서는 소개글과 실제 기술 해설을 구분하고 대상 독자·주제·추천 주체를 메타데이터로 남길 수 있다. 연결된 강의나 역사 서술 자체는 별도 검토 전까지 미확인 자료다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "25c966f338784d843c400430fafc5b4c6ebf707270e9643966f9d00f91dc0c26"
+  },
+  {
+    "id": "221369489063",
+    "title": "주식 초보자들이 가지면 좋을 습관 - 팔면서 한 주 남기기",
+    "date": "2018. 10. 2.",
+    "url": "https://blog.naver.com/nomore_bet/221369489063",
+    "inventory_index": 268,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "매도복기",
+      "행동재무",
+      "의사결정기록"
+    ],
+    "summary_ko": "저자는 매도 후 소량을 남겨 가격을 관찰하고 당시 판단을 메모하는 습관을 제안한다. 매수와 매도는 다른 학습이 필요하며, 공개된 성공 사례만으로 자신의 실력을 판단하면 안 된다고 덧붙인다.",
+    "developer_note_ko": "실제 잔여 보유 없이 가상 추적 목록으로 매도 사유와 이후 경로를 기록할 수 있다. 사전에 정한 관찰기간·대안 수익률·비용을 사용하고 사후 가격만으로 판단의 질을 단정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "49887047a5b6261f079eed482d8884648cba2ea00908cda837f8ebe07b16a262"
+  },
+  {
+    "id": "221368749948",
+    "title": "트레이더는 짬밥을 먹으면, 경제사와 국제정치에 관심을 집중하기 시작하나",
+    "date": "2018. 10. 1.",
+    "url": "https://blog.naver.com/nomore_bet/221368749948",
+    "inventory_index": 269,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "경제사",
+      "국제정치",
+      "정책시나리오"
+    ],
+    "summary_ko": "저자는 숙련된 외환·채권 트레이더가 경제사와 국제정치에 관심을 갖는다고 관찰한다. 국가와 조직의 과거 충격이 정책 선택에 남는다는 관점으로 미국·독일 및 국내 외환규제를 해석한다.",
+    "developer_note_ko": "정책 이벤트 데이터에 제도적 배경과 경쟁하는 해석을 함께 기록하는 시나리오 노트를 고려할 수 있다. 조직의 기억이라는 설명은 저자의 해석이며 단일 원인이나 예측 변수로 확정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "4b47b5e4417d4af01e7b800c02fd53baa9c2659f459fbe5146e3ce25cc755040"
+  },
+  {
+    "id": "221363418087",
+    "title": "부동산, 러시아인 강남아이파크105억 뉴스를 보며",
+    "date": "2018. 9. 21.",
+    "url": "https://blog.naver.com/nomore_bet/221363418087",
+    "inventory_index": 270,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "부동산",
+      "국제자본",
+      "자산보호"
+    ],
+    "summary_ko": "저자는 러시아인의 고가 서울 아파트 매입 보도를 런던 부동산에 유입된 러시아 자금 사례와 연결한다. 구매 동기에 수익률뿐 아니라 재산 보호·거주·교육 등이 있을 수 있다고 추측하며 한국 부동산의 매력을 질문한다.",
+    "developer_note_ko": "거래가격 사례와 매수 동기 추정을 분리하는 데이터 구조가 유용하다. 단일 고가 거래를 전체 시장 신호로 확대하거나 국적만으로 자금 출처·위법성을 추정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "2fd88f3cc8d6ca75eef47fb24a2a2b84c05110f8c09815f2eb33e94f06fc31f5"
+  },
+  {
+    "id": "221362715501",
+    "title": "부동산, 욕망과 공포, 양력과 중력",
+    "date": "2018. 9. 20.",
+    "url": "https://blog.naver.com/nomore_bet/221362715501",
+    "inventory_index": 271,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "부동산심리",
+      "기회상실공포",
+      "가격서사"
+    ],
+    "summary_ko": "저자는 부동산 과열에서는 상승 욕망뿐 아니라 앞으로 집을 못 살 수 있다는 공포도 매수를 자극한다고 본다. 과거 주택가격 경험과 자녀에게 소유를 권하려는 태도가 수요를 지지할 수 있다는 당시 견해다.",
+    "developer_note_ko": "심리지표에서 손실 공포와 기회상실 공포를 구분하고, 가격·거래량과 독립적으로 기록할 수 있다. 개인 경험에 기댄 수요 지속 가설은 검증 전 예측 규칙으로 사용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "f401eac14fd42866c648bb38e71bc58d10e9fe0cdd530d4c85deba1c8dd40184"
+  },
+  {
+    "id": "221361995387",
+    "title": "브렉시트 × 런던 부동산 폭락?",
+    "date": "2018. 9. 19.",
+    "url": "https://blog.naver.com/nomore_bet/221361995387",
+    "inventory_index": 272,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "브렉시트",
+      "스트레스시나리오",
+      "주택시장"
+    ],
+    "summary_ko": "저자는 당시 영란은행 총재의 노딜 브렉시트 경고를 소개하며 주택가격 급락과 실업 증가 시나리오에 주목한다. 그런 결과를 만드는 경제적 전달경로와 분석 가정이 무엇인지 궁금하다고 남긴다.",
+    "developer_note_ko": "스트레스 시나리오는 조건·기간·충격 크기·전달경로를 구조화하고 기본 전망과 구분해야 한다. 이 글은 경고 수치의 소개이지 모델 검증이나 실제 사후 결과 확인이 아니다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "a446d089318e2f0072b6d292ba0f71c66fa2bdfbe5346622370e85eef66d48a3"
+  },
+  {
+    "id": "221358842375",
+    "title": "부동산과 대출에 관한 잡담들",
+    "date": "2018. 9. 14.",
+    "url": "https://blog.naver.com/nomore_bet/221358842375",
+    "inventory_index": 273,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "부동산대출",
+      "자금조달",
+      "유동성"
+    ],
+    "summary_ko": "저자는 9·13 대책 직전 금융권 지인들과 대출이 주택 수요에 미치는 영향을 토론한 경험을 전한다. 내부 자금비용이 트레이더의 포지션을 줄이듯 대출 제약도 매수를 억제할 수 있지만, 기존 보유자와 신규 진입자 효과는 다를 것이라고 본다.",
+    "developer_note_ko": "정책 시뮬레이션에서 기존 부채와 신규 차입 흐름을 분리하고 자금조달 비용·한도·만기를 입력으로 둘 수 있다. 비유에 기반한 가설이므로 실제 주택시장 효과는 별도 검증한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "d7b0098be8f0583a8ad2b19b2afbff54a68a5aa23b23a0b7a2016ef35421ff91"
+  },
+  {
+    "id": "221358130429",
+    "title": "제프 쿤, 금융스러운 예술가, Bankable artist",
+    "date": "2018. 9. 13.",
+    "url": "https://blog.naver.com/nomore_bet/221358130429",
+    "inventory_index": 274,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "미술금융",
+      "선판매",
+      "프로젝트금융"
+    ],
+    "summary_ko": "저자는 책에서 소개한 제프 쿤스 사례를 통해 미래 작품의 선판매가 대형 제작비를 조달하는 수단이 된다고 설명한다. 제작을 전문업체에 맡기는 방식과 금융시장의 선도적 거래 구조를 연결하지만 가격 확정 방식에는 차이가 있다고 짚는다.",
+    "developer_note_ko": "프로젝트 현금흐름 모델에 선수금·제작비·인도일·지연 가능성을 분리할 수 있다. 선판매를 거래소 선물과 동일시하지 말고 가격 확정·담보·정산 조건을 계약별로 확인한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "7f529e147f4e2215d5cb4c37bfdda1710f7dfa2b3ca54dab5b411c9905700820"
+  },
+  {
+    "id": "221357443875",
+    "title": "최근 투자 관심사 - 브라질 채권, 마이크로소프트, 비트코인",
+    "date": "2018. 9. 12.",
+    "url": "https://blog.naver.com/nomore_bet/221357443875",
+    "inventory_index": 275,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "투자관심기록",
+      "신흥국채권",
+      "시장심리"
+    ],
+    "summary_ko": "저자는 당시 브라질 채권의 금리·환율 동반 손실, 대형 기술주의 상징적 시가총액, 비트코인 비관론자의 태도 변화에서 투자 아이디어를 찾는다. 세 자산 모두 확정적 매매 권고가 아니라 진입을 고민하는 관찰 기록이다.",
+    "developer_note_ko": "아이디어를 금리·환율·심리·가격 기준별 가설로 나누고 작성일을 고정한다. 본문에는 기술주 시가총액을 1억 달러로 반복 표기한 부분과 인용 기사의 1조 달러가 충돌하므로 수치 오류 플래그를 둔다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "77d8d8928c54dda93785e3e9d06c7086cc689cfb7eecc0c76a5c6c4878f3a980"
+  },
+  {
+    "id": "221354273740",
+    "title": "도시 어부, 마이크로닷으로 보는 포트폴리오 분산투자",
+    "date": "2018. 9. 7.",
+    "url": "https://blog.naver.com/nomore_bet/221354273740",
+    "inventory_index": 276,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "분산투자",
+      "상관관계",
+      "인적자본"
+    ],
+    "summary_ko": "저자는 랩과 낚시라는 다른 재능이 활동 기회를 넓힌 방송인 사례로 저상관 분산을 비유한다. 한 분야에만 능력을 집중하기보다 서로 다른 수요층에 닿는 기술을 갖추는 접근을 연예인 육성에도 제안한다.",
+    "developer_note_ko": "분산 교육 예제로 사용할 수 있으나 재능의 상관관계가 측정된 것은 아니다. 자산 모델에서는 이름이나 업종 다양성만 보지 말고 수익률 상관·공통 위험요인·집중도를 따로 확인한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "5a2fad83764a38b8d6a7b78be839258140f7d3ba2b41e003e2c3ea60c3a7769b"
+  },
+  {
+    "id": "221353554754",
+    "title": "부동산에 관한 추억, 그리고 파스칼의 내기",
+    "date": "2018. 9. 6.",
+    "url": "https://blog.naver.com/nomore_bet/221353554754",
+    "inventory_index": 277,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "주거효용",
+      "의사결정행렬",
+      "부동산"
+    ],
+    "summary_ko": "저자는 지인의 주택 매수 고민을 매수 여부와 가격 등락의 네 경우로 나눠 이야기한다. 주거 안정과 생활 편익을 중시하는 관점, 가격차익을 중시하는 관점을 대비하며 확률을 모르면 엄밀한 기대값 계산은 아니라는 한계도 인정한다.",
+    "developer_note_ko": "주택 의사결정표에 현금흐름·부채 부담·거주 효용·기회비용·시나리오 확률을 따로 넣을 수 있다. 일화의 성공 결과나 성별 일반화를 투자 규칙으로 전환하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "2920dc32c4ad31d14e0b6107c4fe16decfb685a172ebc174741358775c9266c8"
+  },
+  {
+    "id": "221351455852",
+    "title": "딸천재의 추억 - 손흥민이 불러준 전역 전날의 추억",
+    "date": "2018. 9. 3.",
+    "url": "https://blog.naver.com/nomore_bet/221351455852",
+    "inventory_index": 278,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "개인에세이",
+      "기회비용",
+      "스포츠"
+    ],
+    "summary_ko": "저자는 아시안게임 축구 승리와 손흥민의 병역 문제를 계기로 자신의 전역 전날 감정을 회고한다. 경기의 절실함을 주급과 경력 가치로 비유하고, 관객이 더 큰 이해관계가 걸린 승부에 끌리는 심리를 이야기한다.",
+    "developer_note_ko": "금융기법 설명보다 개인 회고로 분류하는 편이 적절하다. 주급 손실과 이적료는 귀속 주체·의미가 달라 단순 합산한 선수 개인의 손익이나 실제 베팅 금액으로 처리하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "485d2575939f6ccc27b96c4d87d7cd8a73e34abf8e672a095672688280c1bb8a"
+  },
+  {
+    "id": "221348999676",
+    "title": "버핏의 인도 투자 × 모바일결제 업체 원97 커뮤니케이션",
+    "date": "2018. 8. 30.",
+    "url": "https://blog.naver.com/nomore_bet/221348999676",
+    "inventory_index": 279,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "핀테크",
+      "인도",
+      "투자주체"
+    ],
+    "summary_ko": "저자는 버크셔의 원97 커뮤니케이션 투자 보도를 보고 인도 소비 성장과 모바일결제 확산을 추측한다. 기존 금융 인프라 단계를 건너뛰는 성장 가능성을 제시하지만 실제 투자 의사결정자의 설명을 확인한 글은 아니다.",
+    "developer_note_ko": "투자 사건의 법인 주체·의사결정자·보도금액과 관찰자의 동기 추론을 분리해 저장한다. 유명 투자자의 이름을 신호로 삼기 전에 원자료와 당시 사업지표를 별도 확인해야 한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "56a2d553cdb703d039e7932e3b3bc377f96fd238882a2d4eb5664fb6c57e7271"
+  },
+  {
+    "id": "221348304034",
+    "title": "소득주도성장 그리고 내 포트폴리오는 어디로",
+    "date": "2018. 8. 29.",
+    "url": "https://blog.naver.com/nomore_bet/221348304034",
+    "inventory_index": 280,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "정책과투자",
+      "소득주도성장",
+      "포트폴리오"
+    ],
+    "summary_ko": "저자는 암호화폐·코스닥 투자 이후 원화 현금을 늘린 당시 상황에서 소득주도성장의 내수 확대 경로를 고민한다. 소득 지원의 필요성과 성장 효과에 대한 확신을 구분하며 정책 실행 방식의 불확실성 때문에 관망한다고 밝힌다.",
+    "developer_note_ko": "정책 견해·경제 메커니즘 가설·실제 보유 포지션을 서로 다른 필드로 기록할 수 있다. 정치적 찬반을 수익률 신호로 대체하지 않고 당시 공개정보만으로 사후 검증하는 구조가 필요하다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "78cdb40835548069b2b08897ebd5b2464786bd9e697ec23512082ba96239f435"
+  },
+  {
+    "id": "221345108451",
+    "title": "방구석 여포 은행들 기사를 보며",
+    "date": "2018. 8. 24.",
+    "url": "https://blog.naver.com/nomore_bet/221345108451",
+    "inventory_index": 281,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "은행산업",
+      "해외사업",
+      "조직운영"
+    ],
+    "summary_ko": "저자는 국내 은행의 낮은 해외 이익 비중을 다룬 기사를 계기로 내수·예대마진 의존과 해외 인력 배치를 비판한다. 해외 발령이 전문성보다 조직 내 평가와 연결되어 보인다는 개인적 인상도 덧붙인다.",
+    "developer_note_ko": "은행 비교 지표에는 해외 이익의 절대액·비중·위험조정 성과를 함께 둘 수 있다. 인사에 관한 일화와 산업 통계를 구분하고, 이익 비중 하나로 해외 경쟁력을 단정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "94f8dbc817e1731617df87072f2ae3619890c9fa83203ec8ba24269937aa73cb"
+  },
+  {
+    "id": "221343630074",
+    "title": "금융공학, 트레이딩룸의 변화 - 퀀트, 스태래터지스트, 스트레이더",
+    "date": "2018. 8. 22.",
+    "url": "https://blog.naver.com/nomore_bet/221343630074",
+    "inventory_index": 282,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트개발",
+      "트레이딩자동화",
+      "직무융합"
+    ],
+    "summary_ko": "저자는 골드만삭스의 스트래터지스트와 트레이더 역할 융합 보도를 소개한다. 호가·포지션·위험 탐지의 자동화와 직접 코딩하는 트레이더를 대비하며, 퀀트 교육과 채용에서 구현 능력이 중요해졌다는 자신의 경험을 강조한다.",
+    "developer_note_ko": "시장 관찰·가격 산출·리스크 점검을 작은 모듈로 연결하는 개발 과제가 적합하다. 역할 융합이 주문 권한이나 검증 절차의 생략을 뜻하지 않도록 테스트·감사 로그·배포 통제를 분리한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "7eae8e22331a0a885758b80cba3ce3cabc48ce83cf50c2abfbc2b3603af88371"
+  },
+  {
+    "id": "221340526172",
+    "title": "공유를 하고자, 타성에 젖은 트레이더를 위한 차트",
+    "date": "2018. 8. 17.",
+    "url": "https://blog.naver.com/nomore_bet/221340526172",
+    "inventory_index": 283,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "모델가정",
+      "음의금리",
+      "투자편향"
+    ],
+    "summary_ko": "저자는 외부 차트 모음을 보고 오래된 시장 상식이 시스템과 판단을 제한할 수 있다고 말한다. 음의 금리를 고려하지 않은 시스템 경험, 높은 밸류에이션과 특정 투자스타일의 부진 사례를 언급하며 고정관념의 점검을 권한다.",
+    "developer_note_ko": "금리 0 하한처럼 암묵적으로 박힌 입력 제약을 찾아 경계값 테스트를 만들 수 있다. 차트 이미지는 미검토이므로 수익률·기간·축 정보를 추출했다고 주장하지 않고 본문의 문제 제기만 활용한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "58bf8f556db0f599b021b7aabacc868d90408d95cd1d76c8c7b78bf55da5d2a3"
+  },
+  {
+    "id": "221339890650",
+    "title": "아이디어, 플랫폼 그리고 네트워크 - 주니어들 자기계발 #2",
+    "date": "2018. 8. 16.",
+    "url": "https://blog.naver.com/nomore_bet/221339890650",
+    "inventory_index": 284,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "자기계발",
+      "지식공유",
+      "네트워크"
+    ],
+    "summary_ko": "저자는 주니어의 자기계발 목표가 모호한 경우가 많다고 보고, 블로그로 작은 글을 꾸준히 공개해 회사 밖의 연결을 만들 것을 제안한다. 외부 평판이 내부 기회로 돌아올 수 있다는 개인적인 경력 조언이다.",
+    "developer_note_ko": "개발 학습 기록을 문제·실험·결과·한계 단위로 축적하는 방식을 고려할 수 있다. 공개 전 사내 코드·고객 데이터·계약상 비밀을 제거하고, 조회수나 출간을 역량·보상 향상의 보장으로 쓰지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "680b900429b63ac91d24d41383d16eea3becd6e35d6a2b0540a7e1b29b4751aa"
+  },
+  {
+    "id": "221332589106",
+    "title": "금융공학, 이탈리아 BMPS은행과 도이치뱅크 스토리",
+    "date": "2018. 8. 8.",
+    "url": "https://blog.naver.com/nomore_bet/221332589106",
+    "inventory_index": 285,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "구조화상품",
+      "회계위험",
+      "위험관리"
+    ],
+    "summary_ko": "저자는 BMPS와 도이치뱅크 거래를 다룬 보도를 바탕으로 맞춤형 파생상품이 자금조달뿐 아니라 손실 인식의 시점을 바꾸는 데 악용된 사례를 소개한다. 현금 수수료·장부상 이익·잠재 손실을 대비하며 영업과 위험관리의 갈등을 짚는다.",
+    "developer_note_ko": "거래별 현금흐름·평가손익·회계 인식·담보·조건부 지급을 분리하는 검증 표를 고려할 수 있다. 거래를 합산한 경제적 실질과 승인 이력을 점검하는 통제 사례로 활용하고 손실 은폐 설계법으로 재사용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "6125d55eb21c00f695f919a36e56283ba8a8cd5380d373af58d5e74ea462a8cb"
+  },
+  {
+    "id": "221334017504",
+    "title": "아이디어, 플랫폼 그리고 네트워크 - 홍춘욱의 경제강의 노트 유튜브 채널을 보며 #1",
+    "date": "2018. 8. 7.",
+    "url": "https://blog.naver.com/nomore_bet/221334017504",
+    "inventory_index": 286,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "플랫폼",
+      "유통네트워크",
+      "콘텐츠"
+    ],
+    "summary_ko": "저자는 상품·플랫폼·구독자 연결을 각각 점·면·선으로 비유하며, 이미 형성된 독자 관계가 새 콘텐츠와 다른 플랫폼으로 확장을 돕는다고 본다. 아이디어를 비밀로만 간직하기보다 관련 글을 공개해 수요와 연결을 만들자는 주장이다.",
+    "developer_note_ko": "자료 라이브러리도 콘텐츠 품질과 검색·구독·이동 경로를 따로 설계할 수 있다. 저자의 네트워크 우선 관점은 사업 가설이지 보편 법칙이므로 재방문·이해도 등 실제 사용 지표로 평가한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "4dbbc937d2db864438abdcf2ac8e8b7b95fbccfa6f2c13390f0580299c0e4999"
+  },
+  {
+    "id": "221332593516",
+    "title": "리디노미네이션 × 가상화폐와 함께",
+    "date": "2018. 8. 6.",
+    "url": "https://blog.naver.com/nomore_bet/221332593516",
+    "inventory_index": 287,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "리디노미네이션",
+      "통화단위",
+      "데이터이행"
+    ],
+    "summary_ko": "저자는 화폐 단위 변경을 일괄 수정 대신 구통화와 신통화 사이의 명시적 교환으로 처리하는 아이디어를 제시한다. 디지털 화폐의 추적성을 연결하지만 이는 당시 개인 구상이며 실행된 정책이나 검증된 시스템 설계가 아니다.",
+    "developer_note_ko": "통화 이행에는 환산계수·유효일·반올림·원장 대사·가치 보존 테스트가 필요하다. 본문의 1/100 표기와 예시의 1/1000 환산은 불일치하므로 그대로 구현하지 않으며, 추적성·개인정보·법적 요건은 별도 검토한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "a50752e897cd6f7a213588caa87c9dc8d3a8ef4c2b868684ee531b80b76744b7"
+  },
+  {
+    "id": "221330657306",
+    "title": "워런 버핏, 버크셔 헤서웨이 바이백 뉴스에 꼬리를 무는 생각들 - 옵션에 관한 #2",
+    "date": "2018. 8. 1.",
+    "url": "https://blog.naver.com/nomore_bet/221330657306",
+    "inventory_index": 288,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "옵션가격",
+      "자사주매입",
+      "모델위험"
+    ],
+    "summary_ko": "저자는 의무적 매매와 선택권의 차이로 옵션 프리미엄을 설명한 뒤, 버크셔 자사주 매입 기대가 하방을 줄여 풋 매도에 유리할 수 있다고 추측한다. 이는 단순화된 분포 설명에 근거한 당시 거래 아이디어다.",
+    "developer_note_ko": "정규분포 대칭이나 공개정보 미반영을 일반 원칙으로 구현하지 않는다. 위험중립 가격·시장 내재변동성·꼬리손실·헤지 비용을 따로 검증하며, 자사주 매입 기대를 보장된 가격 하한으로 취급하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "587a103ea1b8afe1a0b5cf92a4a900fbec13d276fd5d95b2ece6214c8113bb73"
+  },
+  {
+    "id": "221329321748",
+    "title": "돈스코이호에 속은 사람들을 보는 사람들",
+    "date": "2018. 7. 30.",
+    "url": "https://blog.naver.com/nomore_bet/221329321748",
+    "inventory_index": 289,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "투기심리",
+      "사기위험",
+      "투자와트레이딩"
+    ],
+    "summary_ko": "저자는 돈스코이호·관련 코인 보도에 반응한 투자자 규모에 놀라며, 기업 가치 분석과 단기 시장 심리 읽기를 구분한다. 자신도 관련 주가 변동을 거래 감각 연습 대상으로 생각했다는 당시 개인 성향을 밝힌다.",
+    "developer_note_ko": "실거래 권유 대신 공개 데이터 재생이나 모의거래로 이벤트 반응을 연구할 수 있다. 홍보 사이트의 참여자 수와 단일 사건의 행동 비율을 검증된 모집단 통계로 쓰지 않으며 사기성 자산에는 위험 표시를 둔다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "e983f930e8bae4ceb9c4e9338e34143ae596851edfbbaa7bd6ed58727e4c1578"
+  },
+  {
+    "id": "221327686107",
+    "title": "워런 버핏, 버크셔 헤서웨이 바이백 뉴스에 꼬리를 무는 생각들 #1",
+    "date": "2018. 7. 27.",
+    "url": "https://blog.naver.com/nomore_bet/221327686107",
+    "inventory_index": 290,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "자사주매입",
+      "자본배분",
+      "투자해석"
+    ],
+    "summary_ko": "저자는 버크셔 자사주 매입 기준 완화 보도를 단순 종목 선택보다 자금 배분의 변화로 읽는다. 현금이 많지만 매력적인 외부 투자처가 적고, 경제를 극도로 비관하지는 않는다는 신호일 수 있다고 추측한다.",
+    "developer_note_ko": "정책 변경·실제 매입 실행·경영진 동기 추론을 다른 이벤트로 기록할 수 있다. 매입 허용을 실행 약속으로 보거나 한 가지 자본배분 결정에서 거시 전망을 확정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "a3a825a1af53218fa04621364127b609c86a6f7678b289fb320bcfa7e5b531fb"
+  },
+  {
+    "id": "221325412580",
+    "title": "중국증시 동조 × 위안화 동조",
+    "date": "2018. 7. 24.",
+    "url": "https://blog.naver.com/nomore_bet/221325412580",
+    "inventory_index": 291,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "상관관계",
+      "프록시통화",
+      "국제정치"
+    ],
+    "summary_ko": "저자는 당시 원화·위안화 및 한국·중국 증시의 높은 동조화 보도를 소개하고 시장 개방성과 유동성을 가능한 배경으로 든다. 미중 무역 갈등의 정치적 불확실성이 자신의 코스닥 투자 축소 판단에 영향을 주었다고 설명한다.",
+    "developer_note_ko": "상관계수에는 통화 표시 방향·가격 또는 수익률·빈도·관찰기간을 반드시 붙인다. 표본별로 다시 계산하고 위기 국면의 변화와 기초자산 간 괴리를 확인하며 높은 상관을 인과관계나 안전한 대체헤지로 단정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "435c08f108db2ae6869fdc9220c3189624678e16b72982fec79dbb9ae54447f5"
+  },
+  {
+    "id": "221322133149",
+    "title": "장단기 금리차 관련 그래프에 대한 스쳐지나가는 말",
+    "date": "2018. 7. 19.",
+    "url": "https://blog.naver.com/nomore_bet/221322133149",
+    "inventory_index": 292,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "수익률곡선",
+      "경기침체",
+      "시차"
+    ],
+    "summary_ko": "저자는 장기와 단기 국채금리의 차이 및 역전의 의미를 쉬운 예로 설명한다. 침체와의 관계를 보여주는 그림이 있어도 발생 여부와 시차가 불확실해 개인 투자에 곧바로 적용하기 어렵다고 본다.",
+    "developer_note_ko": "금리차 데이터에는 두 만기·관측일·단위와 침체 판정 시점을 함께 저장할 수 있다. 단일 문턱값을 즉시 매매 신호로 쓰지 말고 발표시차·허위 신호·국면별 성능을 검증한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "ecb857752d6676373635334db4cac608f290e036f1e74b315d1fa8f40f887980"
+  },
+  {
+    "id": "221321418487",
+    "title": "넷플릭스 주가 등락 × 가입자 전망치에",
+    "date": "2018. 7. 18.",
+    "url": "https://blog.naver.com/nomore_bet/221321418487",
+    "inventory_index": 293,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "가입자지표",
+      "정보비대칭",
+      "준법통제"
+    ],
+    "summary_ko": "저자는 넷플릭스 가입자 증가가 기대에 미치지 못했다는 보도와 주가 반응을 연결한다. 가입자 지표가 회계 이익보다 내부에서 빨리 보일 수 있다는 생각을 바탕으로 시장과 회사 내부의 정보 차이를 질문한다.",
+    "developer_note_ko": "업무 데이터 접근 가능성과 투자에 사용 가능한 정보는 구분해야 한다. 공개 발표시각·접근권한·공개 여부를 관리하고 미공개 내부 지표를 매매 신호에 사용하지 않는 통제를 고려한다. 원문의 매매 방향 설명도 일관되지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "4927704fc6f9a48b27b2f01e8a06b6b2d87a518a5c7ed211c27d7b53e03fcbf5"
+  },
+  {
+    "id": "221317574432",
+    "title": "모건 스탠리 차기 CEO 소식으로 보며",
+    "date": "2018. 7. 12.",
+    "url": "https://blog.naver.com/nomore_bet/221317574432",
+    "inventory_index": 294,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "전자트레이딩",
+      "조직변화",
+      "자동화"
+    ],
+    "summary_ko": "저자는 모건스탠리 임원 승진 보도에서 대형 금융사의 인력 규모와 전자트레이딩 확대 성과에 주목한다. 국내에서 자동화를 막연히 미래 일로 보거나 기존 수작업의 일부만 기계화하는 태도를 비판한다.",
+    "developer_note_ko": "자동화 후보를 화면 입력 대체에 한정하지 않고 주문·호가·사후처리의 전체 흐름으로 분석할 수 있다. 인력 감축 보도 수치는 당시 사례이며 생산성 향상이나 향후 감축률의 보편적 추정치로 쓰지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "c6f4bb3856963f104e8dbc44962052e56ce08d5be36e77c0e24d357cee7f0a8f"
+  },
+  {
+    "id": "221316870113",
+    "title": "삼성증권 유령주식 매도 직원 구속 기사를 보며",
+    "date": "2018. 7. 11.",
+    "url": "https://blog.naver.com/nomore_bet/221316870113",
+    "inventory_index": 295,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "운영위험",
+      "배당오류",
+      "내부통제"
+    ],
+    "summary_ko": "저자는 삼성증권 배당오류 뒤 주식을 매도한 직원 관련 보도를 읽고 경험 많은 금융인도 왜 명백한 위험을 감수했는지 의아해한다. 거액이 판단을 흐릴 수 있다고 해석하지만 동기를 직접 확인한 것은 아니다.",
+    "developer_note_ko": "비정상 잔고·배당 수량·발행량 불일치에 대한 사전 차단과 독립 확인을 설계할 수 있다. 직원의 지식이나 선의에만 의존하지 않으며, 사건 참가 비율을 일반적인 위반 확률로 추정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "eab0380b2bf992414557b759353eb4ea9b820ea02bb8249d20d64254815de027"
+  },
+  {
+    "id": "221315409749",
+    "title": "재테크 철학 × 버핏의 4할 타자 포스터",
+    "date": "2018. 7. 9.",
+    "url": "https://blog.naver.com/nomore_bet/221315409749",
+    "inventory_index": 296,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "집중투자",
+      "생존편향",
+      "투자기질"
+    ],
+    "summary_ko": "저자는 극소수 큰 성공이 부를 만들었다는 일화와 버핏·멍거 관련 기사를 연결한다. 자신이 빠르게 차익을 실현했던 경험을 돌아보며 분산투자·장기보유·선별적 집중 사이의 긴장을 고민하고 인내와 기질을 강조한다.",
+    "developer_note_ko": "성공 사례만으로 집중투자의 우월성을 결론내리지 않는다. 연구에서는 실패·파산 사례와 레버리지·최대낙폭·포지션 한도를 함께 다루고, 사후의 확신을 당시 이용 가능한 정보와 분리한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "5b400f7f01869da512a1a45c14521a99756f116734af86176d71534572833ed7"
+  },
+  {
+    "id": "221304740689",
+    "title": "북한채권 투자에 관한 나이스 한 기사",
+    "date": "2018. 6. 25.",
+    "url": "https://blog.naver.com/nomore_bet/221304740689",
+    "inventory_index": 297,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채권분류",
+      "구조화상품",
+      "거래제약"
+    ],
+    "summary_ko": "저자는 북한이 직접 발행한 공채와 북한 관련 채권회수 권리를 기초로 만든 해외 구조화상품을 구별하는 당시 기사를 소개한다. 독특한 상환 방식, 제재 문제, 희박한 거래와 장부가치 사례를 통해 막연한 투자 아이디어를 수정한다.",
+    "developer_note_ko": "발행자·채무자·기초권리·법적 구조·호가와 체결 여부를 별도로 기록한다. 당시 제재·만기·가격 설명을 현재 상태로 승계하지 않고, 현행 법률·규정 확인 전 거래 가능한 상품으로 표시하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "acc0bcbfaccfc163339090784e84ad139f4f8b9f9b1277a809ae79665a649824"
+  },
+  {
+    "id": "221302884172",
+    "title": "일본은행 물가 하락 × 아마존 효과",
+    "date": "2018. 6. 20.",
+    "url": "https://blog.naver.com/nomore_bet/221302884172",
+    "inventory_index": 298,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "온라인유통",
+      "인플레이션",
+      "통화정책"
+    ],
+    "summary_ko": "저자는 일본은행의 온라인 판매 경쟁과 물가 관련 분석 보도를 소개한다. 금융위기 이후 완화적 정책에도 물가가 잘 오르지 않았다는 당시 문제의식 속에서 이른바 아마존 효과를 하나의 설명 후보로 다룬다.",
+    "developer_note_ko": "물가 지표는 전체·근원·품목별 범위와 추정기간을 구분해 저장할 수 있다. 온라인 경쟁 효과와 통화정책 효과를 별도 가설로 두고, 특정 연도 추정치를 모든 시기의 인플레이션 원인으로 확대하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "e21c4b9ce4b9aaf8c1a882d28d9b09f97a2ec12349934833adbe9ea61c56ca3b"
+  },
+  {
+    "id": "221301303078",
+    "title": "가치투자 입문자의 더닝 크루거 효과",
+    "date": "2018. 6. 18.",
+    "url": "https://blog.naver.com/nomore_bet/221301303078",
+    "inventory_index": 299,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "과신",
+      "투자학습",
+      "인지편향"
+    ],
+    "summary_ko": "저자는 상승장에서 초기 성공을 경험한 투자자가 특정 투자 철학을 과신하기 쉽다고 본다. 경험이 쌓이면 시장의 설명되지 않는 부분을 더 의식하게 된다는 자신의 관찰을 더닝크루거 효과와 숙련자의 직관 일화로 풀어낸다.",
+    "developer_note_ko": "예측 확률·근거·반증 조건·실현 결과를 기록해 자신감과 성과의 정합성을 점검할 수 있다. 대중적인 자신감 곡선이나 신체 신호 일화를 검증된 심리법칙·매매 모델로 직접 구현하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "713482274dca82c7236cfefc998da3187072515ee37de94cb3447f7a2ad4374f"
+  },
+  {
+    "id": "221296392110",
+    "title": "금형트옵의 술자리 재테크 잡담 - 금리가 오르면 채권 가격이 떨어지는 것을 설명하기란",
+    "date": "2018. 6. 11.",
+    "url": "https://blog.naver.com/nomore_bet/221296392110",
+    "inventory_index": 300,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "채권가격",
+      "금리위험",
+      "고정금리"
+    ],
+    "summary_ko": "저자는 고정 이자로 빌려준 돈을 보유한 상황을 비유로 들어 시장금리가 오르면 기존 채권의 매력이 낮아지고, 내리면 높아진다고 설명한다. 수식보다 새로 가능한 대출 조건과의 비교로 가격 방향의 직관을 전달하려는 글이다.",
+    "developer_note_ko": "교육 도구는 고정 현금흐름을 여러 할인율로 평가해 가격 변화를 보여줄 수 있다. 만기·신용·옵션 조건을 고정하고 평가손익과 실현손익을 구분하며, 변동금리채 등 다른 구조에는 같은 단순화를 그대로 적용하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "37218a8b08dd0fd6ddce58af489558cedc6c2697fa7068b7f94e21141de5ff82"
+  }
+]

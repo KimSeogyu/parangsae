@@ -1,0 +1,842 @@
+[
+  {
+    "id": "221051117464",
+    "title": "비트코인, 블록체인을 쉽게 설명한 영상",
+    "date": "2017. 7. 14.",
+    "url": "https://blog.naver.com/nomore_bet/221051117464",
+    "inventory_index": 371,
+    "source_document_sha256": "d8ba32a3ccb99369aa333e08c15c56237443241beae009d783ccd7c35ba4de00",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "해시·블록·체인과 nonce를 시각적으로 설명하는 외부 영상 및 실습 사이트를 소개한다. 본문은 교육자료 추천이며 영상 전체 설명을 포함하지 않는다.",
+    "developer_note_ko": "기초 개념 소개를 채굴 구현·보안성 검증이나 거래 우위의 증거로 취급하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "90d3e1e327746ed97a7e620f36a50c2807fefe7acfe7fa0cf77789d8aad24801",
+      "refetched_at_utc": "2026-10-23T08:03:35Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221045132060",
+    "title": "트레이더 책상엔 프로그래밍 책이",
+    "date": "2017. 7. 6.",
+    "url": "https://blog.naver.com/nomore_bet/221045132060",
+    "inventory_index": 372,
+    "source_document_sha256": "146790d7fae81ddb3e67fa5907a4e7f7a35aa5f95b9a3728979b17736cd0be93",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "수작업 대사에서 데이터 조회·자동 검증으로 옮기는 업무 생산성을 강조한다. 여러 시스템의 데이터를 직접 다루는 프로그래밍 역량을 금융 실무에 연결한다.",
+    "developer_note_ko": "데이터 추출·대사에 출처, 권한, 키, 예외 로그를 두고 자동화가 검증 누락을 숨기지 않도록 한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "3064ba03057ab5a829c77bfb3c031120c96ce22ca71bc3e8c3605b343c79b807",
+      "refetched_at_utc": "2026-10-23T08:03:41Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221044325234",
+    "title": "금융공학이라고 쓰고 컴퓨터 공학이라 읽어야 하는 시기",
+    "date": "2017. 7. 5.",
+    "url": "https://blog.naver.com/nomore_bet/221044325234",
+    "inventory_index": 373,
+    "source_document_sha256": "dc9c8e20df670e217a542c8e9b96965c5e1256b3295e839c4055aaf7af852aab",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "2017년 금융공학 채용 수요를 전산화·전자거래와 연결하며 학위보다 실제 구현 능력을 강조한다. XTX와 투자은행 사례는 당시 업계 변화 설명이다.",
+    "developer_note_ko": "경력 전망을 현재 채용 사실로 일반화하지 말고 재현 가능한 데이터·실험·시스템 작업으로 기술 요건을 구체화한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "472a031d6640b846b17ac3a04695a78c6f565128231f71aee521124311165c58",
+      "refetched_at_utc": "2026-10-23T08:03:46Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221039190327",
+    "title": "버핏, 부동산 투자 공세 기사를 보며 스타필드를 떠올리다",
+    "date": "2017. 6. 28.",
+    "url": "https://blog.naver.com/nomore_bet/221039190327",
+    "inventory_index": 374,
+    "source_document_sha256": "2f6c08150fa392548c24ba1947cb499ba89641a20661a87307617a7272190b00",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "버크셔의 리츠 투자를 건물 직접 매입과 구분하고 온라인 대체가 어려운 체험형 소매 노출로 해석한다. 이를 국내 쇼핑몰·상장 모회사로 연결하는 가설을 제시한다.",
+    "developer_note_ko": "테마와 실제 자회사 지분·임대 현금흐름·상장 노출을 분리하고 타시장 유추를 검증 대상에 둔다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "5be73de1b9344864eb09873090483fd88ab17ef3841c34ea5a3ad90395d850e7",
+      "refetched_at_utc": "2026-10-23T08:03:52Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221034201132",
+    "title": "세계 100대 기업 × 매출과 순이익에 관한 훌륭한 데이터 비주얼",
+    "date": "2017. 6. 22.",
+    "url": "https://blog.naver.com/nomore_bet/221034201132",
+    "inventory_index": 375,
+    "source_document_sha256": "bb4ecd70353797f121313d2fd26a2c1fd304db73b8c04a5fd40e8ce6cd7d76ea",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "매출과 순이익을 중첩 면적으로 비교하는 외부 기업 시각화를 소개한다. 기업 규모와 마진율의 차이를 눈으로 구분하는 사례다.",
+    "developer_note_ko": "원자료 기간·통화·표본을 기록하고 면적과 반지름의 비례가 다르다는 점을 검증한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "eb8f46389e386fa66af4a3e27afe9514fdbf91a94e6655a3504da42d868c8c32",
+      "refetched_at_utc": "2026-10-23T08:03:58Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221030412983",
+    "title": "32.7초 만에 배우는 깔끔한 보고서 그래프 만들기 #2",
+    "date": "2017. 6. 16.",
+    "url": "https://blog.naver.com/nomore_bet/221030412983",
+    "inventory_index": 376,
+    "source_document_sha256": "e8703e7dce949acd55e1999b1c7e47ab4c8877d6fa2406d69d4355b3b03e4d2a",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "표·파이차트·히트맵·지도·막대그래프 디자인 예시를 이미지 중심으로 소개한다. 본문 텍스트만으로 단계별 수정법 전체를 복원할 수 없다.",
+    "developer_note_ko": "본문과 별도 매체 검토 범위를 구분한다. 장식 제거가 기준축·단위·불확실성 표시를 지우지 않게 한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "c9bdb47d08c5c93e2cf486a189b8a09c9c8c03a2d6a2fbd0450167671201984d",
+      "refetched_at_utc": "2026-10-23T08:04:03Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221029594134",
+    "title": "32.7초 만에 배우는 깔끔한 보고서 그래프 만들기",
+    "date": "2017. 6. 15.",
+    "url": "https://blog.naver.com/nomore_bet/221029594134",
+    "inventory_index": 377,
+    "source_document_sha256": "017b0d66c173d60c25e1a68530b77aa811e29543c2c31b38e6230153ed62b8f2",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "Darkhorse Analytics의 시각화 개선 자료와 시간대별 도시 유동인구 사례를 소개한다. 대부분의 구체적 설명은 연결 이미지·외부 자료에 있다.",
+    "developer_note_ko": "리포트는 축·단위·출처·표본을 유지한 채 단순화하며 외부 데모를 검증된 금융 데이터로 오인하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "d746a98041db7d893bb9abc7b01757bda21a70be76e52d0c7664762fa5972b3d",
+      "refetched_at_utc": "2026-10-23T08:04:09Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221018246059",
+    "title": "원유, 유가 × OPEC vs 셰일가스+월스트리트",
+    "date": "2017. 5. 31.",
+    "url": "https://blog.naver.com/nomore_bet/221018246059",
+    "inventory_index": 378,
+    "source_document_sha256": "bb75b13c5370f1deb22529bac8ff713add6c791cfdb915edffe1787b63ee9345",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "셰일 생산의 기술혁신·자금조달·유가 헤지가 OPEC 감산 효과를 바꿀 수 있다고 설명한다. 역사적 국채시장 사례를 자금력의 비유로 사용한다.",
+    "developer_note_ko": "헤지 비율·만기·수량·베이시스·상대방 위험을 따져야 한다. 일부 생산의 고정가격을 전체 매출 보장으로 확대하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "ac4865ec8ebbce2f0828d8d1ac62e3a61298007214b4d4711c470f829f00e52c",
+      "refetched_at_utc": "2026-10-23T08:04:14Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221012904856",
+    "title": "경기 진단 지표들 × 이코노미스트들 수고해주세요",
+    "date": "2017. 5. 24.",
+    "url": "https://blog.naver.com/nomore_bet/221012904856",
+    "inventory_index": 379,
+    "source_document_sha256": "5c1b7f044d74f6c726eb4f4d3d9f43e37b3c3f528b9494681b503585ff9d7e7f",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "GDP의 발표 지연을 수출·투자·소비와 심리 지표로 보완하는 경기 진단 틀을 정리한다. 빈도·변동성이 다른 지표를 함께 해석해야 한다고 본다.",
+    "developer_note_ko": "계절조정·잠정/확정·수정 이력과 최초 이용 가능시각을 저장하고 분기·월 지표의 정렬을 명시한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "5548c40d5cefd514e44abb5b6f27203d65287b2ae933542a2bb7e06eccc0f81b",
+      "refetched_at_utc": "2026-10-23T08:04:20Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221009311298",
+    "title": "금융공학기사 - 도이치·비엔피파리바 ‘선물환 판매’ 담합 사례로 본 딜링룸 구조 - #2",
+    "date": "2017. 5. 19.",
+    "url": "https://blog.naver.com/nomore_bet/221009311298",
+    "inventory_index": 380,
+    "source_document_sha256": "c47599a782e3ec3680803139635d25eff6b1c69b7a9d93cc05248609fb7de86c",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "기업의 외화 현금흐름을 선물환으로 맞추는 구조와 세일즈·트레이더의 가격 전달 및 마진을 설명한다. 담합 기사를 조직 역할 사례로 읽는다.",
+    "developer_note_ko": "현금흐름·만기·통화를 맞추고 헤지 후에도 남는 금리·신용 위험을 구분한다. 예시 마진과 실제 거래 조건은 별도다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "9ae0eb3830c3a276d12b7165dfe215ed8e4aee58cb341cb0b1d434f78c2437ba",
+      "refetched_at_utc": "2026-10-23T08:04:25Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221008377946",
+    "title": "금융공학기사 - 도이치·비엔피파리바 ‘선물환 판매’ 담합 사례로 본 딜링룸 구조 - #1",
+    "date": "2017. 5. 18.",
+    "url": "https://blog.naver.com/nomore_bet/221008377946",
+    "inventory_index": 381,
+    "source_document_sha256": "87255ec372d2babaf3687ea8dee0dee147d0589de165db783c7ca7aa49954ad4",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "미래 환율을 고정하는 선물환을 개인 구매 예로 설명하고 자기자본·시장조성·고객 거래를 나눈다. 대고객 사업에는 인력·네트워크·시스템이 함께 필요하다고 본다.",
+    "developer_note_ko": "현물 대비 선물환 차이를 전부 이익으로 해석하지 않는다. 금리차·조달·신용·수수료와 고객 스프레드를 분리한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "d5c594f1d7603cc9758d8ffb94251b5c1ece06f8d61ce96c372e00b6f93ed6b2",
+      "refetched_at_utc": "2026-10-23T08:04:43Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221007635738",
+    "title": "조지 소로스의 투자 × 스냇쳇",
+    "date": "2017. 5. 17.",
+    "url": "https://blog.naver.com/nomore_bet/221007635738",
+    "inventory_index": 382,
+    "source_document_sha256": "0754671c7c204caefd20d73c87b197243e90cb26e84ac3fd4fe6a80a76dcaf86",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "소로스펀드의 스냅 투자 공시를 의결권 구조와 과거 기술주 투자 경험에 연결한다. 유명 투자자를 추종할지에 대한 개인적 고민이지 독립 성과 검증은 아니다.",
+    "developer_note_ko": "보유 공시의 기준일·공개일·주식 종류를 구분하고 유명인의 판단을 신호 검증 대신 사용하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "89700da39e79ef4f4d5e24a515547fa9f795bcbbfbd3e02a86bb529402816271",
+      "refetched_at_utc": "2026-10-23T08:04:48Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221006797158",
+    "title": "버핏의 후회, 구글 아마존 놓친 것 그리고 우리가 공부할 부분",
+    "date": "2017. 5. 16.",
+    "url": "https://blog.naver.com/nomore_bet/221006797158",
+    "inventory_index": 383,
+    "source_document_sha256": "a32db61499c5a2b6ce6bd457aad523a07b276d363bb374217bb8cc6849358e87",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "버핏의 구글·아마존 투자 기회에 관한 회고를 기술주 연구와 향후 행동 관찰의 계기로 해석한다. 추종 수요·하방 지지 주장은 저자의 예상이다.",
+    "developer_note_ko": "사후 성공 종목만 고르는 편향을 피하고 보유 공시 지연을 반영한다. 유명 투자자 매수를 하방 보호로 간주하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "7a621e89556208120f3aaab8cb5aec59dcfca49e56012c3a2fb500d30e1482f5",
+      "refetched_at_utc": "2026-10-23T08:04:52Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221005936855",
+    "title": "금융권 저승사자 김기식 전 의원의 인수인계",
+    "date": "2017. 5. 15.",
+    "url": "https://blog.naver.com/nomore_bet/221005936855",
+    "inventory_index": 384,
+    "source_document_sha256": "509cbdf641c63a5f6fabb2147f936c33335f748b623a1f418bdd3a7d443387d0",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "의정자료 데이터베이스와 후임자 인수인계를 긍정적으로 평가하고 당시 금융정책 쟁점이 산업에 미칠 영향을 추측한다. 인사·정책 전망은 2017년 관찰이다.",
+    "developer_note_ko": "근거·쟁점·미완료 과제를 지속적으로 인계하고 역사적 규정·예상과 실제 시행을 버전별로 분리한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "d33c47783000ccc316c833cbccb243642c28b20005f4af1be1b9b239838b8c7b",
+      "refetched_at_utc": "2026-10-23T08:04:57Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221002236800",
+    "title": "퀀트 기사 번역, '투자은행에서 일하는 퀀트인데, 너네가 생각하는 그런 건 아니야' #2",
+    "date": "2017. 5. 10.",
+    "url": "https://blog.naver.com/nomore_bet/221002236800",
+    "inventory_index": 385,
+    "source_document_sha256": "8ade815bdd1146fac0e914fa0206c0c6591a558ed0c9f898cb60fb1eb9471d2d",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "해외 퀀트 기사를 주관적으로 해석하며 데스크·바이사이드와 트레이더 전환을 비교한다. 한국의 조직 분업·상품·인프라 차이가 경력 경로를 바꾼다는 경험담이다.",
+    "developer_note_ko": "조직·시장·역할별 요구 역량을 분리하며 당시의 채용 전망이나 수리 난이도 평가를 보편 사실로 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "5ea65b0348b32ad6acb2a1a980567be90d72d76179e9620f0bb2b10cab4ff60a",
+      "refetched_at_utc": "2026-10-23T08:05:01Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221000643729",
+    "title": "퀀트 기사 번역, '투자은행에서 일하는 퀀트인데, 너네가 생각하는 그런 건 아니야' #1",
+    "date": "2017. 5. 8.",
+    "url": "https://blog.naver.com/nomore_bet/221000643729",
+    "inventory_index": 386,
+    "source_document_sha256": "f6e8ec9769eb17d637d1377d7567ee74ed91482c268f0c064ba7fb5207755e87",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "퀀트 업무가 가격모형·라이브러리·검증·규제 대응 등으로 이동하는 모습을 기사 의역과 국내 경험으로 설명한다. 금융공학과 AI 업무는 같은 전문분야가 아니라고 강조한다.",
+    "developer_note_ko": "연구·모형 구현·독립 검증·규제 보고의 책임과 검증 절차를 분리하고 전망을 현재 직무 사실로 일반화하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "4c31ade9833b5bbdae5126c4d985de9c1f019137fd34d3f1028dbac146097fe7",
+      "refetched_at_utc": "2026-10-23T08:05:05Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220990776133",
+    "title": "금융공학 커리어에 관해 받은 질문에 대한 답",
+    "date": "2017. 4. 25.",
+    "url": "https://blog.naver.com/nomore_bet/220990776133",
+    "inventory_index": 387,
+    "source_document_sha256": "742eea0454878a8ef9cb073a51f5a981e6c9764839eeb106f4fbb108472056f8",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "금융위기 이후 업무 통합과 전산화가 퀀트 역할을 바꾼다는 경력 조언이다. 수학만이 아니라 시스템·프로그래밍을 함께 익힐 필요를 설명한다.",
+    "developer_note_ko": "닫힌 해·PDE가 모두 몬테카를로로 대체된다고 일반화하지 않는다. 문제별 정확도·수렴·계산비용으로 해법을 비교한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "29e37001088f83891fc10372763b60e4797a8892627ad521f79b1ef7146ecb27",
+      "refetched_at_utc": "2026-10-23T08:05:08Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220985775296",
+    "title": "이매지네이션 × 애플은 다른가?",
+    "date": "2017. 4. 19.",
+    "url": "https://blog.naver.com/nomore_bet/220985775296",
+    "inventory_index": 388,
+    "source_document_sha256": "c6512b6e23b3ec0b2f66507488d1590316dd0b189af43e1ea0ac0d6557053c5d",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "애플과 부품업체 사례에서 제품 구성·고객 집중·기술 내재화가 공급자 위험을 바꾼다고 해석한다. 기업별 비교에는 저자의 경험과 가정이 섞여 있다.",
+    "developer_note_ko": "매출 고객 집중도·계약·대체 기술·발표시각을 검증하고 단일 사례의 기업 우열을 일반화하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "8351069266210d7fa91453bd4b1124463cebfd01e0cc6302daacb0797667f50f",
+      "refetched_at_utc": "2026-10-23T08:05:12Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220985044821",
+    "title": "유나이티드 항공, 버핏의 투자로부터의 교훈",
+    "date": "2017. 4. 17.",
+    "url": "https://blog.naver.com/nomore_bet/220985044821",
+    "inventory_index": 389,
+    "source_document_sha256": "ed8044707b55db34fd1b021ca20c4dc633603a8b6b3c5e21a11765fd1b8eab52",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "유나이티드 항공 사건을 평판·소송 위험 사례로 보고 다른 항공주 보유가 당시 손실을 상쇄했다고 설명한다. 분산의 필요성을 강조하는 사후 사례다.",
+    "developer_note_ko": "동일 업종 보유는 시장·산업 위험까지 제거하지 않는다. 전체 포트폴리오와 동시점 수익률로 상쇄 효과를 검증한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "9161b1936c34bbe963403504bfe5a803894400025633e3b790c4ec0e9c4764af",
+      "refetched_at_utc": "2026-10-23T08:05:16Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220980375349",
+    "title": "투자은행 규제 × 트럼프 정책",
+    "date": "2017. 4. 11.",
+    "url": "https://blog.naver.com/nomore_bet/220980375349",
+    "inventory_index": 390,
+    "source_document_sha256": "5de463b4f3c462a2d2219926d69b8adc2078b6e7583da4cb9b4d81ee852b72a5",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "투자은행의 고객 업무·시장조성·자기자본 거래와 이해상충을 소개하고 당시 은행업 분리 논의를 연결한다. 법률과 사업 변화의 관계는 역사적 해석이다.",
+    "developer_note_ko": "발의·정책 발언·법률 시행을 구분하고 인과 설명의 연대기를 검증한다. 당시 규정 요약을 현행 규칙으로 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "5bc84b4f6075291c810d8164f8443aa55f6d585cdc272af3201523a191304d56",
+      "refetched_at_utc": "2026-10-23T08:05:19Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220977278113",
+    "title": "금융공학자의 경쟁자 × 인공지능",
+    "date": "2017. 4. 7.",
+    "url": "https://blog.naver.com/nomore_bet/220977278113",
+    "inventory_index": 391,
+    "source_document_sha256": "b92fde45727cfbe68067d5388a5410fbed884493caa28337683b0bda98de4935",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "여러 금융기관의 자동화·AI 도입 기사를 통해 퀀트 인력 경쟁과 업무 변화를 논한다. 채용 수요 감소 전망은 당시 기사와 개인 해석이다.",
+    "developer_note_ko": "자동화 도입·고용 변화·실제 예측 성과를 분리하며 기능별 평가와 검증 책임을 유지한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "bb3d9ec03cbd95a9de94b289e0fffc6647b19e6d2c9e2973f2af355f2542ecd1",
+      "refetched_at_utc": "2026-10-23T08:05:23Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220975566639",
+    "title": "금융공학이라고 쓰고, 컴퓨터공학으로 읽는 이유",
+    "date": "2017. 4. 5.",
+    "url": "https://blog.naver.com/nomore_bet/220975566639",
+    "inventory_index": 392,
+    "source_document_sha256": "7b2dde1a2d5d9781e062c6e50f0c171c392fd02a70a00ff3c8e1c3a32e2b0c8e",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "금융공학 인력 수요가 신규 상품 수익에서 비용 절감·시스템 효율로 이동한다고 해석한다. 프로그래밍·데이터베이스·분산처리 역량을 강조한다.",
+    "developer_note_ko": "최고 수익률뿐 아니라 정확도·운영비·지연·유지보수를 비교하고 수학적 검증과 전산 역량을 대체 관계로만 보지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "d2400952538c196dfd2fada28bcd9c23a802629d4f9507ed5e0a3328c820662a",
+      "refetched_at_utc": "2026-10-23T08:05:27Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220973736011",
+    "title": "블랙록 × 스타 매니저와 AI 펀드 매니저 도입",
+    "date": "2017. 4. 3.",
+    "url": "https://blog.naver.com/nomore_bet/220973736011",
+    "inventory_index": 393,
+    "source_document_sha256": "e07f61f5d89e2395220616e82c19f8248c3d88efdf1a820da1108d04f935ed87",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "블랙록의 퀀트 전환 사례를 고객 신뢰·정보 민주화·비용과 내부 프로세스 변화로 해석한다. 자동화의 조직적 효과는 투자성과와 구분되는 주장이다.",
+    "developer_note_ko": "수작업 축소와 승인·위험통제 제거를 혼동하지 않는다. 모델 검증·독립 감시·중단 경로를 자동화와 함께 설계한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "5fcaba3812591545fcf6c5155700edec1cf17452e67e367ead9663ab962fcfa8",
+      "refetched_at_utc": "2026-10-23T08:05:31Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220969775054",
+    "title": "바이오, 제약 전문 스웨덴 헤지펀드 × 우리네 개미들의 투자 전략",
+    "date": "2017. 3. 29.",
+    "url": "https://blog.naver.com/nomore_bet/220969775054",
+    "inventory_index": 394,
+    "source_document_sha256": "b03426449765f1866eae06295c30d15a417f5073c78421313864fe2a783da4fa",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "바이오 전문펀드의 자문·소액 다종목 관찰·인수합병 사례를 개인의 집중 투자와 대비한다. 기사상의 수익과 운용 비결은 독립 검증되지 않았다.",
+    "developer_note_ko": "공개 정보·자료 권한과 전문가 의견을 구분하고 선정된 성공 인수합병 사례의 생존편향을 검사한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "df94c5a352f5524aecdecfbda292b79dd762bf59b4e859f27c9203aa928b2992",
+      "refetched_at_utc": "2026-10-23T08:05:34Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220967985254",
+    "title": "워런 버핏이 산 주식과 판 주식들",
+    "date": "2017. 3. 27.",
+    "url": "https://blog.naver.com/nomore_bet/220967985254",
+    "inventory_index": 395,
+    "source_document_sha256": "2c824526dd329b43fd04c38028383a796cb4aed5702e33c90016b57d2b18333d",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "버핏의 매수·매도 사례로 가치투자가 무조건 보유하는 방식은 아니며 전략도 환경에 맞춰 변한다고 설명한다. 매도 이유·유가 전망은 기사와 저자의 해석이다.",
+    "developer_note_ko": "사후 손실을 장기투자 명분으로 바꾸지 않도록 가설 폐기 조건을 정하고 공시 지연·전체 거래 이력을 반영한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "29f898957aa2ce9cfc238986b709af976b39996311b94017a1e3a583ca283f76",
+      "refetched_at_utc": "2026-10-23T08:05:38Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220965891121",
+    "title": "조기 퇴직자, 날린 퇴직금 × 금융 먹이 사슬",
+    "date": "2017. 3. 24.",
+    "url": "https://blog.naver.com/nomore_bet/220965891121",
+    "inventory_index": 396,
+    "source_document_sha256": "d5be7fda1882dfffd917dedd4340f96ee50b172b0c08ce43178a784fbba7e170",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "퇴직자 투자 피해와 알고리즘 투자회사 사례로 다른 분야의 경험이 금융 실사 능력을 보장하지 않는다고 경고한다. 직업군을 일반화한 일화는 검증 근거에서 제외한다.",
+    "developer_note_ko": "운영자·자산 보관·권한·손실 기록·독립 검증을 확인하며 금융·알고리즘이라는 명칭을 신뢰의 대체물로 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "46cc195a16d54598ec0e6de9cab5c610c2f76a41de6358ebc5e3da00a61bdd47",
+      "refetched_at_utc": "2026-10-23T08:05:42Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220963212729",
+    "title": "헤지펀드의 금 × 연준의 금리 기사를 보며",
+    "date": "2017. 3. 21.",
+    "url": "https://blog.naver.com/nomore_bet/220963212729",
+    "inventory_index": 397,
+    "source_document_sha256": "256da473823dfea8983cc92df10bce2e1e0d0cd83c9d4fddd0dec40299f79e0d",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "금리 인상 기대와 다르게 움직인 금 가격 사례를 통해 단순한 달러·금 관계의 한계를 설명한다. 여러 사후 설명과 AI 펀드 관심을 소개한다.",
+    "developer_note_ko": "실제 정책과 사전 기대의 차이, 실질금리·포지셔닝을 분리하고 사후 해설을 당시 관측 가능한 입력으로 소급하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "5c416196a5bd63ce1c0a2c44f38dbfdf9dce9f6dbb368e628cfebe37032b29fb",
+      "refetched_at_utc": "2026-10-23T08:05:45Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220954552131",
+    "title": "수학을 쥐뿔 몰라도 뭐 아는 척 할 수 있게 해주는 영상",
+    "date": "2017. 3. 10.",
+    "url": "https://blog.naver.com/nomore_bet/220954552131",
+    "inventory_index": 398,
+    "source_document_sha256": "0a13024382d5158e9b6626ca26e56f70ce139280707fba0fa9bde9f12bbf730d",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "수학 분야의 지도를 보여주는 외부 영상을 추천한다. 직접 전문가가 아니어도 문제에 맞는 전문 분야를 구분할 필요를 말한다.",
+    "developer_note_ko": "분야 개관과 증명·알고리즘 구현 능력을 구분하고 실제 문제의 입력·가정·검증 요구를 먼저 정의한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "f0bdd5d9281fa45d71f5bff1a70c3ef6b72424774e3b4e1472045af64ee44ad0",
+      "refetched_at_utc": "2026-10-23T08:05:50Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220953779657",
+    "title": "퀀트 시대는 가고 데이터 전문가의 시대가 오는가",
+    "date": "2017. 3. 9.",
+    "url": "https://blog.naver.com/nomore_bet/220953779657",
+    "inventory_index": 399,
+    "source_document_sha256": "968e5e73d13eaf1ef3a119807aee004dddb66988298adcda9bc51017cd06149a",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "헤지펀드의 데이터 인력 확보 기사를 통해 데이터 정리·처리 역량의 활용 범위를 강조한다. 연봉·채용 사례와 전통 퀀트 대비 평가는 당시 관찰이다.",
+    "developer_note_ko": "직무 이름보다 데이터 품질·시점·키·재현성을 평가한다. 일반 데이터 기술도 금융의 경제적 의미 검증을 대체하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "a6f1980e6648dfc1c878cf7b66a614286dec703fbd016f319894c16fa38a748d",
+      "refetched_at_utc": "2026-10-23T08:05:55Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "220952844411",
+    "title": "자사주 매입 효과 감소 현상 × 패시브, ETF 성장",
+    "date": "2017. 3. 8.",
+    "url": "https://blog.naver.com/nomore_bet/220952844411",
+    "inventory_index": 400,
+    "source_document_sha256": "b1728b590793e512bae09cc5b6337761f83ab6e6d950e64b639a0566e7926681",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "자사주 매입 효과와 패시브 펀드의 리밸런싱 관계를 기사와 단순 지분 예로 설명한다. ETF 성장에 따라 기존 효과를 재검토하자는 가설이다.",
+    "developer_note_ko": "기업 지분율과 포트폴리오 비중을 혼동하지 않는다. 지수 편입주식수·유동주식·가중치 규칙과 실제 매매 시점을 확인한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "c1d5db4553b4838e85f6076c090afa75974d90f5c9332b6fd205a227d5256121",
+      "refetched_at_utc": "2026-10-23T08:05:59Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  }
+]
