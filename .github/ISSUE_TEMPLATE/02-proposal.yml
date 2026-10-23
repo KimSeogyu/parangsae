@@ -1,0 +1,29 @@
+name: Design or research proposal
+description: Propose a focused change to the program's structure or research tooling.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe one concrete problem. Early questions and open-ended ideas can start in [Discussions](https://github.com/KimSeogyu/parangsae/discussions).
+        A proposal does not need a finished design or formal proof. Do not include secrets or private account or trading data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and intended outcome
+      description: What is difficult, ambiguous, or possible to get wrong today? What should become possible or impossible?
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: Possible approach
+      description: If you have one, describe the smallest useful change. Could a type, state transition, ownership rule, or simpler boundary prevent the mistake rather than add another check? For research tooling, name the question it would help answer.
+    validations:
+      required: false
+  - type: textarea
+    id: example
+    attributes:
+      label: Example, constraints, or references
+      description: An input/output example, relevant spec, related discussion, or trade-off is enough. What observation would tell us the change helped?
+    validations:
+      required: false
