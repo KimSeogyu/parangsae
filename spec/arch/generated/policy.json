@@ -31,6 +31,10 @@
       "parangsae-core"
     ],
     [
+      "parangsae-execution",
+      "parangsae-core"
+    ],
+    [
       "parangsae-signals",
       "parangsae-core"
     ],
@@ -82,7 +86,7 @@
     ],
     [
       "parangsae-execution",
-      "net"
+      "env"
     ],
     [
       "parangsae-signals",
@@ -280,6 +284,10 @@
       "Signal Builder"
     ],
     [
+      "specs/tla/execution/**",
+      "Execution Builder"
+    ],
+    [
       "tests/**",
       "Ops/Release"
     ],
@@ -288,5 +296,5 @@
       "Ops/Release"
     ]
   ],
-  "spec_sha256": "e1b01dc6a27cbcdb44da9e1b4f830f1f01fdcac6afee6cc477e51c91c32b4867"
+  "spec_sha256": "005b76c98d1dc74a1f572ec5b224a08f2cfaa57735efec67e15860bcfd0d7ab4"
 }

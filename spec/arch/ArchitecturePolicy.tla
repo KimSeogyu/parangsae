@@ -19,10 +19,12 @@
 \* spawns a command. It does not submit an order.
 \* parangsae-core, parangsae-signals, and parangsae-backtest are allowed net
 \* because their tokio dev-dependency keeps Cargo default features, and tokio
-\* defaults include net. parangsae-execution is allowed net and does not use it.
-\* There is no execution order type. Writers are the sim ledger money fields.
-\* network_order_submit and holdout_read have no Rust definitions yet. Holdout
-\* is a window check in the backtest batch, not a tape-loader function.
+\* defaults include net. parangsae-execution is not allowed net or process.
+\* It is allowed env because tests read PROPTEST_CASES with std::env::var.
+\* That read is not an order path. The scanner still sees it.
+\* Writers are the sim ledger money fields. network_order_submit has no Rust
+\* definition yet; the paper lifecycle does not call it. holdout_read is a
+\* window check in the backtest batch, not a tape-loader function.
 
 EXTENDS FiniteSets
 
@@ -60,6 +62,7 @@ AllowedDependencies == {
   <<"parangsae-backtest", "parangsae-sim">>,
   <<"parangsae-backtest", "parangsae-strategies">>,
   <<"parangsae-collector", "parangsae-core">>,
+  <<"parangsae-execution", "parangsae-core">>,
   <<"parangsae-signals", "parangsae-core">>,
   <<"parangsae-sim", "parangsae-core">>,
   <<"parangsae-strategies", "parangsae-core">>,
@@ -87,7 +90,7 @@ AllowedEffects == {
   <<"parangsae-collector", "net">>,
   <<"parangsae-collector", "process">>,
   <<"parangsae-core", "net">>,
-  <<"parangsae-execution", "net">>,
+  <<"parangsae-execution", "env">>,
   <<"parangsae-signals", "env">>,
   <<"parangsae-signals", "fs_write">>,
   <<"parangsae-signals", "net">>,
@@ -121,6 +124,7 @@ PathOwners == {
   <<"research/**", "Quant Researcher">>,
   <<"spec/**", "Ops/Release">>,
   <<"specs/**", "Ops/Release">>,
+  <<"specs/tla/execution/**", "Execution Builder">>,
   <<"specs/features/backtest_engine.feature", "Backtest Builder">>,
   <<"specs/features/collector/**", "Data Engineer">>,
   <<"specs/features/instrument_rules.feature", "Data Engineer">>,
