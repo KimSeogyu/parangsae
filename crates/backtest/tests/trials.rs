@@ -52,9 +52,9 @@ fn seal(mut spec: TrialSpec) -> TrialSpec {
     spec
 }
 
-fn in_sample(run_id: &str) -> TrialSpec {
-    let start = at(12, 0);
-    spec(run_id, start, start + 3 * 60_000_000)
+fn in_sample(run_id: &str) -> Result<TrialSpec, String> {
+    let start = at(12, 0)?;
+    Ok(spec(run_id, start, start + 3 * 60_000_000))
 }
 
 fn write_pins(dir: &Path) -> SweepPins {
@@ -120,33 +120,29 @@ fn flag() -> Arc<AtomicBool> {
 }
 
 #[test]
-fn l1_run_started_is_on_disk_before_compute_and_panic_writes_no_finish() {
+fn l1_run_started_is_on_disk_before_compute_and_panic_writes_no_finish() -> Result<(), String> {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
     let trials = dir.path().join("trials.jsonl");
     let results = dir.path().join("results.jsonl");
+    let sample = in_sample("run-l1")?;
+    let expected = trial_id(&sample.config_id, PIN_GOLDEN, 1);
     let caught = catch_unwind(AssertUnwindSafe(|| {
-        run_batch(
-            &[in_sample("run-l1")],
-            &pins,
-            &trials,
-            &results,
-            &mut PanicOnFirstBar,
-        )
+        run_batch(&[sample], &pins, &trials, &results, &mut PanicOnFirstBar)
     }));
     assert!(caught.is_err());
     let text = fs::read_to_string(&trials).unwrap();
     assert!(text.contains("\"kind\":\"RunStarted\""));
     assert!(text.contains("\"run_id\":\"run-l1\""));
-    let expected = trial_id(&in_sample("run-l1").config_id, PIN_GOLDEN, 1);
     assert!(text.contains(&format!("\"trial_id\":\"{expected}\"")));
     assert!(!text.contains("RunFinished"));
     assert!(text.contains("RunAborted"));
     assert!(text.contains("panic"));
+    Ok(())
 }
 
 #[test]
-fn l2_duplicate_run_id_is_refused_and_the_log_is_not_rewritten() {
+fn l2_duplicate_run_id_is_refused_and_the_log_is_not_rewritten() -> Result<(), String> {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
     let trials = dir.path().join("trials.jsonl");
@@ -156,7 +152,7 @@ fn l2_duplicate_run_id_is_refused_and_the_log_is_not_rewritten() {
         metrics: zero_metrics(),
     };
     run_batch(
-        &[in_sample("run-l2")],
+        &[in_sample("run-l2")?],
         &pins,
         &trials,
         &results,
@@ -166,7 +162,7 @@ fn l2_duplicate_run_id_is_refused_and_the_log_is_not_rewritten() {
     let before = fs::read(&trials).unwrap();
     runner.called.store(false, Ordering::SeqCst);
     let err = run_batch(
-        &[in_sample("run-l2")],
+        &[in_sample("run-l2")?],
         &pins,
         &trials,
         &results,
@@ -178,6 +174,7 @@ fn l2_duplicate_run_id_is_refused_and_the_log_is_not_rewritten() {
     let after = fs::read(&trials).unwrap();
     assert_eq!(&after[..before.len()], &before[..]);
     assert_eq!(after, before);
+    Ok(())
 }
 
 #[test]
@@ -191,7 +188,7 @@ fn l3_trial_id_golden() {
 }
 
 #[test]
-fn s01_style_config_id_is_refused_before_compute() {
+fn s01_style_config_id_is_refused_before_compute() -> Result<(), String> {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
     let called = flag();
@@ -199,7 +196,7 @@ fn s01_style_config_id_is_refused_before_compute() {
         called: Arc::clone(&called),
         metrics: zero_metrics(),
     };
-    let mut sample = in_sample("run-s01");
+    let mut sample = in_sample("run-s01")?;
     sample.config_id = "S01".to_owned();
     let err = run_batch(
         &[sample],
@@ -210,7 +207,7 @@ fn s01_style_config_id_is_refused_before_compute() {
     )
     .unwrap_err();
     assert!(matches!(err, BatchError::ConfigId { .. }));
-    let mut impostor = in_sample("run-hex");
+    let mut impostor = in_sample("run-hex")?;
     impostor.config_id = "a".repeat(64);
     let err = run_batch(
         &[impostor],
@@ -223,16 +220,17 @@ fn s01_style_config_id_is_refused_before_compute() {
     assert!(matches!(err, BatchError::ConfigId { .. }));
     assert!(!called.load(Ordering::SeqCst));
     assert!(!dir.path().join("trials.jsonl").exists());
+    Ok(())
 }
 
 #[test]
-fn configs_differing_by_one_parameter_get_different_trial_ids() {
+fn configs_differing_by_one_parameter_get_different_trial_ids() -> Result<(), String> {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
-    let mut slow = in_sample("run-24");
+    let mut slow = in_sample("run-24")?;
     slow.params.insert("n".to_owned(), 24);
     let slow = seal(slow);
-    let mut fast = in_sample("run-72");
+    let mut fast = in_sample("run-72")?;
     fast.params.insert("n".to_owned(), 72);
     let fast = seal(fast);
     assert_eq!(slow.family, fast.family);
@@ -255,10 +253,11 @@ fn configs_differing_by_one_parameter_get_different_trial_ids() {
     let text = fs::read_to_string(dir.path().join("trials.jsonl")).unwrap();
     assert!(text.contains(&rows[0].trial_id));
     assert!(text.contains(&rows[1].trial_id));
+    Ok(())
 }
 
 #[test]
-fn append_failure_refuses_the_run_before_compute() {
+fn append_failure_refuses_the_run_before_compute() -> Result<(), String> {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
     let called = flag();
@@ -267,7 +266,7 @@ fn append_failure_refuses_the_run_before_compute() {
         metrics: zero_metrics(),
     };
     let err = run_batch(
-        &[in_sample("run-io")],
+        &[in_sample("run-io")?],
         &pins,
         dir.path(),
         &dir.path().join("results.jsonl"),
@@ -276,6 +275,7 @@ fn append_failure_refuses_the_run_before_compute() {
     .unwrap_err();
     assert!(matches!(err, BatchError::Append(_)));
     assert!(!called.load(Ordering::SeqCst));
+    Ok(())
 }
 
 #[test]
@@ -385,33 +385,34 @@ fn start_on_holdout_is_refused() {
 }
 
 #[test]
-fn batch_writes_one_row_per_config_with_fee_grid_and_flat_bars() {
+fn batch_writes_one_row_per_config_with_fee_grid_and_flat_bars() -> Result<(), String> {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
     assert_eq!(pins.pinned_root(), PIN_GOLDEN);
-    let bars = series(at(12, 0), &[(100, 100), (100, 100), (110, 110)]);
+    let bars = series(at(12, 0)?, &[(100, 100), (100, 100), (110, 110)])?;
     let tape = tape_of(bars.clone());
-    let base = cfg(&bars, 1000);
+    let base = cfg(&bars, 1000)?;
+    let qty = btc(1)?;
     let direct = run_fee_grid(
         &tape,
-        || Scripted::new(vec![Some(buy(btc(1))), Some(sell(btc(1)))]),
+        || Scripted::new(vec![Some(buy(qty)), Some(sell(qty))]),
         &costs(5, 2),
         &base,
     )
     .unwrap();
     let mut engine = FeeGridRunner::new(&tape, SlippageBps(2), || {
-        Scripted::new(vec![Some(buy(btc(1))), Some(sell(btc(1)))])
+        Scripted::new(vec![Some(buy(qty)), Some(sell(qty))])
     })
     .with_flat_bars(FlatBars {
         funding_stale: 3,
         funding_slot_missing: 2,
     });
-    let mut second = in_sample("run-b");
+    let mut second = in_sample("run-b")?;
     second.family = "S02".to_owned();
     second.attempt = 1;
     second.run = base;
     let second = seal(second);
-    let mut first = in_sample("run-a");
+    let mut first = in_sample("run-a")?;
     first.run = base;
     let first = seal(first);
     let rows = run_batch(
@@ -470,15 +471,16 @@ fn batch_writes_one_row_per_config_with_fee_grid_and_flat_bars() {
     );
     let turnover = result_lines[0]["turnover_ticks"].as_i64().unwrap();
     assert!(turnover > 0);
+    Ok(())
 }
 
 #[test]
-fn second_terminal_line_is_refused() {
+fn second_terminal_line_is_refused() -> Result<(), String> {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
     let trials = dir.path().join("trials.jsonl");
     run_batch(
-        &[in_sample("run-term")],
+        &[in_sample("run-term")?],
         &pins,
         &trials,
         &dir.path().join("results.jsonl"),
@@ -492,22 +494,24 @@ fn second_terminal_line_is_refused() {
     let err = finish_trial(&trials, "run-term", "digest").unwrap_err();
     assert!(matches!(err, TrialError::AlreadyTerminal(_)));
     assert_eq!(fs::read(&trials).unwrap(), before);
+    Ok(())
 }
 
 #[test]
-fn slippage_and_fee_grid_are_recorded_on_each_results_row() {
+fn slippage_and_fee_grid_are_recorded_on_each_results_row() -> Result<(), String> {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
-    let bars = series(at(12, 0), &[(100, 100), (100, 100), (110, 110)]);
+    let bars = series(at(12, 0)?, &[(100, 100), (100, 100), (110, 110)])?;
     let tape = tape_of(bars.clone());
-    let base = cfg(&bars, 1000);
+    let base = cfg(&bars, 1000)?;
+    let qty = btc(1)?;
     let mut engine = FeeGridRunner::new(&tape, SlippageBps(2), || {
-        Scripted::new(vec![Some(buy(btc(1))), Some(sell(btc(1)))])
+        Scripted::new(vec![Some(buy(qty)), Some(sell(qty))])
     });
-    let mut first = in_sample("run-slip-a");
+    let mut first = in_sample("run-slip-a")?;
     first.run = base;
     let first = seal(first);
-    let mut second = in_sample("run-slip-b");
+    let mut second = in_sample("run-slip-b")?;
     second.run = base;
     second.params.insert("n".to_owned(), 72);
     let second = seal(second);
@@ -529,22 +533,25 @@ fn slippage_and_fee_grid_are_recorded_on_each_results_row() {
         assert_eq!(row["slippage_bps"].as_u64(), Some(2));
         assert_eq!(row["fee_grid_bps"], serde_json::json!([2, 4, 5, 6]));
     }
+    Ok(())
 }
 
 #[test]
-fn engine_error_aborts_the_trial_and_the_next_config_still_runs() {
+fn engine_error_aborts_the_trial_and_the_next_config_still_runs() -> Result<(), String> {
     let dir = tempfile::tempdir().unwrap();
     let pins = write_pins(dir.path());
     let mut which = 0u32;
+    let bad = in_sample("run-bad")?;
+    let bad_start = bad.run.start;
     let rows = run_batch(
-        &[in_sample("run-bad"), in_sample("run-ok")],
+        &[bad, in_sample("run-ok")?],
         &pins,
         &dir.path().join("trials.jsonl"),
         &dir.path().join("results.jsonl"),
         &mut ClosureRunner {
             run: &mut |cfg: &parangsae_backtest::RunConfig| {
                 which += 1;
-                if cfg.start == in_sample("run-bad").run.start && which == 1 {
+                if cfg.start == bad_start && which == 1 {
                     Err("missing mark".to_owned())
                 } else {
                     Ok(zero_metrics())
@@ -561,6 +568,7 @@ fn engine_error_aborts_the_trial_and_the_next_config_still_runs() {
     assert_eq!(text.matches("RunStarted").count(), 2);
     assert_eq!(text.matches("RunAborted").count(), 1);
     assert_eq!(text.matches("RunFinished").count(), 1);
+    Ok(())
 }
 
 #[test]

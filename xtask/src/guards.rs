@@ -5720,7 +5720,7 @@ const ENV_I_TEMPLATES: &[&str] = &[
     env_a!(" /usr/bin/sha256sum deny.toml"),
     env_a!(" /usr/bin/sha256sum Cargo.lock"),
     env_a!(" /usr/bin/sha256sum rust-toolchain.toml"),
-    env_a!(" /usr/bin/sha256sum Cargo.toml crates/collector/Cargo.toml crates/core/Cargo.toml crates/execution/Cargo.toml crates/regime/Cargo.toml crates/signals/Cargo.toml crates/sim/Cargo.toml xtask/Cargo.toml"),
+    env_a!(" /usr/bin/sha256sum Cargo.toml crates/backtest/Cargo.toml crates/collector/Cargo.toml crates/core/Cargo.toml crates/execution/Cargo.toml crates/regime/Cargo.toml crates/signals/Cargo.toml crates/sim/Cargo.toml xtask/Cargo.toml"),
     env_a!(" /usr/bin/sha256sum"),
     env_a!(" /usr/bin/sha256sum .cargo/config.toml"),
     env_b!(" /tmp/cargo-deny-0.20.2-x86_64-unknown-linux-musl/cargo-deny check"),
@@ -5768,8 +5768,9 @@ PY
 "#;
 
 /// Reviewer-protected. `(step, package, kind, target, N)`.
-/// `step` is `(job id, step name)`. A `0` count is a binary whose log says
-/// `running 0 tests`.
+/// `step` is `(job id, step name)`. `N` is the passed count from the
+/// `test result` line, or the scenario sum when that line is absent.
+/// A missing count line fails. Ignored tests are pinned in `TEST_BINARY_IGNORED`.
 type StepPair = (&'static str, &'static str);
 type TestBinaryCount = (StepPair, &'static str, &'static str, &'static str, usize);
 const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
@@ -6021,7 +6022,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-backtest",
         "lib",
         "unittests src/lib.rs (target/debug/deps/parangsae_backtest-",
-        2,
+        12,
     ),
     (
         (
@@ -6071,7 +6072,17 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "parangsae-backtest",
         "test",
         "tests/tape_reader.rs",
-        6,
+        5,
+    ),
+    (
+        (
+            "test",
+            "cargo test (unit, proptest, cucumber, execution lock)",
+        ),
+        "parangsae-backtest",
+        "test",
+        "tests/trials.rs",
+        16,
     ),
     (
         (
@@ -6101,7 +6112,7 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
         "xtask",
         "lib",
         "unittests src/lib.rs (target/debug/deps/xtask-",
-        99,
+        101,
     ),
     (
         (
@@ -6223,6 +6234,15 @@ const TEST_BINARY_COUNTS: &[TestBinaryCount] = &[
     ),
 ];
 
+/// Reviewer-protected. `(step name, package, target, ignored)`.
+/// A row with no entry pins zero ignored tests.
+const TEST_BINARY_IGNORED: &[(&str, &str, &str, usize)] = &[(
+    "cargo test (unit, proptest, cucumber, execution lock)",
+    "parangsae-backtest",
+    "tests/tape_reader.rs",
+    1,
+)];
+
 #[derive(Clone, Copy)]
 struct BinaryRow {
     job: &'static str,
@@ -6231,6 +6251,7 @@ struct BinaryRow {
     kind: &'static str,
     target: &'static str,
     count: usize,
+    ignored: usize,
 }
 
 fn binary_rows() -> Vec<BinaryRow> {
@@ -6243,8 +6264,19 @@ fn binary_rows() -> Vec<BinaryRow> {
             kind,
             target,
             count: *count,
+            ignored: ignored_pin(step.1, package, target),
         })
         .collect()
+}
+
+fn ignored_pin(step: &str, package: &str, target: &str) -> usize {
+    TEST_BINARY_IGNORED
+        .iter()
+        .find(|(pinned_step, pinned_package, pinned_target, _)| {
+            *pinned_step == step && *pinned_package == package && *pinned_target == target
+        })
+        .map(|(_, _, _, count)| *count)
+        .unwrap_or(0)
 }
 
 #[derive(Default)]
@@ -8303,7 +8335,15 @@ fn test_binary_table_with(log: &str, job: &str, step: &str, rows: &[BinaryRow]) 
             if let Some(slot) = matched.get_mut(index) {
                 *slot = true;
             }
-            push_count_gap(&mut gaps, job, step, row, section.count);
+            match (section.passed, section.ignored) {
+                (Some(passed), Some(ignored)) => {
+                    push_count_gap(&mut gaps, job, step, row, passed, ignored);
+                }
+                _ => gaps.push(format!(
+                    "{job} {step} {} {}: test binary count line missing",
+                    row.package, row.target
+                )),
+            }
             continue;
         }
         if best_row(&section.header, &rows.iter().collect::<Vec<_>>()).is_some() {
@@ -8324,7 +8364,20 @@ fn test_binary_table_with(log: &str, job: &str, step: &str, rows: &[BinaryRow]) 
     gaps
 }
 
-fn push_count_gap(gaps: &mut Vec<String>, job: &str, step: &str, row: &BinaryRow, observed: usize) {
+fn push_count_gap(
+    gaps: &mut Vec<String>,
+    job: &str,
+    step: &str,
+    row: &BinaryRow,
+    observed: usize,
+    ignored: usize,
+) {
+    if ignored != row.ignored {
+        gaps.push(format!(
+            "{job} {step} {} {}: test binary ignored count mismatch",
+            row.package, row.kind
+        ));
+    }
     if observed == row.count {
         return;
     }
@@ -8335,12 +8388,10 @@ fn push_count_gap(gaps: &mut Vec<String>, job: &str, step: &str, row: &BinaryRow
         ));
         return;
     }
-    if row.count < observed {
-        gaps.push(format!(
-            "{job} {step} {} {}: test binary count lowered",
-            row.package, row.kind
-        ));
-    }
+    gaps.push(format!(
+        "{job} {step} {} {}: test binary passed count mismatch",
+        row.package, row.kind
+    ));
 }
 
 fn best_row<'a>(header: &str, rows: &[&'a BinaryRow]) -> Option<(usize, &'a BinaryRow)> {
@@ -8353,7 +8404,8 @@ fn best_row<'a>(header: &str, rows: &[&'a BinaryRow]) -> Option<(usize, &'a Bina
 
 struct LogSection {
     header: String,
-    count: usize,
+    passed: Option<usize>,
+    ignored: Option<usize>,
     mappable: bool,
 }
 
@@ -8376,10 +8428,14 @@ fn log_sections(log: &str) -> Vec<LogSection> {
         let header = lines.get(*start).unwrap_or(&"").trim().to_owned();
         let body = lines.get(*start..end).unwrap_or(&[]);
         let mappable = section_mappable(&header);
-        let count = section_count(body).unwrap_or(0);
+        let (passed, ignored) = match section_counts(body) {
+            Some((passed, ignored)) => (Some(passed), Some(ignored)),
+            None => (None, None),
+        };
         sections.push(LogSection {
             header,
-            count,
+            passed,
+            ignored,
             mappable,
         });
     }
@@ -8393,10 +8449,10 @@ fn section_mappable(header: &str) -> bool {
     header.starts_with("Running ") && header.contains('(')
 }
 
-fn section_count(lines: &[&str]) -> Option<usize> {
+fn section_counts(lines: &[&str]) -> Option<(usize, usize)> {
     for line in lines {
-        if let Some(count) = running_count(line.trim()) {
-            return Some(count);
+        if let Some(counts) = test_result_counts(line.trim()) {
+            return Some(counts);
         }
     }
     let mut scenarios = 0usize;
@@ -8408,19 +8464,35 @@ fn section_count(lines: &[&str]) -> Option<usize> {
         }
     }
     if saw {
-        Some(scenarios)
+        Some((scenarios, 0))
     } else {
         None
     }
 }
 
-fn running_count(line: &str) -> Option<usize> {
-    let rest = line.strip_prefix("running ")?;
-    let (count, suffix) = rest.split_once(' ')?;
-    if suffix != "test" && suffix != "tests" {
-        return None;
+fn test_result_counts(line: &str) -> Option<(usize, usize)> {
+    let rest = line.strip_prefix("test result:")?;
+    let passed = count_before(rest, "passed")?;
+    let ignored = count_before(rest, "ignored").unwrap_or(0);
+    Some((passed, ignored))
+}
+
+fn count_before(line: &str, word: &str) -> Option<usize> {
+    let at = line.find(word)?;
+    let prefix = line.get(..at)?.trim_end();
+    let digits: String = prefix
+        .chars()
+        .rev()
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    if digits.is_empty() {
+        None
+    } else {
+        digits.parse().ok()
     }
-    count.parse().ok()
 }
 
 fn scenario_count_line(line: &str) -> Option<usize> {
@@ -13905,6 +13977,7 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             kind: "lib",
             target: "deps/aaa-",
             count: 1,
+            ignored: 0,
         };
         let other = BinaryRow {
             job: "test",
@@ -13913,6 +13986,7 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             kind: "lib",
             target: "deps/bbb-",
             count: 1,
+            ignored: 0,
         };
         let rows = [own, other];
         let log_ok = "\
@@ -13929,11 +14003,12 @@ test result: ok. 1 passed
         let log_high = "\
 Running unittests src/lib.rs (target/debug/deps/aaa-hash)
 running 2 tests
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ";
         expect_gaps(
-            "lowered",
+            "mismatch",
             test_binary_table_with(log_high, "test", "alpha", &[lowered, other]),
-            &["test alpha pkg lib: test binary count lowered"],
+            &["test alpha pkg lib: test binary passed count mismatch"],
         )?;
         let zero = BinaryRow { count: 0, ..own };
         expect_gaps(
@@ -13944,8 +14019,10 @@ running 2 tests
         let log_removed = "\
 Running unittests src/lib.rs (target/debug/deps/aaa-hash)
 running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 Running unittests src/lib.rs (target/debug/deps/unknown-)
 running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ";
         expect_gaps(
             "removed",
@@ -13955,8 +14032,10 @@ running 1 test
         let log_other = "\
 Running unittests src/lib.rs (target/debug/deps/aaa-hash)
 running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 Running unittests src/lib.rs (target/debug/deps/bbb-hash)
 running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ";
         expect_gaps(
             "other step",
@@ -13971,6 +14050,7 @@ running 1 test
         let log_unmap = "\
 Running unittests src/lib.rs (target/debug/deps/aaa-hash)
 running 1 test
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 Running tests
 ";
         expect_gaps(
@@ -14037,8 +14117,68 @@ Running tests
     }
 
     #[test]
+    fn item13_passed_count_is_exact() -> Result<(), String> {
+        let step = "cargo test (unit, proptest, cucumber, execution lock)";
+        let row = |count: usize, ignored: usize| BinaryRow {
+            job: "test",
+            step,
+            package: "parangsae-backtest",
+            kind: "test",
+            target: "tests/golden.rs",
+            count,
+            ignored,
+        };
+        let log = |passed: usize, ignored: usize| {
+            format!(
+                "Running tests/golden.rs (target/debug/deps/golden-hash)\nrunning {} tests\ntest result: ok. {passed} passed; 0 failed; {ignored} ignored; 0 measured; 0 filtered out\n",
+                passed.saturating_add(ignored)
+            )
+        };
+        let pinned = row(14, 0);
+        let mismatch = "test cargo test (unit, proptest, cucumber, execution lock) parangsae-backtest test: test binary passed count mismatch";
+        expect_gaps(
+            "golden 14 to 13",
+            test_binary_table_with(&log(13, 0), "test", step, &[pinned]),
+            &[mismatch],
+        )?;
+        let deleted = "\
+Running tests/golden.rs (target/debug/deps/golden-hash)
+running 14 tests
+";
+        expect_gaps(
+            "count line deleted",
+            test_binary_table_with(deleted, "test", step, &[pinned]),
+            &["test cargo test (unit, proptest, cucumber, execution lock) parangsae-backtest tests/golden.rs: test binary count line missing"],
+        )?;
+        expect_gaps(
+            "ignored",
+            test_binary_table_with(&log(13, 1), "test", step, &[pinned]),
+            &[
+                "test cargo test (unit, proptest, cucumber, execution lock) parangsae-backtest test: test binary ignored count mismatch",
+                mismatch,
+            ],
+        )?;
+        expect_gaps(
+            "fifteen",
+            test_binary_table_with(&log(15, 0), "test", step, &[pinned]),
+            &[mismatch],
+        )?;
+        expect_gaps(
+            "exact",
+            test_binary_table_with(&log(14, 0), "test", step, &[pinned]),
+            &[],
+        )?;
+        expect_gaps(
+            "pinned ignore",
+            test_binary_table_with(&log(13, 1), "test", step, &[row(13, 1)]),
+            &[],
+        )?;
+        Ok(())
+    }
+
+    #[test]
     fn item13_colored_running_lines_match_binary_rows() {
-        let log = "\u{1b}[1m\u{1b}[92m     Running\u{1b}[0m unittests src/lib.rs (target/debug/deps/parangsae_core-hash)\n\nrunning 19 tests\n\n\u{1b}[1m\u{1b}[92m   Doc-tests\u{1b}[0m parangsae_core\n\nrunning 0 tests\n";
+        let log = "\u{1b}[1m\u{1b}[92m     Running\u{1b}[0m unittests src/lib.rs (target/debug/deps/parangsae_core-hash)\n\nrunning 19 tests\ntest result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n\n\u{1b}[1m\u{1b}[92m   Doc-tests\u{1b}[0m parangsae_core\n\nrunning 0 tests\ntest result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out\n";
         let rows = [
             BinaryRow {
                 job: "test",
@@ -14047,6 +14187,7 @@ Running tests
                 kind: "lib",
                 target: "unittests src/lib.rs (target/debug/deps/parangsae_core-",
                 count: 19,
+                ignored: 0,
             },
             BinaryRow {
                 job: "test",
@@ -14055,6 +14196,7 @@ Running tests
                 kind: "doctest",
                 target: "Doc-tests parangsae_core",
                 count: 0,
+                ignored: 0,
             },
         ];
         let gaps = test_binary_table_with(
