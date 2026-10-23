@@ -357,13 +357,18 @@ fn dep_diags(
     root: &Path,
 ) -> Result<Vec<Diagnostic>, ToolError> {
     let members: BTreeSet<_> = metadata.workspace_members.iter().cloned().collect();
+    let local_names = local_package_names(metadata, &members);
+    let resolved = resolved_targets(metadata);
     let mut edges = Vec::new();
     let mut seen = BTreeSet::new();
     let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    // Edges come from the manifest, not the resolve graph. An optional dep
-    // that is off by default, a dev or build dep, and a target-specific dep
-    // are still edges. `--all-features` is requested above so the package
-    // list includes path crates that cargo only loads for a feature.
+    // Edges come from the manifest, not only the crates the resolver
+    // activated. An optional dep that is off by default, a dev or build
+    // dep, and a target-specific dep are still edges. A registry or git
+    // source is still an edge when its package name is a workspace member
+    // or any local package, or when the resolved package id is local.
+    // `--all-features` is requested above so the package list includes
+    // path crates that cargo only loads for a feature.
     for pkg in &metadata.packages {
         if pkg.source.is_some() {
             continue;
@@ -371,10 +376,16 @@ fn dep_diags(
         graph.entry(pkg.name.to_string()).or_default();
         let manifest = std::fs::read_to_string(pkg.manifest_path.as_str()).unwrap_or_default();
         for dep in &pkg.dependencies {
-            if !declared_local(dep) {
+            let resolved_pkg = resolved
+                .get(&(pkg.id.clone(), dep.name.clone()))
+                .map(|idx| &metadata.packages[*idx]);
+            if !counts_as_edge(dep, &local_names, resolved_pkg) {
                 continue;
             }
-            let target = find_local(&metadata.packages, &members, &dep.name);
+            let target = match resolved_pkg {
+                Some(target) if target.source.is_none() => Some(target),
+                _ => find_local(&metadata.packages, &members, &dep.name),
+            };
             let to = target
                 .map(|target| target.name.clone())
                 .unwrap_or_else(|| dep.name.clone());
@@ -471,11 +482,175 @@ fn dep_diags(
             spec_line: policy.line_of("AllowedDependencies"),
         });
     }
+    diags.extend(path_override_diags(root, policy));
     Ok(diags)
 }
 
-fn declared_local(dep: &cargo_metadata::Dependency) -> bool {
-    dep.path.is_some() || dep.source.is_none()
+fn local_package_names(
+    metadata: &cargo_metadata::Metadata,
+    members: &BTreeSet<cargo_metadata::PackageId>,
+) -> BTreeSet<String> {
+    metadata
+        .packages
+        .iter()
+        .filter(|pkg| pkg.source.is_none() || members.contains(&pkg.id))
+        .map(|pkg| pkg.name.clone())
+        .collect()
+}
+
+fn resolved_targets(
+    metadata: &cargo_metadata::Metadata,
+) -> BTreeMap<(cargo_metadata::PackageId, String), usize> {
+    let mut out = BTreeMap::new();
+    let Some(resolve) = &metadata.resolve else {
+        return out;
+    };
+    let index: BTreeMap<&cargo_metadata::PackageId, usize> = metadata
+        .packages
+        .iter()
+        .enumerate()
+        .map(|(idx, pkg)| (&pkg.id, idx))
+        .collect();
+    for node in &resolve.nodes {
+        for edge in &node.deps {
+            let Some(&idx) = index.get(&edge.pkg) else {
+                continue;
+            };
+            let name = metadata.packages[idx].name.clone();
+            out.insert((node.id.clone(), name), idx);
+        }
+    }
+    out
+}
+
+fn counts_as_edge(
+    dep: &cargo_metadata::Dependency,
+    local_names: &BTreeSet<String>,
+    resolved: Option<&cargo_metadata::Package>,
+) -> bool {
+    dep.path.is_some()
+        || dep.source.is_none()
+        || local_names.contains(&dep.name)
+        || resolved.is_some_and(|pkg| pkg.source.is_none())
+}
+
+fn path_override_diags(root: &Path, policy: &Policy) -> Vec<Diagnostic> {
+    let path = root.join("Cargo.toml");
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    let mut diags = Vec::new();
+    let mut section: Option<OverrideSection> = None;
+    for (index, line) in text.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some(header) = table_header(trimmed) {
+            section = override_section(header);
+            continue;
+        }
+        let Some(section) = section.as_ref() else {
+            continue;
+        };
+        if !line_has_path_key(trimmed) {
+            continue;
+        }
+        let name = assignment_key(trimmed)
+            .or_else(|| section_package(&section.header))
+            .unwrap_or_else(|| section.label.to_string());
+        diags.push(Diagnostic {
+            rule_id: DEP_DIRECT,
+            message: format!(
+                "workspace [{label}] entry {name} points at a path",
+                label = section.label
+            ),
+            symbol: format!("{label} {name}", label = section.label),
+            file: rel_path(root, &path),
+            line: index as u32 + 1,
+            allowed: "no [patch] or [replace] entry points at a path".to_owned(),
+            spec_file: policy.file.clone(),
+            spec_line: policy.line_of("AllowedDependencies"),
+        });
+    }
+    diags
+}
+
+struct OverrideSection {
+    label: &'static str,
+    header: String,
+}
+
+fn table_header(trimmed: &str) -> Option<&str> {
+    if !trimmed.starts_with('[') {
+        return None;
+    }
+    let end = trimmed.find(']')?;
+    Some(&trimmed[1..end])
+}
+
+fn override_section(header: &str) -> Option<OverrideSection> {
+    let label = if header == "patch" || header.starts_with("patch.") {
+        "patch"
+    } else if header == "replace" || header.starts_with("replace.") {
+        "replace"
+    } else {
+        return None;
+    };
+    Some(OverrideSection {
+        label,
+        header: header.to_owned(),
+    })
+}
+
+fn assignment_key(trimmed: &str) -> Option<String> {
+    let (key, _) = trimmed.split_once('=')?;
+    let key = key.trim().trim_matches('"');
+    if key.is_empty() || key == "path" || key.contains(' ') {
+        None
+    } else {
+        Some(key.to_owned())
+    }
+}
+
+fn section_package(header: &str) -> Option<String> {
+    if let Some(rest) = header.strip_prefix("patch.") {
+        if let Some(quoted) = rest.strip_prefix('"') {
+            let end = quoted.find('"')?;
+            let after = quoted.get(end + 1..)?.strip_prefix('.')?;
+            return owned_nonempty(after);
+        }
+        let mut parts = rest.splitn(3, '.');
+        let _source = parts.next()?;
+        return parts.next().and_then(owned_nonempty);
+    }
+    if let Some(rest) = header.strip_prefix("replace.") {
+        return owned_nonempty(rest);
+    }
+    None
+}
+
+fn owned_nonempty(text: &str) -> Option<String> {
+    if text.is_empty() {
+        None
+    } else {
+        Some(text.to_owned())
+    }
+}
+
+fn line_has_path_key(line: &str) -> bool {
+    let mut rest = line;
+    while let Some(at) = rest.find("path") {
+        let prev_ok = at == 0 || !is_key_char(rest.as_bytes()[at - 1]);
+        let after = &rest[at + "path".len()..];
+        if prev_ok && after.trim_start().starts_with('=') {
+            return true;
+        }
+        rest = &rest[at + "path".len()..];
+    }
+    false
+}
+
+fn is_key_char(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-'
 }
 
 fn find_local<'a>(

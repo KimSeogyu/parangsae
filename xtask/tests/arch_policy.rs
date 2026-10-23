@@ -1,6 +1,7 @@
 //! Positive and negative fixtures for each architecture rule.
 //! These tests do not run SANY or TLC. `spec validate` is the CI job.
 
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -66,6 +67,174 @@ fn optional_feature_dep_is_an_edge() {
             .all(|diag| diag.rule_id == "ARCH-DEP-001" && diag.file.contains("sim/Cargo.toml")),
         "{diags:#?}"
     );
+}
+
+#[test]
+fn registry_patch_dep_is_an_edge() {
+    // G2: version req plus [patch.crates-io] onto a workspace path.
+    let root = fixture("dep_patch_crates_bad");
+    cargo_check(&root);
+    let diags = enforce_at(&root);
+    assert_execution_edge(&diags);
+    assert_path_override(&diags, "patch");
+}
+
+#[test]
+fn git_patch_dep_is_an_edge() {
+    // G4: git req plus [patch."<url>"] onto a workspace path.
+    let root = prepare_git_fixture("dep_patch_git_bad");
+    cargo_check(&root);
+    let diags = enforce_at(&root);
+    assert_execution_edge(&diags);
+    assert_path_override(&diags, "patch");
+}
+
+#[test]
+fn git_member_dep_is_an_edge() {
+    // G1: git req of this workspace's own execution crate, with no patch.
+    let root = prepare_git_fixture("dep_git_member_bad");
+    cargo_check(&root);
+    assert_execution_edge(&enforce_at(&root));
+}
+
+#[test]
+fn replace_path_is_a_direct_violation() {
+    let root = fixture("dep_replace_bad");
+    cargo_check(&root);
+    let diags = enforce_at(&root);
+    assert_eq!(ids(&diags), ["ARCH-DEP-001"]);
+    assert_eq!(diags[0].symbol, "replace parangsae-execution:0.0.0");
+    assert!(diags[0].file.ends_with("Cargo.toml"), "{}", diags[0].file);
+}
+
+fn assert_execution_edge(diags: &[xtask::Diagnostic]) {
+    assert!(
+        diags.iter().any(|diag| {
+            diag.rule_id == "ARCH-DEP-001"
+                && diag.symbol == "sim -> parangsae-execution"
+                && diag.message.contains("is not allowed")
+        }),
+        "{diags:#?}"
+    );
+}
+
+fn assert_path_override(diags: &[xtask::Diagnostic], kind: &str) {
+    assert!(
+        diags.iter().any(|diag| {
+            diag.rule_id == "ARCH-DEP-001"
+                && diag.symbol == format!("{kind} parangsae-execution")
+                && diag.file.ends_with("Cargo.toml")
+        }),
+        "{diags:#?}"
+    );
+}
+
+fn cargo_check(root: &Path) {
+    let output = Command::new("cargo")
+        .args(["check", "--offline", "--manifest-path"])
+        .arg(root.join("Cargo.toml"))
+        .env(
+            "CARGO_TARGET_DIR",
+            std::env::temp_dir().join("parangsae-arch-check"),
+        )
+        .output()
+        .expect("cargo check");
+    assert!(
+        output.status.success(),
+        "cargo check {}\n{}{}",
+        root.display(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// file:// git URLs are absolute, so the fixture keeps `__GIT_URL__` and this
+/// copies it, commits `upstream`, and rewrites the URL before enforce.
+fn prepare_git_fixture(name: &str) -> PathBuf {
+    let src = fixture(name);
+    let dst = std::env::temp_dir().join(format!("parangsae-{name}-{}", std::process::id()));
+    if dst.exists() {
+        fs::remove_dir_all(&dst).unwrap();
+    }
+    copy_dir(&src, &dst);
+    let upstream = dst.join("upstream");
+    git(&upstream, &["init"]);
+    git(&upstream, &["add", "."]);
+    git(
+        &upstream,
+        &[
+            "-c",
+            "user.email=arch@example.com",
+            "-c",
+            "user.name=arch",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-m",
+            "init",
+        ],
+    );
+    let url = format!("file://{}", upstream.display());
+    rewrite_token(&dst, "__GIT_URL__", &url);
+    let output = Command::new("cargo")
+        .args(["generate-lockfile", "--manifest-path"])
+        .arg(dst.join("Cargo.toml"))
+        .output()
+        .expect("cargo generate-lockfile");
+    assert!(
+        output.status.success(),
+        "lockfile {}\n{}{}",
+        dst.display(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    dst
+}
+
+fn git(dir: &Path, args: &[&str]) {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .expect("git");
+    assert!(
+        output.status.success(),
+        "git {args:?} in {}\n{}{}",
+        dir.display(),
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn copy_dir(src: &Path, dst: &Path) {
+    fs::create_dir_all(dst).unwrap();
+    for entry in fs::read_dir(src).unwrap() {
+        let entry = entry.unwrap();
+        let to = dst.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_dir(&entry.path(), &to);
+        } else {
+            fs::copy(entry.path(), &to).unwrap();
+        }
+    }
+}
+
+fn rewrite_token(dir: &Path, token: &str, value: &str) {
+    for entry in fs::read_dir(dir).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        if entry.file_type().unwrap().is_dir() {
+            if path.file_name().is_some_and(|name| name == ".git") {
+                continue;
+            }
+            rewrite_token(&path, token, value);
+            continue;
+        }
+        if path.file_name().is_some_and(|name| name == "Cargo.toml") {
+            let text = fs::read_to_string(&path).unwrap();
+            fs::write(&path, text.replace(token, value)).unwrap();
+        }
+    }
 }
 
 #[test]

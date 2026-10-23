@@ -108,9 +108,14 @@ pub fn explain_rule(id: &str) -> Option<&'static str> {
              AllowedDependencies, or one end is a path package outside the\n\
              workspace (an unknown crate). The edge is taken from the manifest:\n\
              normal, dev, build, optional, and target-specific deps all count,\n\
-             whether or not the resolver activated them. symbol is `from -> to`.\n\
-             source is the depending crate's Cargo.toml line. Registry crates\n\
-             are not edges."
+             whether or not the resolver activated them. A dependency declared\n\
+             from a registry or git source is still an edge when its package\n\
+             name is a workspace member or any local package, and when the\n\
+             resolved package id is local. A [patch] or [replace] entry that\n\
+             points at a path is the same rule. symbol is `from -> to`, or\n\
+             `patch <name>` / `replace <name>` for a path override.\n\
+             source is the depending crate's Cargo.toml line, or the workspace\n\
+             manifest line of the override. Other registry crates are not edges."
         }
         DEP_TRANSITIVE => {
             "ARCH-DEP-002\n\
