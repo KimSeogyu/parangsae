@@ -43,7 +43,7 @@ The collector downloads public `data.binance.vision` objects. No API key or orde
 
 `--dataset all` runs the eight Tier-1 datasets. `--dataset` also accepts the Vision folder names (`klines`, `markPriceKlines`, `fundingRate`, `metrics`, `bookDepth`). The default data directory is `./data`, which is gitignored. `verify` reads local files only.
 
-Detected checksum mismatches, row-level faults, conflicts, and gaps make the process exit 1. Verification is not a completeness guarantee: a missing whole in-scope daily Kline partition can currently pass when its raw archive, checksum, and manifest remain ([known limitation #9](https://github.com/KimSeogyu/parangsae/issues/9)). The same key with the same payload is a no-op. The same key with a different payload is recorded and the stored row is left in place.
+Detected checksum mismatches, row-level faults, conflicts, and gaps make the process exit 1. A successful verification is limited to the selected local artifacts; it does not establish source completeness or point-in-time correctness. See [#9](https://github.com/KimSeogyu/parangsae/issues/9) for the missing-partition regression and its resolution. The same key with the same payload is a no-op. The same key with a different payload is recorded and the stored row is left in place.
 
 ## Reading guide
 
