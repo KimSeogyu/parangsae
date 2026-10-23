@@ -1,7 +1,7 @@
 $ java -XX:+UseParallelGC -Xmx512m -cp /workspace/builder/tools/tla2tools.jar tlc2.TLC -workers 1 -metadir /tmp/tlc-M6_HaltOnlyClearedByOperatorReset -config OrderLifecycle.cfg OrderLifecycle.tla
 TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
-Running breadth-first search Model-Checking with fp 120 and seed 1977764290032676426 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 43657] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
-Parsing file /workspace/builder/execution-tla/mutants/M6_HaltOnlyClearedByOperatorReset/OrderLifecycle.tla
+Running breadth-first search Model-Checking with fp 1 and seed 509503606046383370 with 1 worker on 8 cores with 455MB heap and 64MB offheap memory [pid: 229384] (Linux 6.12.94+ amd64, Debian 21.0.12.1 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /workspace/builder/execution-tla-v3.1/mutants/M6_HaltOnlyClearedByOperatorReset/OrderLifecycle.tla
 Parsing file /tmp/Integers.tla
 Parsing file /tmp/FiniteSets.tla
 Parsing file /tmp/TLC.tla
@@ -13,10 +13,10 @@ Semantic processing of module Sequences
 Semantic processing of module FiniteSets
 Semantic processing of module TLC
 Semantic processing of module OrderLifecycle
-Starting... (2026-10-23 09:59:41)
+Starting... (2026-10-23 10:36:36)
 <<"CELL", "PendingNew", "Ack", {"Acked"}>>
 <<"CELL", "PendingNew", "Fill", {"PartiallyFilled", "Filled"}>>
-<<"CELL", "PendingNew", "CancelRequested", {"PendingCancel"}>>
+<<"CELL", "PendingNew", "CancelRequested", {"PendingCancel", "Canceled"}>>
 <<"CELL", "PendingNew", "CancelDenied", {}>>
 <<"CELL", "PendingNew", "CancelConfirmed", {}>>
 <<"CELL", "PendingNew", "Reject", {"Rejected"}>>
@@ -24,6 +24,7 @@ Starting... (2026-10-23 09:59:41)
 <<"CELL", "PendingNew", "Timeout", {"Unknown"}>>
 <<"CELL", "PendingNew", "QueryFilled", {}>>
 <<"CELL", "PendingNew", "QueryCanceled", {}>>
+<<"CELL", "PendingNew", "QueryExpired", {}>>
 <<"CELL", "PendingNew", "QueryNotFound", {}>>
 <<"CELL", "PendingNew", "RaceFill", {}>>
 <<"CELL", "Acked", "Ack", {"Acked"}>>
@@ -36,6 +37,7 @@ Starting... (2026-10-23 09:59:41)
 <<"CELL", "Acked", "Timeout", {"Unknown"}>>
 <<"CELL", "Acked", "QueryFilled", {}>>
 <<"CELL", "Acked", "QueryCanceled", {}>>
+<<"CELL", "Acked", "QueryExpired", {}>>
 <<"CELL", "Acked", "QueryNotFound", {}>>
 <<"CELL", "Acked", "RaceFill", {}>>
 <<"CELL", "PartiallyFilled", "Ack", {"PartiallyFilled"}>>
@@ -48,6 +50,7 @@ Starting... (2026-10-23 09:59:41)
 <<"CELL", "PartiallyFilled", "Timeout", {"Unknown"}>>
 <<"CELL", "PartiallyFilled", "QueryFilled", {}>>
 <<"CELL", "PartiallyFilled", "QueryCanceled", {}>>
+<<"CELL", "PartiallyFilled", "QueryExpired", {}>>
 <<"CELL", "PartiallyFilled", "QueryNotFound", {}>>
 <<"CELL", "PartiallyFilled", "RaceFill", {}>>
 <<"CELL", "Filled", "Ack", {}>>
@@ -60,18 +63,23 @@ Starting... (2026-10-23 09:59:41)
 <<"CELL", "Filled", "Timeout", {}>>
 <<"CELL", "Filled", "QueryFilled", {}>>
 <<"CELL", "Filled", "QueryCanceled", {}>>
+<<"CELL", "Filled", "QueryExpired", {}>>
 <<"CELL", "Filled", "QueryNotFound", {}>>
 <<"CELL", "Filled", "RaceFill", {}>>
 <<"CELL", "PendingCancel", "Ack", {"PendingCancel"}>>
 <<"CELL", "PendingCancel", "Fill", {"Filled", "PendingCancel"}>>
 <<"CELL", "PendingCancel", "CancelRequested", {"PendingCancel"}>>
-<<"CELL", "PendingCancel", "CancelDenied", {"Acked", "PartiallyFilled"}>>
+<< "CELL",
+   "PendingCancel",
+   "CancelDenied",
+   {"Acked", "PartiallyFilled", "Unknown"} >>
 <<"CELL", "PendingCancel", "CancelConfirmed", {"Canceled"}>>
 <<"CELL", "PendingCancel", "Reject", {}>>
 <<"CELL", "PendingCancel", "Expire", {"Expired"}>>
 <<"CELL", "PendingCancel", "Timeout", {"Unknown"}>>
 <<"CELL", "PendingCancel", "QueryFilled", {}>>
 <<"CELL", "PendingCancel", "QueryCanceled", {}>>
+<<"CELL", "PendingCancel", "QueryExpired", {}>>
 <<"CELL", "PendingCancel", "QueryNotFound", {}>>
 <<"CELL", "PendingCancel", "RaceFill", {}>>
 <<"CELL", "Canceled", "Ack", {}>>
@@ -84,6 +92,7 @@ Starting... (2026-10-23 09:59:41)
 <<"CELL", "Canceled", "Timeout", {}>>
 <<"CELL", "Canceled", "QueryFilled", {}>>
 <<"CELL", "Canceled", "QueryCanceled", {}>>
+<<"CELL", "Canceled", "QueryExpired", {}>>
 <<"CELL", "Canceled", "QueryNotFound", {}>>
 <<"CELL", "Canceled", "RaceFill", {"Canceled"}>>
 <<"CELL", "Rejected", "Ack", {}>>
@@ -96,6 +105,7 @@ Starting... (2026-10-23 09:59:41)
 <<"CELL", "Rejected", "Timeout", {}>>
 <<"CELL", "Rejected", "QueryFilled", {}>>
 <<"CELL", "Rejected", "QueryCanceled", {}>>
+<<"CELL", "Rejected", "QueryExpired", {}>>
 <<"CELL", "Rejected", "QueryNotFound", {}>>
 <<"CELL", "Rejected", "RaceFill", {}>>
 <<"CELL", "Expired", "Ack", {}>>
@@ -108,6 +118,7 @@ Starting... (2026-10-23 09:59:41)
 <<"CELL", "Expired", "Timeout", {}>>
 <<"CELL", "Expired", "QueryFilled", {}>>
 <<"CELL", "Expired", "QueryCanceled", {}>>
+<<"CELL", "Expired", "QueryExpired", {}>>
 <<"CELL", "Expired", "QueryNotFound", {}>>
 <<"CELL", "Expired", "RaceFill", {}>>
 <<"CELL", "Unknown", "Ack", {}>>
@@ -120,19 +131,20 @@ Starting... (2026-10-23 09:59:41)
 <<"CELL", "Unknown", "Timeout", {"Unknown"}>>
 <<"CELL", "Unknown", "QueryFilled", {"Filled"}>>
 <<"CELL", "Unknown", "QueryCanceled", {"Canceled"}>>
-<<"CELL", "Unknown", "QueryNotFound", {"PendingNew"}>>
+<<"CELL", "Unknown", "QueryExpired", {"Expired"}>>
+<<"CELL", "Unknown", "QueryNotFound", {"PendingNew", "Rejected", "Unknown"}>>
 <<"CELL", "Unknown", "RaceFill", {}>>
 Computing initial states...
 Computed 2 initial states...
-Finished computing initial states: 4 distinct states generated at 2026-10-23 09:59:41.
+Finished computing initial states: 4 distinct states generated at 2026-10-23 10:36:36.
 Error: Action property HaltOnlyClearedByOperatorReset is violated.
 Error: The behavior up to this point is:
 State 1: <Initial predicate>
 /\ flag = FALSE
-/\ epoch = 0
 /\ foreign = FALSE
 /\ killed = FALSE
 /\ fresh = FALSE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "None",
@@ -142,7 +154,6 @@ State 1: <Initial predicate>
         leg |-> "none",
         cum |-> 0,
         sent |-> FALSE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "none",
@@ -150,41 +161,25 @@ State 1: <Initial predicate>
         cresp |-> "none",
         cxlReq |-> FALSE,
         rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = 0
+/\ kills = 0
 /\ last = <<"-", "-", "-">>
+/\ gh = (i1 :> [ph |-> FALSE, pk |-> FALSE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = TRUE
 /\ lpos = 0
 
-State 2: <Reconcile line 405, col 3 to line 411, col 73 of module OrderLifecycle>
+State 2: <Reconcile line 513, col 3 to line 519, col 76 of module OrderLifecycle>
 /\ flag = FALSE
-/\ epoch = 0
 /\ foreign = FALSE
 /\ killed = FALSE
 /\ fresh = TRUE
+/\ ap = (i1 :> FALSE)
 /\ riskHalted = FALSE
 /\ o = ( i1 :>
       [ st |-> "None",
@@ -194,7 +189,6 @@ State 2: <Reconcile line 405, col 3 to line 411, col 73 of module OrderLifecycle
         leg |-> "none",
         cum |-> 0,
         sent |-> FALSE,
-        aEp |-> 0,
         aAge |-> 0,
         sh |-> FALSE,
         resp |-> "none",
@@ -202,37 +196,21 @@ State 2: <Reconcile line 405, col 3 to line 411, col 73 of module OrderLifecycle
         cresp |-> "none",
         cxlReq |-> FALSE,
         rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] @@
-  i2 :>
-      [ st |-> "None",
-        qty |-> 0,
-        side |-> 0,
-        ro |-> FALSE,
-        leg |-> "none",
-        cum |-> 0,
-        sent |-> FALSE,
-        aEp |-> 0,
-        aAge |-> 0,
-        sh |-> FALSE,
-        resp |-> "none",
-        cxl |-> FALSE,
-        cresp |-> "none",
-        cxlReq |-> FALSE,
-        rem |-> -1,
-        vst |-> "none",
-        vcum |-> 0,
-        vsubs |-> 0,
-        infl |-> FALSE ] )
+        att |-> 0,
+        el |-> 0,
+        acked |-> FALSE ] )
+/\ v = ( i1 :>
+      ( 0 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] @@
+        1 :> [vst |-> "none", vcum |-> 0, vsubs |-> 0, infl |-> FALSE] ) )
 /\ pos = 0
+/\ kills = 0
 /\ last = <<"-", "-", "-">>
+/\ gh = (i1 :> [ph |-> FALSE, pk |-> FALSE, ks |-> FALSE, xs |-> FALSE])
 /\ halted = FALSE
 /\ lpos = 0
 
-6 states generated, 6 distinct states found, 4 states left on queue.
+7 states generated, 7 distinct states found, 5 states left on queue.
 The depth of the complete state graph search is 2.
-Finished in 00s at (2026-10-23 09:59:41)
+Finished in 00s at (2026-10-23 10:36:36)
 
 exit_code=13

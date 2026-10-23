@@ -1,0 +1,11 @@
+# F3 regression: NotFound treated as definitive before recvWindow + margin elapsed
+--- OrderLifecycle.tla
++++ mutants/M7_NoTwoLiveVenueOrdersPerIntent/OrderLifecycle.tla
+@@ -449,7 +449,6 @@
+ \* or, with attempts exhausted, is Rejected. The latch is not cleared.
+ QNotFound(i) ==
+   /\ o[i].st = "Unknown" /\ V(i).vst = "none" /\ o[i].cum = 0
+-  /\ o[i].el > Bound
+   /\ IF o[i].att + 1 < MaxAttempts
+      THEN /\ o' = [o EXCEPT ![i].st = "PendingNew", ![i].att = @ + 1, ![i].sent = FALSE,
+                      ![i].resp = "none", ![i].cxl = FALSE, ![i].cresp = "none",

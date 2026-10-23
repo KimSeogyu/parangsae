@@ -4,16 +4,15 @@ digraph OrderLifecycleCells {
  "PendingNew" -> "Acked" [label="Ack"];
  "PendingNew" -> "Filled" [label="Fill"];
  "PendingNew" -> "PartiallyFilled" [label="Fill"];
+ "PendingNew" -> "Canceled" [label="CancelRequested"];
  "PendingNew" -> "PendingCancel" [label="CancelRequested"];
- "PendingNew" -> "IllegalTransition" [label="CancelDenied", color=red, fontcolor=red];
  "PendingNew" -> "Rejected" [label="Reject"];
  "PendingNew" -> "Expired" [label="Expire"];
  "PendingNew" -> "Unknown" [label="Timeout"];
- "Acked" -> "Acked" [label="Ack"];
+ "Acked" -> "Acked" [label="Ack (unreached)", style=dashed, color=grey, fontcolor=grey];
  "Acked" -> "Filled" [label="Fill"];
  "Acked" -> "PartiallyFilled" [label="Fill"];
  "Acked" -> "PendingCancel" [label="CancelRequested"];
- "Acked" -> "IllegalTransition" [label="Reject", color=red, fontcolor=red];
  "Acked" -> "Expired" [label="Expire"];
  "Acked" -> "Unknown" [label="Timeout"];
  "PartiallyFilled" -> "PartiallyFilled" [label="Ack"];
@@ -30,6 +29,7 @@ digraph OrderLifecycleCells {
  "PendingCancel" -> "PendingCancel" [label="CancelRequested (unreached)", style=dashed, color=grey, fontcolor=grey];
  "PendingCancel" -> "Acked" [label="CancelDenied"];
  "PendingCancel" -> "PartiallyFilled" [label="CancelDenied"];
+ "PendingCancel" -> "Unknown" [label="CancelDenied"];
  "PendingCancel" -> "Canceled" [label="CancelConfirmed"];
  "PendingCancel" -> "IllegalTransition" [label="Reject", color=red, fontcolor=red];
  "PendingCancel" -> "Expired" [label="Expire"];
@@ -37,7 +37,6 @@ digraph OrderLifecycleCells {
  "Canceled" -> "IllegalTransition" [label="Ack", color=red, fontcolor=red];
  "Canceled" -> "IllegalTransition" [label="CancelConfirmed", color=red, fontcolor=red];
  "Canceled" -> "Canceled" [label="RaceFill"];
- "Rejected" -> "IllegalTransition" [label="CancelDenied", color=red, fontcolor=red];
  "Expired" -> "IllegalTransition" [label="Ack", color=red, fontcolor=red];
  "Expired" -> "IllegalTransition" [label="CancelDenied", color=red, fontcolor=red];
  "Unknown" -> "IllegalTransition" [label="Ack", color=red, fontcolor=red];
@@ -50,5 +49,8 @@ digraph OrderLifecycleCells {
  "Unknown" -> "Unknown" [label="Timeout"];
  "Unknown" -> "Filled" [label="QueryFilled"];
  "Unknown" -> "Canceled" [label="QueryCanceled"];
+ "Unknown" -> "Expired" [label="QueryExpired"];
  "Unknown" -> "PendingNew" [label="QueryNotFound"];
+ "Unknown" -> "Rejected" [label="QueryNotFound"];
+ "Unknown" -> "Unknown" [label="QueryNotFound"];
 }

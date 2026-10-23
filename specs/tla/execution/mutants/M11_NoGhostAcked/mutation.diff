@@ -1,0 +1,13 @@
+# F5 regression: CancelDenied with no processed Ack maps to Acked (v3 behavior)
+--- OrderLifecycle.tla
++++ mutants/M11_NoGhostAcked/OrderLifecycle.tla
+@@ -398,8 +398,7 @@
+      IF Legal(o[i].st, e)
+      THEN LET to == IF e = "CancelConfirmed" THEN "Canceled"
+                     ELSE IF o[i].cum > 0 THEN "PartiallyFilled"
+-                    ELSE IF o[i].acked THEN "Acked"
+-                    ELSE "Unknown" IN
++                    ELSE "Acked" IN
+           /\ o' = [o EXCEPT ![i].cresp = "none", ![i].st = to]
+           /\ last' = <<o[i].st, e, to>>
+           /\ IF to = "Unknown" THEN HaltG ELSE UNCHANGED <<ap, gh, halted, flag>>
