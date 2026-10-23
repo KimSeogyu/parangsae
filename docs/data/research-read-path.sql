@@ -1,4 +1,4 @@
--- parangsae research read path v0 (DuckDB). Run: duckdb -c ".read /workspace/reports/research-read-path.sql" ...
+-- parangsae research read path v0.4 (DuckDB). Run: duckdb -c ".read /workspace/reports/research-read-path.sql" ...
 -- Store root: /workspace/data/parangsae/parquet  (read-only for consumers)
 -- Fixed point: *_ticks / 1e8. Times: UTC microseconds. Point-in-time key: available_ts_us.
 -- um-kline 1m with reviewed resolutions applied (store unmodified).
@@ -61,3 +61,59 @@ select start_us as first_missing_open_us, end_us - 60000000 as last_missing_open
        (end_us - start_us) // 60000000 as missing_minutes, detail
 from read_parquet('/workspace/data/parangsae/gaps/mark-price-kline/symbol=BTCUSDT/*/part.parquet', hive_partitioning=1)
 where kind = 'grid';
+
+-- v0.4: premium index and index price 1m (raw Vision premiumIndexKlines / indexPriceKlines, monthly, checksums verified).
+-- Same units and availability as kline_1m: *_ticks / 1e8, available_ts_us = open + 60 s on every row.
+-- premium = premium index ratio (e.g. 0.0009 = 0.09 %). Volume/trade columns are not meaningful for these sources and are omitted.
+create or replace view premium_1m as
+select open_time_us, close_time_us,
+       open_ticks/1e8 as open, high_ticks/1e8 as high, low_ticks/1e8 as low, close_ticks/1e8 as close,
+       available_ts_us
+from read_parquet('/workspace/data/parangsae/parquet/premium-index-kline/symbol=BTCUSDT/*/part.parquet');
+
+create or replace view index_1m as
+select open_time_us, close_time_us,
+       open_ticks/1e8 as open, high_ticks/1e8 as high, low_ticks/1e8 as low, close_ticks/1e8 as close,
+       available_ts_us
+from read_parquet('/workspace/data/parangsae/parquet/index-price-kline/symbol=BTCUSDT/*/part.parquet');
+
+-- Daily premium per UTC day, from premium_1m. Every day is emitted; `complete` = 1440/1440 minutes.
+-- close = last present 1m close; mean_close = mean of present 1m closes.
+-- available_ts_us = max member available (= next 00:00 UTC on complete days). Use only rows with available_ts_us <= decision_ts.
+-- Days with complete = false are listed in coverage_exclusions; score them as excluded, do not abort.
+create or replace view premium_1d as
+select open_time_us//86400000000*86400000000 as day_open_us,
+       to_timestamp(open_time_us//86400000000*86400)::date as date,
+       arg_min(open, open_time_us) as open, max(high) as high, min(low) as low,
+       arg_max(close, open_time_us) as close, avg(close) as mean_close,
+       count(*) as minutes, count(*) = 1440 as complete,
+       max(available_ts_us) as available_ts_us
+from premium_1m group by 1, 2;
+
+-- Coverage exclusion list (machine-readable; also exported as coverage-exclusions.csv).
+-- One row per open real source gap (store gap records, kind = grid) in mark/index/premium 1m.
+-- um-kline (kline_1m) has none. Missing bar opens are first_missing_open_us..=last_missing_open_us (UTC).
+-- source_status: known_source_absence = absent from the checksum-verified Vision monthly archive;
+-- daily archive checked only for mark 2024-08-12 (also absent). Gaps stay gaps: nothing is filled or interpolated.
+create or replace view coverage_exclusions as
+select dataset, view_name, date, first_missing_open_us, last_missing_open_us, missing_minutes, source_status
+from (
+  select 'mark-price-kline' as dataset, 'mark_1m' as view_name, * from read_parquet('/workspace/data/parangsae/gaps/mark-price-kline/symbol=BTCUSDT/*/part.parquet', hive_partitioning=1)
+  union all by name
+  select 'index-price-kline' as dataset, 'index_1m' as view_name, * from read_parquet('/workspace/data/parangsae/gaps/index-price-kline/symbol=BTCUSDT/*/part.parquet', hive_partitioning=1)
+  union all by name
+  select 'premium-index-kline' as dataset, 'premium_1m' as view_name, * from read_parquet('/workspace/data/parangsae/gaps/premium-index-kline/symbol=BTCUSDT/*/part.parquet', hive_partitioning=1)
+) g
+cross join lateral (select g.start_us as first_missing_open_us, g.end_us - 60000000 as last_missing_open_us,
+                           (g.end_us - g.start_us)//60000000 as missing_minutes,
+                           'known_source_absence' as source_status)
+where g.kind = 'grid'
+order by first_missing_open_us, dataset;
+
+-- Excluded UTC days per view (union of all gap windows touching the day).
+create or replace view coverage_excluded_days as
+select distinct view_name, d::date as date
+from coverage_exclusions,
+     unnest(range(first_missing_open_us//86400000000, last_missing_open_us//86400000000 + 1)) t(dn),
+     (select to_timestamp(dn*86400)::date) x(d)
+order by 1, 2;
