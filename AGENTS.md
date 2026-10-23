@@ -61,6 +61,10 @@ There is no readiness verdict. Research code does not read live fills, balances,
 | no f64 in money path | `deny(clippy::float_arithmetic)` in sim/backtest |
 | costs explicit | `Costs` has no `Default` |
 | fills at next open | G2 + P7 |
+| Inspect owned state before editing | agents run `cargo xtask spec inspect` |
+| Enforce architecture policy before push | agents run `cargo xtask spec enforce` |
+| Break policy by changing the .tla | `spec/arch/ArchitecturePolicy.tla` is the only policy copy; propose a `.tla` change instead of a `#[allow]`, a comment, or a YAML workaround |
+| Architecture spec and engine need review | `spec/arch/*.tla` and `xtask/**` need Ops/Release review |
 
 ## Checks
 
@@ -68,6 +72,9 @@ There is no readiness verdict. Research code does not read live fills, balances,
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+cargo xtask spec validate --jar specs/tla/tla2tools.jar
+cargo xtask spec generate --check
+cargo xtask spec enforce
 ```
 
-TLC and Kani are the `tla` and `kani` jobs in `.github/workflows/ci.yml`.
+TLC and Kani are the `tla` and `kani` jobs in `.github/workflows/ci.yml`. Architecture policy is the `spec-arch` job. `spec validate` uses the same `tla2tools.jar` as the `tla` job.

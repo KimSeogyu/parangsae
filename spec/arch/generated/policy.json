@@ -1,0 +1,266 @@
+{
+  "allowed_capability_callers": [
+    [
+      "parangsae-backtest",
+      "holdout_read"
+    ],
+    [
+      "parangsae-execution",
+      "network_order_submit"
+    ]
+  ],
+  "allowed_dependencies": [
+    [
+      "parangsae-backtest",
+      "parangsae-core"
+    ],
+    [
+      "parangsae-backtest",
+      "parangsae-sim"
+    ],
+    [
+      "parangsae-collector",
+      "parangsae-core"
+    ],
+    [
+      "parangsae-signals",
+      "parangsae-core"
+    ],
+    [
+      "parangsae-sim",
+      "parangsae-core"
+    ]
+  ],
+  "allowed_effects": [
+    [
+      "parangsae-backtest",
+      "env"
+    ],
+    [
+      "parangsae-backtest",
+      "fs_write"
+    ],
+    [
+      "parangsae-backtest",
+      "net"
+    ],
+    [
+      "parangsae-collector",
+      "fs_write"
+    ],
+    [
+      "parangsae-collector",
+      "net"
+    ],
+    [
+      "parangsae-collector",
+      "process"
+    ],
+    [
+      "parangsae-core",
+      "net"
+    ],
+    [
+      "parangsae-execution",
+      "net"
+    ],
+    [
+      "parangsae-signals",
+      "env"
+    ],
+    [
+      "parangsae-signals",
+      "fs_write"
+    ],
+    [
+      "parangsae-signals",
+      "net"
+    ],
+    [
+      "xtask",
+      "env"
+    ],
+    [
+      "xtask",
+      "fs_write"
+    ],
+    [
+      "xtask",
+      "process"
+    ]
+  ],
+  "allowed_state_writers": [
+    [
+      "parangsae-sim",
+      "Ledger.cash"
+    ],
+    [
+      "parangsae-sim",
+      "Ledger.fees_paid"
+    ],
+    [
+      "parangsae-sim",
+      "Ledger.funding_net"
+    ],
+    [
+      "parangsae-sim",
+      "Ledger.position"
+    ]
+  ],
+  "capabilities": [
+    "holdout_read",
+    "network_order_submit"
+  ],
+  "effects": [
+    "env",
+    "fs_write",
+    "net",
+    "process"
+  ],
+  "float_allowed": [
+    "parangsae-backtest",
+    "parangsae-signals"
+  ],
+  "modules": [
+    "parangsae-backtest",
+    "parangsae-collector",
+    "parangsae-core",
+    "parangsae-execution",
+    "parangsae-regime",
+    "parangsae-signals",
+    "parangsae-sim",
+    "xtask"
+  ],
+  "owners": [
+    "Backtest Builder",
+    "Data Engineer",
+    "Execution Builder",
+    "Ops/Release",
+    "Quant Researcher",
+    "Risk/Portfolio",
+    "Signal Builder"
+  ],
+  "path_owners": [
+    [
+      ".cargo/**",
+      "Ops/Release"
+    ],
+    [
+      ".cursor/**",
+      "Ops/Release"
+    ],
+    [
+      ".env.example",
+      "Ops/Release"
+    ],
+    [
+      ".github/**",
+      "Ops/Release"
+    ],
+    [
+      ".gitignore",
+      "Ops/Release"
+    ],
+    [
+      "AGENTS.md",
+      "Ops/Release"
+    ],
+    [
+      "Cargo.lock",
+      "Ops/Release"
+    ],
+    [
+      "Cargo.toml",
+      "Ops/Release"
+    ],
+    [
+      "README.md",
+      "Ops/Release"
+    ],
+    [
+      "crates/backtest/**",
+      "Backtest Builder"
+    ],
+    [
+      "crates/collector/**",
+      "Data Engineer"
+    ],
+    [
+      "crates/core/**",
+      "Data Engineer"
+    ],
+    [
+      "crates/execution/**",
+      "Execution Builder"
+    ],
+    [
+      "crates/regime/**",
+      "Signal Builder"
+    ],
+    [
+      "crates/signals/**",
+      "Signal Builder"
+    ],
+    [
+      "crates/sim/**",
+      "Risk/Portfolio"
+    ],
+    [
+      "docs/**",
+      "Quant Researcher"
+    ],
+    [
+      "fixtures/backtest/**",
+      "Backtest Builder"
+    ],
+    [
+      "fixtures/instrument/**",
+      "Data Engineer"
+    ],
+    [
+      "fixtures/vision/**",
+      "Data Engineer"
+    ],
+    [
+      "research/**",
+      "Quant Researcher"
+    ],
+    [
+      "spec/**",
+      "Ops/Release"
+    ],
+    [
+      "specs/**",
+      "Ops/Release"
+    ],
+    [
+      "specs/features/backtest_engine.feature",
+      "Backtest Builder"
+    ],
+    [
+      "specs/features/collector/**",
+      "Data Engineer"
+    ],
+    [
+      "specs/features/instrument_rules.feature",
+      "Data Engineer"
+    ],
+    [
+      "specs/features/kline_integrity.feature",
+      "Data Engineer"
+    ],
+    [
+      "specs/features/signals/**",
+      "Signal Builder"
+    ],
+    [
+      "tests/**",
+      "Ops/Release"
+    ],
+    [
+      "xtask/**",
+      "Ops/Release"
+    ]
+  ],
+  "spec_sha256": "05d415e173c930bbfcfb8961cb5cc39dbe1389e81f0d9e02705de5fa9c40ab88"
+}

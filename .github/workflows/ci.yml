@@ -190,10 +190,33 @@ jobs:
       - name: Prove notional arithmetic
         run: cargo kani -p parangsae-core
 
+  spec-arch:
+    name: spec-arch
+    runs-on: [self-hosted, linux, x64, parangsae]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Fetch TLC 2.19 (TLA+ 1.7.4)
+        working-directory: specs/tla
+        run: |
+          curl -fsSL -o tla2tools.jar -L \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+          echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  tla2tools.jar" | sha256sum -c -
+      - name: validate, generate --check, enforce
+        run: |
+          cargo xtask spec validate --jar specs/tla/tla2tools.jar
+          cargo xtask spec generate --check
+          cargo xtask spec enforce
+
   gate:
     name: gate
     if: always()
-    needs: [changes, fmt, clippy, test, cucumber, tla, kani]
+    needs: [changes, fmt, clippy, test, cucumber, tla, kani, spec-arch]
     runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - name: Fail if any needed job failed or was cancelled (skipped counts as passing)
