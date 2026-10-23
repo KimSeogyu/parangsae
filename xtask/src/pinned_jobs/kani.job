@@ -1,6 +1,8 @@
   kani:
     name: kani
-    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.kani == 'true'
+    runs-on: [self-hosted, linux, x64, parangsae]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

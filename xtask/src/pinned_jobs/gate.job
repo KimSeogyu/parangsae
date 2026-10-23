@@ -1,8 +1,8 @@
   gate:
     name: gate
-    needs: [fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, guard-fixtures, tla, kani, deny]
+    needs: [changes, fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, guard-fixtures, tla, kani, deny]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: non-success gate needs fail and success passes
@@ -26,6 +26,8 @@
           entry_non_object_status=$?
           success=$(NEEDS="$(cat fixtures/guards/ci/needs-success.json)" python3 .github/workflows/gate_results.py 2>&1)
           success_status=$?
+          path_skipped=$(NEEDS="$(cat fixtures/guards/ci/needs-path-skipped.json)" python3 .github/workflows/gate_results.py 2>&1)
+          path_skipped_status=$?
           set -e
           printf '%s\n' "$failure"
           printf '%s\n' "$skipped"
@@ -36,6 +38,7 @@
           printf '%s\n' "$non_object"
           printf '%s\n' "$entry_non_object"
           printf '%s\n' "$success"
+          printf '%s\n' "$path_skipped"
           if [ "$failure_status" -eq 0 ]; then
             echo "failure result was accepted"
             exit 1
@@ -78,6 +81,10 @@
           printf '%s\n' "$entry_non_object" | grep -q 'not-object'
           if [ "$success_status" -ne 0 ]; then
             echo "all-success needs was rejected"
+            exit 1
+          fi
+          if [ "$path_skipped_status" -ne 0 ]; then
+            echo "path-filtered skip was rejected"
             exit 1
           fi
       - name: fail unless every needed job succeeded

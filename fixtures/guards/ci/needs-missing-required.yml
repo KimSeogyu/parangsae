@@ -3,7 +3,7 @@ on:
   push:
 jobs:
   gate:
-    needs: [fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, guard-fixtures, tla, kani]
+    needs: [changes, fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, guard-fixtures, tla, kani]
     runs-on: ubuntu-latest
     steps:
       - run: echo gate

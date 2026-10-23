@@ -171,7 +171,7 @@ fn check_workspace(root: &Path) -> Result<(), String> {
 }
 
 /// Reviewer-protected. Bootstrap applies only when the resolved base equals this commit.
-const BOOTSTRAP_BASE: &str = "a6a48754082d8ec4fcde30c6784c441ac38062a7";
+const BOOTSTRAP_BASE: &str = "3ed40464601052b9cfd4b4cf743287b64669c26c";
 
 /// Reviewer-protected. The only `uses:` targets. Kani is installed with cargo, not an action.
 const ALLOWED_ACTIONS: &[&str] = &[
@@ -182,7 +182,7 @@ const ALLOWED_ACTIONS: &[&str] = &[
 
 /// Reviewer-protected. Raw sha256 of `regressions/floors.toml` on the bootstrap path.
 const BOOTSTRAP_FLOORS_SHA256: &str =
-    "0ef9b7db19c2dd575c100cf84984489e233ae6f0afc1ecd8f84fa3229955c3f4";
+    "37268a2ef608080b929c1344e5768d119943ecfb86f0249d05bb45a4803e4aec";
 
 /// Reviewer-protected. Non-ratchet guards plus the ratchet.
 const EXPECTED_GUARD_RUNS: usize = 12;
@@ -495,69 +495,75 @@ const CI_HEADER_SHA256: &str = "e70f3eb0e8ab1ec9cb815c23ee523d4cf29bd82824f34cda
 /// Reviewer-protected. Canonical bytes and sha256 of each required job.
 const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
+        "changes",
+        include_str!("pinned_jobs/changes.job"),
+        "3c01b3bbc841341ebf4a8ad837048aadfcefd7914d40f515226c7639845c8bd2",
+    ),
+    (
         "fmt",
         include_str!("pinned_jobs/fmt.job"),
-        "12544f3aec754820c1c60509e2f05e54121fe902dc4623a4be0d9c91cc9f2450",
+        "acccaa8b48519fcd2d982011ef693eb4b926388b7cc9f27d4d9f4ab60c1e84bf",
     ),
     (
         "clippy",
         include_str!("pinned_jobs/clippy.job"),
-        "8e2583e22e0c5d7b9ba1036dc799b9eaf480818cba0b76f90dee6ab98b793a24",
+        "8ea34e7b3dc7a05f07669ba2eb74e294ecee5dad3fa8e9f3c44747578535a595",
     ),
     (
         "lint-fixture",
         include_str!("pinned_jobs/lint-fixture.job"),
-        "3171d853c57e4640924f5d27b4e0081d173d3298004545767006dd2f4dde91d3",
+        "e2fd8711baa3796507ef2011afa25bdf7d4baff51ed489df32d0a2aa8955862d",
     ),
     (
         "depgraph",
         include_str!("pinned_jobs/depgraph.job"),
-        "68d50f2461cc71f46a2011ec62332b22b9f701e5b6bc701b97e6c8550e77365f",
+        "548ac0a08768f080287437bdb53b314291eee5e85d6abd16851ca57e52dd9c58",
     ),
     (
         "test",
         include_str!("pinned_jobs/test.job"),
-        "abec303141d64db57230a24e87e49d13abe62ed7c4bad2aee40200bc93433a11",
+        "145b7655b7bf117eece294045627bf56872afd8fe4435bfd3b01ebe0a7f38b3d",
     ),
     (
         "cucumber",
         include_str!("pinned_jobs/cucumber.job"),
-        "0b41353d1a93eccd25d1a6a51c2dfa7a4410d59d58d90d85149f42b146085822",
+        "4d9a916bfdda0c324e86feb27211cc0ec376658c5cb6eebd6d2e5a8374a171d2",
     ),
     (
         "guards",
         include_str!("pinned_jobs/guards.job"),
-        "5e14759f281ac6cb00f95b13e20517defd1717d044e5b89d24fcb7ac9a392db5",
+        "6fd148f17910d86586d13a8435d809c07e46ea18c3db3e1f0f5341950d081e3d",
     ),
     (
         "guard-fixtures",
         include_str!("pinned_jobs/guard-fixtures.job"),
-        "2bc6a56f854405db4de3b7e5753570b1b7d2c7992eb2588c15bda5fca2d0ee2e",
+        "4ef405352108d9f22fcf9741dcb65dbc8f8451ab7cbb7a21f5af774fa93d4e59",
     ),
     (
         "tla",
         include_str!("pinned_jobs/tla.job"),
-        "751677327f75024ad3f6a81d05dd55020d1abcfcbd37198e135d18e0258b624a",
+        "173ca1d72d001313d6faaa7da720686a63656a8dbd8d7e4fbd2a20dc3a648841",
     ),
     (
         "kani",
         include_str!("pinned_jobs/kani.job"),
-        "71ec8bfcfb70ceee90dceab6eef8d2919661a942c5a5c16112b377196f5c1012",
+        "72d4932b7331e414e6cf16f701c6b75462725ed6436967f15e32e616bec8dd64",
     ),
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "61b2ab4abb6133cbb56c2712dacb3a5d468cd1930b5cd7f2f5bfa64d41d5ebef",
+        "7093a5d12c7a3341f5381b8619c1f07b44e403e495c1f4fccdcdc07160c8a58e",
     ),
     (
         "gate",
         include_str!("pinned_jobs/gate.job"),
-        "280b2f8e38a9b4e8db437ddccc58b7114804db2a857ba2f8cb04093e2bbb506a",
+        "1af2588254a4e34454b5636408978164be1a78e728ea2002cd83cc71af313153",
     ),
 ];
 
 /// Reviewer-protected. Job-level `env:` names on each required job.
 const JOB_ENV_ALLOW: &[(&str, &[&str])] = &[
+    ("changes", &[]),
     ("fmt", &[]),
     ("clippy", &[]),
     ("lint-fixture", &[]),
@@ -574,6 +580,10 @@ const JOB_ENV_ALLOW: &[(&str, &[&str])] = &[
 
 /// Reviewer-protected. Step-level `env:` names on each required job.
 const STEP_ENV_ALLOW: &[(&str, &[&str])] = &[
+    (
+        "changes",
+        &["EVENT_NAME", "PUSH_BEFORE", "PR_BASE", "DEFAULT_BRANCH"],
+    ),
     ("fmt", &[]),
     ("clippy", &[]),
     ("lint-fixture", &[]),
@@ -640,7 +650,7 @@ const ALLOWED_DEMO_SECRETS: &[&str] = &["BINANCE_DEMO_API_KEY", "BINANCE_DEMO_AP
 
 /// Reviewer-protected. Raw sha256 of `.github/workflows/vision-smoke.yml`.
 const VISION_SMOKE_SHA256: &str =
-    "f4f3991d65baaf5a82669c1d664617116a2c087afed2b03b5375d6754c3458d3";
+    "6158b7cfad3cc94fc851d9f709975d8caf7b7d9422b422162c8f1846a05b10c4";
 
 const FORBIDDEN_ENV: &[&str] = &[
     "CARGO_WORKSPACE_DIR",
@@ -654,7 +664,7 @@ const GATE_FIXTURE_STEP: &str = include_str!("gate_fixture_step.txt");
 
 /// Reviewer-protected. Raw sha256 of `.github/workflows/gate_results.py`.
 const GATE_RESULTS_SHA256: &str =
-    "7e0f2561876477d8516e7642d8f3be7aa938cbd571273babe7bc0fd80a891666";
+    "67f96791665fc8b870c26e70c16d62a06cfa127e7e1dc9f86974654c0f567a24";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum WorkflowFilePin {
@@ -708,6 +718,10 @@ const GATE_FIXTURE_SHA256: &[(&str, &str)] = &[
     (
         "fixtures/guards/ci/needs-non-object.json",
         "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    ),
+    (
+        "fixtures/guards/ci/needs-path-skipped.json",
+        "443b3ddf9b8158a9b9fc97e0f9c10bdc8daf8cbf61add5245454b1c1f4c9afab",
     ),
     (
         "fixtures/guards/ci/needs-null.json",
@@ -843,13 +857,34 @@ fn step_directive_gaps(job: &str, block: &str) -> Vec<String> {
     gaps
 }
 
+/// `tla` and `kani` may carry the path-filter condition from `changes`.
+/// Any other job-level `if:`, or a different condition, still fails.
+fn path_filter_job_if(name: &str, block: &str) -> bool {
+    let expected = match name {
+        "tla" => "if: needs.changes.outputs.tla == 'true'",
+        "kani" => "if: needs.changes.outputs.kani == 'true'",
+        _ => return false,
+    };
+    let mut found = 0usize;
+    let mut exact = false;
+    for line in block.lines() {
+        let indent = line.len() - line.trim_start().len();
+        let key = strip_yaml_comment(line).trim();
+        if indent == 4 && key.starts_with("if:") {
+            found += 1;
+            exact = key == expected;
+        }
+    }
+    found == 1 && exact
+}
+
 fn required_job_if_gaps(text: &str, needs: &BTreeSet<String>) -> Vec<String> {
     let mut gaps = Vec::new();
     for name in needs {
         let Some(block) = job_block(text, name) else {
             continue;
         };
-        if job_level_if(block) {
+        if job_level_if(block) && !path_filter_job_if(name, block) {
             gaps.push(format!("ci job {name} sets if:"));
         }
         if step_level_if(block) {
@@ -2673,7 +2708,8 @@ fn pinned_whole_file_gaps(path: &str, bytes: &[u8]) -> Vec<String> {
 fn compiling_job_order_gaps(text: &str) -> Vec<String> {
     let mut gaps = Vec::new();
     for (job, _, _) in REQUIRED_JOBS {
-        if *job == "gate" {
+        // gate checks results. changes only diffs paths. Neither compiles.
+        if *job == "gate" || *job == "changes" {
             continue;
         }
         let Some(block) = job_block(text, job) else {
@@ -3981,7 +4017,10 @@ fn strict_yaml_gaps(name: &str, text: &str) -> Vec<String> {
         if yaml_tag(value) {
             push_gap(&mut gaps, format!("{name} uses a tag"));
         }
-        if (value.starts_with('{') || value.starts_with('[')) && !allowed_needs_list(key, value) {
+        if (value.starts_with('{') || value.starts_with('['))
+            && !allowed_needs_list(key, value)
+            && !allowed_runner_list(key, value)
+        {
             if let Some(role) = flow_value_role(key, parent, indent) {
                 push_gap(
                     &mut gaps,
@@ -4182,6 +4221,11 @@ fn indented_block_scalar(value: &str) -> bool {
 fn step_run(key: &str, parent: Option<YamlFrame>, indent: usize) -> bool {
     key == "run"
         && parent.is_some_and(|frame| frame.kind == YamlFrameKind::Steps && indent > frame.indent)
+}
+
+/// Main's self-hosted label list. Any other `runs-on` flow sequence still fails.
+fn allowed_runner_list(key: &str, value: &str) -> bool {
+    key == "runs-on" && value.trim() == "[self-hosted, linux, x64, parangsae]"
 }
 
 fn allowed_needs_list(key: &str, value: &str) -> bool {
@@ -8650,6 +8694,52 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
         let job = ci_gate_gaps(&read(&root.join("fixtures/guards/ci/job-if.yml"))?)?;
         if job != ["ci job fmt sets if:".to_owned()] {
             return Err(format!("job if: {job:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn self_hosted_runs_on_is_the_only_runner_flow() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        for rel in [
+            ".github/workflows/ci.yml",
+            ".github/workflows/vision-smoke.yml",
+        ] {
+            let gaps = strict_yaml_gaps(rel, &read(&root.join(rel))?);
+            if gaps.iter().any(|gap| gap.contains("flow")) {
+                return Err(format!("{rel}: {gaps:?}"));
+            }
+        }
+        let ubuntu = strict_yaml_gaps(
+            "flow-runs-on.yml",
+            &read(&root.join("fixtures/guards/ci/flow-runs-on.yml"))?,
+        );
+        if ubuntu != ["flow-runs-on.yml uses a flow sequence".to_owned()] {
+            return Err(format!("ubuntu flow: {ubuntu:?}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn path_filter_if_is_only_allowed_on_tla_and_kani() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let ci = read(&root.join(".github/workflows/ci.yml"))?;
+        let gaps = ci_gate_gaps(&ci)?;
+        if !gaps.is_empty() {
+            return Err(format!("ci gate: {gaps:?}"));
+        }
+        let tla_false = ci.replace("if: needs.changes.outputs.tla == 'true'", "if: false");
+        let tla_gaps = ci_gate_gaps(&tla_false)?;
+        if !tla_gaps.iter().any(|gap| gap == "ci job tla sets if:") {
+            return Err(format!("tla if false: {tla_gaps:?}"));
+        }
+        let kani_wrong = ci.replace(
+            "if: needs.changes.outputs.kani == 'true'",
+            "if: needs.changes.outputs.tla == 'true'",
+        );
+        let kani_gaps = ci_gate_gaps(&kani_wrong)?;
+        if !kani_gaps.iter().any(|gap| gap == "ci job kani sets if:") {
+            return Err(format!("kani wrong if: {kani_gaps:?}"));
         }
         Ok(())
     }

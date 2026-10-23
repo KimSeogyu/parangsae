@@ -70,3 +70,4 @@ ci.job=guard-fixtures
 ci.job=tla
 ci.job=kani
 ci.job=deny
+ci.job=changes

@@ -1,0 +1,14 @@
+{
+  "changes": { "result": "success", "outputs": {} },
+  "clippy": { "result": "success", "outputs": {} },
+  "cucumber": { "result": "success", "outputs": {} },
+  "deny": { "result": "success", "outputs": {} },
+  "depgraph": { "result": "success", "outputs": {} },
+  "fmt": { "result": "success", "outputs": {} },
+  "guard-fixtures": { "result": "success", "outputs": {} },
+  "guards": { "result": "success", "outputs": {} },
+  "kani": { "result": "skipped", "outputs": {} },
+  "lint-fixture": { "result": "success", "outputs": {} },
+  "test": { "result": "success", "outputs": {} },
+  "tla": { "result": "skipped", "outputs": {} }
+}

@@ -15,9 +15,103 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  changes:
+    name: changes
+    runs-on: [self-hosted, linux, x64, parangsae]
+    outputs:
+      kani: ${{ steps.filter.outputs.kani }}
+      tla: ${{ steps.filter.outputs.tla }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Decide which path-gated jobs run
+        id: filter
+        # Fail-safe: when no base can be determined, both kani and tla run.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          head=$(git rev-parse HEAD)
+          base=""
+          if [ "$EVENT_NAME" = "pull_request" ] && [ -n "$PR_BASE" ]; then
+            base="$PR_BASE"
+          elif [ "$EVENT_NAME" = "push" ] && [ -n "$PUSH_BEFORE" ] \
+              && [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ] \
+              && git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null \
+              && git merge-base --is-ancestor "$PUSH_BEFORE" "$head"; then
+            base="$PUSH_BEFORE"
+          elif [ "$EVENT_NAME" = "push" ] && [ -n "$DEFAULT_BRANCH" ]; then
+            # New branch (before is all zeros) or force push: diff against the default branch.
+            base=$(git merge-base "origin/$DEFAULT_BRANCH" "$head" 2>/dev/null || true)
+          fi
+          if [ -z "$base" ] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            echo "No usable diff base; running kani and tla."
+            echo "kani=true" >> "$GITHUB_OUTPUT"
+            echo "tla=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Diff base: $base  head: $head"
+          git diff --name-only "$base" "$head" > "$RUNNER_TEMP/changed.txt"
+          cat "$RUNNER_TEMP/changed.txt"
+          # Crates whose src/ holds a Kani harness (at base or head).
+          kani_crates=$( { git grep -l -E 'kani::proof' "$head" -- 'crates/*/src/**' || true
+                           git grep -l -E 'kani::proof' "$base" -- 'crates/*/src/**' || true; } \
+                         | sed -E 's#^[0-9a-f]+:crates/([^/]+)/.*#\1#' | sort -u)
+          echo "Crates with Kani harnesses: ${kani_crates:-none}"
+          kani_re='cfg\((any\()?[^)]*kani|cfg_attr\(kani|kani::'
+          mentions_kani() {
+            {
+              git show "$head:$1" 2>/dev/null || true
+              git show "$base:$1" 2>/dev/null || true
+            } > "$RUNNER_TEMP/kani-mention.txt"
+            grep -qE "$kani_re" "$RUNNER_TEMP/kani-mention.txt"
+          }
+          kani=false
+          tla=false
+          while IFS= read -r f; do
+            [ -n "$f" ] || continue
+            case "$f" in
+              .github/workflows/*) kani=true; tla=true ;;
+            esac
+            case "$f" in
+              specs/tla/*) tla=true ;;
+            esac
+            case "$f" in
+              crates/*/src/*)
+                c=$(printf '%s\n' "$f" | cut -d/ -f2)
+                matched=false
+                for name in $kani_crates; do
+                  if [ "$name" = "$c" ]; then
+                    matched=true
+                  fi
+                done
+                if [ "$matched" = true ]; then kani=true; fi ;;
+            esac
+            case "$f" in
+              Cargo.toml|rust-toolchain|rust-toolchain.toml|*kani*) kani=true ;;
+              crates/*/Cargo.toml)
+                if mentions_kani "$f"; then
+                  kani=true
+                else
+                  git show "$head:$f" > "$RUNNER_TEMP/kani-manifest.txt" 2>/dev/null || true
+                  if grep -q kani "$RUNNER_TEMP/kani-manifest.txt"; then kani=true; fi
+                fi ;;
+            esac
+            case "$f" in
+              *.rs) if mentions_kani "$f"; then kani=true; fi ;;
+            esac
+          done < "$RUNNER_TEMP/changed.txt"
+          echo "kani=$kani tla=$tla"
+          echo "kani=$kani" >> "$GITHUB_OUTPUT"
+          echo "tla=$tla" >> "$GITHUB_OUTPUT"
+
   fmt:
     name: fmt
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
@@ -48,7 +142,7 @@ jobs:
 
   clippy:
     name: clippy
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
@@ -79,7 +173,7 @@ jobs:
 
   lint-fixture:
     name: lint fixture fails
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
@@ -158,7 +252,7 @@ jobs:
 
   depgraph:
     name: depgraph
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
@@ -187,7 +281,7 @@ jobs:
 
   test:
     name: test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -221,7 +315,7 @@ jobs:
 
   cucumber:
     name: cucumber
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
@@ -254,7 +348,7 @@ jobs:
 
   guards:
     name: guards
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -288,7 +382,7 @@ jobs:
 
   guard-fixtures:
     name: guard-fixtures
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
@@ -684,7 +778,9 @@ jobs:
 
   tla:
     name: tla
-    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.tla == 'true'
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
@@ -746,10 +842,20 @@ jobs:
         run: |
           cd "$GITHUB_WORKSPACE"
           cargo xtask guards tlc-output --model ManifestWrite --file "${{ runner.temp }}/tlc-manifest.txt"
+      - name: Model-check execution OrderLifecycle
+        run: |
+          cd specs/tla/execution
+          java -XX:+UseParallelGC -Xmx2g -cp ../tla2tools.jar tlc2.TLC \
+            -workers 1 \
+            -metadir "${{ runner.temp }}/tlc-order-lifecycle" \
+            -config OrderLifecycle.cfg \
+            OrderLifecycle.tla
 
   kani:
     name: kani
-    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.kani == 'true'
+    runs-on: [self-hosted, linux, x64, parangsae]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -836,7 +942,7 @@ jobs:
 
   deny:
     name: deny
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@5059963b1731bf1580991b5f3b1eecfb5da406c0 # 1.98.0
@@ -1085,9 +1191,9 @@ jobs:
 
   gate:
     name: gate
-    needs: [fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, guard-fixtures, tla, kani, deny]
+    needs: [changes, fmt, clippy, lint-fixture, depgraph, test, cucumber, guards, guard-fixtures, tla, kani, deny]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, parangsae]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: non-success gate needs fail and success passes
@@ -1111,6 +1217,8 @@ jobs:
           entry_non_object_status=$?
           success=$(NEEDS="$(cat fixtures/guards/ci/needs-success.json)" python3 .github/workflows/gate_results.py 2>&1)
           success_status=$?
+          path_skipped=$(NEEDS="$(cat fixtures/guards/ci/needs-path-skipped.json)" python3 .github/workflows/gate_results.py 2>&1)
+          path_skipped_status=$?
           set -e
           printf '%s\n' "$failure"
           printf '%s\n' "$skipped"
@@ -1121,6 +1229,7 @@ jobs:
           printf '%s\n' "$non_object"
           printf '%s\n' "$entry_non_object"
           printf '%s\n' "$success"
+          printf '%s\n' "$path_skipped"
           if [ "$failure_status" -eq 0 ]; then
             echo "failure result was accepted"
             exit 1
@@ -1163,6 +1272,10 @@ jobs:
           printf '%s\n' "$entry_non_object" | grep -q 'not-object'
           if [ "$success_status" -ne 0 ]; then
             echo "all-success needs was rejected"
+            exit 1
+          fi
+          if [ "$path_skipped_status" -ne 0 ]; then
+            echo "path-filtered skip was rejected"
             exit 1
           fi
       - name: fail unless every needed job succeeded
