@@ -20,6 +20,7 @@ pub struct TsmomSlow {
     cursor: Cursor,
     ring: Ring,
     held: Target,
+    accept: u64,
 }
 
 impl TsmomSlow {
@@ -47,6 +48,7 @@ impl TsmomSlow {
             cursor: Cursor::new(interval),
             ring: Ring::new(cap),
             held: Target::FLAT,
+            accept: 0,
         })
     }
 
@@ -81,8 +83,11 @@ impl TsmomSlow {
         };
         if passes_deadband(current, next.ticks()) {
             self.held = next;
+            self.accept = self.accept.checked_add(1).ok_or(StrategyError::Overflow)?;
         }
-        Ok(Some(emitted(view.value(), decision_us, self.held)))
+        let mut output = emitted(view.value(), decision_us, self.held);
+        output.accept = self.accept;
+        Ok(Some(output))
     }
 }
 

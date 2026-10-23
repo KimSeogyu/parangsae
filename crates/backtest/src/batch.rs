@@ -558,10 +558,53 @@ pub fn run_batch<R: TargetRunner>(
     costs: &Costs,
     runner: &mut R,
 ) -> Result<Vec<ResultRow>, BatchError> {
+    run_recorded(
+        specs,
+        pins,
+        trials_path,
+        Recorded::Results(results_path),
+        costs,
+        runner,
+    )
+}
+
+/// Ledger plus one digest line per config. The line has no performance numbers.
+pub(crate) fn run_batch_digest<R: TargetRunner>(
+    specs: &[TrialSpec],
+    pins: &SweepPins,
+    trials_path: &Path,
+    digest_path: &Path,
+    costs: &Costs,
+    runner: &mut R,
+) -> Result<Vec<ResultRow>, BatchError> {
+    run_recorded(
+        specs,
+        pins,
+        trials_path,
+        Recorded::Digest(digest_path),
+        costs,
+        runner,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum Recorded<'a> {
+    Results(&'a Path),
+    Digest(&'a Path),
+}
+
+fn run_recorded<R: TargetRunner>(
+    specs: &[TrialSpec],
+    pins: &SweepPins,
+    trials_path: &Path,
+    recorded: Recorded<'_>,
+    costs: &Costs,
+    runner: &mut R,
+) -> Result<Vec<ResultRow>, BatchError> {
     let log = TrialLog::new(trials_path);
     let mut rows = Vec::with_capacity(specs.len());
     for spec in specs {
-        rows.push(drive(spec, pins, &log, results_path, costs, runner)?);
+        rows.push(drive(spec, pins, &log, recorded, costs, runner)?);
     }
     for spec in specs {
         if let Some(reason) = gate(spec) {
@@ -575,7 +618,7 @@ fn drive<R: TargetRunner>(
     spec: &TrialSpec,
     pins: &SweepPins,
     log: &TrialLog,
-    results_path: &Path,
+    recorded: Recorded<'_>,
     costs: &Costs,
     runner: &mut R,
 ) -> Result<ResultRow, BatchError> {
@@ -599,7 +642,7 @@ fn drive<R: TargetRunner>(
     if let Some(reason) = gate(spec) {
         log.abort(&spec.run_id, reason).map_err(map_trial)?;
         let row = aborted_row(spec, &id, reason, slippage_bps);
-        write_row(results_path, spec, &row, pins.pinned_root(), None)?;
+        record(recorded, spec, &row, pins.pinned_root(), None)?;
         return Ok(row);
     }
     let computed = panic::catch_unwind(AssertUnwindSafe(|| runner.run_targets(costs, &spec.run)));
@@ -624,8 +667,8 @@ fn drive<R: TargetRunner>(
                 n_refused_fills: Some(metrics.n_refused_fills),
                 n_dropped_entries: Some(metrics.n_dropped_entries),
             };
-            write_row(
-                results_path,
+            record(
+                recorded,
                 spec,
                 &row,
                 pins.pinned_root(),
@@ -637,13 +680,13 @@ fn drive<R: TargetRunner>(
             let reason = err.to_string();
             log.abort(&spec.run_id, &reason).map_err(map_trial)?;
             let row = aborted_row(spec, &id, &reason, slippage_bps);
-            write_row(results_path, spec, &row, pins.pinned_root(), None)?;
+            record(recorded, spec, &row, pins.pinned_root(), None)?;
             Ok(row)
         }
         Err(payload) => {
             let _ = log.abort(&spec.run_id, "panic");
             let row = aborted_row(spec, &id, "panic", slippage_bps);
-            let _ = write_row(results_path, spec, &row, pins.pinned_root(), None);
+            let _ = record(recorded, spec, &row, pins.pinned_root(), None);
             panic::resume_unwind(payload);
         }
     }
@@ -743,6 +786,36 @@ struct NetJson {
     bps_5: i64,
     #[serde(rename = "6")]
     bps_6: i64,
+}
+
+fn record(
+    recorded: Recorded<'_>,
+    spec: &TrialSpec,
+    row: &ResultRow,
+    pinned_root: &str,
+    metrics_digest: Option<&str>,
+) -> Result<(), BatchError> {
+    match recorded {
+        Recorded::Results(path) => write_row(path, spec, row, pinned_root, metrics_digest),
+        Recorded::Digest(path) => write_digest(path, spec, row, metrics_digest),
+    }
+}
+
+fn write_digest(
+    path: &Path,
+    spec: &TrialSpec,
+    row: &ResultRow,
+    metrics_digest: Option<&str>,
+) -> Result<(), BatchError> {
+    let value = serde_json::json!({
+        "run_id": row.run_id,
+        "config_id": spec.config_id,
+        "status": row.status,
+        "reason": row.reason,
+        "metrics_digest": metrics_digest,
+    });
+    let line = serde_json::to_string(&value).map_err(|err| BatchError::Append(err.to_string()))?;
+    append_fsync(path, &line).map_err(map_trial)
 }
 
 fn write_row(

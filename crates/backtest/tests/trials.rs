@@ -747,6 +747,7 @@ impl TargetSignal for Repeat {
             bar_close_time_us: hour.close_time(),
             interval: hour.interval(),
             decision,
+            accept: 0,
         })
     }
 }

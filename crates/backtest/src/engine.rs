@@ -43,7 +43,7 @@ pub fn run<S: Strategy>(
     let mut fills = Vec::new();
     let mut funding = Vec::new();
     let mut equity_curve = Vec::with_capacity(window.len());
-    let mut pending: Option<MarketOrder> = None;
+    let mut pending: Option<HeldOrder> = None;
     let mut funding_i = 0usize;
     let mut ruined: Option<UtcMicros> = None;
     let mut frozen: Option<Cash> = None;
@@ -64,22 +64,15 @@ pub fn run<S: Strategy>(
                 window,
                 index,
             )?;
-            if let Some(order) = pending.take() {
-                if bar.count == 0 {
-                    pending = Some(order);
-                    refused_fills += 1;
-                } else {
-                    execute(
-                        &mut ledger,
-                        &mut book,
-                        &mut fills,
-                        order,
-                        bar.open,
-                        costs,
-                        bar.open_time,
-                    )?;
-                }
-            }
+            settle_pending(
+                &mut pending,
+                &mut refused_fills,
+                &mut ledger,
+                &mut book,
+                &mut fills,
+                bar,
+                costs,
+            )?;
         }
 
         let mark = resolve_mark(&tape.marks, bar.open_time, &cfg.mark_gaps)?;
@@ -110,7 +103,7 @@ pub fn run<S: Strategy>(
         let view = BarView::new(&window[..=index], bar.available);
         match strategy.on_bar(view) {
             Some(_) if index + 1 == window.len() => dropped_orders += 1,
-            Some(order) => pending = Some(order),
+            Some(order) => pending = Some(HeldOrder::new(order)),
             None => {}
         }
     }
@@ -168,11 +161,12 @@ where
 /// One signal's per-bar targets.
 ///
 /// A target is sized once, from equity marked at the decision close, and that
-/// quantity is held until the emitted target ticks change. The decision close
-/// stands in for the fill price. The fill itself is the next 1m open whose
-/// `count` is greater than zero. Each `count = 0` minute that holds an order
-/// increments `n_refused_fills`. The open of 2025-09-30 23:59 UTC force-flats
-/// an open position so the final exit pays costs.
+/// quantity is held until the emitted target ticks change or `SignalOutput::accept`
+/// changes. The decision close stands in for the fill price. The fill itself is
+/// the next 1m open whose `count` is greater than zero. One order that waits
+/// through several `count = 0` minutes increments `n_refused_fills` once. The
+/// force-flat is the last minute at or before 2025-09-30 23:59 UTC with
+/// `count > 0`, so a zero-count 23:59 does not leave the position open.
 pub fn run_targets<S: TargetSignal>(
     tape: &Tape,
     signal: &mut S,
@@ -212,20 +206,20 @@ pub fn run_targets<S: TargetSignal>(
                 .map(|bar| bar.open_time)
         })
         .collect();
-    let end_open = sample_end_open();
+    let end_open = last_tradable_open(window);
 
     let mut ledger = Ledger::new(cfg.initial_cash);
     let mut book = Book::default();
     let mut fills = Vec::new();
     let mut funding = Vec::new();
     let mut equity_curve = Vec::with_capacity(window.len());
-    let mut pending: Option<MarketOrder> = None;
+    let mut pending: Option<HeldOrder> = None;
     let mut funding_i = 0usize;
     let mut ruined: Option<UtcMicros> = None;
     let mut frozen: Option<Cash> = None;
     let mut dropped_orders = 0u64;
     let mut refused_fills = 0u64;
-    let mut sized: Option<(i64, i64)> = None;
+    let mut sized: Option<(i64, i64, u64)> = None;
     let mut seen = false;
     let mut warmup_bars = 0u64;
     let mut flat_funding_stale = 0u64;
@@ -246,25 +240,18 @@ pub fn run_targets<S: TargetSignal>(
                 window,
                 index,
             )?;
-            if bar.open_time == end_open || forced_opens.contains(&bar.open_time) {
-                pending = flatten_order(&ledger)?;
+            if end_open == Some(bar.open_time) || forced_opens.contains(&bar.open_time) {
+                pending = flatten_order(&ledger)?.map(HeldOrder::new);
             }
-            if let Some(order) = pending.take() {
-                if bar.count == 0 {
-                    pending = Some(order);
-                    refused_fills += 1;
-                } else {
-                    execute(
-                        &mut ledger,
-                        &mut book,
-                        &mut fills,
-                        order,
-                        bar.open,
-                        costs,
-                        bar.open_time,
-                    )?;
-                }
-            }
+            settle_pending(
+                &mut pending,
+                &mut refused_fills,
+                &mut ledger,
+                &mut book,
+                &mut fills,
+                bar,
+                costs,
+            )?;
         }
 
         let mark = resolve_mark(&tape.marks, bar.open_time, &cfg.mark_gaps)?;
@@ -340,6 +327,7 @@ pub fn run_targets<S: TargetSignal>(
                     &mut sized,
                     inside || matches!(output.decision, Decision::Flat(_)),
                     output.decision.target_ticks(),
+                    output.accept,
                     sizing_equity.0,
                     decision_close.ticks(),
                     cfg.lot_ticks,
@@ -357,7 +345,7 @@ pub fn run_targets<S: TargetSignal>(
                     let qty = Qty::from_ticks(qty_ticks)
                         .map_err(|_| EngineError::Sim(SimError::Negative))?;
                     if window[index + 1..].iter().any(|next| next.count > 0) {
-                        pending = Some(MarketOrder { side, qty });
+                        pending = Some(HeldOrder::new(MarketOrder { side, qty }));
                     } else {
                         dropped_orders += 1;
                     }
@@ -391,12 +379,13 @@ pub fn run_targets<S: TargetSignal>(
     )
 }
 
-/// Lots held from the last sizing. An unchanged target does not resize.
+/// Lots held from the last sizing. The same target and the same `accept` do not resize.
 /// A flat decision or a forced-flat window clears the hold so the next target sizes again.
 fn held_lots(
-    sized: &mut Option<(i64, i64)>,
+    sized: &mut Option<(i64, i64, u64)>,
     suppress: bool,
     target_ticks: i64,
+    accept: u64,
     equity_ticks: i64,
     mark_ticks: i64,
     lot_ticks: i64,
@@ -405,14 +394,77 @@ fn held_lots(
         *sized = None;
         return Ok(0);
     }
-    if let Some((held_ticks, held_lots)) = *sized {
-        if held_ticks == target_ticks {
+    if let Some((held_ticks, held_lots, held_accept)) = *sized {
+        if held_ticks == target_ticks && held_accept == accept {
             return Ok(held_lots);
         }
     }
     let lots = target_qty(target_ticks, equity_ticks, mark_ticks, lot_ticks)?;
-    *sized = Some((target_ticks, lots));
+    *sized = Some((target_ticks, lots, accept));
     Ok(lots)
+}
+
+struct HeldOrder {
+    order: MarketOrder,
+    refused: bool,
+}
+
+impl HeldOrder {
+    fn new(order: MarketOrder) -> Self {
+        Self {
+            order,
+            refused: false,
+        }
+    }
+}
+
+fn settle_pending(
+    pending: &mut Option<HeldOrder>,
+    refused_fills: &mut u64,
+    ledger: &mut Ledger,
+    book: &mut Book,
+    fills: &mut Vec<Fill>,
+    bar: &Bar,
+    costs: &Costs,
+) -> Result<(), EngineError> {
+    let Some(mut held) = pending.take() else {
+        return Ok(());
+    };
+    if bar.count == 0 {
+        if !held.refused {
+            *refused_fills = refused_fills
+                .checked_add(1)
+                .ok_or(EngineError::Sim(SimError::Overflow))?;
+            held.refused = true;
+        }
+        *pending = Some(held);
+        return Ok(());
+    }
+    execute(
+        ledger,
+        book,
+        fills,
+        held.order,
+        bar.open,
+        costs,
+        bar.open_time,
+    )
+}
+
+/// Last open at or before 2025-09-30 23:59 UTC whose `count` can fill.
+///
+/// A window that never reaches that minute is left alone. A `count = 0` bar
+/// at 23:59 walks back to the previous open that can fill.
+fn last_tradable_open(window: &[Bar]) -> Option<UtcMicros> {
+    let limit = sample_end_open();
+    if !window.iter().any(|bar| bar.open_time == limit) {
+        return None;
+    }
+    window
+        .iter()
+        .rev()
+        .find(|bar| bar.open_time <= limit && bar.count > 0)
+        .map(|bar| bar.open_time)
 }
 
 fn decision_stamps(decision: UtcMicros) -> Timestamps {

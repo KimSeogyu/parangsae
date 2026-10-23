@@ -11,9 +11,9 @@
 //! `--slippage-bps` is required and must equal `slippage_bps` in the inputs.
 //! Fees stay the engine grid 2/4/5/6 bps. The logged headline is the 5 bps run.
 //! The ledger defaults to `research/trials.jsonl` (`--ledger` overrides it).
-//! `{out}/results.jsonl` is one row per config. `{out}/stress.jsonl` is the
-//! 5 bps fee plus 5 bps slippage case and is not a trial. Returns are not
-//! printed.
+//! `{out}/digest.jsonl` is one identity line per config: `run_id`, `config_id`,
+//! `status`, `reason`, and `metrics_digest`. Full-window returns are not written.
+//! Returns are not printed.
 
 #![deny(clippy::float_arithmetic)]
 
@@ -37,7 +37,7 @@ fn run() -> Result<(), String> {
     let request = args()?;
     let _rows = run_sweep(&request)?;
     println!("ledger={}", request.ledger.display());
-    println!("out={}", request.out_dir.display());
+    println!("digest={}", request.out_dir.join("digest.jsonl").display());
     Ok(())
 }
 

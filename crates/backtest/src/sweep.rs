@@ -3,7 +3,8 @@
 //! [`FoldRunner::run_config_window`] is the per-config entry a fold runner can
 //! call with its own `(start_us, end_us)`. This driver calls it once per config
 //! on the config's full window. It writes the ledger and the out directory.
-//! It does not print per-config returns.
+//! It writes the trial ledger and `{out}/digest.jsonl`. It does not write
+//! full-window performance numbers. Those come from a walk-forward run.
 //!
 //! Sizing uses equity marked at the decision close. That close stands in for
 //! the next 1m open, which is the fill. A hold that `arm` refuses, because it
@@ -28,13 +29,12 @@ use parangsae_strategies::EARLIEST_US;
 use serde::Deserialize;
 
 use crate::batch::{
-    metrics_from_grid, run_batch, with_headline, FlatBars, SweepPins, TargetRunner, TrialMetrics,
-    TrialSpec, HOLDOUT_START_US,
+    metrics_from_grid, run_batch_digest, with_headline, FlatBars, SweepPins, TargetRunner,
+    TrialMetrics, TrialSpec, HOLDOUT_START_US,
 };
 use crate::engine::{run_targets, MarkAbsence, RunConfig, FEE_GRID_BPS};
 use crate::signal::{BookState, FundingObs, TargetSignal};
 use crate::tape::{planned_paths, Overlay, TapeConfig};
-use crate::trial_log::append_fsync;
 use crate::{Report, ResultRow, Tape, UtcDate};
 
 const LOT_TICKS: i64 = 100_000;
@@ -196,8 +196,10 @@ impl TargetRunner for ConfigRunner<'_> {
     }
 }
 
-/// Run every config. The ledger defaults to the path in [`SweepRequest::ledger`].
-/// `{out}/results.jsonl` and `{out}/stress.jsonl` are the other writes.
+/// Run every config. Writes the ledger and `{out}/digest.jsonl`.
+///
+/// The digest line is the trial identity and `metrics_digest`. It has no
+/// return, Sharpe, or stress figures.
 pub fn run_sweep(request: &SweepRequest) -> Result<Vec<ResultRow>, String> {
     let loaded = load_configs(&request.inputs)?;
     if loaded.slippage_bps != request.slippage_bps {
@@ -232,15 +234,10 @@ pub fn run_sweep(request: &SweepRequest) -> Result<Vec<ResultRow>, String> {
                 .map_err(|err| format!("create {}: {err}", parent.display()))?;
         }
     }
-    let results = request.out_dir.join("results.jsonl");
-    let stress_path = request.out_dir.join("stress.jsonl");
+    let digest_path = request.out_dir.join("digest.jsonl");
     let costs = Costs {
         taker_fee: FeeBps(5),
         slippage: SlippageBps(request.slippage_bps),
-    };
-    let stress_costs = Costs {
-        taker_fee: FeeBps(5),
-        slippage: SlippageBps(5),
     };
     let mut seen = BTreeSet::new();
     let mut rows = Vec::with_capacity(loaded.configs.len());
@@ -255,24 +252,15 @@ pub fn run_sweep(request: &SweepRequest) -> Result<Vec<ResultRow>, String> {
             family: row.family.clone(),
             params: row.params.clone(),
         };
-        let batch = run_batch(
+        let batch = run_batch_digest(
             std::slice::from_ref(&spec),
             &pins,
             &request.ledger,
-            &results,
+            &digest_path,
             &costs,
             &mut runner,
         )
         .map_err(|err| err.to_string())?;
-        if batch.iter().any(|row| row.status == "finished") {
-            let config = WindowConfig {
-                family: row.family.clone(),
-                params: row.params.clone(),
-                initial_cash: row.initial_cash,
-            };
-            let report = fold.run_once(&config, row.start_us, row.end_us, &stress_costs)?;
-            append_stress(&stress_path, &row.config_id, &report)?;
-        }
         rows.extend(batch);
     }
     Ok(rows)
@@ -426,18 +414,6 @@ pub(crate) fn next_attempt(ledger: &Path, config_id: &str) -> Result<u64, String
             .checked_add(1)
             .ok_or_else(|| format!("attempt for {config_id} does not fit")),
     }
-}
-
-fn append_stress(path: &Path, config_id: &str, report: &Report) -> Result<(), String> {
-    let line = serde_json::json!({
-        "config_id": config_id,
-        "taker_fee_bps": report.costs.taker_fee.0,
-        "slippage_bps": report.costs.slippage.0,
-        "total_return_ticks": report.metrics.total_return.ticks(),
-        "n_refused_fills": report.n_refused_fills,
-    });
-    let text = serde_json::to_string(&line).map_err(|err| err.to_string())?;
-    append_fsync(path, &text).map_err(|err| err.to_string())
 }
 
 fn research_config(
@@ -603,7 +579,8 @@ fn bar_observation(bar: ResampledBar) -> Observation<ResampledBar> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{canonical_config_id, Bar, RunConfig};
+    use crate::batch::run_batch;
+    use crate::{canonical_config_id, Bar, FundingStamp, RunConfig};
     use parangsae_core::{Price, Qty, UtcMicros};
     use parangsae_sim::{Cash, FeeBps, SlippageBps};
 
@@ -835,7 +812,7 @@ mod tests {
     }
 
     #[test]
-    fn one_config_writes_a_finished_trial_and_a_stress_line() {
+    fn one_config_writes_a_finished_trial_and_a_digest() {
         let start = 1_704_067_200_000_000 + 3_600_000_000;
         let mut bars = Vec::new();
         for index in 0..240 {
@@ -913,11 +890,12 @@ mod tests {
             family: "S02".to_owned(),
             params,
         };
-        let rows = run_batch(
+        let digest_path = dir.path().join("digest.jsonl");
+        let rows = run_batch_digest(
             &[spec],
             &pins,
             &dir.path().join("trials.jsonl"),
-            &dir.path().join("results.jsonl"),
+            &digest_path,
             &costs,
             &mut runner,
         )
@@ -931,32 +909,15 @@ mod tests {
         let trials = fs::read_to_string(dir.path().join("trials.jsonl")).unwrap();
         assert!(trials.contains("\"kind\":\"RunStarted\""));
         assert!(trials.contains("\"kind\":\"RunFinished\""));
+        assert!(trials.contains("\"metrics_digest\""));
         assert_eq!(trials.lines().count(), 2);
-        let stress = fold
-            .run_once(
-                &config,
-                bars[0].open_time.micros(),
-                bars.last().unwrap().open_time.micros() + 60_000_000,
-                &Costs {
-                    taker_fee: FeeBps(5),
-                    slippage: SlippageBps(5),
-                },
-            )
-            .unwrap();
-        append_stress(
-            dir.path().join("stress.jsonl").as_path(),
-            &config_id,
-            &stress,
-        )
-        .unwrap();
-        let stress_text = fs::read_to_string(dir.path().join("stress.jsonl")).unwrap();
-        assert!(stress_text.contains("\"taker_fee_bps\":5"));
-        assert!(stress_text.contains("\"slippage_bps\":5"));
-        assert!(!trials.contains("\"slippage_bps\":5"));
-        let results = fs::read_to_string(dir.path().join("results.jsonl")).unwrap();
-        assert!(results.contains("\"slippage_bps\":2"));
-        assert!(!results.contains("\"slippage_bps\":5"));
-        assert!(results.contains("\"n_dropped_entries\":0"));
+        let digest = fs::read_to_string(&digest_path).unwrap();
+        assert!(digest.contains(&config_id), "{digest}");
+        assert!(digest.contains("\"metrics_digest\""), "{digest}");
+        assert!(!digest.contains("total_return"), "{digest}");
+        assert!(!digest.contains("sharpe"), "{digest}");
+        assert!(!dir.path().join("results.jsonl").exists());
+        assert!(!dir.path().join("stress.jsonl").exists());
     }
 
     #[test]
@@ -1037,5 +998,98 @@ mod tests {
         assert_eq!(rows[0].n_dropped_entries, Some(1));
         let results = fs::read_to_string(&results_path).unwrap();
         assert!(results.contains("\"n_dropped_entries\":1"), "{results}");
+    }
+
+    #[test]
+    fn a_clipped_short_rebalances_once_after_a_twelve_percent_rally() {
+        let start = 1_704_067_200_000_000i64;
+        let minute = 60_000_000i64;
+        // Hours 0-23 are 100. The short is signaled on the first 80 close and
+        // filled on the next 80 open, then marked through 90 (+12.5%).
+        let hours = 28usize;
+        let mut bars = Vec::with_capacity(hours * 60);
+        for index in 0..hours * 60 {
+            let hour = index / 60;
+            let usdt = if hour < 24 {
+                100
+            } else if hour < 26 {
+                80
+            } else {
+                90
+            };
+            let open_us = start + i64::try_from(index).unwrap() * minute;
+            let price = Price::from_ticks(usdt * 100_000_000).unwrap();
+            bars.push(Bar {
+                open_time: UtcMicros::from_micros(open_us),
+                close_time: UtcMicros::from_micros(open_us + minute - 1_000),
+                available: UtcMicros::from_micros(open_us + minute),
+                open: price,
+                high: price,
+                low: price,
+                close: price,
+                volume: Qty::from_ticks(100_000_000).unwrap(),
+                count: 1,
+            });
+        }
+        let mut funding = Vec::new();
+        let last_open = bars.last().unwrap().open_time.micros();
+        let mut slot = start;
+        while slot <= last_open {
+            funding.push(FundingStamp {
+                funding_time: UtcMicros::from_micros(slot),
+                available: UtcMicros::from_micros(slot + 60_000_000),
+                rate: parangsae_core::Ratio::from_ticks(0),
+                interval_hours: 8,
+            });
+            slot += 8 * 3_600_000_000;
+        }
+        let tape = Tape::from_parts(bars.clone(), bars.clone(), funding);
+        let mut params = BTreeMap::new();
+        params.insert("c".to_owned(), 100_000_000);
+        params.insert("interval".to_owned(), 60);
+        params.insert("n".to_owned(), 24);
+        let fold = FoldRunner::new(&tape);
+        let config = WindowConfig {
+            family: "S01".to_owned(),
+            params,
+            initial_cash: 100_000_000_000_000,
+        };
+        let report = fold
+            .run_once(
+                &config,
+                start,
+                start + i64::try_from(hours).unwrap() * 3_600_000_000,
+                &Costs {
+                    taker_fee: FeeBps(0),
+                    slippage: SlippageBps(0),
+                },
+            )
+            .unwrap();
+        let sells = report
+            .fills
+            .iter()
+            .filter(|fill| fill.side == parangsae_core::Side::Sell)
+            .count();
+        let buys = report
+            .fills
+            .iter()
+            .filter(|fill| fill.side == parangsae_core::Side::Buy)
+            .count();
+        assert_eq!(sells, 1, "{:?}", report.fills);
+        assert_eq!(buys, 1, "{:?}", report.fills);
+        assert_eq!(report.fills.len(), 2, "{:?}", report.fills);
+        let sell = report
+            .fills
+            .iter()
+            .find(|fill| fill.side == parangsae_core::Side::Sell)
+            .unwrap();
+        let buy = report
+            .fills
+            .iter()
+            .find(|fill| fill.side == parangsae_core::Side::Buy)
+            .unwrap();
+        assert_eq!(sell.price.ticks(), 80 * 100_000_000);
+        assert_eq!(buy.price.ticks(), 90 * 100_000_000);
+        assert!(buy.ts.micros() > sell.ts.micros());
     }
 }

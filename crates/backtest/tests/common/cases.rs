@@ -58,6 +58,7 @@ impl TargetSignal for Script {
             bar_close_time_us: hour.close_time(),
             interval: hour.interval(),
             decision,
+            accept: 0,
         })
     }
 }
@@ -78,7 +79,7 @@ pub fn slot_missing() -> Decision {
     Decision::Flat(FlatReason::FundingSlotMissing)
 }
 
-fn hours(start: i64, count: usize, usdt: i64) -> Vec<parangsae_core::Bar> {
+pub fn hours(start: i64, count: usize, usdt: i64) -> Vec<parangsae_core::Bar> {
     series(start, &vec![(usdt, usdt); count * 60])
 }
 

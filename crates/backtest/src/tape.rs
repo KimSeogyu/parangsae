@@ -297,11 +297,7 @@ fn read_klines(
     let volume = read_i64(&batches, "volume_ticks")?;
     let schema = read_u32(&batches, "schema_version")?;
     let rows = symbols.len();
-    let count = match read_i64(&batches, "count") {
-        Ok(values) => values,
-        Err(TapeError::MissingColumn { .. }) => vec![1; rows],
-        Err(err) => return Err(err),
-    };
+    let count = read_i64(&batches, "count")?;
     same_len("interval_us", interval.len(), rows)?;
     same_len("open_time_us", open_time.len(), rows)?;
     same_len("close_time_us", close_time.len(), rows)?;

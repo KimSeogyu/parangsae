@@ -221,6 +221,7 @@ pub fn emitted(bar: &ResampledBar, decision_us: i64, target: Target) -> SignalOu
         bar_close_time_us: bar.close_time(),
         interval: bar.interval(),
         decision: Decision::Target(target),
+        accept: 0,
     }
 }
 

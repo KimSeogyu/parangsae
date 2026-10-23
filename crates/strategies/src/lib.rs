@@ -18,8 +18,9 @@
 //!   over equity at the decision close: `position_lots * mark_ticks /
 //!   equity_ticks`, toward zero. The deadband is `|w_t - w_cur| >= 0.25`
 //!   (`25_000_000` ticks). Inside the band the last emitted target is repeated
-//!   so the engine does not trade. A replay with no book uses that last
-//!   emitted target as `w_cur`.
+//!   so the engine does not trade. An accepted rebalance increments `accept`
+//!   even when the clipped target ticks stay the same, and the engine resizes.
+//!   A replay with no book uses that last emitted target as `w_cur`.
 //! * **S01 scale.** `r_scale = (c / 1e8) · r0 · sqrt(n / n0)` with H1
 //!   `(r0, n0) = (0.05, 24)` and H4 `(0.10, 42)`, via `libm::sqrt`. `c` is the
 //!   config's `1e8` tick count.
