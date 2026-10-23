@@ -112,6 +112,12 @@ mod target_props {
         assert_eq!(Target::from_f64(f64::MIN_POSITIVE).unwrap().ticks(), 0);
         assert_eq!(Target::from_f64(f64::from_bits(1)).unwrap().ticks(), 0);
         assert_eq!(Target::from_f64(1.0).unwrap().ticks(), TARGET_SCALE);
+        assert_eq!(Target::from_ticks(25_000_000).unwrap().ticks(), 25_000_000);
+        assert_eq!(
+            Target::from_ticks(-25_000_000).unwrap().ticks(),
+            -25_000_000
+        );
+        assert!(Target::from_ticks(TARGET_SCALE + 1).is_err());
         assert_eq!(Target::from_f64(-1.0).unwrap().ticks(), -TARGET_SCALE);
         assert_eq!(Target::from_f64(0.999_999_999).unwrap().ticks(), 99_999_999);
         assert_eq!(Target::from_f64(-0.000_000_009).unwrap().ticks(), 0);

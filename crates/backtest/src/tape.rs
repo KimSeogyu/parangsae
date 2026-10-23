@@ -11,7 +11,7 @@ use parangsae_core::{Price, Qty, Ratio, Symbol, UtcMicros};
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use sha2::{Digest, Sha256};
 
-use crate::bar::{Bar, FundingStamp, Tape, ONE_MINUTE_US};
+use crate::bar::{Bar, FundingStamp, PremiumMinute, Tape, ONE_MINUTE_US};
 use crate::date::UtcDate;
 
 pub const FUNDING_SCHEMA_VERSION: u32 = 3;
@@ -25,6 +25,8 @@ pub struct TapeConfig {
     pub overlays: Vec<Overlay>,
     /// Hive root for `parquet/funding-rate`. Klines stay under the load root.
     pub funding_root: PathBuf,
+    /// Open `parquet/premium-index-kline` for H5. Other families leave this false.
+    pub include_premium: bool,
 }
 
 /// A resolution file. The sha is checked before any row is parsed.
@@ -46,6 +48,7 @@ pub struct AppliedOverlay {
 const UM_KLINE: &str = "um-kline";
 const MARK_KLINE: &str = "mark-price-kline";
 const FUNDING: &str = "funding-rate";
+const PREMIUM: &str = "premium-index-kline";
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TapeError {
@@ -147,6 +150,7 @@ impl Tape {
         let mut bars = Vec::new();
         let mut marks = Vec::new();
         let mut funding = Vec::new();
+        let mut premium = Vec::new();
         let mut day = start;
         loop {
             bars.extend(read_klines(
@@ -166,11 +170,19 @@ impl Tape {
                 symbol,
                 cfg.holdout_start,
             )?);
+            if cfg.include_premium {
+                premium.extend(read_premium(
+                    &part_path(root, PREMIUM, symbol, day),
+                    symbol,
+                    cfg.holdout_start,
+                )?);
+            }
             if day == end_inclusive {
                 break;
             }
             day = day.next();
         }
+        premium.sort_by_key(|row| (row.available, row.open_time));
         let mut overlays = Vec::with_capacity(cfg.overlays.len());
         for overlay in &cfg.overlays {
             overlays.push(apply_overlay(&mut bars, &mut marks, overlay, symbol)?);
@@ -179,6 +191,7 @@ impl Tape {
             bars,
             marks,
             funding,
+            premium,
             overlays,
         })
     }
@@ -218,6 +231,9 @@ pub fn planned_paths(
         paths.push(part_path(root, UM_KLINE, symbol, day));
         paths.push(part_path(root, MARK_KLINE, symbol, day));
         paths.push(part_path(&cfg.funding_root, FUNDING, symbol, day));
+        if cfg.include_premium {
+            paths.push(part_path(root, PREMIUM, symbol, day));
+        }
         if day == end_inclusive {
             break;
         }
@@ -343,6 +359,55 @@ fn read_klines(
         });
     }
     Ok(bars)
+}
+
+fn read_premium(
+    path: &Path,
+    symbol: &Symbol,
+    holdout: UtcMicros,
+) -> Result<Vec<PremiumMinute>, TapeError> {
+    let batches = read_batches(path)?;
+    let symbols = read_string(&batches, "symbol")?;
+    let interval = read_i64(&batches, "interval_us")?;
+    let open_time = read_i64(&batches, "open_time_us")?;
+    let available = read_i64(&batches, "available_ts_us")?;
+    let close = read_i64(&batches, "close_ticks")?;
+    let count = read_i64(&batches, "count")?;
+    let schema = read_u32(&batches, "schema_version")?;
+    let rows = symbols.len();
+    same_len("interval_us", interval.len(), rows)?;
+    same_len("open_time_us", open_time.len(), rows)?;
+    same_len("available_ts_us", available.len(), rows)?;
+    same_len("close_ticks", close.len(), rows)?;
+    same_len("count", count.len(), rows)?;
+    same_len("schema_version", schema.len(), rows)?;
+    let mut out = Vec::with_capacity(rows);
+    for index in 0..rows {
+        if symbols[index] != symbol.as_str() {
+            return Err(TapeError::SymbolMismatch {
+                got: symbols[index].clone(),
+            });
+        }
+        if interval[index] != ONE_MINUTE_US {
+            return Err(TapeError::Interval {
+                got: interval[index],
+            });
+        }
+        if schema[index] != 1 && schema[index] != 2 {
+            return Err(TapeError::UnknownSchema {
+                dataset: PREMIUM.to_owned(),
+                got: schema[index],
+            });
+        }
+        in_sample(open_time[index], holdout)?;
+        out.push(PremiumMinute {
+            open_time: UtcMicros::from_micros(open_time[index]),
+            close_ticks: close[index],
+            count: count[index],
+            available: UtcMicros::from_micros(available[index]),
+        });
+    }
+    Ok(out)
 }
 
 fn read_funding(

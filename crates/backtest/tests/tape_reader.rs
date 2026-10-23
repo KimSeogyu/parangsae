@@ -14,7 +14,9 @@ use parangsae_backtest::{
 };
 use parangsae_core::{Interval, Symbol, UtcMicros};
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
-use parquet_fix::{write_day, write_overlay, write_overlay_row, Day, OverlayRow, DAY, SYMBOL};
+use parquet_fix::{
+    write_day, write_overlay, write_overlay_row, write_premium, Day, OverlayRow, DAY, SYMBOL,
+};
 use sha2::{Digest, Sha256};
 
 fn symbol() -> Symbol {
@@ -26,6 +28,7 @@ fn load_cfg(root: &std::path::Path) -> TapeConfig {
         holdout_start: UtcDate::parse("2025-10-01").unwrap().start_us(),
         overlays: Vec::new(),
         funding_root: root.to_path_buf(),
+        include_premium: false,
     }
 }
 
@@ -98,6 +101,26 @@ fn tempdir_fixture_round_trips() {
     write_day(dir.path(), &Day::good()).unwrap();
     let tape = Tape::load(dir.path(), &symbol(), day(), day(), &load_cfg(dir.path())).unwrap();
     assert_three_bars(&tape);
+    assert!(tape.premium.is_empty());
+}
+
+#[test]
+fn premium_index_keeps_a_negative_close_and_a_zero_count() {
+    let dir = tempfile::tempdir().unwrap();
+    write_day(dir.path(), &Day::good()).unwrap();
+    write_premium(dir.path(), &[-50_000_000, 0], &[1, 0]).unwrap();
+    let mut cfg = load_cfg(dir.path());
+    cfg.include_premium = true;
+    let tape = Tape::load(dir.path(), &symbol(), day(), day(), &cfg).unwrap();
+    assert_eq!(tape.premium.len(), 2);
+    assert_eq!(tape.premium[0].close_ticks, -50_000_000);
+    assert_eq!(tape.premium[0].count, 1);
+    assert_eq!(
+        tape.premium[0].available.micros(),
+        tape.premium[0].open_time.micros() + 60_000_000
+    );
+    assert_eq!(tape.premium[1].close_ticks, 0);
+    assert_eq!(tape.premium[1].count, 0);
 }
 
 #[test]

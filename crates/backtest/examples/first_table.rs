@@ -57,6 +57,7 @@ fn run() -> Result<(), String> {
                 sha256: parse_sha(OVERLAY_SHA)?,
             }],
             funding_root: root.join("runs/funding-4db8a75"),
+            include_premium: false,
         },
     )
     .map_err(|err| err.to_string())?;

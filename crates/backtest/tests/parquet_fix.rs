@@ -346,6 +346,58 @@ fn write_funding(root: &Path, day: &Day, start: i64) -> std::io::Result<()> {
     )
 }
 
+pub fn write_premium(root: &Path, closes: &[i64], counts: &[i64]) -> std::io::Result<()> {
+    let date = UtcDate::parse(DAY).expect("fixture date");
+    let start = date.start_us().micros();
+    let n = closes.len();
+    let mut fields = Vec::new();
+    let mut columns: Vec<ArrayRef> = Vec::new();
+    push_utf8(&mut fields, &mut columns, "symbol", vec![SYMBOL; n], false);
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "interval_us",
+        vec![60_000_000; n],
+        false,
+    );
+    let open_time: Vec<i64> = (0..n)
+        .map(|index| start + index as i64 * 60_000_000)
+        .collect();
+    let available: Vec<i64> = open_time.iter().map(|open| open + 60_000_000).collect();
+    push_i64(&mut fields, &mut columns, "open_time_us", open_time, false);
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "close_time_us",
+        (0..n)
+            .map(|index| start + index as i64 * 60_000_000 + 60_000_000 - 1_000)
+            .collect(),
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "available_ts_us",
+        available,
+        false,
+    );
+    push_i64(
+        &mut fields,
+        &mut columns,
+        "close_ticks",
+        closes.to_vec(),
+        false,
+    );
+    push_i64(&mut fields, &mut columns, "count", counts.to_vec(), false);
+    push_u32(&mut fields, &mut columns, "schema_version", vec![1; n]);
+    write_batch(
+        &part(root, "premium-index-kline"),
+        &fields,
+        columns,
+        Some("100000000"),
+    )
+}
+
 fn part(root: &Path, dataset: &str) -> PathBuf {
     root.join("parquet")
         .join(dataset)

@@ -64,9 +64,16 @@
 
 #![forbid(unsafe_code)]
 
+mod aux;
 mod donchian;
+mod ensemble;
+mod er_gate;
 mod error;
 mod fade;
+mod funding_fade;
+mod premium;
+mod probe;
+mod quantile;
 mod season;
 mod series;
 mod squeeze;
@@ -78,11 +85,18 @@ use std::collections::BTreeMap;
 use parangsae_core::{BarInterval, Observation, ResampledBar};
 use parangsae_signals::SignalOutput;
 
+pub use aux::{FundingPrint, PremiumMinute};
 pub use error::StrategyError;
+pub use probe::truncation_probe;
 pub use series::{DecisionBook, EARLIEST_US};
 
 enum Inner {
     S01(tsmom::TsmomSlow),
+    H1(tsmom::TsmomSlow),
+    H2(ensemble::Ensemble),
+    H3(er_gate::ErGate),
+    H4(funding_fade::FundingFade),
+    H5(premium::PremiumReversal),
     S02(donchian::Donchian),
     S03(squeeze::Squeeze),
     S05(fade::Fade),
@@ -102,6 +116,11 @@ impl Strategy {
     ) -> Result<Self, StrategyError> {
         let inner = match family {
             "S01" => Inner::S01(tsmom::TsmomSlow::from_params(params)?),
+            "H1" => Inner::H1(tsmom::TsmomSlow::h1(params)?),
+            "H2" => Inner::H2(ensemble::Ensemble::from_params(params)?),
+            "H3" => Inner::H3(er_gate::ErGate::from_params(params)?),
+            "H4" => Inner::H4(funding_fade::FundingFade::from_params(params)?),
+            "H5" => Inner::H5(premium::PremiumReversal::from_params(params)?),
             "S02" => Inner::S02(donchian::Donchian::from_params(params)?),
             "S03" => Inner::S03(squeeze::Squeeze::from_params(params)?),
             "S05" => Inner::S05(fade::Fade::from_params(params)?),
@@ -114,7 +133,10 @@ impl Strategy {
     /// Holds `Hold::arm` refused because they would end after 2025-09-30 23:59 UTC.
     pub fn dropped_entries(&self) -> u64 {
         match &self.inner {
-            Inner::S01(_) | Inner::S06(_) => 0,
+            Inner::S01(_) | Inner::H1(_) | Inner::H2(_) | Inner::S06(_) => 0,
+            Inner::H3(strategy) => strategy.dropped_entries(),
+            Inner::H4(strategy) => strategy.dropped_entries(),
+            Inner::H5(strategy) => strategy.dropped_entries(),
             Inner::S02(strategy) => strategy.dropped_entries(),
             Inner::S03(strategy) => strategy.dropped_entries(),
             Inner::S05(strategy) => strategy.dropped_entries(),
@@ -123,9 +145,42 @@ impl Strategy {
 
     pub fn interval(&self) -> BarInterval {
         match self.inner {
-            Inner::S01(ref strategy) => strategy.interval(),
+            Inner::S01(ref strategy) | Inner::H1(ref strategy) => strategy.interval(),
+            Inner::H2(_) | Inner::H3(_) | Inner::H4(_) | Inner::H5(_) => BarInterval::H1,
             Inner::S02(_) | Inner::S03(_) | Inner::S05(_) => BarInterval::H1,
             Inner::S06(_) => BarInterval::H4,
+        }
+    }
+
+    /// Funding rows already visible at the decision the caller is about to push.
+    pub fn ingest_funding(&mut self, rows: &[FundingPrint]) -> Result<(), StrategyError> {
+        match &mut self.inner {
+            Inner::H4(strategy) => strategy.ingest_funding(rows),
+            Inner::S01(_)
+            | Inner::H1(_)
+            | Inner::H2(_)
+            | Inner::H3(_)
+            | Inner::H5(_)
+            | Inner::S02(_)
+            | Inner::S03(_)
+            | Inner::S05(_)
+            | Inner::S06(_) => Ok(()),
+        }
+    }
+
+    /// Premium minutes already visible at the decision the caller is about to push.
+    pub fn ingest_premium(&mut self, rows: &[PremiumMinute]) -> Result<(), StrategyError> {
+        match &mut self.inner {
+            Inner::H5(strategy) => strategy.ingest_premium(rows),
+            Inner::S01(_)
+            | Inner::H1(_)
+            | Inner::H2(_)
+            | Inner::H3(_)
+            | Inner::H4(_)
+            | Inner::S02(_)
+            | Inner::S03(_)
+            | Inner::S05(_)
+            | Inner::S06(_) => Ok(()),
         }
     }
 
@@ -135,7 +190,11 @@ impl Strategy {
         book: Option<DecisionBook>,
     ) -> Result<Option<SignalOutput>, StrategyError> {
         match &mut self.inner {
-            Inner::S01(strategy) => strategy.push(row, book),
+            Inner::S01(strategy) | Inner::H1(strategy) => strategy.push(row, book),
+            Inner::H2(strategy) => strategy.push(row, book),
+            Inner::H3(strategy) => strategy.push(row, book),
+            Inner::H4(strategy) => strategy.push(row, book),
+            Inner::H5(strategy) => strategy.push(row, book),
             Inner::S02(strategy) => strategy.push(row, book),
             Inner::S03(strategy) => strategy.push(row, book),
             Inner::S05(strategy) => strategy.push(row, book),
@@ -146,7 +205,11 @@ impl Strategy {
     /// Update lookback only. Holds and the S01 held target stay as they were.
     pub fn observe(&mut self, row: &Observation<ResampledBar>) -> Result<(), StrategyError> {
         match &mut self.inner {
-            Inner::S01(strategy) => strategy.observe(row),
+            Inner::S01(strategy) | Inner::H1(strategy) => strategy.observe(row),
+            Inner::H2(strategy) => strategy.observe(row),
+            Inner::H3(strategy) => strategy.observe(row),
+            Inner::H4(strategy) => strategy.observe(row),
+            Inner::H5(strategy) => strategy.observe(row),
             Inner::S02(strategy) => strategy.observe(row),
             Inner::S03(strategy) => strategy.observe(row),
             Inner::S05(strategy) => strategy.observe(row),
