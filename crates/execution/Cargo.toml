@@ -6,6 +6,9 @@ publish.workspace = true
 rust-version.workspace = true
 description = "Paper-only order lifecycle. No order transport."
 
+[lints.clippy]
+float_arithmetic = "deny"
+
 [dependencies]
 parangsae-core = { path = "../core" }
 

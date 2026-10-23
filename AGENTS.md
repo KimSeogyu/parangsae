@@ -53,14 +53,24 @@ There is no readiness verdict. Research code does not read live fills, balances,
 | --- | --- |
 | No live submit | `crates/execution` has no socket or HTTP client; `tests/no_live_client.rs`; `.cursor/rules/live-gate.mdc` |
 | No lookahead in signals | `Causal<T>` has no public constructor; `crates/signals`; proptest in `causal_gate.rs`; `.cursor/rules/signals-no-lookahead.mdc` |
+| Closed bars only in the first-batch families | `Cursor::admit` returns the `Causal` view (`available_ts = close + 1 ms`, open at or after 2020-12-18); families read that view; truncation proptest mutates close, high, and low |
+| Fixed quantity until the target or accept changes | `run_targets` sizes when the target ticks change or `SignalOutput.accept` changes; `a_clipped_short_rebalances_once_after_a_twelve_percent_rally` |
+| One refused fill per order | `HeldOrder.refused` increments `n_refused_fills` once; `z2_two_fillers_fill_on_the_third` |
+| A missing kline `count` fails the read | `read_klines` returns `TapeError::MissingColumn`; `a_kline_file_without_count_is_refused` |
+| Sweep writes a digest, not full-window returns | `run_sweep` writes the ledger and `{out}/digest.jsonl`; `one_config_writes_a_finished_trial_and_a_digest` |
 | Fixed-point, no silent wrap | `notional` returns `Overflow`; release overflow checks; Kani `widening_mul_fits_in_i128`, `notional_matches_below_one_million`, `notional_overflow_does_not_wrap`; `.cursor/rules/rust-types.mdc` |
 | Kline grid and declared unit | `specs/features/kline_integrity.feature`, cucumber-rs |
 | Gap rejects rows until resync; duplicate id is a no-op | `specs/tla/IngestSegment.tla`, TLC, one worker |
 | Vision fact write keeps the stored payload | `specs/tla/ManifestWrite.tla`, TLC, one worker; `merge_fact` |
 | Format and lints | `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings` |
-| no f64 in money path | `deny(clippy::float_arithmetic)` in sim/backtest |
+| no f64 in money path | `deny(clippy::float_arithmetic)` in sim, backtest, and `crates/backtest/src/bin/batch.rs` |
+| Holdout-crossing entries are counted | `Hold::arm` increments the drop count; `ResultRow.n_dropped_entries` |
 | costs explicit | `Costs` has no `Default` |
 | fills at next open | G2 + P7 |
+| Inspect owned state before editing | agents run `cargo xtask spec inspect` |
+| Enforce architecture policy before push | agents run `cargo xtask spec enforce` |
+| Break policy by changing the .tla | `spec/arch/ArchitecturePolicy.tla` is the only policy copy; propose a `.tla` change instead of a `#[allow]`, a comment, or a YAML workaround |
+| Architecture spec and engine need review | `spec/arch/*.tla` and `xtask/**` need Ops/Release review |
 
 ## Checks
 
@@ -68,6 +78,12 @@ There is no readiness verdict. Research code does not read live fills, balances,
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+cargo xtask spec validate --jar specs/tla/tla2tools.jar
+cargo xtask spec generate --check
+cargo xtask spec enforce
+# CI also runs `spec enforce --diff <merge-base with the default branch>..HEAD`
+# with no `--as`. A changed path with no single owner fails. `--no-renames`
+# checks both sides of a move.
 ```
 
-TLC and Kani are the `tla` and `kani` jobs in `.github/workflows/ci.yml`.
+TLC and Kani are the `tla` and `kani` jobs in `.github/workflows/ci.yml`. Architecture policy is the `spec-arch` job. `spec validate` uses the same `tla2tools.jar` as the `tla` job.

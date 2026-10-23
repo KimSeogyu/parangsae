@@ -1,0 +1,8 @@
+[package]
+name = "sim"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+parangsae-execution = { path = "../execution" }

@@ -3,10 +3,12 @@
 
 mod support;
 
-use parangsae_backtest::fixture::{FlipEveryN, Scripted};
-use parangsae_backtest::{max_drawdown, run, run_fee_grid, sharpe_f64, EngineError, FEE_GRID_BPS};
-use parangsae_core::UtcMicros;
-use parangsae_sim::{Cash, Side};
+use parangsae_backtest::fixture::{BuyAndHold, FlipEveryN, Scripted};
+use parangsae_backtest::{
+    max_drawdown, run, run_fee_grid, sharpe_ticks, EngineError, FEE_GRID_BPS,
+};
+use parangsae_core::{Side, UtcMicros};
+use parangsae_sim::Cash;
 use support::{
     at, bar_at, btc, cfg, costs, g1, g10_gap, g10_missing_funding, g10_missing_mark, g11, g12, g2,
     g3, g4_flat, g4_short_pays, g4_short_receives, g5, g6, g7, g8, px, series, tape_of, usd, TICK,
@@ -152,22 +154,39 @@ fn g8_fee_grid_on_the_round_trip() {
 
 #[test]
 fn g9_sharpe_and_max_drawdown() {
-    let levels = [100 * TICK, 110 * TICK, 121 * TICK, 121 * TICK];
-    let (daily, annual) = sharpe_f64(&levels).unwrap();
-    let daily = daily.expect("three returns have a sharpe");
-    let annual = annual.expect("annualized sharpe");
-    // mean/std of 0.1, 0.1, 0 with ddof 1.
-    let expected_daily = 1.1547005383792515_f64;
-    assert!((daily - expected_daily).abs() < 1e-9);
-    assert!((annual - expected_daily * 365f64.sqrt()).abs() < 1e-6);
+    let (tape, config) = support::g9_book();
+    let mut strategy = BuyAndHold::new(support::btc(1));
+    let report = run(&tape, &mut strategy, &support::costs(0, 0), &config).unwrap();
+    assert_eq!(
+        report
+            .daily_equity
+            .iter()
+            .map(|(_, cash)| cash.0)
+            .collect::<Vec<_>>(),
+        vec![110 * TICK, 121 * TICK, 121 * TICK]
+    );
+    assert_eq!(report.metrics.sharpe_daily.unwrap().ticks(), 115_470_053);
+    assert_eq!(report.metrics.sharpe_annual.unwrap().ticks(), 2_206_052_281);
+    assert_eq!(report.metrics.max_drawdown.ticks(), 0);
+
+    let dir = tempfile::tempdir().unwrap();
+    report.write_dir(dir.path()).unwrap();
+    let metrics = std::fs::read_to_string(dir.path().join("metrics.json")).unwrap();
+    assert!(metrics.contains("\"sharpe_daily_ticks\": \"115470053\""));
+    assert!(metrics.contains("\"sharpe_annual_ticks\": \"2206052281\""));
+    assert!(metrics.contains("\"max_drawdown_ticks\": \"0\""));
 
     let curve = [usd(100), usd(110), usd(99), usd(121)];
     assert_eq!(max_drawdown(&curve).unwrap().ticks(), 10_000_000);
 
-    let (none_daily, none_annual) = sharpe_f64(&[100, 100, 100]).unwrap();
+    let levels = [100 * TICK, 110 * TICK, 121 * TICK, 121 * TICK];
+    let (daily, annual) = sharpe_ticks(&levels).unwrap();
+    assert_eq!(daily.unwrap().ticks(), 115_470_053);
+    assert_eq!(annual.unwrap().ticks(), 2_206_052_281);
+    let (none_daily, none_annual) = sharpe_ticks(&[100, 100, 100]).unwrap();
     assert!(none_daily.is_none());
     assert!(none_annual.is_none());
-    let (one_day, _) = sharpe_f64(&[100 * TICK, 110 * TICK]).unwrap();
+    let (one_day, _) = sharpe_ticks(&[100 * TICK, 110 * TICK]).unwrap();
     assert!(one_day.is_none());
 }
 

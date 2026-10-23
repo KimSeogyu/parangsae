@@ -13,9 +13,13 @@ pub enum EngineError {
     Gap { expected: UtcMicros, got: UtcMicros },
     MissingMark(UtcMicros),
     MissingFunding(UtcMicros),
+    MissingSignal(UtcMicros),
+    HoldoutBar(UtcMicros),
+    BeforeSample(UtcMicros),
     Unsorted,
     Sim(SimError),
     Tape(TapeError),
+    Resample(parangsae_core::ResampleError),
 }
 
 impl fmt::Display for EngineError {
@@ -26,9 +30,13 @@ impl fmt::Display for EngineError {
             }
             Self::MissingMark(ts) => write!(f, "missing mark bar at {ts}"),
             Self::MissingFunding(ts) => write!(f, "missing funding stamp at {ts}"),
+            Self::MissingSignal(ts) => write!(f, "missing signal at {ts}"),
+            Self::HoldoutBar(ts) => write!(f, "bar {ts} is in the holdout"),
+            Self::BeforeSample(ts) => write!(f, "bar {ts} is before the in-sample start"),
             Self::Unsorted => write!(f, "tape timestamps are not strictly increasing"),
             Self::Sim(err) => write!(f, "{err}"),
             Self::Tape(err) => write!(f, "{err}"),
+            Self::Resample(err) => write!(f, "{err}"),
         }
     }
 }
@@ -38,9 +46,14 @@ impl std::error::Error for EngineError {
         match self {
             Self::Sim(err) => Some(err),
             Self::Tape(err) => Some(err),
-            Self::Gap { .. } | Self::MissingMark(_) | Self::MissingFunding(_) | Self::Unsorted => {
-                None
-            }
+            Self::Resample(err) => Some(err),
+            Self::Gap { .. }
+            | Self::MissingMark(_)
+            | Self::MissingFunding(_)
+            | Self::MissingSignal(_)
+            | Self::HoldoutBar(_)
+            | Self::BeforeSample(_)
+            | Self::Unsorted => None,
         }
     }
 }

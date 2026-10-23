@@ -1,9 +1,9 @@
 //! Position, cash, fees, and funding. State changes only after every check fits.
 
-use parangsae_core::{Price, Qty, Ratio, UtcMicros, SCALE};
+use parangsae_core::{Price, Qty, Ratio, Side, UtcMicros, SCALE};
 
 use crate::round::{div_floor, fit_i64, round_against_trader};
-use crate::types::{Cash, Costs, FeeBps, MarketOrder, PositionQty, Side, SimError, SlippageBps};
+use crate::types::{Cash, Costs, FeeBps, MarketOrder, PositionQty, SimError, SlippageBps};
 
 const BPS_DENOM: i128 = 10_000;
 
@@ -218,7 +218,9 @@ mod tests {
 
     #[test]
     fn zero_qty_is_rejected_without_moving_cash() {
-        use crate::{Cash, Costs, Ledger, MarketOrder, Side, SlippageBps};
+        use parangsae_core::Side;
+
+        use crate::{Cash, Costs, Ledger, MarketOrder, SlippageBps};
         let mut ledger = Ledger::new(Cash(1_000));
         let err = ledger
             .apply_fill(
