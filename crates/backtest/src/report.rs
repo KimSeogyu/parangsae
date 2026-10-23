@@ -53,6 +53,8 @@ pub struct Report {
     pub warmup_bars: u64,
     pub flat_funding_stale: u64,
     pub flat_funding_slot_missing: u64,
+    /// Minutes a resting order skipped because `count` was 0.
+    pub n_refused_fills: u64,
     pub signal_outputs: Vec<SignalOutput>,
     pub overlays: Vec<AppliedOverlay>,
     pub mark_gaps: Vec<MarkAbsence>,
@@ -189,6 +191,7 @@ fn metrics_json(report: &Report) -> String {
             "  \"flat_funding_slot_missing\": \"{}\"",
             report.flat_funding_slot_missing
         ),
+        format!("  \"n_refused_fills\": \"{}\"", report.n_refused_fills),
         format!("  \"overlays\": {}", overlays_json(&report.overlays)),
         format!("  \"mark_gaps\": {}", gaps_json(&report.mark_gaps)),
         format!("  \"forced_flat\": {}", ranges_json(&report.forced_flat)),

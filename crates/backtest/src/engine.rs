@@ -15,7 +15,7 @@ use crate::metrics::{
 };
 use crate::report::{daily_equity, Metrics, Report, RoundTrip};
 use crate::signal::{
-    funding_visible, Decision, FlatReason, FundingObs, SignalOutput, TargetSignal,
+    funding_visible, BookState, Decision, FlatReason, FundingObs, SignalOutput, TargetSignal,
 };
 use crate::sizing::target_qty;
 use crate::tape::{sample_start, TapeError};
@@ -48,6 +48,7 @@ pub fn run<S: Strategy>(
     let mut ruined: Option<UtcMicros> = None;
     let mut frozen: Option<Cash> = None;
     let mut dropped_orders = 0u64;
+    let mut refused_fills = 0u64;
 
     for (index, bar) in window.iter().enumerate() {
         if ruined.is_none() {
@@ -64,8 +65,9 @@ pub fn run<S: Strategy>(
                 index,
             )?;
             if let Some(order) = pending.take() {
-                if bar.is_filler() {
+                if bar.count == 0 {
                     pending = Some(order);
+                    refused_fills += 1;
                 } else {
                     execute(
                         &mut ledger,
@@ -129,6 +131,7 @@ pub fn run<S: Strategy>(
             funding,
             ruined,
             dropped_orders,
+            refused_fills,
             warmup_bars: 0,
             flat_funding_stale: 0,
             flat_funding_slot_missing: 0,
@@ -162,8 +165,14 @@ where
     Ok(out)
 }
 
-/// One signal's per-bar targets. Fills land on the first non-filler 1m open at
-/// or after the resampled bar's available timestamp.
+/// One signal's per-bar targets.
+///
+/// A target is sized once, from equity marked at the decision close, and that
+/// quantity is held until the emitted target ticks change. The decision close
+/// stands in for the fill price. The fill itself is the next 1m open whose
+/// `count` is greater than zero. Each `count = 0` minute that holds an order
+/// increments `n_refused_fills`. The open of 2025-09-30 23:59 UTC force-flats
+/// an open position so the final exit pays costs.
 pub fn run_targets<S: TargetSignal>(
     tape: &Tape,
     signal: &mut S,
@@ -215,6 +224,8 @@ pub fn run_targets<S: TargetSignal>(
     let mut ruined: Option<UtcMicros> = None;
     let mut frozen: Option<Cash> = None;
     let mut dropped_orders = 0u64;
+    let mut refused_fills = 0u64;
+    let mut sized: Option<(i64, i64)> = None;
     let mut seen = false;
     let mut warmup_bars = 0u64;
     let mut flat_funding_stale = 0u64;
@@ -239,8 +250,9 @@ pub fn run_targets<S: TargetSignal>(
                 pending = flatten_order(&ledger)?;
             }
             if let Some(order) = pending.take() {
-                if bar.is_filler() {
+                if bar.count == 0 {
                     pending = Some(order);
+                    refused_fills += 1;
                 } else {
                     execute(
                         &mut ledger,
@@ -298,7 +310,14 @@ pub fn run_targets<S: TargetSignal>(
         let funding_view = fund_obs
             .causal_at(DecisionTime::from_micros(decision))
             .expect("the prefix is stamped available at the decision");
-        match signal.on_bar(view, funding_view) {
+        let decision_close = hour.close();
+        let sizing_equity = ledger.equity(decision_close).map_err(EngineError::Sim)?;
+        let book_state = BookState {
+            equity_ticks: sizing_equity.0,
+            position_lots: ledger.position().0,
+            mark_ticks: decision_close.ticks(),
+        };
+        match signal.on_bar(view, funding_view, book_state) {
             None if !seen => warmup_bars += 1,
             None => return Err(EngineError::MissingSignal(decision)),
             Some(output) if output.bar_close_time_us != hour.close_time() => {
@@ -310,30 +329,22 @@ pub fn run_targets<S: TargetSignal>(
                     .forced_flat
                     .iter()
                     .any(|range| decision >= range.start && decision < range.end);
-                let lots = match output.decision {
-                    Decision::Flat(FlatReason::FundingStale) => {
-                        flat_funding_stale += 1;
-                        0
-                    }
+                match output.decision {
+                    Decision::Flat(FlatReason::FundingStale) => flat_funding_stale += 1,
                     Decision::Flat(FlatReason::FundingSlotMissing) => {
-                        flat_funding_slot_missing += 1;
-                        0
+                        flat_funding_slot_missing += 1
                     }
-                    Decision::Target(_) => {
-                        if inside {
-                            0
-                        } else {
-                            target_qty(
-                                output.decision.target_ticks(),
-                                equity.0,
-                                mark.close.ticks(),
-                                cfg.lot_ticks,
-                            )
-                            .map_err(EngineError::Sim)?
-                        }
-                    }
-                };
-                let lots = if inside { 0 } else { lots };
+                    Decision::Target(_) => {}
+                }
+                let lots = held_lots(
+                    &mut sized,
+                    inside || matches!(output.decision, Decision::Flat(_)),
+                    output.decision.target_ticks(),
+                    sizing_equity.0,
+                    decision_close.ticks(),
+                    cfg.lot_ticks,
+                )
+                .map_err(EngineError::Sim)?;
                 signal_outputs.push(output);
                 let diff = lots
                     .checked_sub(ledger.position().0)
@@ -345,7 +356,7 @@ pub fn run_targets<S: TargetSignal>(
                         .ok_or(EngineError::Sim(SimError::Overflow))?;
                     let qty = Qty::from_ticks(qty_ticks)
                         .map_err(|_| EngineError::Sim(SimError::Negative))?;
-                    if window[index + 1..].iter().any(|next| !next.is_filler()) {
+                    if window[index + 1..].iter().any(|next| next.count > 0) {
                         pending = Some(MarketOrder { side, qty });
                     } else {
                         dropped_orders += 1;
@@ -371,12 +382,37 @@ pub fn run_targets<S: TargetSignal>(
             funding,
             ruined,
             dropped_orders,
+            refused_fills,
             warmup_bars,
             flat_funding_stale,
             flat_funding_slot_missing,
             signal_outputs,
         },
     )
+}
+
+/// Lots held from the last sizing. An unchanged target does not resize.
+/// A flat decision or a forced-flat window clears the hold so the next target sizes again.
+fn held_lots(
+    sized: &mut Option<(i64, i64)>,
+    suppress: bool,
+    target_ticks: i64,
+    equity_ticks: i64,
+    mark_ticks: i64,
+    lot_ticks: i64,
+) -> Result<i64, SimError> {
+    if suppress {
+        *sized = None;
+        return Ok(0);
+    }
+    if let Some((held_ticks, held_lots)) = *sized {
+        if held_ticks == target_ticks {
+            return Ok(held_lots);
+        }
+    }
+    let lots = target_qty(target_ticks, equity_ticks, mark_ticks, lot_ticks)?;
+    *sized = Some((target_ticks, lots));
+    Ok(lots)
 }
 
 fn decision_stamps(decision: UtcMicros) -> Timestamps {
@@ -783,6 +819,7 @@ struct Accum {
     funding: Vec<FundingEvent>,
     ruined: Option<UtcMicros>,
     dropped_orders: u64,
+    refused_fills: u64,
     warmup_bars: u64,
     flat_funding_stale: u64,
     flat_funding_slot_missing: u64,
@@ -804,6 +841,7 @@ fn finish(
         funding,
         ruined,
         dropped_orders,
+        refused_fills,
         warmup_bars,
         flat_funding_stale,
         flat_funding_slot_missing,
@@ -850,6 +888,7 @@ fn finish(
         bars: u64::try_from(bars).map_err(|_| EngineError::Sim(SimError::Overflow))?,
         ruined,
         dropped_orders,
+        n_refused_fills: refused_fills,
         warmup_bars,
         flat_funding_stale,
         flat_funding_slot_missing,

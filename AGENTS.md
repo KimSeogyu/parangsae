@@ -53,6 +53,8 @@ There is no readiness verdict. Research code does not read live fills, balances,
 | --- | --- |
 | No live submit | `crates/execution` has no socket or HTTP client; `tests/no_live_client.rs`; `.cursor/rules/live-gate.mdc` |
 | No lookahead in signals | `Causal<T>` has no public constructor; `crates/signals`; proptest in `causal_gate.rs`; `.cursor/rules/signals-no-lookahead.mdc` |
+| Closed bars only in the first-batch families | `Cursor::admit` requires `available_ts = close + 1 ms` and an open at or after 2020-12-18; truncation proptest per family in `crates/strategies` |
+| Fixed quantity until the target changes | `run_targets` sizes when the target ticks change; the moving-price test in `crates/backtest/tests/targets.rs` |
 | Fixed-point, no silent wrap | `notional` returns `Overflow`; release overflow checks; Kani `widening_mul_fits_in_i128`, `notional_matches_below_one_million`, `notional_overflow_does_not_wrap`; `.cursor/rules/rust-types.mdc` |
 | Kline grid and declared unit | `specs/features/kline_integrity.feature`, cucumber-rs |
 | Gap rejects rows until resync; duplicate id is a no-op | `specs/tla/IngestSegment.tla`, TLC, one worker |

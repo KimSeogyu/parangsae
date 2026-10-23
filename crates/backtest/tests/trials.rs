@@ -18,9 +18,9 @@ use std::sync::Arc;
 use parangsae_backtest::fixture::Scripted;
 use parangsae_backtest::{
     canonical_config_id, finish_trial, run_batch, run_fee_grid, trial_id, turnover_ratio,
-    BatchError, Decision, FeeGridRunner, FlatBars, FlatReason, FundingObs, SignalOutput, SweepPins,
-    Target, TargetEngine, TargetRunner, TargetSignal, TrialError, TrialMetrics, TrialSpec,
-    UtcRange, HOLDOUT_START_US,
+    BatchError, BookState, Decision, FeeGridRunner, FlatBars, FlatReason, FundingObs, SignalOutput,
+    SweepPins, Target, TargetEngine, TargetRunner, TargetSignal, TrialError, TrialMetrics,
+    TrialSpec, UtcRange, HOLDOUT_START_US,
 };
 use parangsae_core::{Causal, DecisionTime, Interval, Ratio, ResampledBar, UtcMicros};
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
@@ -95,6 +95,7 @@ fn zero_metrics() -> TrialMetrics {
             funding_slot_missing: 0,
         },
         net_return: [zero, zero, zero, zero],
+        n_refused_fills: 0,
     }
 }
 
@@ -733,6 +734,7 @@ impl TargetSignal for Repeat {
         &mut self,
         view: Causal<'_, &[ResampledBar]>,
         _funding: Causal<'_, &[FundingObs]>,
+        _book: BookState,
     ) -> Option<SignalOutput> {
         let bars = *view.value();
         let hour = bars.last()?;

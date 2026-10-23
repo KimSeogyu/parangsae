@@ -2,11 +2,11 @@
 
 #![allow(dead_code)]
 
-use crate::support::{at, bar_at, cfg, costs, px, series, stamp, tape_marked, tape_of};
+use crate::support::{at, bar_at, btc, cfg, costs, px, series, stamp, tape_marked, tape_of};
 use parangsae_backtest::fixture::AlwaysFlat;
 use parangsae_backtest::{
-    funding_visible, run, run_targets, Decision, EngineError, FlatReason, FundingObs, FundingStamp,
-    MarkAbsence, Report, SignalOutput, TargetSignal, UtcDate, UtcRange,
+    funding_visible, run, run_targets, BookState, Decision, EngineError, FlatReason, FundingObs,
+    FundingStamp, MarkAbsence, Report, SignalOutput, TargetSignal, UtcDate, UtcRange,
 };
 use parangsae_core::{Causal, DecisionTime, Qty, Ratio, ResampledBar, UtcMicros};
 use parangsae_signals::Target;
@@ -37,6 +37,7 @@ impl TargetSignal for Script {
         &mut self,
         view: Causal<'_, &[ResampledBar]>,
         funding: Causal<'_, &[FundingObs]>,
+        _book: BookState,
     ) -> Option<SignalOutput> {
         let bars = *view.value();
         let funding_rows = *funding.value();
@@ -300,6 +301,51 @@ fn filler(bar: &mut parangsae_core::Bar) {
     bar.high = bar.open;
     bar.low = bar.open;
     bar.close = bar.open;
+}
+
+pub fn moving_price() -> Report {
+    let start = at(12, 0);
+    let mut rows = Vec::with_capacity(120);
+    for _ in 0..60 {
+        rows.push((50_000, 50_000));
+    }
+    for _ in 0..60 {
+        rows.push((100_000, 100_000));
+    }
+    let bars = series(start, &rows);
+    execute(
+        bars.clone(),
+        bars,
+        Vec::new(),
+        vec![Some(tgt(0.5)), Some(tgt(0.5))],
+        10_000,
+        Vec::new(),
+        Vec::new(),
+    )
+    .expect("moving price")
+    .0
+}
+
+pub fn count_zero_print() -> Report {
+    let start = at(12, 0);
+    let mut bars = hours(start, 2, 100);
+    let mut printed = bar_at(bars[60].open_time.micros(), px(100), px(111));
+    printed.count = 0;
+    printed.volume = btc(1);
+    bars[60] = printed;
+    bars[61] = bar_at(bars[61].open_time.micros(), px(111), px(111));
+    let marks = hours(start, 2, 50_000);
+    execute(
+        bars,
+        marks,
+        Vec::new(),
+        vec![Some(tgt(1.0)), Some(stale())],
+        10_000,
+        Vec::new(),
+        Vec::new(),
+    )
+    .expect("count zero")
+    .0
 }
 
 pub fn z1() -> Report {

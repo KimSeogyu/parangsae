@@ -184,6 +184,51 @@ impl Tape {
     }
 }
 
+/// Paths [`Tape::load`] will open for this range, including overlays.
+///
+/// The check does not read the files. A caller can refuse a path that is not pinned
+/// before `load` opens anything.
+pub fn planned_paths(
+    root: &Path,
+    symbol: &Symbol,
+    start: UtcDate,
+    end_inclusive: UtcDate,
+    cfg: &TapeConfig,
+) -> Result<Vec<PathBuf>, TapeError> {
+    if end_inclusive < start {
+        return Err(TapeError::Range);
+    }
+    let sample = sample_start();
+    let mut day = start;
+    loop {
+        if day.start_us() < sample {
+            return Err(TapeError::BeforeSampleRequested);
+        }
+        if day.start_us() >= cfg.holdout_start {
+            return Err(TapeError::HoldoutRequested);
+        }
+        if day == end_inclusive {
+            break;
+        }
+        day = day.next();
+    }
+    let mut paths = Vec::new();
+    let mut day = start;
+    loop {
+        paths.push(part_path(root, UM_KLINE, symbol, day));
+        paths.push(part_path(root, MARK_KLINE, symbol, day));
+        paths.push(part_path(&cfg.funding_root, FUNDING, symbol, day));
+        if day == end_inclusive {
+            break;
+        }
+        day = day.next();
+    }
+    for overlay in &cfg.overlays {
+        paths.push(overlay.path.clone());
+    }
+    Ok(paths)
+}
+
 /// First in-sample instant. Rows and requested days before this are refused.
 pub(crate) fn sample_start() -> UtcMicros {
     UtcDate::parse("2020-12-18")

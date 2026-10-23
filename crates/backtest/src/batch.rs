@@ -15,10 +15,10 @@
 //! `config_id` is the lowercase sha256 of the canonical config. Anything else
 //! is refused before a trial line is written.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::marker::PhantomData;
 use std::panic::{self, AssertUnwindSafe};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use parangsae_core::{notional, FixedError, Ratio, UtcMicros, SCALE};
 use parangsae_sim::{Cash, Costs, FeeBps, SimError};
@@ -52,6 +52,7 @@ pub struct TrialMetrics {
     pub turnover: Ratio,
     pub flat_bars: FlatBars,
     pub net_return: [Ratio; 4],
+    pub n_refused_fills: u64,
 }
 
 /// One config in a batch, plus the trial identity written before compute.
@@ -84,6 +85,7 @@ pub struct ResultRow {
     pub net_return_ticks: Option<[i64; 4]>,
     pub slippage_bps: u32,
     pub fee_grid_bps: [u32; 4],
+    pub n_refused_fills: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -142,11 +144,22 @@ impl std::error::Error for BatchError {}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SweepPins {
     pinned_root: String,
+    objects: BTreeSet<PathBuf>,
+    sha256: BTreeMap<PathBuf, String>,
 }
 
 impl SweepPins {
     pub fn pinned_root(&self) -> &str {
         &self.pinned_root
+    }
+
+    /// True when `path` is one of the hashed objects. A docs path can be pinned and still be refused by the reader.
+    pub fn allows(&self, path: &Path) -> bool {
+        self.objects.contains(path)
+    }
+
+    pub fn sha256(&self, path: &Path) -> Option<&str> {
+        self.sha256.get(path).map(String::as_str)
     }
 
     pub fn load(path: &Path) -> Result<Self, BatchError> {
@@ -162,6 +175,8 @@ impl SweepPins {
         }
         let base = path.parent().unwrap_or(Path::new("."));
         let mut objects = Vec::with_capacity(file.objects.len());
+        let mut stored = BTreeSet::new();
+        let mut sha256 = BTreeMap::new();
         for object in file.objects {
             if object.path.is_empty() || !is_lower_hex64(&object.sha256) {
                 return Err(BatchError::Pins(
@@ -182,6 +197,8 @@ impl SweepPins {
                     got,
                 });
             }
+            stored.insert(full.clone());
+            sha256.insert(full, object.sha256.clone());
             objects.push((object.path, object.sha256));
         }
         objects.sort_by(|left, right| left.0.cmp(&right.0));
@@ -189,7 +206,11 @@ impl SweepPins {
             return Err(BatchError::Pins("duplicate pin path".to_owned()));
         }
         let pinned_root = sha256_hex(pin_preimage(&objects).as_bytes());
-        Ok(Self { pinned_root })
+        Ok(Self {
+            pinned_root,
+            objects: stored,
+            sha256,
+        })
     }
 }
 
@@ -376,6 +397,7 @@ pub fn metrics_from_grid(
         turnover: turnover_ratio(sum_notional(headline)?, &daily)?,
         flat_bars,
         net_return,
+        n_refused_fills: headline.n_refused_fills,
     })
 }
 
@@ -394,7 +416,7 @@ fn sum_notional(report: &Report) -> Result<i128, SimError> {
     Ok(sum)
 }
 
-fn with_headline(
+pub(crate) fn with_headline(
     metrics: TrialMetrics,
     initial: Cash,
     headline: &Report,
@@ -414,6 +436,7 @@ fn with_headline(
         turnover: turnover_ratio(sum_notional(headline)?, &daily)?,
         flat_bars: metrics.flat_bars,
         net_return: metrics.net_return,
+        n_refused_fills: headline.n_refused_fills,
     })
 }
 
@@ -466,10 +489,11 @@ pub fn metrics_preimage(metrics: &TrialMetrics) -> String {
         None => "null".to_owned(),
     };
     format!(
-        "{{\"flat_funding_slot_missing\":{},\"flat_funding_stale\":{},\"max_drawdown_ticks\":{},\"net_2\":{},\"net_4\":{},\"net_5\":{},\"net_6\":{},\"sharpe_annual_ticks\":{sharpe},\"total_return_ticks\":{},\"turnover_ticks\":{}}}",
+        "{{\"flat_funding_slot_missing\":{},\"flat_funding_stale\":{},\"max_drawdown_ticks\":{},\"n_refused_fills\":{},\"net_2\":{},\"net_4\":{},\"net_5\":{},\"net_6\":{},\"sharpe_annual_ticks\":{sharpe},\"total_return_ticks\":{},\"turnover_ticks\":{}}}",
         metrics.flat_bars.funding_slot_missing,
         metrics.flat_bars.funding_stale,
         metrics.max_drawdown.ticks(),
+        metrics.n_refused_fills,
         metrics.net_return[0].ticks(),
         metrics.net_return[1].ticks(),
         metrics.net_return[2].ticks(),
@@ -591,6 +615,7 @@ fn drive<R: TargetRunner>(
                 net_return_ticks: Some(metrics.net_return.map(Ratio::ticks)),
                 slippage_bps,
                 fee_grid_bps: FEE_GRID_BPS,
+                n_refused_fills: Some(metrics.n_refused_fills),
             };
             write_row(
                 results_path,
@@ -658,6 +683,7 @@ fn aborted_row(spec: &TrialSpec, trial_id: &str, reason: &str, slippage_bps: u32
         net_return_ticks: None,
         slippage_bps,
         fee_grid_bps: FEE_GRID_BPS,
+        n_refused_fills: None,
     }
 }
 
@@ -686,6 +712,7 @@ struct RowJson<'a> {
     net_return_ticks: Option<NetJson>,
     slippage_bps: u32,
     fee_grid_bps: &'a [u32],
+    n_refused_fills: Option<u64>,
     metrics_digest: Option<&'a str>,
 }
 
@@ -743,6 +770,7 @@ fn write_row(
         net_return_ticks: nets,
         slippage_bps: row.slippage_bps,
         fee_grid_bps: &row.fee_grid_bps,
+        n_refused_fills: row.n_refused_fills,
         metrics_digest,
     };
     let line = serde_json::to_string(&json).map_err(|err| BatchError::Append(err.to_string()))?;
@@ -843,14 +871,15 @@ mod tests {
                 Ratio::from_ticks(3),
                 Ratio::from_ticks(4),
             ],
+            n_refused_fills: 7,
         };
         assert_eq!(
             metrics_preimage(&metrics),
-            "{\"flat_funding_slot_missing\":2,\"flat_funding_stale\":3,\"max_drawdown_ticks\":0,\"net_2\":1,\"net_4\":2,\"net_5\":3,\"net_6\":4,\"sharpe_annual_ticks\":5,\"total_return_ticks\":3,\"turnover_ticks\":6}"
+            "{\"flat_funding_slot_missing\":2,\"flat_funding_stale\":3,\"max_drawdown_ticks\":0,\"n_refused_fills\":7,\"net_2\":1,\"net_4\":2,\"net_5\":3,\"net_6\":4,\"sharpe_annual_ticks\":5,\"total_return_ticks\":3,\"turnover_ticks\":6}"
         );
         assert_eq!(
             metrics_digest(&metrics),
-            "82eee788c3d38f931950de091bc8d3975abe2deee4c341c8827c79710e794048"
+            "e7dcff0350065f82763c80e09b5d317cfcd76b3b5890b789491650d10da05e17"
         );
     }
 
