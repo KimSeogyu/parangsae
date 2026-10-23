@@ -164,7 +164,7 @@ fn check_workspace(root: &Path) -> Result<(), String> {
 }
 
 /// Reviewer-protected. Bootstrap applies only when the resolved base equals this commit.
-const BOOTSTRAP_BASE: &str = "9c34170564e1155428e5afbb6b8ce71b48ac9e18";
+const BOOTSTRAP_BASE: &str = "a6a48754082d8ec4fcde30c6784c441ac38062a7";
 
 /// Reviewer-protected. The only `uses:` targets. Kani is installed with cargo, not an action.
 const ALLOWED_ACTIONS: &[&str] = &[
@@ -454,7 +454,7 @@ const RUST_TOOLCHAIN_SHA256: &str =
 /// Reviewer-protected. sha256 of `deny.toml`, re-checked in the deny job.
 const DENY_TOML_SHA256: &str = "d8cec209fc719185e615794935ce8fecae69bf27e0f123ad85211d17857194c3";
 /// Reviewer-protected. sha256 of `Cargo.lock`, re-checked in the deny job.
-const CARGO_LOCK_SHA256: &str = "038015cc0004dbdf95d5725e69afbedb7b337008bbd65086988e3fc73a58f56c";
+const CARGO_LOCK_SHA256: &str = "5fc87b9a4bdc742ced07dea3484f53f371d6807793a188dcbc23422cf8371862";
 
 /// Reviewer-protected. cargo-deny release the deny job downloads.
 const DENY_VERSION: &str = "0.20.2";
@@ -467,6 +467,7 @@ const DENY_BIN_SHA256: &str = "b329e25933d01c36dd7c47d84ea5716694f9b7caf53a5003d
 /// Reviewer-protected. Workspace `Cargo.toml` plus every member manifest, sorted by path.
 const CARGO_MANIFESTS: &[&str] = &[
     "Cargo.toml",
+    "crates/backtest/Cargo.toml",
     "crates/collector/Cargo.toml",
     "crates/core/Cargo.toml",
     "crates/execution/Cargo.toml",
@@ -477,7 +478,7 @@ const CARGO_MANIFESTS: &[&str] = &[
 ];
 /// Reviewer-protected. sha256 of the `sha256sum` text for `CARGO_MANIFESTS`.
 const CARGO_MANIFESTS_SHA256: &str =
-    "3e42ce0c4748f26e92513bd7efbdee4ad94b5a3d11db84c6475363d7687e432d";
+    "6b10d774eb18b09300ffe0b707afe52b0494e697949130c74f8bfd407489fee5";
 
 /// Reviewer-protected. Exact non-job preamble of `.github/workflows/ci.yml`.
 const CI_HEADER: &str = include_str!("pinned_jobs/ci.header");
@@ -539,7 +540,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "90a84069abd1be41d3631525404c1e3eaa4236a96491ec2dd55021dc1260d071",
+        "3dc8d7f9fa7a9c6257d71ca3c3c3bf6aa6d3512afbdcd98f9b926df4da82f444",
     ),
     (
         "gate",
@@ -2998,12 +2999,80 @@ fn cargo_manifests_preimage(root: &Path) -> Result<String, String> {
     Ok(lines)
 }
 
-fn cargo_manifests_gaps(root: &Path) -> Vec<String> {
-    match cargo_manifests_preimage(root) {
-        Ok(preimage) if sha256_hex(preimage.as_bytes()) == CARGO_MANIFESTS_SHA256 => Vec::new(),
-        Ok(_) => vec!["cargo manifests sha256 does not match".to_owned()],
-        Err(err) => vec![err],
+#[derive(Deserialize)]
+struct WorkspaceMeta {
+    packages: Vec<WorkspacePkg>,
+    workspace_members: Vec<String>,
+    workspace_root: PathBuf,
+}
+
+#[derive(Deserialize)]
+struct WorkspacePkg {
+    id: String,
+    manifest_path: PathBuf,
+}
+
+fn workspace_member_manifests(root: &Path) -> Result<Vec<String>, String> {
+    let output = Command::new("cargo")
+        .arg("metadata")
+        .arg("--locked")
+        .arg("--offline")
+        .arg("--no-deps")
+        .arg("--format-version")
+        .arg("1")
+        .arg("--manifest-path")
+        .arg(root.join("Cargo.toml"))
+        .output()
+        .map_err(|err| format!("cargo metadata: {err}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "cargo metadata failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
+    let meta: WorkspaceMeta =
+        serde_json::from_slice(&output.stdout).map_err(|err| format!("metadata json: {err}"))?;
+    let mut paths = Vec::new();
+    for id in &meta.workspace_members {
+        let pkg = meta
+            .packages
+            .iter()
+            .find(|pkg| pkg.id == *id)
+            .ok_or_else(|| format!("workspace member {id} has no package"))?;
+        let rel = pkg
+            .manifest_path
+            .strip_prefix(&meta.workspace_root)
+            .map_err(|_| {
+                format!(
+                    "member manifest {} is outside the workspace",
+                    pkg.manifest_path.display()
+                )
+            })?;
+        paths.push(rel.to_string_lossy().replace('\\', "/"));
+    }
+    paths.sort();
+    paths.dedup();
+    Ok(paths)
+}
+
+fn cargo_manifests_gaps(root: &Path) -> Vec<String> {
+    let mut gaps = Vec::new();
+    match workspace_member_manifests(root) {
+        Ok(members) => {
+            for path in members {
+                if !CARGO_MANIFESTS.contains(&path.as_str()) {
+                    gaps.push(format!("member manifest isn't pinned: {path}"));
+                }
+            }
+        }
+        Err(err) => gaps.push(err),
+    }
+    match cargo_manifests_preimage(root) {
+        Ok(preimage) if sha256_hex(preimage.as_bytes()) == CARGO_MANIFESTS_SHA256 => {}
+        Ok(_) => gaps.push("cargo manifests sha256 does not match".to_owned()),
+        Err(err) => gaps.push(err),
+    }
+    gaps
 }
 
 fn deny_release_pin_gaps(text: &str) -> Vec<String> {
@@ -9394,6 +9463,60 @@ Complete - 1 successfully verified harnesses, 0 failures, 1 total.
             return Err("path contains a single quote".to_owned());
         }
         Ok(format!("'{text}'"))
+    }
+
+    #[test]
+    fn inert_member_manifest_edit_fails() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let dir = TempGit::new("manifest-inert")?;
+        let mut files: Vec<&str> = CARGO_MANIFESTS.to_vec();
+        files.push("Cargo.lock");
+        files.push("crates/backtest/Cargo.toml");
+        for rel in files {
+            let from = root.join(rel);
+            let to = dir.path.join(rel);
+            if let Some(parent) = to.parent() {
+                std::fs::create_dir_all(parent).map_err(|err| format!("mkdir {rel}: {err}"))?;
+            }
+            std::fs::copy(&from, &to).map_err(|err| format!("copy {rel}: {err}"))?;
+        }
+        for member in [
+            "crates/backtest",
+            "crates/collector",
+            "crates/core",
+            "crates/execution",
+            "crates/regime",
+            "crates/signals",
+            "crates/sim",
+            "xtask",
+        ] {
+            let lib = dir.path.join(member).join("src/lib.rs");
+            if let Some(parent) = lib.parent() {
+                std::fs::create_dir_all(parent).map_err(|err| format!("mkdir {member}: {err}"))?;
+            }
+            std::fs::write(&lib, "").map_err(|err| format!("write {member} lib: {err}"))?;
+        }
+        std::fs::write(dir.path.join("xtask/src/main.rs"), "fn main() {}\n")
+            .map_err(|err| format!("write xtask main: {err}"))?;
+        let clean = cargo_manifests_gaps(&dir.path);
+        if !clean.is_empty() {
+            return Err(format!(
+                "unedited member manifests were rejected: {clean:?}"
+            ));
+        }
+        let manifest = dir.path.join("crates/backtest/Cargo.toml");
+        let mut text = std::fs::read_to_string(&manifest)
+            .map_err(|err| format!("read backtest manifest: {err}"))?;
+        text.push_str("# inert\n");
+        std::fs::write(&manifest, text).map_err(|err| format!("write backtest manifest: {err}"))?;
+        let gaps = cargo_manifests_gaps(&dir.path);
+        if !gaps
+            .iter()
+            .any(|gap| gap == "cargo manifests sha256 does not match")
+        {
+            return Err(format!("inert member manifest edit was accepted: {gaps:?}"));
+        }
+        Ok(())
     }
 
     #[test]

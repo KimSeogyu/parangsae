@@ -130,6 +130,25 @@ source = "path"
 default_features = false
 
 [[crate.edge]]
+name = "serde"
+kind = "normal"
+source = "crates.io"
+default_features = true
+features = ["derive"]
+
+[[crate.edge]]
+name = "serde_json"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "sha2"
+kind = "normal"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
 name = "cucumber"
 kind = "dev"
 source = "crates.io"
@@ -137,6 +156,12 @@ default_features = true
 
 [[crate.edge]]
 name = "proptest"
+kind = "dev"
+source = "crates.io"
+default_features = true
+
+[[crate.edge]]
+name = "serde_json"
 kind = "dev"
 source = "crates.io"
 default_features = true
