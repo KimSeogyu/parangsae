@@ -52,6 +52,23 @@ fn dep_indirect_listed_path_is_empty() {
 }
 
 #[test]
+fn optional_feature_dep_is_an_edge() {
+    let diags = enforce_at(&fixture("dep_optional_bad"));
+    assert!(
+        diags.iter().any(|diag| {
+            diag.rule_id == "ARCH-DEP-001" && diag.symbol == "sim -> parangsae-execution"
+        }),
+        "{diags:#?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .all(|diag| diag.rule_id == "ARCH-DEP-001" && diag.file.contains("sim/Cargo.toml")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
 fn dep_indirect_unlisted_edge() {
     let diags = enforce_at(&fixture("dep_indirect_bad"));
     let mut rules = ids(&diags);

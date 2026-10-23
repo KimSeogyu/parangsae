@@ -104,18 +104,20 @@ pub fn explain_rule(id: &str) -> Option<&'static str> {
     Some(match id {
         DEP_DIRECT => {
             "ARCH-DEP-001\n\
-             A direct dependency edge between local packages is not in\n\
+             A declared dependency between local packages is not in\n\
              AllowedDependencies, or one end is a path package outside the\n\
-             workspace (an unknown crate). The check walks the cargo resolve\n\
-             graph, not only workspace members. symbol is `from -> to`.\n\
-             source is the depending crate's Cargo.toml line. Dev-dependencies\n\
-             are not edges. Registry crates are not edges."
+             workspace (an unknown crate). The edge is taken from the manifest:\n\
+             normal, dev, build, optional, and target-specific deps all count,\n\
+             whether or not the resolver activated them. symbol is `from -> to`.\n\
+             source is the depending crate's Cargo.toml line. Registry crates\n\
+             are not edges."
         }
         DEP_TRANSITIVE => {
             "ARCH-DEP-002\n\
              A workspace path of two or more edges contains an edge that is not in\n\
              AllowedDependencies. symbol is the full crate path. source is the\n\
-             Cargo.toml line of the unlisted edge. Dev-dependencies are not edges."
+             Cargo.toml line of the unlisted edge. Dev, build, optional, and\n\
+             target-specific deps are edges when they are path crates."
         }
         MUT => {
             "ARCH-MUT-001\n\

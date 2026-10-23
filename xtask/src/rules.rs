@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use cargo_metadata::{DependencyKind, MetadataCommand, NodeDep};
+use cargo_metadata::{CargoOpt, MetadataCommand};
 
 use crate::effects::{
     dep_effect, effect_diags, effects_in_source, float_diags, float_tokens, package_rs_files, Hit,
@@ -317,11 +317,12 @@ fn tail(stdout: &[u8], stderr: &[u8]) -> String {
 fn metadata(manifest: &Path) -> Result<cargo_metadata::Metadata, ToolError> {
     let mut cmd = MetadataCommand::new();
     cmd.manifest_path(manifest);
+    cmd.features(CargoOpt::AllFeatures);
     cmd.other_options(["--offline".to_owned()]);
     match cmd.exec() {
         Ok(metadata) => Ok(metadata),
         Err(err) => Err(ToolError::tool(format!(
-            "cargo metadata --offline --manifest-path {}: {err}",
+            "cargo metadata --offline --all-features --manifest-path {}: {err}",
             manifest.display()
         ))),
     }
@@ -355,53 +356,44 @@ fn dep_diags(
     policy: &Policy,
     root: &Path,
 ) -> Result<Vec<Diagnostic>, ToolError> {
-    let Some(resolve) = &metadata.resolve else {
-        return Err(ToolError::tool(
-            "cargo metadata returned no resolve graph; dependency edges cannot be checked",
-        ));
-    };
     let members: BTreeSet<_> = metadata.workspace_members.iter().cloned().collect();
-    let by_id: BTreeMap<_, _> = metadata.packages.iter().map(|pkg| (&pkg.id, pkg)).collect();
     let mut edges = Vec::new();
     let mut seen = BTreeSet::new();
     let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for node in &resolve.nodes {
-        let Some(pkg) = by_id.get(&node.id) else {
-            return Err(ToolError::tool(format!(
-                "resolve node {} has no package",
-                node.id
-            )));
-        };
+    // Edges come from the manifest, not the resolve graph. An optional dep
+    // that is off by default, a dev or build dep, and a target-specific dep
+    // are still edges. `--all-features` is requested above so the package
+    // list includes path crates that cargo only loads for a feature.
+    for pkg in &metadata.packages {
         if pkg.source.is_some() {
             continue;
         }
         graph.entry(pkg.name.to_string()).or_default();
         let manifest = std::fs::read_to_string(pkg.manifest_path.as_str()).unwrap_or_default();
-        for dep in &node.deps {
-            if !is_normal_dep(dep) {
+        for dep in &pkg.dependencies {
+            if !declared_local(dep) {
                 continue;
             }
-            let Some(target) = by_id.get(&dep.pkg) else {
-                return Err(ToolError::tool(format!(
-                    "resolve edge from {} to {} has no package",
-                    pkg.name, dep.name
-                )));
-            };
-            if target.source.is_some() {
-                continue;
-            }
+            let target = find_local(&metadata.packages, &members, &dep.name);
+            let to = target
+                .map(|target| target.name.clone())
+                .unwrap_or_else(|| dep.name.clone());
             let from = pkg.name.to_string();
-            let to = target.name.to_string();
             if !seen.insert((from.clone(), to.clone())) {
                 continue;
             }
+            let outside = match target {
+                Some(target) => !members.contains(&pkg.id) || !members.contains(&target.id),
+                None => true,
+            };
             graph.entry(from.clone()).or_default().insert(to.clone());
+            let key = dep.rename.as_deref().unwrap_or(dep.name.as_str());
             edges.push(Edge {
                 from,
                 to,
                 file: rel_path(root, Path::new(pkg.manifest_path.as_str())),
-                line: manifest_line(&manifest, &target.name),
-                outside: !members.contains(&pkg.id) || !members.contains(&target.id),
+                line: manifest_line(&manifest, key),
+                outside,
             });
         }
     }
@@ -482,12 +474,26 @@ fn dep_diags(
     Ok(diags)
 }
 
-fn is_normal_dep(dep: &NodeDep) -> bool {
-    dep.dep_kinds.is_empty()
-        || dep
-            .dep_kinds
-            .iter()
-            .any(|kind| kind.kind == DependencyKind::Normal)
+fn declared_local(dep: &cargo_metadata::Dependency) -> bool {
+    dep.path.is_some() || dep.source.is_none()
+}
+
+fn find_local<'a>(
+    packages: &'a [cargo_metadata::Package],
+    members: &BTreeSet<cargo_metadata::PackageId>,
+    name: &str,
+) -> Option<&'a cargo_metadata::Package> {
+    let mut fallback = None;
+    for pkg in packages {
+        if pkg.source.is_some() || pkg.name != name {
+            continue;
+        }
+        if members.contains(&pkg.id) {
+            return Some(pkg);
+        }
+        fallback = Some(pkg);
+    }
+    fallback
 }
 
 struct Edge {
