@@ -12,7 +12,7 @@ on:
 jobs:
   smoke:
     name: one UM kline day
-    runs-on: [self-hosted, linux, x64, parangsae]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
