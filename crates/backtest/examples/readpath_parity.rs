@@ -1,11 +1,11 @@
 //! Local check against the v0.3 read path, on dates before the holdout. Not a CI test.
 //!
-//! Needs the store, `/workspace/reports/research-read-path.sql`, and `duckdb`
-//! on PATH. A missing piece exits with the path that was required.
+//! Needs the store and `duckdb` on PATH. A missing piece exits with the path
+//! that was required.
 //!
-//! Counts are built from hive file lists with `date < 2025-10-01`. The SQL
-//! views glob every date, including the holdout, so they are not the count
-//! source. Row parity for in-sample days still reads those views.
+//! Every scan uses the hive file list with `date < 2025-10-01`. `um_1m_resolved`
+//! is that list plus the sha-pinned overlay. This example does not `.read` the
+//! full-store SQL: those views glob holdout parquet.
 //!
 //! ```text
 //! cargo run -p parangsae-backtest --example readpath_parity
@@ -20,7 +20,6 @@ use parangsae_core::{resample_series, Interval, Symbol};
 
 const STORE: &str = "/workspace/data/parangsae";
 const FUNDING_ROOT: &str = "/workspace/data/parangsae/runs/funding-4db8a75";
-const SQL: &str = "/workspace/reports/research-read-path.sql";
 const OVERLAY: &str = "/workspace/data/parangsae/runs/resolutions/um-kline-2023-11-10.parquet";
 const OVERLAY_SHA: &str = "d5f6bcd61688cac971b6d276ea4fa0826c86d998b7adc06557686da6bdcfb8ea";
 const HOLDOUT_DATE: &str = "2025-10-01";
@@ -45,11 +44,9 @@ fn main() -> ExitCode {
 fn run() -> Result<(), String> {
     let store = PathBuf::from(STORE);
     let funding = PathBuf::from(FUNDING_ROOT);
-    let sql = PathBuf::from(SQL);
     let overlay = PathBuf::from(OVERLAY);
     require_dir(&store)?;
     require_dir(&funding)?;
-    require_file(&sql)?;
     require_file(&overlay)?;
     if Command::new("duckdb").arg("-version").output().is_err() {
         return Err("duckdb is not on PATH".to_owned());
@@ -84,10 +81,10 @@ fn run() -> Result<(), String> {
     check_count("reader mark_1m", as_i64(tape.marks.len())?, MARK_1M)?;
     compare_funding_rule(&tape, &funding_files)?;
 
-    compare_hours(&store, &funding, &sql)?;
-    compare_day(&store, &funding, &sql, "2021-12-31")?;
-    compare_day(&store, &funding, &sql, "2022-01-01")?;
-    compare_overlay_day(&store, &funding, &sql, &overlay)?;
+    compare_hours(&store, &funding, &um_files, &overlay)?;
+    compare_day(&store, &funding, &um_files, &overlay, "2021-12-31")?;
+    compare_day(&store, &funding, &um_files, &overlay, "2022-01-01")?;
+    compare_overlay_day(&store, &funding, &um_files, &overlay)?;
 
     let (kline_after, hour_after, funding_after, mark_after) =
         view_counts(&um_files, &mark_files, &funding_files, &overlay)?;
@@ -131,6 +128,13 @@ fn resolved_sql(um_files: &[PathBuf], overlay: &Path) -> String {
          select * exclude (resolution) from read_parquet('{overlay}'))",
         files = sql_paths(um_files),
         overlay = overlay.display(),
+    )
+}
+
+fn resolved_query(um_files: &[PathBuf], overlay: &Path, body: &str) -> String {
+    format!(
+        "with um_1m_resolved as {} {body}",
+        resolved_sql(um_files, overlay)
     )
 }
 
@@ -220,19 +224,25 @@ fn sql_paths(files: &[PathBuf]) -> String {
     out
 }
 
-fn compare_hours(store: &Path, funding: &Path, sql: &Path) -> Result<(), String> {
+fn compare_hours(
+    store: &Path,
+    funding: &Path,
+    um_files: &[PathBuf],
+    overlay: &Path,
+) -> Result<(), String> {
     let from = date("2024-01-01")?;
     let to = date("2024-01-31")?;
     let tape = load(store, funding, from, to, &[])?;
     let hours = resample_series(&tape.bars, Interval::ONE_HOUR).map_err(|err| err.to_string())?;
-    let rows = duck_rows(
-        sql,
+    let rows = duck_exec(&resolved_query(
+        um_files,
+        overlay,
         "select open_time_us//3600000000*3600000000 as open_time_us, \
          arg_max(close_ticks, open_time_us) as close_ticks \
          from um_1m_resolved \
          where open_time_us >= 1704067200000000 and open_time_us < 1706745600000000 \
          group by 1 having count(*) = 60 order by 1",
-    )?;
+    ))?;
     if hours.len() != 744 || rows.len() != 744 {
         return Err(format!(
             "2024-01 hours: reader {} duckdb {}",
@@ -254,27 +264,36 @@ fn compare_hours(store: &Path, funding: &Path, sql: &Path) -> Result<(), String>
     Ok(())
 }
 
-fn compare_day(store: &Path, funding: &Path, sql: &Path, day: &str) -> Result<(), String> {
+fn compare_day(
+    store: &Path,
+    funding: &Path,
+    um_files: &[PathBuf],
+    overlay: &Path,
+    day: &str,
+) -> Result<(), String> {
     let date = date(day)?;
     let tape = load(store, funding, date, date, &[])?;
     let start = date.start_us().micros();
     let end = date.next().start_us().micros();
-    let um = duck_rows(
-        sql,
+    let um = duck_exec(&resolved_query(
+        um_files,
+        overlay,
         &format!(
             "select open_time_us, open_ticks, high_ticks, low_ticks, close_ticks, volume_ticks \
              from um_1m_resolved where open_time_us >= {start} and open_time_us < {end} \
              order by open_time_us"
         ),
-    )?;
-    let marks = duck_rows(
-        sql,
-        &format!(
-            "select open_time_us, open_ticks, high_ticks, low_ticks, close_ticks \
-             from read_parquet('{STORE}/parquet/mark-price-kline/symbol=BTCUSDT/date={day}/part.parquet') \
-             order by open_time_us"
-        ),
-    )?;
+    ))?;
+    let mark_path = store
+        .join("parquet/mark-price-kline")
+        .join("symbol=BTCUSDT")
+        .join(format!("date={day}"))
+        .join("part.parquet");
+    let marks = duck_exec(&format!(
+        "select open_time_us, open_ticks, high_ticks, low_ticks, close_ticks \
+         from read_parquet('{}') order by open_time_us",
+        mark_path.display()
+    ))?;
     if tape.bars.len() != um.len() {
         return Err(format!(
             "{day} um rows: reader {} duckdb {}",
@@ -325,7 +344,7 @@ fn compare_day(store: &Path, funding: &Path, sql: &Path, day: &str) -> Result<()
 fn compare_overlay_day(
     store: &Path,
     funding: &Path,
-    sql: &Path,
+    um_files: &[PathBuf],
     overlay: &Path,
 ) -> Result<(), String> {
     let day = date("2023-11-10")?;
@@ -338,13 +357,14 @@ fn compare_overlay_day(
     let tape = load(store, funding, day, day, &[spec])?;
     let start = day.start_us().micros();
     let end = day.next().start_us().micros();
-    let rows = duck_rows(
-        sql,
+    let rows = duck_exec(&resolved_query(
+        um_files,
+        overlay,
         &format!(
             "select open_time_us, close_ticks from um_1m_resolved \
              where open_time_us >= {start} and open_time_us < {end} order by open_time_us"
         ),
-    )?;
+    ))?;
     if tape.bars.len() != 1440 || rows.len() != 1440 {
         return Err(format!(
             "2023-11-10 rows: reader {} resolved {}",
@@ -400,18 +420,6 @@ fn duck_count_query(query: &str) -> Result<i64, String> {
 fn duck_exec(query: &str) -> Result<Vec<Vec<String>>, String> {
     let output = Command::new("duckdb")
         .arg("-csv")
-        .arg("-c")
-        .arg(query)
-        .output()
-        .map_err(|err| format!("duckdb failed to start: {err}"))?;
-    command_rows(output)
-}
-
-fn duck_rows(sql: &Path, query: &str) -> Result<Vec<Vec<String>>, String> {
-    let output = Command::new("duckdb")
-        .arg("-csv")
-        .arg("-c")
-        .arg(format!(".read {}", sql.display()))
         .arg("-c")
         .arg(query)
         .output()

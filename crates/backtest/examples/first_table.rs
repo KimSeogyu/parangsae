@@ -4,10 +4,8 @@
 //! plus `table.csv`. Backtest Builder runs this on the store after the merge.
 //!
 //! ```text
-//! cargo run -p parangsae-backtest --example first_table -- <data-root> [out-dir]
+//! cargo run -p parangsae-backtest --example first_table -- <data-root> <out-dir>
 //! ```
-//!
-//! `out-dir` defaults to `research/runs/engine-v1`.
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -22,7 +20,8 @@ use parangsae_core::{
     ResampledBar, Symbol, Timestamps,
 };
 use parangsae_signals::{
-    drive, drive_funding_z, FundingRow, FundingZ, SignalOutput, Tsmom, PROD_MAX_AGE_US,
+    drive, drive_funding_z, CausalSignal, FundingRow, FundingZ, SignalOutput, Tsmom,
+    PROD_MAX_AGE_US,
 };
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
 
@@ -93,10 +92,7 @@ fn run_tsmom<const N: u16>(
     signal_id: &str,
 ) -> Result<String, String> {
     let signal = Tsmom::<N>::new(interval, r_scale).map_err(|err| err.to_string())?;
-    let mut adapter = TsmomAdapter {
-        signal,
-        cache: BarCache::default(),
-    };
+    let mut adapter = TsmomAdapter::new(signal);
     let dir = out.join(format!("{signal_id}-{interval}"));
     fee_row(
         tape,
@@ -105,6 +101,7 @@ fn run_tsmom<const N: u16>(
         &dir,
         signal_id,
         interval,
+        |adapter| adapter.error.take(),
     )
 }
 
@@ -116,11 +113,7 @@ fn run_funding<const M: u16>(
 ) -> Result<String, String> {
     let signal =
         FundingZ::<M>::new(interval, 2.0, PROD_MAX_AGE_US).map_err(|err| err.to_string())?;
-    let mut adapter = FundingAdapter {
-        signal,
-        funding: funding.to_vec(),
-        cache: BarCache::default(),
-    };
+    let mut adapter = FundingAdapter::new(signal, funding.to_vec());
     let dir = out.join(format!("funding_z-{interval}"));
     fee_row(
         tape,
@@ -129,17 +122,23 @@ fn run_funding<const M: u16>(
         &dir,
         "funding_z",
         interval,
+        |adapter| adapter.error.take(),
     )
 }
 
-fn fee_row<S: TargetSignal>(
+fn fee_row<S, F>(
     tape: &Tape,
     signal: &mut S,
     cfg: &RunConfig,
     dir: &Path,
     signal_id: &str,
     interval: BarInterval,
-) -> Result<String, String> {
+    mut take_error: F,
+) -> Result<String, String>
+where
+    S: TargetSignal,
+    F: FnMut(&mut S) -> Option<String>,
+{
     let mut nets = [0i64; FEE_GRID_BPS.len()];
     let mut headline: Option<Report> = None;
     for (index, bps) in FEE_GRID_BPS.iter().enumerate() {
@@ -147,7 +146,11 @@ fn fee_row<S: TargetSignal>(
             taker_fee: FeeBps(*bps),
             slippage: SlippageBps(1),
         };
-        let report = run_targets(tape, signal, &costs, cfg).map_err(|err| err.to_string())?;
+        let outcome = run_targets(tape, signal, &costs, cfg);
+        if let Some(err) = take_error(signal) {
+            return Err(err);
+        }
+        let report = outcome.map_err(|err| err.to_string())?;
         nets[index] = report.metrics.total_return.ticks();
         if *bps == HEADLINE_FEE_BPS {
             report
@@ -222,7 +225,18 @@ fn funding_observations(tape: &Tape) -> Result<Vec<Observation<FundingRow>>, Str
 
 struct TsmomAdapter<const N: u16> {
     signal: Tsmom<N>,
-    cache: BarCache,
+    bars: RollingBars,
+    error: Option<String>,
+}
+
+impl<const N: u16> TsmomAdapter<N> {
+    fn new(signal: Tsmom<N>) -> Self {
+        Self {
+            signal,
+            bars: RollingBars::new(<Tsmom<N> as CausalSignal>::WINDOW_CAP.get()),
+            error: None,
+        }
+    }
 }
 
 impl<const N: u16> TargetSignal for TsmomAdapter<N> {
@@ -231,11 +245,23 @@ impl<const N: u16> TargetSignal for TsmomAdapter<N> {
         bars: Causal<'_, &[ResampledBar]>,
         _funding: Causal<'_, &[FundingObs]>,
     ) -> Option<SignalOutput> {
+        if self.error.is_some() {
+            return None;
+        }
         let decision = DecisionTime::from_micros(bars.available_ts().micros());
-        let rows = self.cache.observations(bars.value());
-        match drive(&self.signal, rows, decision) {
+        let rows = match self.bars.sync(bars.value()) {
+            Ok(rows) => rows.to_vec(),
+            Err(err) => {
+                self.error = Some(err);
+                return None;
+            }
+        };
+        match drive(&self.signal, &rows, decision) {
             Ok(output) => output,
-            Err(err) => panic!("tsmom<{N}>: {err}"),
+            Err(err) => {
+                self.error = Some(format!("tsmom<{N}>: {err}"));
+                None
+            }
         }
     }
 }
@@ -243,7 +269,19 @@ impl<const N: u16> TargetSignal for TsmomAdapter<N> {
 struct FundingAdapter<const M: u16> {
     signal: FundingZ<M>,
     funding: Vec<Observation<FundingRow>>,
-    cache: BarCache,
+    bars: RollingBars,
+    error: Option<String>,
+}
+
+impl<const M: u16> FundingAdapter<M> {
+    fn new(signal: FundingZ<M>, funding: Vec<Observation<FundingRow>>) -> Self {
+        Self {
+            signal,
+            funding,
+            bars: RollingBars::new(FundingZ::<M>::BAR_CAP.get()),
+            error: None,
+        }
+    }
 }
 
 impl<const M: u16> TargetSignal for FundingAdapter<M> {
@@ -252,71 +290,114 @@ impl<const M: u16> TargetSignal for FundingAdapter<M> {
         bars: Causal<'_, &[ResampledBar]>,
         funding: Causal<'_, &[FundingObs]>,
     ) -> Option<SignalOutput> {
+        if self.error.is_some() {
+            return None;
+        }
         let decision = DecisionTime::from_micros(bars.available_ts().micros());
-        let bar_rows = self.cache.observations(bars.value());
-        let fund_rows = funding_prefix(&self.funding, funding.value());
-        match drive_funding_z(&self.signal, bar_rows, fund_rows, decision) {
+        let bar_rows = match self.bars.sync(bars.value()) {
+            Ok(rows) => rows.to_vec(),
+            Err(err) => {
+                self.error = Some(err);
+                return None;
+            }
+        };
+        let fund_rows = match funding_window(
+            &self.funding,
+            funding.value(),
+            FundingZ::<M>::FUNDING_CAP.get(),
+        ) {
+            Ok(rows) => rows.to_vec(),
+            Err(err) => {
+                self.error = Some(err);
+                return None;
+            }
+        };
+        match drive_funding_z(&self.signal, &bar_rows, &fund_rows, decision) {
             Ok(output) => output,
-            Err(err) => panic!("funding_z<{M}>: {err}"),
+            Err(err) => {
+                self.error = Some(format!("funding_z<{M}>: {err}"));
+                None
+            }
         }
     }
 }
 
-fn funding_prefix<'a>(
+fn funding_window<'a>(
     all: &'a [Observation<FundingRow>],
     view: &[FundingObs],
-) -> &'a [Observation<FundingRow>] {
+    cap: usize,
+) -> Result<&'a [Observation<FundingRow>], String> {
     if view.len() > all.len() {
-        panic!(
+        return Err(format!(
             "funding view has {} rows; the tape has {}",
             view.len(),
             all.len()
-        );
+        ));
     }
     if let Some(last) = view.last() {
         let stored = all[view.len() - 1].value();
         if stored.funding_time() != last.funding_time {
-            panic!(
+            return Err(format!(
                 "funding view is not a prefix of the tape at {}",
                 last.funding_time
-            );
+            ));
         }
     }
-    &all[..view.len()]
+    let start = view.len().saturating_sub(cap);
+    Ok(&all[start..view.len()])
 }
 
-#[derive(Default)]
-struct BarCache {
+/// The last `cap` closed bars. `drive` only walks this window.
+struct RollingBars {
+    cap: usize,
+    prefix_len: usize,
     rows: Vec<Observation<ResampledBar>>,
 }
 
-impl BarCache {
-    fn observations(&mut self, bars: &[ResampledBar]) -> &[Observation<ResampledBar>] {
-        if self.rows.len() + 1 == bars.len() {
-            if let Some(bar) = bars.last() {
-                self.rows.push(bar_observation(*bar));
-            }
-        } else if self.rows.len() != bars.len() {
-            self.rows.clear();
-            self.rows.extend(bars.iter().copied().map(bar_observation));
+impl RollingBars {
+    fn new(cap: usize) -> Self {
+        Self {
+            cap,
+            prefix_len: 0,
+            rows: Vec::new(),
         }
-        &self.rows
+    }
+
+    fn sync(&mut self, bars: &[ResampledBar]) -> Result<&[Observation<ResampledBar>], String> {
+        let Some(latest) = bars.last().copied() else {
+            return Err("signal was called with no bar".to_owned());
+        };
+        if self.prefix_len + 1 == bars.len() {
+            self.rows.push(bar_observation(latest)?);
+            if self.rows.len() > self.cap {
+                let extra = self.rows.len() - self.cap;
+                self.rows.drain(..extra);
+            }
+        } else if self.prefix_len != bars.len() {
+            self.rows.clear();
+            let start = bars.len().saturating_sub(self.cap);
+            for bar in &bars[start..] {
+                self.rows.push(bar_observation(*bar)?);
+            }
+        }
+        self.prefix_len = bars.len();
+        Ok(&self.rows)
     }
 }
 
-fn bar_observation(bar: ResampledBar) -> Observation<ResampledBar> {
+fn bar_observation(bar: ResampledBar) -> Result<Observation<ResampledBar>, String> {
     let close = bar.close_time();
     let available = close
         .checked_add_micros(1_000)
-        .expect("bar availability fits");
-    Observation::new(
+        .ok_or("bar availability overflow")?;
+    Ok(Observation::new(
         Timestamps {
             event_ts: EventTs::from_micros(close),
             available_ts: AvailableTs::from_micros(available),
             received_ts: ReceivedTs::from_micros(available),
         },
         bar,
-    )
+    ))
 }
 
 fn date(text: &str) -> Result<UtcDate, String> {
@@ -327,15 +408,14 @@ fn parse_args() -> Result<(PathBuf, PathBuf), String> {
     let mut args = env::args().skip(1);
     let root = args
         .next()
-        .ok_or("usage: first_table <data-root> [out-dir]")?;
-    let out = match args.next() {
-        Some(path) => PathBuf::from(path),
-        None => PathBuf::from("research/runs/engine-v1"),
-    };
+        .ok_or("usage: first_table <data-root> <out-dir>")?;
+    let out = args
+        .next()
+        .ok_or("usage: first_table <data-root> <out-dir>")?;
     if args.next().is_some() {
-        return Err("usage: first_table <data-root> [out-dir]".to_owned());
+        return Err("usage: first_table <data-root> <out-dir>".to_owned());
     }
-    Ok((PathBuf::from(root), out))
+    Ok((PathBuf::from(root), PathBuf::from(out)))
 }
 
 fn parse_sha(hex_text: &str) -> Result<[u8; 32], String> {
