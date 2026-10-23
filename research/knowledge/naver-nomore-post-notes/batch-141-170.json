@@ -17,7 +17,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "3a83b99b5eebf1ef53f6927300cc07226418cfa6f62ad24c0e9378debdffe833"
+    "content_sha256": "3a83b99b5eebf1ef53f6927300cc07226418cfa6f62ad24c0e9378debdffe833",
+    "source_document_sha256": "3a83b99b5eebf1ef53f6927300cc07226418cfa6f62ad24c0e9378debdffe833",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221769470126",
@@ -37,7 +39,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "6af0a66a73a36a21dac59a809c5a3c422088657f2e2b70f6120cb9a36d95df16"
+    "content_sha256": "6af0a66a73a36a21dac59a809c5a3c422088657f2e2b70f6120cb9a36d95df16",
+    "source_document_sha256": "6af0a66a73a36a21dac59a809c5a3c422088657f2e2b70f6120cb9a36d95df16",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221762718215",
@@ -57,7 +61,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "11d127f258484797dce3c27f1ad5b02b4c6a255b4dad89255c13c3fc8d310391"
+    "content_sha256": "11d127f258484797dce3c27f1ad5b02b4c6a255b4dad89255c13c3fc8d310391",
+    "source_document_sha256": "11d127f258484797dce3c27f1ad5b02b4c6a255b4dad89255c13c3fc8d310391",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221761565426",
@@ -77,7 +83,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "670419219f3036c27e396aeb4f777f269d26f8d33eabf484ff673b08661514c0"
+    "content_sha256": "670419219f3036c27e396aeb4f777f269d26f8d33eabf484ff673b08661514c0",
+    "source_document_sha256": "670419219f3036c27e396aeb4f777f269d26f8d33eabf484ff673b08661514c0",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221756656923",
@@ -97,7 +105,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "5273d49031478475ee1f1cc4256c1869eea8c95bfa07b1a602b89a38a7d070be"
+    "content_sha256": "5273d49031478475ee1f1cc4256c1869eea8c95bfa07b1a602b89a38a7d070be",
+    "source_document_sha256": "5273d49031478475ee1f1cc4256c1869eea8c95bfa07b1a602b89a38a7d070be",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221755247737",
@@ -117,7 +127,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "2d7ebdba7e1dd85de52ee72aef19400efbbddcd4054ac6094fec0c06f02ccfab"
+    "content_sha256": "2d7ebdba7e1dd85de52ee72aef19400efbbddcd4054ac6094fec0c06f02ccfab",
+    "source_document_sha256": "2d7ebdba7e1dd85de52ee72aef19400efbbddcd4054ac6094fec0c06f02ccfab",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221745126613",
@@ -137,7 +149,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "5ae4929526f793d49ebd9b38c9cda2ba28004c1e020d2db0f453a6f645a76669"
+    "content_sha256": "5ae4929526f793d49ebd9b38c9cda2ba28004c1e020d2db0f453a6f645a76669",
+    "source_document_sha256": "5ae4929526f793d49ebd9b38c9cda2ba28004c1e020d2db0f453a6f645a76669",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221743665289",
@@ -157,7 +171,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "676648241658297306f21d30a5decd4bd7b4bf5584a9cc6d71acef8e0ff1d4a9"
+    "content_sha256": "676648241658297306f21d30a5decd4bd7b4bf5584a9cc6d71acef8e0ff1d4a9",
+    "source_document_sha256": "676648241658297306f21d30a5decd4bd7b4bf5584a9cc6d71acef8e0ff1d4a9",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221737561172",
@@ -176,7 +192,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "7a39338b0cd4b6b41b14cae511c480e48977e687533a76d010d4e22d7381bd5f"
+    "content_sha256": "7a39338b0cd4b6b41b14cae511c480e48977e687533a76d010d4e22d7381bd5f",
+    "source_document_sha256": "7a39338b0cd4b6b41b14cae511c480e48977e687533a76d010d4e22d7381bd5f",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221735563003",
@@ -196,7 +214,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "1c1160ee4b832c3879084bd39be79231e100d7ce5be046cb171f7d08b26264d1"
+    "content_sha256": "1c1160ee4b832c3879084bd39be79231e100d7ce5be046cb171f7d08b26264d1",
+    "source_document_sha256": "1c1160ee4b832c3879084bd39be79231e100d7ce5be046cb171f7d08b26264d1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221733818942",
@@ -216,7 +236,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "51aa274e690700a16f5187a6f8c8d8f5d84a6ec093bbfc2c5f5ecb9b2ba62aa4"
+    "content_sha256": "51aa274e690700a16f5187a6f8c8d8f5d84a6ec093bbfc2c5f5ecb9b2ba62aa4",
+    "source_document_sha256": "51aa274e690700a16f5187a6f8c8d8f5d84a6ec093bbfc2c5f5ecb9b2ba62aa4",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221725560617",
@@ -236,7 +258,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "3f57cedc515557a0ad33c851a692117c7fd44a6b7b24872c426ab08543225a7a"
+    "content_sha256": "3f57cedc515557a0ad33c851a692117c7fd44a6b7b24872c426ab08543225a7a",
+    "source_document_sha256": "3f57cedc515557a0ad33c851a692117c7fd44a6b7b24872c426ab08543225a7a",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221724595807",
@@ -256,7 +280,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "b55f6136e44d79b664591d5cd11a280e927889e59b6707e84f15913f44d4cc19"
+    "content_sha256": "b55f6136e44d79b664591d5cd11a280e927889e59b6707e84f15913f44d4cc19",
+    "source_document_sha256": "b55f6136e44d79b664591d5cd11a280e927889e59b6707e84f15913f44d4cc19",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221715226367",
@@ -276,7 +302,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "ea160e7997e0506ccb31e38c0d6c430f23d0f00ec2d6fb59d0c9d3ff77063deb"
+    "content_sha256": "ea160e7997e0506ccb31e38c0d6c430f23d0f00ec2d6fb59d0c9d3ff77063deb",
+    "source_document_sha256": "ea160e7997e0506ccb31e38c0d6c430f23d0f00ec2d6fb59d0c9d3ff77063deb",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221697551453",
@@ -296,7 +324,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "007792f6901355f73ecd16143d97b946c6a1dbf43c6414f8c4f56abde158f4cc"
+    "content_sha256": "007792f6901355f73ecd16143d97b946c6a1dbf43c6414f8c4f56abde158f4cc",
+    "source_document_sha256": "007792f6901355f73ecd16143d97b946c6a1dbf43c6414f8c4f56abde158f4cc",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221694980745",
@@ -316,7 +346,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "b937af805d69636166e73bc11c45237272dab34f8c3237fa94d2d8d79fad65be"
+    "content_sha256": "b937af805d69636166e73bc11c45237272dab34f8c3237fa94d2d8d79fad65be",
+    "source_document_sha256": "b937af805d69636166e73bc11c45237272dab34f8c3237fa94d2d8d79fad65be",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221688310012",
@@ -336,7 +368,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "18d39d21e45dbcd390ca9070a64e30dc57c2ff870b09defd64723dd2704ae3c8"
+    "content_sha256": "18d39d21e45dbcd390ca9070a64e30dc57c2ff870b09defd64723dd2704ae3c8",
+    "source_document_sha256": "18d39d21e45dbcd390ca9070a64e30dc57c2ff870b09defd64723dd2704ae3c8",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221686218378",
@@ -356,7 +390,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "a73eac877c54e9dab43ebac9b1eb2838300873341075f5f5f6aded3202b3985c"
+    "content_sha256": "a73eac877c54e9dab43ebac9b1eb2838300873341075f5f5f6aded3202b3985c",
+    "source_document_sha256": "a73eac877c54e9dab43ebac9b1eb2838300873341075f5f5f6aded3202b3985c",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221685105653",
@@ -376,7 +412,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "0513f47cf5a2448cf687c17957f74bcd112b3af825f623a368430613cd3e6f27"
+    "content_sha256": "0513f47cf5a2448cf687c17957f74bcd112b3af825f623a368430613cd3e6f27",
+    "source_document_sha256": "0513f47cf5a2448cf687c17957f74bcd112b3af825f623a368430613cd3e6f27",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221680489518",
@@ -396,7 +434,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "c8bed7f7161a58627805386c1ba9d10e12ba7135df0ad4102cd7172a7dffd023"
+    "content_sha256": "c8bed7f7161a58627805386c1ba9d10e12ba7135df0ad4102cd7172a7dffd023",
+    "source_document_sha256": "c8bed7f7161a58627805386c1ba9d10e12ba7135df0ad4102cd7172a7dffd023",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221679400279",
@@ -416,7 +456,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "999eaa823e1da65ed05abe957940824819821035afde71484aa1ebf3fe586d19"
+    "content_sha256": "999eaa823e1da65ed05abe957940824819821035afde71484aa1ebf3fe586d19",
+    "source_document_sha256": "999eaa823e1da65ed05abe957940824819821035afde71484aa1ebf3fe586d19",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221674664303",
@@ -436,7 +478,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "d2e19111f4772068a7ff510df7c3a8754d23fc490049688437ab68ac6a6515a0"
+    "content_sha256": "d2e19111f4772068a7ff510df7c3a8754d23fc490049688437ab68ac6a6515a0",
+    "source_document_sha256": "d2e19111f4772068a7ff510df7c3a8754d23fc490049688437ab68ac6a6515a0",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221673615171",
@@ -456,7 +500,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "f4f304a13f207b7bff940c7090942a65747b69d417663875014ebfebd5675b29"
+    "content_sha256": "f4f304a13f207b7bff940c7090942a65747b69d417663875014ebfebd5675b29",
+    "source_document_sha256": "f4f304a13f207b7bff940c7090942a65747b69d417663875014ebfebd5675b29",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221671714512",
@@ -476,7 +522,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "b73934eb6b308c2781392ad3922962711faeea13eb0493c69f51709ba7292c32"
+    "content_sha256": "b73934eb6b308c2781392ad3922962711faeea13eb0493c69f51709ba7292c32",
+    "source_document_sha256": "b73934eb6b308c2781392ad3922962711faeea13eb0493c69f51709ba7292c32",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221664817770",
@@ -496,7 +544,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "ed4e2ca49ecc0dd5cf1c1560ad4454b0f1f482dd51a23f8c4693e5651378311e"
+    "content_sha256": "ed4e2ca49ecc0dd5cf1c1560ad4454b0f1f482dd51a23f8c4693e5651378311e",
+    "source_document_sha256": "ed4e2ca49ecc0dd5cf1c1560ad4454b0f1f482dd51a23f8c4693e5651378311e",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221663677732",
@@ -516,7 +566,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "780cd20ee8b4d6025a16137fdee6f4b707c088eb783269599c865b2dfee66303"
+    "content_sha256": "780cd20ee8b4d6025a16137fdee6f4b707c088eb783269599c865b2dfee66303",
+    "source_document_sha256": "780cd20ee8b4d6025a16137fdee6f4b707c088eb783269599c865b2dfee66303",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221660962548",
@@ -536,7 +588,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "b8341ea07963e6853ae7e7278c7f8899623681ff1363c97c0cbd20a06aefd14d"
+    "content_sha256": "b8341ea07963e6853ae7e7278c7f8899623681ff1363c97c0cbd20a06aefd14d",
+    "source_document_sha256": "b8341ea07963e6853ae7e7278c7f8899623681ff1363c97c0cbd20a06aefd14d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221659936995",
@@ -556,7 +610,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "5804527cebefe6d75ef40ce68424409147d65722f62c3ca2ca4352794538c469"
+    "content_sha256": "5804527cebefe6d75ef40ce68424409147d65722f62c3ca2ca4352794538c469",
+    "source_document_sha256": "5804527cebefe6d75ef40ce68424409147d65722f62c3ca2ca4352794538c469",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221658900135",
@@ -576,7 +632,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "75135f5ff017f6d25d6d9220dd97ff4ad3b75ddb7d2c8808cd475f0b8b2a98e2"
+    "content_sha256": "75135f5ff017f6d25d6d9220dd97ff4ad3b75ddb7d2c8808cd475f0b8b2a98e2",
+    "source_document_sha256": "75135f5ff017f6d25d6d9220dd97ff4ad3b75ddb7d2c8808cd475f0b8b2a98e2",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221657865344",
@@ -596,6 +654,8 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "0b7466fb122eacb0c4010be54525efbd01480b831abf490e9d2a4bb80fd3e741"
+    "content_sha256": "0b7466fb122eacb0c4010be54525efbd01480b831abf490e9d2a4bb80fd3e741",
+    "source_document_sha256": "0b7466fb122eacb0c4010be54525efbd01480b831abf490e9d2a4bb80fd3e741",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   }
 ]

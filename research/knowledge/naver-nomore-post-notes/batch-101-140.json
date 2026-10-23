@@ -18,7 +18,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "c2fe723c1ccbaf783c3d4e3776bd0dc7404471994d15459a644cb53595b27a95"
+    "source_text_sha256": "c2fe723c1ccbaf783c3d4e3776bd0dc7404471994d15459a644cb53595b27a95",
+    "source_document_sha256": "c2fe723c1ccbaf783c3d4e3776bd0dc7404471994d15459a644cb53595b27a95",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221989788487",
@@ -39,7 +41,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "7dcf49d8dc160889533be136175421b042964d6b469e3b992b47cc9b893ec060"
+    "source_text_sha256": "7dcf49d8dc160889533be136175421b042964d6b469e3b992b47cc9b893ec060",
+    "source_document_sha256": "7dcf49d8dc160889533be136175421b042964d6b469e3b992b47cc9b893ec060",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221984342865",
@@ -61,7 +65,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "6c74f7121d12b86b05114141ab983db480e960253b554a57c14c9f8aaa3cbd8a"
+    "source_text_sha256": "6c74f7121d12b86b05114141ab983db480e960253b554a57c14c9f8aaa3cbd8a",
+    "source_document_sha256": "6c74f7121d12b86b05114141ab983db480e960253b554a57c14c9f8aaa3cbd8a",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221981657907",
@@ -83,7 +89,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "09257de885a59e7dc619349099d33d3b8ebbaf09475f8ed7f360ea9f94d25faa"
+    "source_text_sha256": "09257de885a59e7dc619349099d33d3b8ebbaf09475f8ed7f360ea9f94d25faa",
+    "source_document_sha256": "09257de885a59e7dc619349099d33d3b8ebbaf09475f8ed7f360ea9f94d25faa",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221979192777",
@@ -104,7 +112,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "6d0d6513c03ec68b0a743b7aa6433b794d78a1b84e00abaf7025364709830f10"
+    "source_text_sha256": "6d0d6513c03ec68b0a743b7aa6433b794d78a1b84e00abaf7025364709830f10",
+    "source_document_sha256": "6d0d6513c03ec68b0a743b7aa6433b794d78a1b84e00abaf7025364709830f10",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221972892253",
@@ -125,7 +135,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "aef82bb3ec82ea87472070edeedd8f1115af6ddda026e3d981bc71ec6cde0f51"
+    "source_text_sha256": "aef82bb3ec82ea87472070edeedd8f1115af6ddda026e3d981bc71ec6cde0f51",
+    "source_document_sha256": "aef82bb3ec82ea87472070edeedd8f1115af6ddda026e3d981bc71ec6cde0f51",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221971471240",
@@ -147,7 +159,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "95c26285f36964e5b95c1130651ee45c8f15176b142f4615329a7ff2a714ccd1"
+    "source_text_sha256": "95c26285f36964e5b95c1130651ee45c8f15176b142f4615329a7ff2a714ccd1",
+    "source_document_sha256": "95c26285f36964e5b95c1130651ee45c8f15176b142f4615329a7ff2a714ccd1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221970059165",
@@ -169,7 +183,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "40e51aadba343c1490a138121a3796bf82f3dfdb2399db0a63d48ea992532732"
+    "source_text_sha256": "40e51aadba343c1490a138121a3796bf82f3dfdb2399db0a63d48ea992532732",
+    "source_document_sha256": "40e51aadba343c1490a138121a3796bf82f3dfdb2399db0a63d48ea992532732",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221963782054",
@@ -190,7 +206,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "0216a626190917a66a933a90c147f975dd42070ce85a9823da2665fd97ae6f69"
+    "source_text_sha256": "0216a626190917a66a933a90c147f975dd42070ce85a9823da2665fd97ae6f69",
+    "source_document_sha256": "0216a626190917a66a933a90c147f975dd42070ce85a9823da2665fd97ae6f69",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221944635263",
@@ -211,7 +229,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "7fd73f7b0d23332230d44366b7ae239999c49b009f7fc8d20c996faa0d5b19cd"
+    "source_text_sha256": "7fd73f7b0d23332230d44366b7ae239999c49b009f7fc8d20c996faa0d5b19cd",
+    "source_document_sha256": "7fd73f7b0d23332230d44366b7ae239999c49b009f7fc8d20c996faa0d5b19cd",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221933665135",
@@ -232,7 +252,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "3f7a3aebd94ef3debd69f3143e078e1099a48085e07a3c9e1cdcd1ef01a88d40"
+    "source_text_sha256": "3f7a3aebd94ef3debd69f3143e078e1099a48085e07a3c9e1cdcd1ef01a88d40",
+    "source_document_sha256": "3f7a3aebd94ef3debd69f3143e078e1099a48085e07a3c9e1cdcd1ef01a88d40",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221931836115",
@@ -253,7 +275,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "9587c937f11c8ca067ded33c1b484370a91d43b68af40b69ca4f688a8498de0f"
+    "source_text_sha256": "9587c937f11c8ca067ded33c1b484370a91d43b68af40b69ca4f688a8498de0f",
+    "source_document_sha256": "9587c937f11c8ca067ded33c1b484370a91d43b68af40b69ca4f688a8498de0f",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221922226386",
@@ -274,7 +298,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "142fd42a0f47088d425e5df6e0f7d6d2c1121437074457f7d9ec802b312e8adb"
+    "source_text_sha256": "142fd42a0f47088d425e5df6e0f7d6d2c1121437074457f7d9ec802b312e8adb",
+    "source_document_sha256": "142fd42a0f47088d425e5df6e0f7d6d2c1121437074457f7d9ec802b312e8adb",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221920342133",
@@ -296,7 +322,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "c6cc12153c2a5fbcb61ec29b40ee4ae32abc68f4b587e0ec1c24bea05c44b378"
+    "source_text_sha256": "c6cc12153c2a5fbcb61ec29b40ee4ae32abc68f4b587e0ec1c24bea05c44b378",
+    "source_document_sha256": "c6cc12153c2a5fbcb61ec29b40ee4ae32abc68f4b587e0ec1c24bea05c44b378",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221918287753",
@@ -317,7 +345,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "eb714eea6b8d59f2fe5888f9318d7600d7f0c9bd8cb5f2bb317a7c3a4de42747"
+    "source_text_sha256": "eb714eea6b8d59f2fe5888f9318d7600d7f0c9bd8cb5f2bb317a7c3a4de42747",
+    "source_document_sha256": "eb714eea6b8d59f2fe5888f9318d7600d7f0c9bd8cb5f2bb317a7c3a4de42747",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221912872165",
@@ -338,7 +368,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "e61a862043acdfbd8d1035f2b7a6b0bb2cb795be385289271997ccf3af39dd8e"
+    "source_text_sha256": "e61a862043acdfbd8d1035f2b7a6b0bb2cb795be385289271997ccf3af39dd8e",
+    "source_document_sha256": "e61a862043acdfbd8d1035f2b7a6b0bb2cb795be385289271997ccf3af39dd8e",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221898983694",
@@ -359,7 +391,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "2fc0b4cd1a0e4ed3ede5e447a9138eb6ee91da0ee2a604ce214f026671a80eb3"
+    "source_text_sha256": "2fc0b4cd1a0e4ed3ede5e447a9138eb6ee91da0ee2a604ce214f026671a80eb3",
+    "source_document_sha256": "2fc0b4cd1a0e4ed3ede5e447a9138eb6ee91da0ee2a604ce214f026671a80eb3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221895248749",
@@ -380,7 +414,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "91d34afd417abbbabf62a72ee48cbd8e0d22b20a366888b960b4948ff69bdb65"
+    "source_text_sha256": "91d34afd417abbbabf62a72ee48cbd8e0d22b20a366888b960b4948ff69bdb65",
+    "source_document_sha256": "91d34afd417abbbabf62a72ee48cbd8e0d22b20a366888b960b4948ff69bdb65",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221873813004",
@@ -401,7 +437,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "9770b16d7c07e4bc6d09001b7307ca34f4f3651a34017657f83609c10ccc8ef0"
+    "source_text_sha256": "9770b16d7c07e4bc6d09001b7307ca34f4f3651a34017657f83609c10ccc8ef0",
+    "source_document_sha256": "9770b16d7c07e4bc6d09001b7307ca34f4f3651a34017657f83609c10ccc8ef0",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221872240493",
@@ -422,7 +460,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "f078039628db0b4055b4ec3f2e928e0c927b26c6826ce4b6a130741f665579bc"
+    "source_text_sha256": "f078039628db0b4055b4ec3f2e928e0c927b26c6826ce4b6a130741f665579bc",
+    "source_document_sha256": "f078039628db0b4055b4ec3f2e928e0c927b26c6826ce4b6a130741f665579bc",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221868379065",
@@ -443,7 +483,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "e9bb51ed1538f59f1e812735f736444eb32aff425c04ff5fffb47f53e29552b8"
+    "source_text_sha256": "e9bb51ed1538f59f1e812735f736444eb32aff425c04ff5fffb47f53e29552b8",
+    "source_document_sha256": "e9bb51ed1538f59f1e812735f736444eb32aff425c04ff5fffb47f53e29552b8",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221861806452",
@@ -465,7 +507,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "8baf8abed954e482611c7e9bd84a8ec6a85e5fe64fb1459b2ad804a464772d9b"
+    "source_text_sha256": "8baf8abed954e482611c7e9bd84a8ec6a85e5fe64fb1459b2ad804a464772d9b",
+    "source_document_sha256": "8baf8abed954e482611c7e9bd84a8ec6a85e5fe64fb1459b2ad804a464772d9b",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221859871370",
@@ -486,7 +530,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "4bc545e0a044f1b19cae2bfe0019b41a10c6ab668ca768985cd234da7861b123"
+    "source_text_sha256": "4bc545e0a044f1b19cae2bfe0019b41a10c6ab668ca768985cd234da7861b123",
+    "source_document_sha256": "4bc545e0a044f1b19cae2bfe0019b41a10c6ab668ca768985cd234da7861b123",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221858020849",
@@ -507,7 +553,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "842b0f8f2643181c9bf87c1dd49193a741b02530bc601bfb44edc6cb0506a304"
+    "source_text_sha256": "842b0f8f2643181c9bf87c1dd49193a741b02530bc601bfb44edc6cb0506a304",
+    "source_document_sha256": "842b0f8f2643181c9bf87c1dd49193a741b02530bc601bfb44edc6cb0506a304",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221856228866",
@@ -528,7 +576,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "d46d3ab6a2c4e0f1aec8c33f978f11148c9ab9a6cc8ab6665f3f67bc2845c75b"
+    "source_text_sha256": "d46d3ab6a2c4e0f1aec8c33f978f11148c9ab9a6cc8ab6665f3f67bc2845c75b",
+    "source_document_sha256": "d46d3ab6a2c4e0f1aec8c33f978f11148c9ab9a6cc8ab6665f3f67bc2845c75b",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221851727613",
@@ -549,7 +599,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "3eef87a316e0ff5b05e86c49ef97fe6a714b2ec09681dee1390b22deb7c69a88"
+    "source_text_sha256": "3eef87a316e0ff5b05e86c49ef97fe6a714b2ec09681dee1390b22deb7c69a88",
+    "source_document_sha256": "3eef87a316e0ff5b05e86c49ef97fe6a714b2ec09681dee1390b22deb7c69a88",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221849953054",
@@ -570,7 +622,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "391f216f9c6371099de3e82d3fa7ead726a7208863f75184208d0d57b359f755"
+    "source_text_sha256": "391f216f9c6371099de3e82d3fa7ead726a7208863f75184208d0d57b359f755",
+    "source_document_sha256": "391f216f9c6371099de3e82d3fa7ead726a7208863f75184208d0d57b359f755",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221846710679",
@@ -591,7 +645,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "ef9dfb0391ea32ea74f242870b40fde61ecd9a83f862a044f0f2808e90efa9b8"
+    "source_text_sha256": "ef9dfb0391ea32ea74f242870b40fde61ecd9a83f862a044f0f2808e90efa9b8",
+    "source_document_sha256": "ef9dfb0391ea32ea74f242870b40fde61ecd9a83f862a044f0f2808e90efa9b8",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221844887434",
@@ -613,7 +669,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "7a812e5ad499b7b0fd98391f09db8fbf8e286d9efa066df87a22b4f91fd77fb4"
+    "source_text_sha256": "7a812e5ad499b7b0fd98391f09db8fbf8e286d9efa066df87a22b4f91fd77fb4",
+    "source_document_sha256": "7a812e5ad499b7b0fd98391f09db8fbf8e286d9efa066df87a22b4f91fd77fb4",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221835275380",
@@ -635,7 +693,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "8acb95614595e9ebfc64d78ef3f02799ce7d6a45476e96149c9b09c4811a2613"
+    "source_text_sha256": "8acb95614595e9ebfc64d78ef3f02799ce7d6a45476e96149c9b09c4811a2613",
+    "source_document_sha256": "8acb95614595e9ebfc64d78ef3f02799ce7d6a45476e96149c9b09c4811a2613",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221828196025",
@@ -656,7 +716,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "5749df822feec4afba5ff651020eaa1f65d2fc590e81cb0db4c8086805015f70"
+    "source_text_sha256": "5749df822feec4afba5ff651020eaa1f65d2fc590e81cb0db4c8086805015f70",
+    "source_document_sha256": "5749df822feec4afba5ff651020eaa1f65d2fc590e81cb0db4c8086805015f70",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221815859207",
@@ -677,7 +739,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "813fde48768678fafafe9ebe7a9958903fd21fc38b26c215e4541727b41933f3"
+    "source_text_sha256": "813fde48768678fafafe9ebe7a9958903fd21fc38b26c215e4541727b41933f3",
+    "source_document_sha256": "813fde48768678fafafe9ebe7a9958903fd21fc38b26c215e4541727b41933f3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221813744648",
@@ -698,7 +762,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "df142c95bd876ab9c482e9a8d1eaf3540cce4f0a639aa8bf195c87ff60517f65"
+    "source_text_sha256": "df142c95bd876ab9c482e9a8d1eaf3540cce4f0a639aa8bf195c87ff60517f65",
+    "source_document_sha256": "df142c95bd876ab9c482e9a8d1eaf3540cce4f0a639aa8bf195c87ff60517f65",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221803833471",
@@ -720,7 +786,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "e92eb3950acb982e2dd51d8d1c39c062413a1d0467f2baec5a28dd1946bf1790"
+    "source_text_sha256": "e92eb3950acb982e2dd51d8d1c39c062413a1d0467f2baec5a28dd1946bf1790",
+    "source_document_sha256": "e92eb3950acb982e2dd51d8d1c39c062413a1d0467f2baec5a28dd1946bf1790",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221801591042",
@@ -741,7 +809,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "5c984a8559c312f81a898017cf7297f4f56585d9569dd998888f73e708a7355d"
+    "source_text_sha256": "5c984a8559c312f81a898017cf7297f4f56585d9569dd998888f73e708a7355d",
+    "source_document_sha256": "5c984a8559c312f81a898017cf7297f4f56585d9569dd998888f73e708a7355d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221795872220",
@@ -762,7 +832,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "cec5d74e4add2f4e7080524e85ce21c6b4fb2ad396561712eb53a23e4a5de3b5"
+    "source_text_sha256": "cec5d74e4add2f4e7080524e85ce21c6b4fb2ad396561712eb53a23e4a5de3b5",
+    "source_document_sha256": "cec5d74e4add2f4e7080524e85ce21c6b4fb2ad396561712eb53a23e4a5de3b5",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221794478378",
@@ -783,7 +855,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "26932bc26c71c2ea7940c83b00e13075d7605d8153d5849c22039fc3e00112e0"
+    "source_text_sha256": "26932bc26c71c2ea7940c83b00e13075d7605d8153d5849c22039fc3e00112e0",
+    "source_document_sha256": "26932bc26c71c2ea7940c83b00e13075d7605d8153d5849c22039fc3e00112e0",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221788759243",
@@ -804,7 +878,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "dd19d3f1a9f0bbb4885f7d5f201c5fb5a1b08630ff7ff7274338c01911bf471b"
+    "source_text_sha256": "dd19d3f1a9f0bbb4885f7d5f201c5fb5a1b08630ff7ff7274338c01911bf471b",
+    "source_document_sha256": "dd19d3f1a9f0bbb4885f7d5f201c5fb5a1b08630ff7ff7274338c01911bf471b",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221780784522",
@@ -825,7 +901,9 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "2744cf438e5e799521f450e72b506e8b035cfcece2accfc3bc714d446f881d2d"
+    "source_text_sha256": "2744cf438e5e799521f450e72b506e8b035cfcece2accfc3bc714d446f881d2d",
+    "source_document_sha256": "2744cf438e5e799521f450e72b506e8b035cfcece2accfc3bc714d446f881d2d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221778718156",
@@ -846,6 +924,8 @@
       "external_links_not_reviewed",
       "author_claims_not_independently_verified"
     ],
-    "source_text_sha256": "f6b79ba56ceb5cd34bfd13f304501aba00f40641d649de38b21392b536e2d137"
+    "source_text_sha256": "f6b79ba56ceb5cd34bfd13f304501aba00f40641d649de38b21392b536e2d137",
+    "source_document_sha256": "f6b79ba56ceb5cd34bfd13f304501aba00f40641d649de38b21392b536e2d137",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   }
 ]

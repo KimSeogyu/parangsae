@@ -208,5 +208,625 @@
       "author_claims_not_independently_verified"
     ],
     "source_document_sha256": "eca96ba3ca5f46f206f3b4f0874064e47d6076f29fb36e0f14ec958f4b37f78e"
+  },
+  {
+    "id": "221421317213",
+    "title": "최저임금 속도 조절, 소득성장 3순위 그리고 경제정책 변화",
+    "date": "2018. 12. 18.",
+    "url": "https://blog.naver.com/nomore_bet/221421317213",
+    "inventory_index": 241,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "경제정책",
+      "최저임금",
+      "거시전망"
+    ],
+    "summary_ko": "2018년 말 최저임금 연구와 다음 해 경제정책 기조 변화를 연결해 경기 대응 시점이 늦었다는 저자의 견해를 적는다. 중국 내수·무역 갈등을 한국 경제 위험으로 해석한다.",
+    "developer_note_ko": "추론: 연구 표본기간·정책 발표·실제 시행을 분리하고, 기사와 보고서 미리보기를 원논문 전체 검증으로 간주하지 않는다. 업종별 추정 결과를 전체 경제의 확정 인과효과로 확대하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "f095dfd9b58d070fb463829477271b9723799951dc944d865cea43c82f412385",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "6114ff79ae9a5affc03cc6938f490bae6601ab975d446bf45f1459edd715afbc",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 2985,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221418373321",
+    "title": "미국 국채 커브 Data visualizations",
+    "date": "2018. 12. 13.",
+    "url": "https://blog.naver.com/nomore_bet/221418373321",
+    "inventory_index": 242,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금리곡선",
+      "시각화",
+      "교육"
+    ],
+    "summary_ko": "미국 국채 수익률곡선의 높이·기울기·곡률을 설명하고 시기별 변화 애니메이션을 소개한다. 주요 사건과 곡선을 연결한 교육 자료를 제안한다.",
+    "developer_note_ko": "추론: 만기·수익률 단위·관측일·곡선 종류를 고정하고 당시 공개된 뉴스만 연결한다. 링크된 애니메이션을 본 것으로 기록하지 않으며 기울기 변화와 가격 수익률을 구분한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "b451a3c62bbabed31ce89d6dd8e4f5a70916e04d617075068d26bf2e8787588a",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "3b059a93ac87d341f3f506bebde2cd34185446978c68b5750237033660eb5357",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 795,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221417630626",
+    "title": "미국 원유 460억 배럴 소식, 로또 당첨된 건물주를 보는 기분",
+    "date": "2018. 12. 12.",
+    "url": "https://blog.naver.com/nomore_bet/221417630626",
+    "inventory_index": 243,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "에너지",
+      "자원평가",
+      "지정학"
+    ],
+    "summary_ko": "미국 원유·가스 발견과 생산기술 발전을 에너지 자립·외교 협상력 변화로 해석한다. 산유국과 중국에 대한 영향은 저자의 지정학적 시나리오다.",
+    "developer_note_ko": "추론: 자원량과 경제적으로 회수 가능한 매장량을 구분한다. 물량에 현물가격을 곱한 값을 기업가치로 쓰지 말고 생산시점·비용·세금·회수율·할인을 반영한다. 외교 인과관계는 별도 검증한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "a42a81551606511722fa75484ecea66f29405eeb198ccde99ef8ebf2acd00aa2",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "f440e9ac6c20d4455527479ccd464f3e47b391db94922bea038f6883eaf58f5d",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 2321,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221416885768",
+    "title": "조선업이 바닥인가? 생각이 되는 순간",
+    "date": "2018. 12. 11.",
+    "url": "https://blog.naver.com/nomore_bet/221416885768",
+    "inventory_index": 244,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "조선업",
+      "역발상",
+      "기술경쟁"
+    ],
+    "summary_ko": "LNG선 수주와 화물창 대체기술 관련 소식을 소개하며, 시장의 무관심이 업황 바닥 신호일 수 있다고 추측한다. 기관의 지분 매각도 같은 맥락에서 해석한다.",
+    "developer_note_ko": "추론: 관심 감소만으로 가격 바닥을 확정하지 않는다. 수주잔고·인도·마진·기술 인증을 구분하고, 기관 매각의 실제 동기를 대체기술의 성공 증거로 단정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "bd9b790a4fd2bbff4c37073b0b9fe702d35378bed348d70c8e279383e1a34da6",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "d339aa6f53dda8172d525733109f77c7a00b5db8a258d9aadf28304fd7ba5f7f",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 2398,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221409420140",
+    "title": "금융공학에 등판하는 조삼모사 속 원숭이들",
+    "date": "2018. 11. 30.",
+    "url": "https://blog.naver.com/nomore_bet/221409420140",
+    "inventory_index": 245,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "현재가치",
+      "보유비용",
+      "선호"
+    ],
+    "summary_ko": "조삼모사 일화를 현재가치 관점과 실물 보관비 관점에서 다르게 해석한다. 같은 지급 총량이라도 시점·비용·고객 선호에 따라 가치가 달라질 수 있음을 설명한다.",
+    "developer_note_ko": "추론: 금융비용·보관비·편익을 별도 항목으로 정의하고 순보유비용의 부호를 검증한다. 이른 수령이 항상 우월하다고 고정하지 말고 자산 특성과 계약 조건을 명시한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "5c1e6260f6cdb1317cdd7bb099cb5544538ad64b335cb36c2be4737e8d3f6907",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "6d06f563811359fd66135a36fe536688f6695cbd0f6049cb2deb2d105056c3a9",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 1589,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221407912224",
+    "title": "비트코인 상황을 오랜만에 보면서",
+    "date": "2018. 11. 28.",
+    "url": "https://blog.naver.com/nomore_bet/221407912224",
+    "inventory_index": 246,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "가상자산",
+      "상관관계",
+      "분산"
+    ],
+    "summary_ko": "비트코인의 결제 용도보다 전통 자산과 다른 움직임에 관심을 두었다고 설명한다. 동반 하락을 보고 분산투자 매력에 의문을 제기한다.",
+    "developer_note_ko": "추론: 낮은 상관만으로 위험조정 수익 개선을 보장하지 않는다. 기대수익·변동성·가중치·꼬리 의존을 함께 보고, 단일 하락 사건이나 가격 수준으로 수익률 상관을 확정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "27c7be01bb1ba22c9f3766302d21ce64a37ea08b750b28b5015a7aa03487504b",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "641f903e78c4caa92912fb44b8c9f4cd8699c37bb3f348a0d54900324e11bc32",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 2158,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221407142390",
+    "title": "자본시장 최악의 해라는 군",
+    "date": "2018. 11. 27.",
+    "url": "https://blog.naver.com/nomore_bet/221407142390",
+    "inventory_index": 247,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "다중자산",
+      "손실",
+      "통계"
+    ],
+    "summary_ko": "2018년 다수 자산군이 동시에 손실을 기록했다는 당시 기사를 소개한다. 금과 비트코인도 예외가 아니었던 점에서 분산효과에 실망을 나타낸다.",
+    "developer_note_ko": "추론: 기준일·기준통화·자산군 구성과 총수익 정의를 보존한다. 마이너스 자산의 비율은 상관계수나 최종 연간 손실과 다른 통계이며, 이후 수익을 보장하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "341b4a8b25e062c830418ca6c14759408a10fac81a1feb958b5914d05f5465a2",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "57b0652b0ad82afc516dec2faed6e0e631b006735ae28e1c901054bd56c70fd0",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 697,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221403783335",
+    "title": "쿠팡, 적자인데도 2조를 더 쏟아붓는 소프트뱅크를 보며",
+    "date": "2018. 11. 22.",
+    "url": "https://blog.naver.com/nomore_bet/221403783335",
+    "inventory_index": 248,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "플랫폼",
+      "현금흐름",
+      "투자유치"
+    ],
+    "summary_ko": "쿠팡의 추가 투자유치와 적자·현금흐름을 함께 살핀다. 물류 표준화와 전자상거래 데이터가 플랫폼 경쟁력으로 연결될 수 있다는 가설을 제시한다.",
+    "developer_note_ko": "추론: 투자유치 규모를 영업성과나 사업가치의 검증으로 대체하지 않는다. 영업·투자·재무 현금흐름과 자금 소진기간을 구분하고, 특정 출자자의 개별 승인 여부는 추정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "fdc7ae997b0baf62ede5b46558909cade3cec6bb50cac1d13c6a3e4aa363ecf9",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "869c289b2b70456a2ab976ef780ba899d9d726594c57dda5fda9f9618343fd5a",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 1821,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221401090503",
+    "title": "삼성바이오로직스에 대한 이한상 교수님의 글들",
+    "date": "2018. 11. 19.",
+    "url": "https://blog.naver.com/nomore_bet/221401090503",
+    "inventory_index": 249,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "회계",
+      "공시",
+      "거래정지"
+    ],
+    "summary_ko": "2018년 삼성바이오로직스 관련 거래정지 소식과 회계 전문가의 글을 소개하며, 저자 자신의 안일한 이벤트 투자 생각을 되돌아본다.",
+    "developer_note_ko": "추론: 당시 행정 판단·전문가 의견·이후 법적 판단을 구분한다. 회계·지배구조 사건에서 거래정지와 가격 공백을 위험으로 기록하고, 인용된 의견을 현재의 확정 위법 사실로 저장하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "f037b0b7cc4b19a01ff52dd6ba43759c241f2cce21bca8593132fbeaade4e458",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "3359949c5f7f20316b9b888eaf363cab74f1542b111b20721dd9b51decb2d51b",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 2170,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221398984192",
+    "title": "타이완와 타이페이 사이 × 그리고 대만은 좋았어",
+    "date": "2018. 11. 15.",
+    "url": "https://blog.naver.com/nomore_bet/221398984192",
+    "inventory_index": 250,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "비연구에세이",
+      "지역명",
+      "지정학"
+    ],
+    "summary_ko": "여행 소감과 지역 명칭 사용 경험에서 출발해 당시 대만의 국제행사 참가명 논쟁을 소개한다. 정량 투자 방법이나 성과 검증을 다루지는 않는다.",
+    "developer_note_ko": "추론: 개인 경험을 지역 전체의 태도로 일반화하지 않는다. 데이터에 쓰는 국가·지역·도시 식별자를 명확히 구분하고, 정치적 발언은 발표 시점과 출처를 갖춘 사건으로만 취급한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "fb60bb9a14192e5627af3fad5820d3e618486d1309d1416265bed5a4a4a912ae",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "3a6bfa14d6fa4e7a284d527f5163637c18f6b50ccd48135208dd0c65efa0d860",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 1487,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221397468475",
+    "title": "무역전쟁을 보며, 투자에 대한 개인적인 기록 - 코스닥을 지나 현금에 머물고 그 다음에는 #4",
+    "date": "2018. 11. 13.",
+    "url": "https://blog.naver.com/nomore_bet/221397468475",
+    "inventory_index": 251,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "투자회고",
+      "시나리오",
+      "무역갈등"
+    ],
+    "summary_ko": "무역갈등 장기화·환율 압력·한국 자산 영향을 예상해 현금으로 이동했다는 시나리오를 회고한다. 정치 지도자의 협상 유인을 가정하지만 예측의 불확실성도 인정한다.",
+    "developer_note_ko": "추론: 당시 작성된 전망과 사후 정리한 설명을 분리한다. 여러 시나리오의 확률·반증 조건·재진입 규칙을 기록하고, 결과가 좋았다는 이유만으로 추정 동기를 인과사실로 확정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "e68ae96ddf45537fc262e39397b41b6023621b5c7f87d90a1e16c766fe8ce019",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "f6fd248eea14d99bab1c1e56f0749b867be1e68e99297b6cda1f8ba846b62934",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 2934,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221394965711",
+    "title": "무역전쟁을 보며, 투자에 대한 개인적인 기록 - 코스닥을 지나 현금에 머물고 그 다음에는 #3",
+    "date": "2018. 11. 9.",
+    "url": "https://blog.naver.com/nomore_bet/221394965711",
+    "inventory_index": 252,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "중국",
+      "무역갈등",
+      "정치시나리오"
+    ],
+    "summary_ko": "중국이 과거 일본과 달리 큰 내수시장과 다른 안보 조건을 갖췄다는 비교로 무역갈등 지속 가능성을 논한다. 내부 정치에 대한 해석을 투자 회고에 연결한다.",
+    "developer_note_ko": "추론: 확인된 무역·수요 지표와 정치적 추측·소문을 분리한다. 역사적 유사성만으로 경로를 고정하지 말고, 현금 비중 변경 판단은 당시 정보와 대안 시나리오로 검증한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "2096fbb3a84b69e2fc4577e882626a5bd585ae0421cbc8a1779a5bc58fc045fc",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "e0663aa94b3cdfb060346eb64c96437b0d98ed84ac595a348a929792a60f742c",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 3242,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221393869340",
+    "title": "무역전쟁을 보며, 투자에 대한 개인적인 중간 기록 - 코스닥을 지나 현금에 머물고 그다음에는 #2",
+    "date": "2018. 11. 8.",
+    "url": "https://blog.naver.com/nomore_bet/221393869340",
+    "inventory_index": 253,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "역사비교",
+      "관세",
+      "투자회고"
+    ],
+    "summary_ko": "1980년대 미일 무역갈등 신문을 2018년 미중 갈등과 비교한다. 일본과 중국의 대미 의존 차이를 근거로 한국 자산에 대한 우려를 설명한다.",
+    "developer_note_ko": "추론: 과거 기사의 발행일·대상·관세 기준을 보존한다. 역사적 비유와 단일 원인 서사를 예측 모형으로 대체하지 않으며, 원문 신문·연결 영상은 별도로 읽지 않았음을 명시한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "015e651d6a56d80e01eb4b8e91e7c65521f62558c24e6e599263434a1620fd1a",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "5c49a8c0a82b25f11ddd0ae2ab548112dfac858bde2326f4982750fcadeb06ac",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 1931,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221393452391",
+    "title": "무역전쟁을 보며, 투자에 대한 개인적인 중간 기록 - 코스닥을 지나 현금에 머물고 그다음에는 #1",
+    "date": "2018. 11. 7.",
+    "url": "https://blog.naver.com/nomore_bet/221393452391",
+    "inventory_index": 254,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "의사결정기록",
+      "현금비중",
+      "주관적전망"
+    ],
+    "summary_ko": "미중 갈등 악화를 예상해 포트폴리오를 정리했던 판단을 회고한다. 저자는 국제정세 전문가가 아닌 개인의 주관적 에세이이며 시나리오가 그대로 맞지는 않았다고 한정한다.",
+    "developer_note_ko": "추론: 결정시점·정보집합·거래기록을 사후 서술과 분리한다. 정치인 성격에 대한 인상이나 지인의 반응을 객관적 확률로 쓰지 말고, 틀린 전망도 연구 기록에 보존한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "6a798e3e2adb8224c1464de559f34e9f9fa42f0bacc8cade9b8bc23e4e066d78",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "167f0b976832e34fb59d473e47415fe2bdfce5333fff929a13d2372b16f67a2f",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 2130,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221390160926",
+    "title": "리스크와 수익률 직선에 대한 직관, 하워드 막스 투자와 마켓 사이클의 법칙",
+    "date": "2018. 11. 2.",
+    "url": "https://blog.naver.com/nomore_bet/221390160926",
+    "inventory_index": 255,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "위험수익",
+      "기대값",
+      "분포"
+    ],
+    "summary_ko": "하워드 막스의 책을 계기로 위험–수익 직선을 확정 수익으로 오해하기 쉽다고 설명한다. 높은 기대수익과 더 넓은 결과 분포를 함께 보아야 한다는 취지다.",
+    "developer_note_ko": "추론: 기대값과 실현값·분산·하방 손실을 분리한다. 높은 위험이 반드시 높은 기대수익을 뜻한다고 일반화하지 않으며, 삽입된 책 그림의 세부 수치는 추정하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "9c74f6c3e47d5220a5d47fdd9099a78d74b57c8b4d45a19c189a1db21b96d53f",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "dcea0355b0b4285a9ed7866798479ce74126ed2d0ac650541da4bba00569b771",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 686,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221387942055",
+    "title": "숫자 감각 좀 익혀볼까나, 담배 판매량으로 본",
+    "date": "2018. 10. 30.",
+    "url": "https://blog.naver.com/nomore_bet/221387942055",
+    "inventory_index": 256,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "숫자감각",
+      "담배판매",
+      "계절성"
+    ],
+    "summary_ko": "정부 보도자료의 정리 방식을 소개하고 담배 판매량을 인구 규모와 비교해 숫자 감각을 익히자고 제안한다. 가격 인상과 월별 판매 변화도 해석한다.",
+    "developer_note_ko": "추론: 갑 수·연간 합계·월평균과 그림 축의 단위를 구분한다. 판매 감소를 금연 의지나 가격 효과로 곧장 단정하지 말고 재고·선구매·계절성 등 대안 설명을 검증한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "52ab4eac1c03e2887592b9ecc5d8dcdca2f2150bbbaadf16fdbe0a4b89397c8d",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "5b5d71a0d72c6a9d26f150e4168d7ed336b7e7216e59f9aa2184c39c96ddd50a",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 1025,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221387224799",
+    "title": "재테크 입문자가 경제 기사 읽기 보다 먼저 해야 할 일 - 숫자에 대한 감 4-2편",
+    "date": "2018. 10. 29.",
+    "url": "https://blog.naver.com/nomore_bet/221387224799",
+    "inventory_index": 257,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "확률",
+      "도박사의오류",
+      "행동재무"
+    ],
+    "summary_ko": "카지노 경험으로 확률의 장기적 성질과 단기 결과의 차이를 이야기한다. 저자가 운·징크스를 의사결정에 연결하는 개인적 해석도 담는다.",
+    "developer_note_ko": "추론: 독립 시행에서 과거 결과가 다음 확률을 보정한다는 주장은 성립하지 않는다. 징크스·행운의 숫자·승리 사례를 예측 우위로 쓰지 말고 기록·시뮬레이션으로 편향을 점검한다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "8fb2a42e5f89df354c7b46acaebd0b842443bfefd549f838681718dd466fb39b",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "1402a86a58bb5bac4af747062efea7791cf38f1c18ab4a8669fec4825c8cff3d",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 3152,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221385478495",
+    "title": "중국 증시 리스크를 한국 주식으로 숏",
+    "date": "2018. 10. 26.",
+    "url": "https://blog.naver.com/nomore_bet/221385478495",
+    "inventory_index": 258,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "대리헤지",
+      "공매도",
+      "상관관계"
+    ],
+    "summary_ko": "중국 관련 위험을 한국 종목 공매도로 표현한다는 기사를 소개한다. 기업 실적과 별개인 헤지 수요, 낮은 평가배수와 가격 신호의 차이를 논한다.",
+    "developer_note_ko": "추론: 매도 주체의 동기와 상관계수는 출처·기간·수익률 정의를 확인한다. 대리헤지의 베이시스 위험과 대차·비용·유동성을 검토하고, 낮은 배수를 저평가의 충분조건으로 쓰지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "7d97a927abbf493b417994cbcb0368cc3a2ca5d54affb5db112245939bb02d10",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "984b6cf3f7c4568d7400bb9b65820913b1793b884b19a790ed1d4790e254119c",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 874,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221384696940",
+    "title": "서울 아파트 사려면 15년 모아야 기사와 금융의 역할",
+    "date": "2018. 10. 25.",
+    "url": "https://blog.naver.com/nomore_bet/221384696940",
+    "inventory_index": 259,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "주택",
+      "현금흐름",
+      "금융기능"
+    ],
+    "summary_ko": "주택가격을 모으는 데 필요한 기간을 다룬 기사로 금융의 시간 간 현금흐름 이전 기능을 설명한다. 저축 후 구매와 차입 후 상환을 이론적으로 대비한다.",
+    "developer_note_ko": "추론: 가격소득비율과 실제 저축·상환기간을 구분한다. 생활비·금리·상환구조·소득 불확실성·대출 제약을 빠뜨린 산술을 주택 구매 가능성이나 대출 권고로 쓰지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "4a3bf4f991a25ef76f9ecf980c71228e4561b470d617d2869ca892c8a8171040",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "bbd0d504aff3c0d420166f203b8e93c29f229cc19fbb16cf91688aa5e3efaf6c",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 691,
+      "original_manifest_hash_preserved": true
+    }
+  },
+  {
+    "id": "221383223528",
+    "title": "재테크 입문자가 경제 기사 읽기 보다 먼저 해야 할 일 - 숫자에 대한 감  4-1편",
+    "date": "2018. 10. 23.",
+    "url": "https://blog.naver.com/nomore_bet/221383223528",
+    "inventory_index": 260,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "확률",
+      "손실인식",
+      "행동편향"
+    ],
+    "summary_ko": "블로그 이름의 유래와 카지노 경험을 소개하며 작은 확률을 체감하는 어려움을 설명한다. 투자에서 불확실성뿐 아니라 자신의 반응도 살펴야 한다고 말한다.",
+    "developer_note_ko": "추론: 실제 도박 대신 모의실험으로 확률·기대손실·분산을 학습한다. 독립 시행, 지급배수와 순이익, 룰렛 종류를 구분하며 개인 징크스를 검증된 투자 신호로 취급하지 않는다.",
+    "limitations": [
+      "images_not_reviewed",
+      "external_links_not_reviewed",
+      "author_claims_not_independently_verified"
+    ],
+    "source_document_sha256": "3ac5b27cb845e7b0a93ad5aa13af0388318d3ee3ac96886f132591bc6eed69ec",
+    "recovery": {
+      "method": "public_source_reread_new_summary",
+      "date_utc": "2026-10-23",
+      "summary_basis": "New reading of available public body text; not an exact restoration of the lost original note.",
+      "reread_document_sha256": "10697adc35d4406ab6ca2d26a20bfd5779306eb59de5f43ee39077a6c3941fc6",
+      "reread_hash_basis": "Fetched HTML string encoded as UTF-8",
+      "reread_matches_recorded_hash": false,
+      "reread_text_chars": 2351,
+      "original_manifest_hash_preserved": true
+    }
   }
 ]

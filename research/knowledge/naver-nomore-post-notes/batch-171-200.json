@@ -17,7 +17,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "929fd2a4e25bead2e203894a9672f227d8468e3a078191ab7956654e73f29e21"
+    "content_sha256": "929fd2a4e25bead2e203894a9672f227d8468e3a078191ab7956654e73f29e21",
+    "source_document_sha256": "929fd2a4e25bead2e203894a9672f227d8468e3a078191ab7956654e73f29e21",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221652731767",
@@ -37,7 +39,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "61b5c6d78f2264dc23f8095b4251764e4acbb00557f563993dedfd863b59a86a"
+    "content_sha256": "61b5c6d78f2264dc23f8095b4251764e4acbb00557f563993dedfd863b59a86a",
+    "source_document_sha256": "61b5c6d78f2264dc23f8095b4251764e4acbb00557f563993dedfd863b59a86a",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221649674643",
@@ -57,7 +61,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "3890718a4f2c3111af000bf1007b0b599eb7577044a62f544ef40c9c560602cb"
+    "content_sha256": "3890718a4f2c3111af000bf1007b0b599eb7577044a62f544ef40c9c560602cb",
+    "source_document_sha256": "3890718a4f2c3111af000bf1007b0b599eb7577044a62f544ef40c9c560602cb",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221645593803",
@@ -77,7 +83,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "2c280ea7aa1ddd8d2c4590325d333443b46bf757846f484f2c791008bd0748ca"
+    "content_sha256": "2c280ea7aa1ddd8d2c4590325d333443b46bf757846f484f2c791008bd0748ca",
+    "source_document_sha256": "2c280ea7aa1ddd8d2c4590325d333443b46bf757846f484f2c791008bd0748ca",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221644512459",
@@ -97,7 +105,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "42115e9d7aa3864a51b27cc00f8a50914cf4864b2df14f03657c2d04c4c48910"
+    "content_sha256": "42115e9d7aa3864a51b27cc00f8a50914cf4864b2df14f03657c2d04c4c48910",
+    "source_document_sha256": "42115e9d7aa3864a51b27cc00f8a50914cf4864b2df14f03657c2d04c4c48910",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221638443581",
@@ -117,7 +127,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "caeb2b6902cbb98ce3bfe0e0e274bf7cb63119b255c795a6963f6e90af68b5d3"
+    "content_sha256": "caeb2b6902cbb98ce3bfe0e0e274bf7cb63119b255c795a6963f6e90af68b5d3",
+    "source_document_sha256": "caeb2b6902cbb98ce3bfe0e0e274bf7cb63119b255c795a6963f6e90af68b5d3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221637289025",
@@ -137,7 +149,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "3e23f5158da98aad0709bd5fa3f4795c79f7aa616dd50686f3edc1b757eb4988"
+    "content_sha256": "3e23f5158da98aad0709bd5fa3f4795c79f7aa616dd50686f3edc1b757eb4988",
+    "source_document_sha256": "3e23f5158da98aad0709bd5fa3f4795c79f7aa616dd50686f3edc1b757eb4988",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221632198148",
@@ -157,7 +171,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "66f5618cb57d45e3b1254ce00a13142ec798b7412810ab52c0d5306eafaeda1c"
+    "content_sha256": "66f5618cb57d45e3b1254ce00a13142ec798b7412810ab52c0d5306eafaeda1c",
+    "source_document_sha256": "66f5618cb57d45e3b1254ce00a13142ec798b7412810ab52c0d5306eafaeda1c",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221629453524",
@@ -177,7 +193,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "cf9f0380670d658d37dcafa91c396d8bfe90f90de056cb168135a8376cfae71d"
+    "content_sha256": "cf9f0380670d658d37dcafa91c396d8bfe90f90de056cb168135a8376cfae71d",
+    "source_document_sha256": "cf9f0380670d658d37dcafa91c396d8bfe90f90de056cb168135a8376cfae71d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221622472299",
@@ -197,7 +215,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "e75d58b4ef1f27a6af70dce24f0a8e4808af895f499bd841246ac7851b2e86dd"
+    "content_sha256": "e75d58b4ef1f27a6af70dce24f0a8e4808af895f499bd841246ac7851b2e86dd",
+    "source_document_sha256": "e75d58b4ef1f27a6af70dce24f0a8e4808af895f499bd841246ac7851b2e86dd",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221621191198",
@@ -217,7 +237,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "07e2cc39c936043c01d1aa17ab5df3c1c2b5a221f9c913c760ffa0d386dc90d0"
+    "content_sha256": "07e2cc39c936043c01d1aa17ab5df3c1c2b5a221f9c913c760ffa0d386dc90d0",
+    "source_document_sha256": "07e2cc39c936043c01d1aa17ab5df3c1c2b5a221f9c913c760ffa0d386dc90d0",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221618190156",
@@ -237,7 +259,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "57b175eee2766afeda27e632aa8855e5620ed16f97f1700d9936404561a8f06d"
+    "content_sha256": "57b175eee2766afeda27e632aa8855e5620ed16f97f1700d9936404561a8f06d",
+    "source_document_sha256": "57b175eee2766afeda27e632aa8855e5620ed16f97f1700d9936404561a8f06d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221616166864",
@@ -257,7 +281,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "5203b4a1dba031f3855d0faeedb759b41b66fcb7ce081649170e04e84bc52e56"
+    "content_sha256": "5203b4a1dba031f3855d0faeedb759b41b66fcb7ce081649170e04e84bc52e56",
+    "source_document_sha256": "5203b4a1dba031f3855d0faeedb759b41b66fcb7ce081649170e04e84bc52e56",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221610888902",
@@ -277,7 +303,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "14d329670746acf75783cb820070acc17c5c869f5cac0f814ce811ca31a00de9"
+    "content_sha256": "14d329670746acf75783cb820070acc17c5c869f5cac0f814ce811ca31a00de9",
+    "source_document_sha256": "14d329670746acf75783cb820070acc17c5c869f5cac0f814ce811ca31a00de9",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221608534406",
@@ -297,7 +325,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "7a857bf7aba38a4ee417455cbf95f93257bebdcbe1de7e7d3653a5eac8f64269"
+    "content_sha256": "7a857bf7aba38a4ee417455cbf95f93257bebdcbe1de7e7d3653a5eac8f64269",
+    "source_document_sha256": "7a857bf7aba38a4ee417455cbf95f93257bebdcbe1de7e7d3653a5eac8f64269",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221606754706",
@@ -317,7 +347,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "9caddb8d912d1c736c829e711b1f2821d49c376950ad1bf0b05aa4c2da897146"
+    "content_sha256": "9caddb8d912d1c736c829e711b1f2821d49c376950ad1bf0b05aa4c2da897146",
+    "source_document_sha256": "9caddb8d912d1c736c829e711b1f2821d49c376950ad1bf0b05aa4c2da897146",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221606139139",
@@ -337,7 +369,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "07c485764699628f353adb332558c6b3d0358d3a60588c4cd67ecc5fa988c468"
+    "content_sha256": "07c485764699628f353adb332558c6b3d0358d3a60588c4cd67ecc5fa988c468",
+    "source_document_sha256": "07c485764699628f353adb332558c6b3d0358d3a60588c4cd67ecc5fa988c468",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221589757745",
@@ -357,7 +391,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "abb4cc00a528a901756502744109a1dade369bbd70f1503dd3a1e7957eef6f89"
+    "content_sha256": "abb4cc00a528a901756502744109a1dade369bbd70f1503dd3a1e7957eef6f89",
+    "source_document_sha256": "abb4cc00a528a901756502744109a1dade369bbd70f1503dd3a1e7957eef6f89",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221586037755",
@@ -377,7 +413,9 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "ff72ae5de89e02082910ca0c0d552366429b1bb7a96e9cbcb2333244586b0f2e"
+    "content_sha256": "ff72ae5de89e02082910ca0c0d552366429b1bb7a96e9cbcb2333244586b0f2e",
+    "source_document_sha256": "ff72ae5de89e02082910ca0c0d552366429b1bb7a96e9cbcb2333244586b0f2e",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "221583933306",
@@ -397,6 +435,288 @@
       "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
       "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
     ],
-    "content_sha256": "c1f0fe8f6759c6757a74e08b8011630e4e3de74528541a29b182295331f9bf6a"
+    "content_sha256": "c1f0fe8f6759c6757a74e08b8011630e4e3de74528541a29b182295331f9bf6a",
+    "source_document_sha256": "c1f0fe8f6759c6757a74e08b8011630e4e3de74528541a29b182295331f9bf6a",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
+  },
+  {
+    "id": "221581301776",
+    "title": "반도체 소재 일본 수출 규제로 떠오르는 과거 기억들 #2",
+    "date": "2019. 7. 9.",
+    "url": "https://blog.naver.com/nomore_bet/221581301776",
+    "inventory_index": 191,
+    "source_document_sha256": "837a3d0da316dc499af3448c2469bfc4edbfbdf1f037c035f7dfd04fb493bab0",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "무역규제의 리드타임·반도체 설비 가동 영향과 중국 경쟁 구도를 연결한다. 일본 정책 의도·외교적 타협 경로는 저자가 명시한 추측 시나리오다.",
+    "developer_note_ko": "규제 발표·시행·통관 지연을 분리하고 정치적 의도를 관측 피처로 확정하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "fb9cc1d3519f395ff4eeae41eed266c0be51c0ea95dd64b408a02bde8d82677b",
+      "refetched_at_utc": "2026-10-23T08:02:43Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221580399823",
+    "title": "반도체 소재 일본 수출 규제로 떠오르는 과거 기억들 #1",
+    "date": "2019. 7. 8.",
+    "url": "https://blog.naver.com/nomore_bet/221580399823",
+    "inventory_index": 192,
+    "source_document_sha256": "d522a6c09af6832d138eef2e0d8f66a129158eb5dca8d85ebb30cb2867fb4d55",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "일본 소재 규제를 구매·조달 경험으로 해석하며 대체 공급자의 특허·품질·수율과 리드타임 문제를 강조한다. 주가 반응·경영진 출장을 심각성 근거로 해석한 부분은 추론이다.",
+    "developer_note_ko": "대체 가능성은 실제 인증·공급량·리드타임으로 검증하고 테마 상승률을 생산능력 증거로 사용하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "41ddd56bee05e56b54634631a474c4794bb742e11866edc4a5a4443aaec7cec5",
+      "refetched_at_utc": "2026-10-23T08:02:47Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221572830815",
+    "title": "미국 제조업 둔화 × 미국 구매관리자지수",
+    "date": "2019. 6. 28.",
+    "url": "https://blog.naver.com/nomore_bet/221572830815",
+    "inventory_index": 193,
+    "source_document_sha256": "e5cd21b48f36bb56c2fa50e86773b798770f92aed7d245cb6b079cd6f13ff1ca",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "2019년 제조업 PMI 약화와 통화완화 기대를 소개한다. PMI를 경기 단서로 강조하지만 금리 결정의 단독 원인이라고 입증하지 않는다.",
+    "developer_note_ko": "국가·조사기관·잠정/확정치와 최초 발표시각을 보존하고 수정치 누수를 막는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "760ad1fd4fccbe5e8570fe3ef0833912da08deaf8f12e6853aaf07e1e832186f",
+      "refetched_at_utc": "2026-10-23T08:02:51Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221569391132",
+    "title": "델타항공, 한진칼, 대한항공 vs KCGI, 강성부 펀드 - #3",
+    "date": "2019. 6. 24.",
+    "url": "https://blog.naver.com/nomore_bet/221569391132",
+    "inventory_index": 194,
+    "source_document_sha256": "eda493889f8a80f81c7af0c728cb7155f3253f2d7d78af4b5db895d308913e97",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "델타의 한진칼 지분 매입이 KCGI와의 지배권 경쟁에 끼치는 영향을 분석한다. 중개 창구만으로 매수 주체를 추정하는 불확실성과 자금조달·우호지분을 함께 다룬다.",
+    "developer_note_ko": "소유자 공시와 거래창구 추측을 분리하고 의결권·지분·자금조달 발표의 시점별 근거를 저장한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "061942cbbf6183a786732b9741cc91f7c7fc69c22a0fe45c265b2cdca33f93cc",
+      "refetched_at_utc": "2026-10-23T08:02:58Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221567382378",
+    "title": "미국 금리 인하 시사로 고민하게 되는 달러 가치 그리고 MMT",
+    "date": "2019. 6. 21.",
+    "url": "https://blog.naver.com/nomore_bet/221567382378",
+    "inventory_index": 195,
+    "source_document_sha256": "39cb98640e140bd231905621078e79594623a26e13d25ea8c85b544adcbc3cc7",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "금리 인하 기대·달러·안전자산을 연결하며 MMT와 비트코인 수요로 확장하는 개인 시나리오다. 정책·투자자 행동에 관한 단정은 검증된 결과가 아니다.",
+    "developer_note_ko": "정책금리·유동성 공급·재정정책을 구분한다. MMT를 인플레이션 무시로 단순화한 설명을 이론 정의로 채택하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "3aa5db5d74304dfb30b2c25a6a3a5dabc9cd81a2aa3307963beaf8f44bab3faa",
+      "refetched_at_utc": "2026-10-23T08:03:02Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221565693670",
+    "title": "비트코인, 또 다시 오랜만에 암호화화폐 시장을 살펴볼까나",
+    "date": "2019. 6. 19.",
+    "url": "https://blog.naver.com/nomore_bet/221565693670",
+    "inventory_index": 196,
+    "source_document_sha256": "6f125146dbaf035d752a42835cf9f827c0353ae29205cf38f44a94c48adee425",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "기관 참여·선물시장·정치 불안 헤지 수요를 비트코인 시장 지속의 가설로 제시한다. 버블 단계 도식과 개인 포지션 계획은 검증된 안전자산 증거가 아니다.",
+    "developer_note_ko": "기관 참여와 위기 시 조건부 상관·손실을 별도 측정한다. 도식에서 빠진 참여자가 향후 상승을 보장한다고 보지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "40c864ad35971436d4e61029ff230ce03119a232023fc41eba1c4bea42406691",
+      "refetched_at_utc": "2026-10-23T08:03:06Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221564822327",
+    "title": "손쉬운 해외 ETF 접근이 개인에게 끼치는 영향",
+    "date": "2019. 6. 18.",
+    "url": "https://blog.naver.com/nomore_bet/221564822327",
+    "inventory_index": 197,
+    "source_document_sha256": "5df17a40f6f1b0fa323cb40b2bccc30cd84365205564e7ab7a76d1d980971940",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "ETF가 개인의 해외·주제별 투자 접근을 넓혀 가설을 포지션으로 시험할 길을 제공한다고 본다. 투자 경험의 피드백을 학습으로 연결하는 의견이다.",
+    "developer_note_ko": "가설 자산과 ETF 실제 보유·롤·환율 노출을 구분하며 손익 하나만으로 가설의 인과적 참거짓을 판정하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "156d7762f6d850d0c919f7aec97b864f703c9d74ab095a32da97a88c467b9235",
+      "refetched_at_utc": "2026-10-23T08:03:12Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221551140440",
+    "title": "금융시장에 관한 시선, 나심 탈렙 책을 보며",
+    "date": "2019. 5. 31.",
+    "url": "https://blog.naver.com/nomore_bet/221551140440",
+    "inventory_index": 198,
+    "source_document_sha256": "b3db6825801d7dfbd876e5cc3385bf59f39fc694dace8a4d0e9e2415b099f392",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "바이사이드의 내재가치 관점과 셀사이드의 시장 구조 관점을 대비한다. 탈레브 독서를 통해 거래 가능한 시장과 발행자 사업 약속을 다르게 보는 개인 철학을 설명한다.",
+    "developer_note_ko": "시장 유동성·체결 가능성과 발행자 가치 가설을 독립 평가하며 구조의 존재를 수익 보장으로 취급하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "e94b21a6e80aeae778c823c884271ca5ab4d8f5530181a6b78314cb980db908e",
+      "refetched_at_utc": "2026-10-23T08:03:18Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221548524026",
+    "title": "최종구 금융위원장과 이재웅 쏘카 대표의 설전으로 보는 혁신에 대한 나의 관전 포인트",
+    "date": "2019. 5. 28.",
+    "url": "https://blog.naver.com/nomore_bet/221548524026",
+    "inventory_index": 199,
+    "source_document_sha256": "c90c8c1425900027c8687017b28b909f9bfc639b6fc4146b8eec2c4e62772ae6",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "혁신 논쟁의 발언 내용보다 금융조직이 감독당국을 의식해 스스로 제한하는 문화를 개인 경험으로 비판한다. 규제의 실제 요건과 조직의 심리적 반응은 별개다.",
+    "developer_note_ko": "법적 제한과 내부 관행을 분리해 근거·승인 절차를 기록하며 회고를 현행 규정으로 해석하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "2fec6e3f348daff5f33136c560040e13e371550fa154dd5d8ebe28e690770406",
+      "refetched_at_utc": "2026-10-23T08:03:24Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
+  },
+  {
+    "id": "221544620232",
+    "title": "재무제표 분석시 보수적으로 봐야할 계정과목",
+    "date": "2019. 5. 23.",
+    "url": "https://blog.naver.com/nomore_bet/221544620232",
+    "inventory_index": 200,
+    "source_document_sha256": "19ffe8ee89a850730ce8e40bd578e2015819dccfb2e3465653e627f6a4271660",
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "문헌검토",
+      "독립검증제안"
+    ],
+    "summary_ko": "감사보고서 정정 사례를 바탕으로 회계 계정의 신뢰성에 주의하라고 제안한다. 개발비 자산화와 비용처리의 이익 차이도 언급한다.",
+    "developer_note_ko": "최초 공시와 정정 공시를 버전 관리하고 과거 피처에 사후 정정치를 소급하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "recovery": {
+      "method": "public_text_reread_and_note_rewritten_after_workspace_reset",
+      "reread_on_utc": "2026-10-23",
+      "previous_summary_wording_not_recovered": true,
+      "refetched_document_sha256": "6551bc91167584a40d1551eaa9b92267027b168c3540a9fac78232718b071fb7",
+      "refetched_at_utc": "2026-10-23T08:03:29Z",
+      "prior_document_sha256_retained_as_historical_metadata": true,
+      "new_media_review": false
+    }
   }
 ]

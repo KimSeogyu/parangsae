@@ -1,0 +1,649 @@
+[
+  {
+    "id": "70157784414",
+    "title": "은행별 외환, 파생상품, 위험회피대상 관련 손익",
+    "date": "2013. 1. 30.",
+    "url": "https://blog.naver.com/nomore_bet/70157784414",
+    "inventory_index": 681,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "통계",
+      "손익분류"
+    ],
+    "summary_ko": "2011년 은행의 외환·파생·위험회피 관련 손익 통계를 소개하며 순수 딜링 실적과는 범위가 다르다고 경고한다.",
+    "developer_note_ko": "지표 정의와 집계 범위를 보존한다. 이미지 수치 미검수이며 통합 손익으로 특정 전략의 알파를 평가하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "143c61d9a8f66d46efa4afa2f583b2c38cd52c39e91cbb1e0db66e57dae15c80"
+  },
+  {
+    "id": "70157554001",
+    "title": "은행별 FICC 거래량 현황",
+    "date": "2013. 1. 28.",
+    "url": "https://blog.naver.com/nomore_bet/70157554001",
+    "inventory_index": 682,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "명목금액",
+      "거래규모"
+    ],
+    "summary_ko": "파생상품 명목금액과 실제 주고받는 금액을 구별하며 은행별 규모 통계를 설명한다.",
+    "developer_note_ko": "명목·시가·위험노출·순현금흐름을 별도 필드로 둔다. 예시에서 20억원의 0.1%는 200만원으로 본문의 2000만원과 다르다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "07f92ca7fe291136dd5c27e76acb38da39c0e75f172f625b959cf15efc1a7bdb"
+  },
+  {
+    "id": "70157452652",
+    "title": "오퍼레이션 리스크, 농협 딜러 1300억원 조작 사건 - 下",
+    "date": "2013. 1. 27.",
+    "url": "https://blog.naver.com/nomore_bet/70157452652",
+    "inventory_index": 683,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "손익대사",
+      "운영위험"
+    ],
+    "summary_ko": "프런트 예상 손익·관리 손익·회계 손익의 차이를 분석해야 조작이나 누락을 포착할 수 있다고 설명한다. 특정 사건의 내부 경위는 추론이다.",
+    "developer_note_ko": "시뮬레이터도 평가손익·실현현금·수수료·펀딩을 별도로 대사한다. 사건에 대한 가설을 확정 사실로 기록하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "0bde4258d18e03f3006c7bd5ac15bc1600f468d5c10bce23944322c805ddf8c7"
+  },
+  {
+    "id": "70157058583",
+    "title": "오퍼레이션 리스크, 농협 딜러 1300억원 조작 사건 - 上",
+    "date": "2013. 1. 23.",
+    "url": "https://blog.naver.com/nomore_bet/70157058583",
+    "inventory_index": 684,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "독립검증",
+      "변경이력"
+    ],
+    "summary_ko": "과거 손익 조작 보도를 계기로 독립 가격 검증, 조건 변경 이력, 승인과 거래확인의 분리를 제안한다.",
+    "developer_note_ko": "개인 봇에는 입력값 출처·불변 이벤트 기록·주문과 체결 대사를 검증 요구로 전환한다. 보도만으로 실제 내부 통제 결함을 확정하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "60631f022d77e0a2f1ec63c84018f3b6a383a0045391edbaad4778b9e1fd0a8a"
+  },
+  {
+    "id": "70156925381",
+    "title": "파생상품과 프로포폴",
+    "date": "2013. 1. 22.",
+    "url": "https://blog.naver.com/nomore_bet/70156925381",
+    "inventory_index": 685,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "헤지목적",
+      "적합성"
+    ],
+    "summary_ko": "파생상품의 본래 위험관리 목적과 목적을 벗어난 사용을 비유로 대비한다. 특정 분쟁에 대한 평가는 저자의 의견이다.",
+    "developer_note_ko": "희귀 손실 확률이나 법적 책임을 비유에서 도출하지 않는다. 헤지 대상·규모·잔여 위험과 투기 노출을 명확히 구분한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "03becfd9040a8b3b11cb21d6a92eda78bb61f4603e1c67f596c81d47f11295f0"
+  },
+  {
+    "id": "70156850002",
+    "title": "수익 극대화, 리스크 극소화",
+    "date": "2013. 1. 21.",
+    "url": "https://blog.naver.com/nomore_bet/70156850002",
+    "inventory_index": 686,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "시장위험",
+      "신용위험",
+      "운영위험"
+    ],
+    "summary_ko": "수익 추구와 위험 통제의 긴장을 설명하고 시장·거래상대방·운영 위험을 구분한다.",
+    "developer_note_ko": "가격 변동만을 전체 위험으로 보지 않는다. 장내거래도 신용·결제·운영 위험이 완전히 사라지는 것은 아니다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "7a3d14d77868a23df59dcd6b25da02a37504b3fa2d3de44c8adc3e5ad9916497"
+  },
+  {
+    "id": "70156828624",
+    "title": "프로그래밍 잘하는 금융공학자",
+    "date": "2013. 1. 21.",
+    "url": "https://blog.naver.com/nomore_bet/70156828624",
+    "inventory_index": 687,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트개발",
+      "비용반영"
+    ],
+    "summary_ko": "위기 이후 단순 상품의 가격에도 신용·담보·조달 조건을 세밀히 반영해야 하며 시스템 구현 능력이 중요해졌다는 관찰이다.",
+    "developer_note_ko": "금융 의미와 코드 구현을 연결하고 거래 비용·자금조달을 사후 보고가 아닌 의사결정 입력으로 분리한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "fc6a54c95504bb45c7dd7237b5b605f023834d7773add5fcda63b8e0a0660156"
+  },
+  {
+    "id": "70156566362",
+    "title": "FICC 비즈니스 설계",
+    "date": "2013. 1. 18.",
+    "url": "https://blog.naver.com/nomore_bet/70156566362",
+    "inventory_index": 688,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "플로우사업",
+      "인프라"
+    ],
+    "summary_ko": "개인의 방향성 매매와 고객 플로우 사업의 수익 구조를 비교하고 인력·위험관리·시스템 기반의 중요성을 설명한다.",
+    "developer_note_ko": "기관 고객 마진을 개인 봇의 이용 가능한 수익원으로 가정하지 않는다. 고정 운영비와 전략 용량을 포함한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "8f9335fec15f4fd555dbe5de4626ee31543375e9ff6f052108972cea3f1bb5d5"
+  },
+  {
+    "id": "70156462014",
+    "title": "국내 금융전문대학원의 장점은 네트워크인가",
+    "date": "2013. 1. 17.",
+    "url": "https://blog.naver.com/nomore_bet/70156462014",
+    "inventory_index": 689,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "학습네트워크",
+      "비투자"
+    ],
+    "summary_ko": "대학원 동료 관계가 실무의 암묵지와 피드백을 나누는 데 유용하다는 비유 중심 에세이다.",
+    "developer_note_ko": "경력·학습 배경 자료로 분류한다. 사적 관계를 비공개 정보 접근이나 투자 우위의 허가로 해석하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "5550490f4846d452fe9cc63eb4159f85ee63ebee6f30b2644e2ee031692ab25a"
+  },
+  {
+    "id": "70156320771",
+    "title": "파생상품을 거래해서 어떻게 돈을 버나?",
+    "date": "2013. 1. 16.",
+    "url": "https://blog.naver.com/nomore_bet/70156320771",
+    "inventory_index": 690,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "복제",
+      "헤지비용"
+    ],
+    "summary_ko": "고객에게 약정한 지급을 시장 거래나 직접 복제로 맞추는 과정을 비유하며 마진과 비용을 설명한다.",
+    "developer_note_ko": "복제오차·한도·자금조달·상대방 위험을 포함한다. 비유의 정확한 지급 약속을 현실의 무위험 복제 보장으로 읽지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "6c384224ef2e0fd707f357ff4933326023c8c200a9d3913d57891482be11589e"
+  },
+  {
+    "id": "70156133738",
+    "title": "최근 취업시장 속 금융공학",
+    "date": "2013. 1. 14.",
+    "url": "https://blog.naver.com/nomore_bet/70156133738",
+    "inventory_index": 691,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융공학",
+      "산업수요"
+    ],
+    "summary_ko": "구조화 상품의 확대와 위축이 퀀트 채용 수요에 미치는 영향을 커피 신제품 비유로 설명한다.",
+    "developer_note_ko": "2013년 경력 논평이며 현재 채용 시장 자료나 전략 수익의 증거가 아니다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "4b179b231ffd6dc63598f93d01e57565e289950a0add4b9468f7ca897ad28409"
+  },
+  {
+    "id": "70145755058",
+    "title": "트레이딩룸 목적",
+    "date": "2012. 8. 29.",
+    "url": "https://blog.naver.com/nomore_bet/70145755058",
+    "inventory_index": 692,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "목표",
+      "위험제약"
+    ],
+    "summary_ko": "트레이딩룸을 손익 증가와 위험 통제를 함께 수행하도록 조직·시스템을 설계한 곳으로 정의한다.",
+    "developer_note_ko": "목표 수익과 위험 제약을 분리하여 선언한다. 손익 하나만 최적화하는 평가를 피한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "91e07c9533f174d616cf8f6929a2bed5fa89c0666478b6ed911b3b9b79c0e92f"
+  },
+  {
+    "id": "70138410164",
+    "title": "인터폴레이션 예시 - Zero rate 대상, Linear Interpolation",
+    "date": "2012. 5. 18.",
+    "url": "https://blog.naver.com/nomore_bet/70138410164",
+    "inventory_index": 693,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "보간",
+      "제로금리"
+    ],
+    "summary_ko": "할인계수를 연속복리 제로금리로 변환한 뒤 만기 사이를 선형 보간하고 할인계수로 되돌리는 절차를 설명한다.",
+    "developer_note_ko": "수식·이미지 예시는 미검수다. 변환 부호·기간 단위·경계조건을 독립 구현과 왕복 테스트로 확인한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "9f2ede1df839583797fcb013653d30431b9cf3eceae8aa7491078b9411c6120b"
+  },
+  {
+    "id": "70138345251",
+    "title": "인터폴레이션 방법과 대상",
+    "date": "2012. 5. 17.",
+    "url": "https://blog.naver.com/nomore_bet/70138345251",
+    "inventory_index": 694,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "보간",
+      "모형선택"
+    ],
+    "summary_ko": "보간 방법과 보간 대상을 구별하고 제로금리·할인계수·스왑금리 공간에서 결과가 달라질 수 있음을 소개한다.",
+    "developer_note_ko": "보간 공간과 외삽 방식을 설정으로 고정하고 원시장 가격 재현 오차를 검증한다. 당시 보편성 주장을 현재 표준으로 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "157f3ebb125b0681e3a638dee26883628b867222db5d821e71bb0e80a4b3af0d"
+  },
+  {
+    "id": "70138315182",
+    "title": "디스카운트 만들기 #5-2 - 스왑 금리로 디스카운트 팩터 만들기",
+    "date": "2012. 5. 17.",
+    "url": "https://blog.naver.com/nomore_bet/70138315182",
+    "inventory_index": 695,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "부트스트랩",
+      "일정"
+    ],
+    "summary_ko": "2년 스왑의 분기별 일정과 현금흐름을 구성한 뒤 보간과 부트스트래핑으로 미지 할인계수를 찾는 예시다.",
+    "developer_note_ko": "영업일 조정·일수·만기 라벨·현금흐름 합을 독립 검산한다. 표를 테스트의 정답으로 그대로 복제하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "45267b7dcba85689471e6fdf7cf6091e99454b3b09be63d1b395c00e70f41120"
+  },
+  {
+    "id": "70138186089",
+    "title": "디스카운트 만들기 #5 - 스왑 금리로 디스카운트 팩터 만들기",
+    "date": "2012. 5. 15.",
+    "url": "https://blog.naver.com/nomore_bet/70138186089",
+    "inventory_index": 696,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "스왑",
+      "할인계수"
+    ],
+    "summary_ko": "스왑의 파 금리는 단기 예치 금리처럼 단일 만기 현금흐름으로 처리할 수 없으며 여러 지급일의 할인 관계가 필요하다고 설명한다.",
+    "developer_note_ko": "핵심 관계식이 그림에 있어 텍스트만으로 전체 수식 검증을 주장하지 않는다. 현금흐름별 가격 재현 테스트가 필요하다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "3ea0c13a536503b7cada7b5147aa261ec0d0174215b596a6e6a95c5c317d9816"
+  },
+  {
+    "id": "70138026018",
+    "title": "트레이딩 데스크 손익 분석 - 시장가, 이론가, 시장 가치",
+    "date": "2012. 5. 13.",
+    "url": "https://blog.naver.com/nomore_bet/70138026018",
+    "inventory_index": 697,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "평가",
+      "손익분해"
+    ],
+    "summary_ko": "가격과 수량의 곱인 평가액, 시장가와 이론가, 현금흐름의 검증 난이도를 설명한다.",
+    "developer_note_ko": "본문의 평가액+현금을 순손익으로 그대로 쓰지 않는다. 초기자본·매입 현금유출·외부 입출금을 반영한 자기자본 변화로 대사한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "8da19268d37cca8b9236f0f06e35683778ac119618f61d704dae8c080bd124ae"
+  },
+  {
+    "id": "70138024615",
+    "title": "트레이딩데스크 손익 분석 중요성",
+    "date": "2012. 5. 13.",
+    "url": "https://blog.naver.com/nomore_bet/70138024615",
+    "inventory_index": 698,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "손익설명",
+      "가격검증"
+    ],
+    "summary_ko": "손익 변화를 시장요인과 연결하고 프런트와 회계 관점 차이를 분석해야 한다고 주장한다. 리먼 관련 보고서를 사례로 언급한다.",
+    "developer_note_ko": "독립 가격 소스와 요인별 손익 설명, 설명되지 않은 잔차를 기록한다. 인용된 보고서 전체를 읽은 것으로 계산하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "1d7d52ccbd40e32e127cd45dbd7721b6238859571dbe5580a80cb42729a00194"
+  },
+  {
+    "id": "70137980011",
+    "title": "디스카운트 팩터 만들기 #4 - 만들기 전 사전 체크 사항",
+    "date": "2012. 5. 13.",
+    "url": "https://blog.naver.com/nomore_bet/70137980011",
+    "inventory_index": 699,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "시장관행",
+      "일정"
+    ],
+    "summary_ko": "시작일·만기·영업일 조정·휴일 달력·일수계산·금리 방식이 할인계수 계산의 필수 입력이라고 설명한다.",
+    "developer_note_ko": "달력과 관행을 버전 관리하며 월말·윤년·휴일 경계 테스트를 둔다. 통화별 관행은 상품별 원자료로 확인한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "5218fcdfb5f5a5177d71ad996aa1b972740b9a311ef14401ec276e6eb546a629"
+  },
+  {
+    "id": "70137841046",
+    "title": "디스카운트 팩터 만들기 #3 - CD금리 DF현금흐름",
+    "date": "2012. 5. 10.",
+    "url": "https://blog.naver.com/nomore_bet/70137841046",
+    "inventory_index": 700,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "현금흐름",
+      "결제시차"
+    ],
+    "summary_ko": "91일 CD의 시작일 지연을 고려해 단기 구간 할인계수와 연결하는 예시를 제시한다.",
+    "developer_note_ko": "거래일·가치일·만기를 분리하고 날짜 산술을 독립 검산한다. 본문 날짜 예시를 무검증 fixture로 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "8cd170c37204f78f49346901ffad275ebb24fd1dda2b2ed44ad1fe6b2c8d4175"
+  },
+  {
+    "id": "70137831859",
+    "title": "디스카운트 팩터 만들기 #2 - 현금흐름과 제로 금리 역산",
+    "date": "2012. 5. 10.",
+    "url": "https://blog.naver.com/nomore_bet/70137831859",
+    "inventory_index": 701,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "할인계수",
+      "제로금리"
+    ],
+    "summary_ko": "하루짜리 금리의 현금흐름에서 할인계수를 계산하고 동일 현금흐름을 만족하는 연속복리 제로금리를 역산한다.",
+    "developer_note_ko": "금리 백분율과 소수, 일수 분모, 반올림을 명시한다. 할인계수와 금리의 왕복 오차를 검사한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "a9d03dc0264a365a237bb82566d6c019b23b8fbf51cf6d585b67b08f92cbd2e5"
+  },
+  {
+    "id": "70137703415",
+    "title": "디스카운트 만들기 #1 - 마켓 데이터 입수",
+    "date": "2012. 5. 8.",
+    "url": "https://blog.naver.com/nomore_bet/70137703415",
+    "inventory_index": 702,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "시장자료",
+      "커브구성"
+    ],
+    "summary_ko": "2012년 원화의 단기 콜·CD와 장기 IRS 호가를 할인커브 기준점으로 삼는 이유를 설명한다.",
+    "developer_note_ko": "당시 단일 커브 접근을 현재 모든 담보·통화 상품에 적용하지 않는다. 소스·타임스탬프·유동성·신용과 담보 조건을 명시한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "2897d2a439dae5d0410978345f89da6c6e03d92330a5e51544624fbcdc0e08b9"
+  },
+  {
+    "id": "70137548083",
+    "title": "Par rate, Discount factor, Zero coupon rate, Forward rate 관계",
+    "date": "2012. 5. 6.",
+    "url": "https://blog.naver.com/nomore_bet/70137548083",
+    "inventory_index": 703,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "커브",
+      "가격평가"
+    ],
+    "summary_ko": "시장 파 금리에서 부트스트랩·보간으로 할인·제로 커브를 얻고 선도금리와 현금흐름 평가로 연결하는 개요다.",
+    "developer_note_ko": "예측 커브와 할인 커브가 같다는 가정을 명시해야 한다. 입력 호가 재현 및 계산 관행을 검증한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "eb82af71e497c2a18c5402befe6a8b0f1033227283f1ae547d90f1d734a4d007"
+  },
+  {
+    "id": "70137493055",
+    "title": "금리에 대해 모두 알고 있는 것들 - 2편",
+    "date": "2012. 5. 6.",
+    "url": "https://blog.naver.com/nomore_bet/70137493055",
+    "inventory_index": 704,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금리관행",
+      "단위"
+    ],
+    "summary_ko": "같은 연 5%라도 단리·이산복리·연속복리에 따라 미래금액이 달라짐을 비교한다.",
+    "developer_note_ko": "금리값만 저장하지 말고 복리 주기와 일수계산을 함께 저장한다. 연속복리 표현을 실물 현금 지급주기로 오해하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "a82642eb432766a3e319317a841e2eed60b5ce257b35c26f33d64b2848fae4df"
+  },
+  {
+    "id": "70137428773",
+    "title": "금리에 대해 모두 알고 있는 것들 - 1편",
+    "date": "2012. 5. 4.",
+    "url": "https://blog.naver.com/nomore_bet/70137428773",
+    "inventory_index": 705,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금리",
+      "산술검증"
+    ],
+    "summary_ko": "만기와 연율의 의미를 소개하고 연복리 투자 및 91일 CD의 미래금액을 계산하는 입문 예시다.",
+    "developer_note_ko": "추출 본문의 곱셈 표기와 CD 결과에는 오류가 있다. 백만원×(1+0.0354×91/365)는 약 1,008,825.75원이며 1,088,257.5원이 아니다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "8bea3626056288fe17ae74d0487db0eb5eb26d86860543861ac479635443f356"
+  },
+  {
+    "id": "70137422250",
+    "title": "Zero coupon curve와 Discount curve 관계",
+    "date": "2012. 5. 4.",
+    "url": "https://blog.naver.com/nomore_bet/70137422250",
+    "inventory_index": 706,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "제로금리",
+      "할인계수"
+    ],
+    "summary_ko": "만기별 제로금리와 할인계수는 변환 가능하며 평가에서는 할인계수를 곱하는 방식이 편리하다고 설명한다.",
+    "developer_note_ko": "복리 관행에 맞는 변환을 사용하고 예시 소수점·반올림은 재계산한다. 표시된 숫자를 곧바로 골든 값으로 삼지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "ad7c1dffb764dd38385bedc3ee19fb7b341f6fda5fb29669995179c8e2e3477c"
+  },
+  {
+    "id": "70137358572",
+    "title": "디스카운트 팩터 만들기",
+    "date": "2012. 5. 4.",
+    "url": "https://blog.naver.com/nomore_bet/70137358572",
+    "inventory_index": 707,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "할인커브",
+      "가정"
+    ],
+    "summary_ko": "시장 금리로 현금흐름을 구성하고 역산해 만기별 할인계수를 얻는 절차를 소개한다.",
+    "developer_note_ko": "할인계수가 항상 1 이하이고 만기에 따라 감소한다는 설명은 음의 금리에서 일반 성질이 아니다. 신용·담보·통화 가정을 명시한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "291dcce3fc593c0209facda2f1b03071e7328e9b24d10f1770d59749cf9bf54d"
+  },
+  {
+    "id": "70137353294",
+    "title": "파생상품 평가 방법",
+    "date": "2012. 5. 3.",
+    "url": "https://blog.naver.com/nomore_bet/70137353294",
+    "inventory_index": 708,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "가격평가",
+      "기대값"
+    ],
+    "summary_ko": "파생상품 가격평가를 미래 현금흐름 추정과 할인으로 나누고 옵션에는 확률적 지급이 필요하다고 설명한다.",
+    "developer_note_ko": "현실확률 기대수익과 무차익 가격의 위험중립 기대값을 구분한다. 채권도 부도·옵션 조항에 따라 현금흐름이 불확실하다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "c0ee6af65bd6b2767b3bb4429f349d2003cce1a3442221e91d9befcf35e966bd"
+  },
+  {
+    "id": "70137280680",
+    "title": "퀀트 연봉 정보는 여자친구 몸무게보다 알기 힘들다",
+    "date": "2012. 5. 2.",
+    "url": "https://blog.naver.com/nomore_bet/70137280680",
+    "inventory_index": 709,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "보수",
+      "정보신뢰도"
+    ],
+    "summary_ko": "퀀트 보수 정보의 불투명성과 기본급·성과급·고용형태의 차이를 논한다. 당시 풍문과 경험에 의존한다.",
+    "developer_note_ko": "현재 연봉 지표로 쓰지 않는다. 비투자 경력 에세이로 분류하며 불필요한 사생활 비유는 재사용하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "e6bf9996c7b1eaadf2a507916f3e31eb4bbb63561d0dd7d8e183f86ad7d4093a"
+  },
+  {
+    "id": "70136633180",
+    "title": "금융공학 해외파냐 국내파냐 그것이 문제로다",
+    "date": "2012. 4. 23.",
+    "url": "https://blog.naver.com/nomore_bet/70136633180",
+    "inventory_index": 710,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "교육",
+      "기회비용"
+    ],
+    "summary_ko": "국내외 금융공학 교육을 비용·네트워크·당시 채용 환경 관점에서 비교하는 개인 의견이다.",
+    "developer_note_ko": "2012년 상황을 현재 교육 추천으로 전용하지 않는다. 기관명과 과거 수요만으로 교육 효과를 추정하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "f9816c50043fe8eaf5fdcd0d12fb1d565e29713013aa0ed1b9a75086ee36cd8c"
+  },
+  {
+    "id": "70136248722",
+    "title": "이공계 박사 퀀트가 처음 트레이딩 룸에 오면",
+    "date": "2012. 4. 17.",
+    "url": "https://blog.naver.com/nomore_bet/70136248722",
+    "inventory_index": 711,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트개발",
+      "시장관행"
+    ],
+    "summary_ko": "수학 모형보다 시장관행 반영과 시스템 이식에 많은 시간이 들며 정확성과 속도의 균형이 필요하다고 설명한다.",
+    "developer_note_ko": "허용 오차·지연 예산·안전한 실패를 명시하고 모형과 실제 입력 관행의 적합성을 테스트한다. 안전 불변조건을 속도 때문에 생략하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "35c096616cb1d4fa5aefbc88e29574a0904b9fbc883910bcee5fa21fcf0007b7"
+  },
+  {
+    "id": "70135630084",
+    "title": "금융전문대학원·금융MBA는 경력 전환이 메리트",
+    "date": "2012. 4. 9.",
+    "url": "https://blog.naver.com/nomore_bet/70135630084",
+    "inventory_index": 712,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "경력전환",
+      "교육"
+    ],
+    "summary_ko": "금융 대학원이 기존 기술을 금융 분야로 전환하는 데 유리하다는 당시 경력 관찰이다. 연령·전공별 취업 전망은 저자의 일반화다.",
+    "developer_note_ko": "특정 나이·전공으로 능력이나 채용 적합성을 판단하는 규칙으로 사용하지 않는다. 투자 신호가 아닌 역사적 교육 에세이다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "1cd552ef58cd57dc087ef4a7070ae46f57456f073169c8690c6460e186d80634"
+  },
+  {
+    "id": "70135442043",
+    "title": "금융공학석사·금융MBA 졸업생 레드오션인가?",
+    "date": "2012. 4. 6.",
+    "url": "https://blog.naver.com/nomore_bet/70135442043",
+    "inventory_index": 713,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트산업",
+      "인력수요"
+    ],
+    "summary_ko": "구조화 상품 시장 위축 속 금융공학 석사 인력의 어려움과 시스템 트레이딩·IT 접점의 가능성을 논한다.",
+    "developer_note_ko": "시점이 제한된 노동시장 의견이며 현재 수요의 검증된 예측은 아니다. 시스템 구현 역량이라는 학습 맥락만 분리한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "0921b9ff3da7e60e57b9adeab438731456d9c17d350af0d851427d734ab1530e"
+  },
+  {
+    "id": "70135281124",
+    "title": "은행 트레이딩룸은 어떻게 돈을 버나?",
+    "date": "2012. 4. 4.",
+    "url": "https://blog.naver.com/nomore_bet/70135281124",
+    "inventory_index": 714,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "트레이딩손익",
+      "비용"
+    ],
+    "summary_ko": "방향성 매매·시장조성 스프레드·고객 마진을 구분하고 헤지와 운영비를 빼야 순수익이 된다고 설명한다.",
+    "developer_note_ko": "스프레드 수익에서 재고위험·역선택·체결비용을 빼야 한다. 콜옵션을 팔 권리로 설명한 본문은 정정 필요하며 콜 보유자의 권리는 매수다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "60607702feb9700d64f48061f9616e80ae9aaddac5b3366c3f4d792567a3afad"
+  }
+]

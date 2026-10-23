@@ -2,7 +2,7 @@
   "schema_version": 1,
   "checked_date_utc": "2026-10-23",
   "research_source_count": 12,
-  "completion_claim": "partial_collection_not_entire_corpus_complete",
+  "completion_claim": "scoped_public_text_and_supplied_archive_review_with_explicit_remaining_limits",
   "counting_rules_ko": [
     "열거·본문 읽기·그림 검수·주장 검증·실행을 구분한다.",
     "U09는U08에 포함되는 동일 글로 총 게시글 수에 중복 가산하지 않는다.",
@@ -42,7 +42,7 @@
       "note_file": "books.md",
       "coverage_status": "official_excerpt_reviewed_remainder_unread",
       "read_scope_ko": "공식 소개·목차 및 1장 발췌 11쪽. 2–9장·부록 및 정오표 본문 미검토.",
-      "remaining_or_limits_ko": "정식 책 본문이나 공식 추가 발췌 없이는 규칙을 추정해 채우지 않음.",
+      "remaining_or_limits_ko": "정식 본문/추가 발췌 필요. 공식 정오표 2017-05-17 게시 안내까지 확인했으나 공식 페이지403·다운로드 URL 미확인으로 내용 미검토.",
       "execution_or_performance_reproduction": false,
       "raw_content_in_repository": false
     },
@@ -58,11 +58,14 @@
       "user_url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2174501",
       "canonical_url": "https://doi.org/10.1111/jofi.12021",
       "note_file": "papers.md",
-      "coverage_status": "canonical_paper_selected_sections_reviewed",
-      "read_scope_ko": "SSRN 403. 저자 공개 최종판의 초록·신호/포트폴리오·비용/강건성 주요 절. 전체 표·부록 재현 없음.",
-      "remaining_or_limits_ko": "원논문 데이터와 업데이트 데이터의 구분만 확인; 파일 다운로드·검산 없음.",
+      "coverage_status": "published_main_text_complete_accepted_manuscript_appendix_text_reviewed",
+      "read_scope_ko": "SSRN403. 게재본57쪽 전체 텍스트·6개 그림9쪽 픽셀 및 CBS 수락본 첨부 부록10쪽 텍스트 검토. 판본별 ledger 참조.",
+      "remaining_or_limits_ko": "부록은2012-06 표기 수락본이며 게재판 부록 동일성·그림 픽셀 미확인. 데이터 파일·코드·표 재현 없음.",
       "execution_or_performance_reproduction": false,
-      "raw_content_in_repository": false
+      "raw_content_in_repository": false,
+      "review_ledger": "paper-u03-full-review.json",
+      "published_pdf_pages_text_reviewed": 57,
+      "accepted_manuscript_appendix_pages_text_reviewed": 10
     },
     {
       "id": "U04",
@@ -75,15 +78,21 @@
       "user_url": "https://www.mlfactor.com/",
       "canonical_url": "https://www.mlfactor.com/",
       "note_file": "mlfactor.md",
-      "coverage_status": "all_19_chapter_texts_reviewed",
-      "read_scope_ko": "19장 본문 텍스트·표시 수식/표·코드/출력 정적 검토. 모든 그림 픽셀 검수 및 연결된 참고문헌 전수 읽기는 아님.",
-      "remaining_or_limits_ko": "Python 색인15링크만 확인; 노트북 본문·실행 미검토. 확인한 서문/공식 저장소 루트/README에서 재배포 라이선스 미확인.",
+      "coverage_status": "all_19_chapter_texts_and_15_official_python_notebooks_statically_reviewed",
+      "read_scope_ko": "19장 본문 및 공식 Python HTML 노트북15개 설명·코드·정적 출력 검토. Python 그림76배치 확인.",
+      "remaining_or_limits_ko": "Python JS 도표2개·외부 참고문헌·모든 R장 그림 픽셀은 미검토. 실행/데이터 다운로드0건. 확인한 서문/공식 저장소 루트/README에서 재배포 라이선스 미확인.",
       "execution_or_performance_reproduction": false,
       "raw_content_in_repository": false,
       "chapter_inventory_count": 19,
       "chapter_text_reviewed_count": 19,
       "official_python_links_count": 15,
-      "python_notebooks_content_reviewed_count": 0
+      "python_notebooks_content_reviewed_count": 15,
+      "python_notebooks_ledger": "mlfactor-python-notebooks.json",
+      "python_rendered_cell_count": 1838,
+      "python_code_cell_count": 173,
+      "python_static_image_placements_reviewed": 76,
+      "python_dynamic_charts_unrendered_count": 2,
+      "python_execution_count": 0
     },
     {
       "id": "U05",
@@ -127,7 +136,7 @@
       "note_file": "investor-dnpquant/README.md",
       "coverage_status": "public_blog_unavailable_all_175_supplied_artifacts_read",
       "read_scope_ko": "공개웹 열거0·본문0. 사용자 업로드175파일 전수 확인: 식별 본문173, 본문 없음2, 명확한 부분본문2.",
-      "remaining_or_limits_ko": "전체 블로그 역사/완전 원문 확보는 아님. 5동일 합본에서5ID 복구; 말미결손 의심2·상대날짜1·이미지0검수 등은 archive coverage 참조.",
+      "remaining_or_limits_ko": "전체 블로그 역사/완전 원문 확보는 아님. 동일 합본5개에서5개 ID 복구; 말미 결손 의심2·상대날짜1·이미지0개 검수 등은 archive coverage 참조.",
       "execution_or_performance_reproduction": false,
       "raw_content_in_repository": false,
       "archive_coverage_file": "investor-dnpquant/coverage.json",
@@ -148,8 +157,8 @@
       "user_url": "https://m.blog.naver.com/nomore_bet?categoryNo=1&tab=1",
       "canonical_url": "https://blog.naver.com/PostList.naver?blogId=nomore_bet&categoryNo=1",
       "note_file": "naver-sources.md",
-      "coverage_status": "inventory_complete_per_post_text_review_in_progress",
-      "read_scope_ko": "공식 24페이지에서714 unique 글ID 열거(표시712와 불일치). 개별 읽기·요약은 별도 배치 ledger로 추적.",
+      "coverage_status": "all_714_posts_individually_resolved_with_media_limits",
+      "read_scope_ko": "공식24페이지714 unique ID를 모두 개별 검토·노트화(표시712 불일치 미해결). 텍스트 충분/부족·그림 중심 상태 분리.",
       "remaining_or_limits_ko": "전체 블로그2116개와 구분. 일반 공개 접근만 사용; 이미지/외부링크·주장 검증은 별도 상태.",
       "execution_or_performance_reproduction": false,
       "raw_content_in_repository": false,
@@ -159,8 +168,28 @@
       "inventory_file": "naver-nomore-inventory.md",
       "notes_directory": "naver-nomore-post-notes",
       "duplicate_designated_source": "U09",
-      "per_post_notes_present_count": 230,
-      "notes_count_is_not_total_blog_count": true
+      "per_post_notes_present_count": 714,
+      "notes_count_is_not_total_blog_count": true,
+      "aggregate_ledger": "naver-nomore-manifest.json",
+      "body_review_status_counts": {
+        "public_text_reviewed": 692,
+        "partial_text_only": 5,
+        "minimal_text_only": 4,
+        "public_text_sparse_needs_visual_review": 12,
+        "public_text_unavailable_image_only": 1
+      },
+      "visual_note_count": 44,
+      "selected_media_reviewed_post_count": 38,
+      "selected_static_images_and_single_frame_diagrams_reviewed": 58,
+      "animation_placements_reviewed": 6,
+      "animation_frames_directly_reviewed_unique": 271,
+      "visual_review_status_counts": {
+        "not_reviewed": 670,
+        "selected_public_images_reviewed": 36,
+        "selected_public_animation_frames_reviewed": 2,
+        "no_selected_public_images_text_only_reviewed": 5,
+        "no_selected_images_available_not_reviewed": 1
+      }
     },
     {
       "id": "U09",
@@ -190,11 +219,14 @@
       "user_url": null,
       "canonical_url": "https://doi.org/10.1093/rfs/hhaa009",
       "note_file": "papers.md",
-      "coverage_status": "canonical_paper_selected_sections_reviewed",
-      "read_scope_ko": "만료 가능 토큰 URL은 미보관. 저자 공개 게재본 초록·방법·데이터/분할·권리 고지 확인.",
-      "remaining_or_limits_ko": "CC BY-NC-ND 4.0 표시. 전체 PDF 미러·Internet Appendix 전수 검토·코드/표 재현 없음.",
+      "coverage_status": "full_public_main_and_supplement_text_reviewed",
+      "read_scope_ko": "만료 가능 토큰 URL은 미보관. 게재본51쪽+공식 부록31쪽 전체 텍스트와 모든 표·그림 구조 검토.",
+      "remaining_or_limits_ko": "게재본 CC BY-NC-ND4.0 표시. 원문 미러·코드/표 재현 없음. 인쇄식 주의는 실증 오류 판정과 구분.",
       "execution_or_performance_reproduction": false,
-      "raw_content_in_repository": false
+      "raw_content_in_repository": false,
+      "review_ledger": "paper-u10-full-review.json",
+      "published_pdf_pages_text_reviewed": 51,
+      "official_supplement_pages_text_reviewed": 31
     },
     {
       "id": "U11",
@@ -237,5 +269,7 @@
       "reason_ko": "연구자료로 확인되지 않은 개인 일정 링크. 접근·수집 제외, 사용자 명확화 필요.",
       "url_stored": false
     }
-  ]
+  ],
+  "checked_at_utc": "2026-10-23T08:18:38.542319+00:00",
+  "recovery_note_ko": "작업환경 초기화 후 공개 저장소 객체·이전 작성 기록을 복구했으며 기록이 없는 개별 메모는 공개 본문 재독해로 재작성했다. 신규 재조회 해시와 이전 수집 해시를 구분한다."
 }

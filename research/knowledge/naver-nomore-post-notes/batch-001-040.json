@@ -19,7 +19,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "f94670b051bf7b3bab826be7d91e9c4a8d092372eca1db2c5af10854509336d7",
-    "source_text_chars": 1619
+    "source_text_chars": 1619,
+    "source_document_sha256": "f94670b051bf7b3bab826be7d91e9c4a8d092372eca1db2c5af10854509336d7",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "224057045323",
@@ -41,7 +43,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "d0071b4bd5025d71d35220ea35b17bcbf70e1df9966ad23c2f778e6a213f42e3",
-    "source_text_chars": 4058
+    "source_text_chars": 4058,
+    "source_document_sha256": "d0071b4bd5025d71d35220ea35b17bcbf70e1df9966ad23c2f778e6a213f42e3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223923836293",
@@ -63,7 +67,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "71a28e787393e80f86e2750f2449ed592bbba72a2e3e8afb4460c87a2ac845be",
-    "source_text_chars": 3713
+    "source_text_chars": 3713,
+    "source_document_sha256": "71a28e787393e80f86e2750f2449ed592bbba72a2e3e8afb4460c87a2ac845be",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223629592582",
@@ -85,7 +91,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "83b53be41e1bcf25c019a684a1f8cd836deab6e7611d61e39224923ff8aff4d6",
-    "source_text_chars": 4962
+    "source_text_chars": 4962,
+    "source_document_sha256": "83b53be41e1bcf25c019a684a1f8cd836deab6e7611d61e39224923ff8aff4d6",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223488331066",
@@ -107,7 +115,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "8b9566ad7bc7fd4eac6fadbc5214210f9165895ca7183fe34d941b8af01bb890",
-    "source_text_chars": 2537
+    "source_text_chars": 2537,
+    "source_document_sha256": "8b9566ad7bc7fd4eac6fadbc5214210f9165895ca7183fe34d941b8af01bb890",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223444312860",
@@ -129,7 +139,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "86401c327cec65aea798d209b079656dfbd4bc2999f47dd4a779b4549f1a5223",
-    "source_text_chars": 4628
+    "source_text_chars": 4628,
+    "source_document_sha256": "86401c327cec65aea798d209b079656dfbd4bc2999f47dd4a779b4549f1a5223",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223400184384",
@@ -151,7 +163,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "84b8145b8a5338def0d036526b43fa1bfe759c769f8a079b0c6ea5efb2dc0f96",
-    "source_text_chars": 3962
+    "source_text_chars": 3962,
+    "source_document_sha256": "84b8145b8a5338def0d036526b43fa1bfe759c769f8a079b0c6ea5efb2dc0f96",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223376003606",
@@ -172,7 +186,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "f4f124ebb5b4a251803d67d16bd3df98141c9e0f1d975b67154832b430d1b1cf",
-    "source_text_chars": 616
+    "source_text_chars": 616,
+    "source_document_sha256": "f4f124ebb5b4a251803d67d16bd3df98141c9e0f1d975b67154832b430d1b1cf",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223371760305",
@@ -194,7 +210,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "b495d876ddb8b356d44f1f4fe61544e161273b0060c2b1c1b8c420bc28fc912c",
-    "source_text_chars": 5742
+    "source_text_chars": 5742,
+    "source_document_sha256": "b495d876ddb8b356d44f1f4fe61544e161273b0060c2b1c1b8c420bc28fc912c",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223365022101",
@@ -216,7 +234,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "a01bcb088d14d73f0880e99f3575b3d1ab0819cfdd649ca3e2949155507a28d4",
-    "source_text_chars": 4312
+    "source_text_chars": 4312,
+    "source_document_sha256": "a01bcb088d14d73f0880e99f3575b3d1ab0819cfdd649ca3e2949155507a28d4",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223315501385",
@@ -238,7 +258,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "5c3b5f76d6ed85de7819d6dbf9f6b3c2e5d0cc6afcbf707dc8cfd84231997478",
-    "source_text_chars": 2776
+    "source_text_chars": 2776,
+    "source_document_sha256": "5c3b5f76d6ed85de7819d6dbf9f6b3c2e5d0cc6afcbf707dc8cfd84231997478",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223268940104",
@@ -260,7 +282,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "b296c5ebcc3f7f1e5f20b155718fce1ff0716a802e106448094d2fde5de6ee2b",
-    "source_text_chars": 6399
+    "source_text_chars": 6399,
+    "source_document_sha256": "b296c5ebcc3f7f1e5f20b155718fce1ff0716a802e106448094d2fde5de6ee2b",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223215221387",
@@ -282,7 +306,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "f5f2548af6e73eefc6fa0abc1c3b774ebe51632aa534ae4bb9d7dac58694cbf1",
-    "source_text_chars": 5592
+    "source_text_chars": 5592,
+    "source_document_sha256": "f5f2548af6e73eefc6fa0abc1c3b774ebe51632aa534ae4bb9d7dac58694cbf1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223137792421",
@@ -304,7 +330,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "e1db13212fd66ba9eb800a45d705ff041a651182438aa558cd942c99fe1938d3",
-    "source_text_chars": 3322
+    "source_text_chars": 3322,
+    "source_document_sha256": "e1db13212fd66ba9eb800a45d705ff041a651182438aa558cd942c99fe1938d3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223122007872",
@@ -326,7 +354,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "074786355b65b49479e617157ec1162127128246a2c812717ca61fbe03297db3",
-    "source_text_chars": 2437
+    "source_text_chars": 2437,
+    "source_document_sha256": "074786355b65b49479e617157ec1162127128246a2c812717ca61fbe03297db3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223120307577",
@@ -348,7 +378,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "053bf38ec1203545a9054ab8740e2bba46f45611e80dfd091c20fe93eef23e08",
-    "source_text_chars": 5414
+    "source_text_chars": 5414,
+    "source_document_sha256": "053bf38ec1203545a9054ab8740e2bba46f45611e80dfd091c20fe93eef23e08",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223090664236",
@@ -370,7 +402,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "1cb2e90ade70dc9eafa95f39aa9655864c54f8712d4ad5bd21acb0130f856749",
-    "source_text_chars": 4918
+    "source_text_chars": 4918,
+    "source_document_sha256": "1cb2e90ade70dc9eafa95f39aa9655864c54f8712d4ad5bd21acb0130f856749",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223056494072",
@@ -392,7 +426,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "f7d62731b0ab60dd82aff4d54dc2e4289738dfa28f4228e516348d3a05ed293c",
-    "source_text_chars": 3276
+    "source_text_chars": 3276,
+    "source_document_sha256": "f7d62731b0ab60dd82aff4d54dc2e4289738dfa28f4228e516348d3a05ed293c",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223028508457",
@@ -414,7 +450,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "135c40fa7711be72bd8d3bad6d5cd0c69827089fa79dea37aab920b9a34825e3",
-    "source_text_chars": 2429
+    "source_text_chars": 2429,
+    "source_document_sha256": "135c40fa7711be72bd8d3bad6d5cd0c69827089fa79dea37aab920b9a34825e3",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "223010042519",
@@ -436,7 +474,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "d46b88525b27a4f409bb24c96557c616e9172570f5ccd2db4c5b7b728507f764",
-    "source_text_chars": 1881
+    "source_text_chars": 1881,
+    "source_document_sha256": "d46b88525b27a4f409bb24c96557c616e9172570f5ccd2db4c5b7b728507f764",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222978374662",
@@ -458,7 +498,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "0ae55b263f94d260c4c2576c6123cb23598e58a4266a6af92245a36d3ba4c2d1",
-    "source_text_chars": 3788
+    "source_text_chars": 3788,
+    "source_document_sha256": "0ae55b263f94d260c4c2576c6123cb23598e58a4266a6af92245a36d3ba4c2d1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222965558795",
@@ -480,7 +522,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "81440b9cd4af9edde0a7516678325bf0844074643942e882c50db9368e7e2996",
-    "source_text_chars": 2420
+    "source_text_chars": 2420,
+    "source_document_sha256": "81440b9cd4af9edde0a7516678325bf0844074643942e882c50db9368e7e2996",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222933626259",
@@ -502,7 +546,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "2ceb7c234d57e25c7bb490ec96f657ac0cf9d0ab265f0459f2e44947bf2c9cba",
-    "source_text_chars": 9360
+    "source_text_chars": 9360,
+    "source_document_sha256": "2ceb7c234d57e25c7bb490ec96f657ac0cf9d0ab265f0459f2e44947bf2c9cba",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222927534466",
@@ -524,7 +570,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "e3e3732043021eaef5bc1adbb1572cee2d5c708c6590db9f2a22bef044e443b0",
-    "source_text_chars": 4341
+    "source_text_chars": 4341,
+    "source_document_sha256": "e3e3732043021eaef5bc1adbb1572cee2d5c708c6590db9f2a22bef044e443b0",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222921160067",
@@ -546,7 +594,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "754a984727443610d4448f5cdf7c811dfdc75eb0134e9167ad61e5fe8e35e8bc",
-    "source_text_chars": 4788
+    "source_text_chars": 4788,
+    "source_document_sha256": "754a984727443610d4448f5cdf7c811dfdc75eb0134e9167ad61e5fe8e35e8bc",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222915033009",
@@ -568,7 +618,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "0776bd99ca998a3cc919081bcb32c697fb892f6e502284da2d8acaf711beb619",
-    "source_text_chars": 4869
+    "source_text_chars": 4869,
+    "source_document_sha256": "0776bd99ca998a3cc919081bcb32c697fb892f6e502284da2d8acaf711beb619",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222908784660",
@@ -590,7 +642,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "f9526da48844225a5274167e6164a4611cef3d75a7c1237e91c9f5c420988ad7",
-    "source_text_chars": 3059
+    "source_text_chars": 3059,
+    "source_document_sha256": "f9526da48844225a5274167e6164a4611cef3d75a7c1237e91c9f5c420988ad7",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222849150799",
@@ -612,7 +666,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "99018cbdd9ab9f56dbbc7d3f134a41837aaaf72537e5b6c6b76a61bc3dd7b6d6",
-    "source_text_chars": 1771
+    "source_text_chars": 1771,
+    "source_document_sha256": "99018cbdd9ab9f56dbbc7d3f134a41837aaaf72537e5b6c6b76a61bc3dd7b6d6",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222539865017",
@@ -634,7 +690,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "e76859945ed95a09af76270fe93ab3176ed136d6347556730842233e3e4a1493",
-    "source_text_chars": 3779
+    "source_text_chars": 3779,
+    "source_document_sha256": "e76859945ed95a09af76270fe93ab3176ed136d6347556730842233e3e4a1493",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222504726744",
@@ -656,7 +714,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "18afbbf3a0fec13716d8297a46e2c8464073a3c7899aa2dae2155971a66c621d",
-    "source_text_chars": 2495
+    "source_text_chars": 2495,
+    "source_document_sha256": "18afbbf3a0fec13716d8297a46e2c8464073a3c7899aa2dae2155971a66c621d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222459134005",
@@ -678,7 +738,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "426500d06f0d42aee3f11895d9ea0fc77ceb92351204c1b68519ab70f21e5480",
-    "source_text_chars": 3802
+    "source_text_chars": 3802,
+    "source_document_sha256": "426500d06f0d42aee3f11895d9ea0fc77ceb92351204c1b68519ab70f21e5480",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222456898235",
@@ -700,7 +762,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "304c34e7cfc9ca612e06718aab466e401e21c7b09d0267b33c313ab9933d1ae8",
-    "source_text_chars": 3144
+    "source_text_chars": 3144,
+    "source_document_sha256": "304c34e7cfc9ca612e06718aab466e401e21c7b09d0267b33c313ab9933d1ae8",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222309598593",
@@ -722,7 +786,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "712c6c7f8a18c9747a5f786d5ca59422278726b07b8584077116c512effc766a",
-    "source_text_chars": 1960
+    "source_text_chars": 1960,
+    "source_document_sha256": "712c6c7f8a18c9747a5f786d5ca59422278726b07b8584077116c512effc766a",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222306623421",
@@ -744,7 +810,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "60d5066e48f102d8db113c0a3f5e712f5d2d6c6906277c861e04b62c8a304830",
-    "source_text_chars": 3380
+    "source_text_chars": 3380,
+    "source_document_sha256": "60d5066e48f102d8db113c0a3f5e712f5d2d6c6906277c861e04b62c8a304830",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222298616545",
@@ -766,7 +834,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "ba5e1dd5ab518f37867d05b779222831ab4bbe70fcdb83264c3807b6b768567d",
-    "source_text_chars": 3505
+    "source_text_chars": 3505,
+    "source_document_sha256": "ba5e1dd5ab518f37867d05b779222831ab4bbe70fcdb83264c3807b6b768567d",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222288119914",
@@ -788,7 +858,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "52f9ca4f35e3c0f494f8a14ea326511e22aad1df3985eef0c6b620c9d422035a",
-    "source_text_chars": 3002
+    "source_text_chars": 3002,
+    "source_document_sha256": "52f9ca4f35e3c0f494f8a14ea326511e22aad1df3985eef0c6b620c9d422035a",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222277791934",
@@ -810,7 +882,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "296f9a6da5ee0c449043248fb319e8a5f26db8160b52e799d7edc8b25a7aa7ac",
-    "source_text_chars": 2060
+    "source_text_chars": 2060,
+    "source_document_sha256": "296f9a6da5ee0c449043248fb319e8a5f26db8160b52e799d7edc8b25a7aa7ac",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222275097362",
@@ -832,7 +906,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "47e5a7ddb171276c8d66249b91e02fb6f6597ea5aaee23546be0e70099ae9a27",
-    "source_text_chars": 3384
+    "source_text_chars": 3384,
+    "source_document_sha256": "47e5a7ddb171276c8d66249b91e02fb6f6597ea5aaee23546be0e70099ae9a27",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222260725782",
@@ -854,7 +930,9 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "03e6baf22ddb3d6d84d2d4b02f4e030a7499846e5ccdaa79bebd1f3fd11cdad1",
-    "source_text_chars": 2377
+    "source_text_chars": 2377,
+    "source_document_sha256": "03e6baf22ddb3d6d84d2d4b02f4e030a7499846e5ccdaa79bebd1f3fd11cdad1",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   },
   {
     "id": "222260524322",
@@ -876,6 +954,8 @@
       "author_claims_not_independently_verified"
     ],
     "source_text_sha256": "faaa5f2b1227650078060af490c48a438fe9351688c92f3f013f8557d9c98773",
-    "source_text_chars": 3834
+    "source_text_chars": 3834,
+    "source_document_sha256": "faaa5f2b1227650078060af490c48a438fe9351688c92f3f013f8557d9c98773",
+    "source_hash_provenance": "restored from durable initial-collection manifest, not a new fetch"
   }
 ]

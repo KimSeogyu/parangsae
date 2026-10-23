@@ -1,0 +1,572 @@
+[
+  {
+    "id": "221140393449",
+    "title": "비트코인, 최악의 거품 기사 × 체계적인 자유 낙하",
+    "date": "2017. 11. 15.",
+    "url": "https://blog.naver.com/nomore_bet/221140393449",
+    "inventory_index": 341,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "거품",
+      "위험학습"
+    ],
+    "summary_ko": "거품의 상승·붕괴와 산업 기반의 잔존을 관찰하며 경험을 통한 위험 학습을 강조한다. 투자 참여 자체의 교육 효과는 저자의 의견이다.",
+    "developer_note_ko": "손실 경험을 학습 요건으로 삼지 말고 paper-first에서 진입 가설과 하락 스트레스를 기록한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "59d3b92446d4d5198d0123e255d3b0803734baa6c0331af52a934826a4810607"
+  },
+  {
+    "id": "221136709951",
+    "title": "글로벌IB, 트레이딩 수익의 몰락",
+    "date": "2017. 11. 10.",
+    "url": "https://blog.naver.com/nomore_bet/221136709951",
+    "inventory_index": 342,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "트레이딩산업",
+      "수익성"
+    ],
+    "summary_ko": "2017년 FICC 수익 감소와 은행의 사업 조정을 소개한다. 일부 옵션 시장조성 축소를 업계 변화의 사례로 든다.",
+    "developer_note_ko": "시장조성 수익은 거래량·변동성·비용으로 분해한다. 부분 철수를 전체 옵션 사업 종료로 확대하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "d8ca505748f11e431bd4e2a198bde62729de6754a1b13e8608361faf7faf9876"
+  },
+  {
+    "id": "221135899645",
+    "title": "가상화폐, 회계로 파생상품을 만나나",
+    "date": "2017. 11. 9.",
+    "url": "https://blog.naver.com/nomore_bet/221135899645",
+    "inventory_index": 343,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "암호자산",
+      "회계"
+    ],
+    "summary_ko": "초기 암호자산의 회계 분류 문제를 외환·파생상품과 비교한다. 당시 제도적 불확실성에 관한 의견이다.",
+    "developer_note_ko": "현재 회계기준으로 사용하지 않는다. 상품 유형과 평가손익·실현손익·실제 유동성을 구분한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "0ec98003675dc582bb94bba8727dd0dd6712708419ceccbcb206b3fbf5e64e8f"
+  },
+  {
+    "id": "221135117039",
+    "title": "파생상품 영역으로 들어오는 비트코인",
+    "date": "2017. 11. 8.",
+    "url": "https://blog.naver.com/nomore_bet/221135117039",
+    "inventory_index": 344,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "선물",
+      "시장접근"
+    ],
+    "summary_ko": "비트코인 선물 도입이 기관 접근과 양방향 거래, 파생상품 확장에 미칠 영향을 전망한다.",
+    "developer_note_ko": "선물 도입과 ETF 승인 또는 가격 상승을 동일시하지 않는다. 현금결제·지수·베이시스·레짐 변화를 별도 모델링한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "22d07ee01f3b463f033b4625b1b8087d77d2cab2274255c1f8369ebf64d50fae"
+  },
+  {
+    "id": "221133487050",
+    "title": "자본수익률과 부동산의 자금 조달 관점 장점",
+    "date": "2017. 11. 6.",
+    "url": "https://blog.naver.com/nomore_bet/221133487050",
+    "inventory_index": 345,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "부동산",
+      "자금조달"
+    ],
+    "summary_ko": "주택 관련 자본수익과 담보 조달의 유리함을 논하며 부동산과 다른 자산의 금융 조건을 비교한다.",
+    "developer_note_ko": "조달금리가 낮아도 상환·유동성 위험은 남는다. 역사적 대출·전세 조건을 현재 규칙으로 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "315cb75e5cdf2be51ba48723465b86b4108a24c3a70d3cc0ef2932f990293540"
+  },
+  {
+    "id": "221113657677",
+    "title": "금융이란 무엇인가 - 로버트 쉴러의 정의",
+    "date": "2017. 10. 10.",
+    "url": "https://blog.naver.com/nomore_bet/221113657677",
+    "inventory_index": 346,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "금융정의",
+      "교육"
+    ],
+    "summary_ko": "금융을 단순 중개보다 목표 달성을 위한 자원과 계약의 조직으로 설명하는 쉴러의 정의를 소개한다.",
+    "developer_note_ko": "전략 구현 전에 목표·제약·이해관계를 명시하는 교육 자료로 분류한다. 알파 증거는 아니다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "931ca9aa45e00a03e7f889fd69d34432cc98bec78a8f48c39aa9db68869d62ca"
+  },
+  {
+    "id": "221109915870",
+    "title": "원유 시장 어떻게 공부 시작할까 × 펀더멘탈 요소",
+    "date": "2017. 10. 5.",
+    "url": "https://blog.naver.com/nomore_bet/221109915870",
+    "inventory_index": 347,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "원유",
+      "펀더멘털"
+    ],
+    "summary_ko": "원유 공부의 출발점으로 재고·생산·시추·수요·운송 및 공급 정책을 소개한다.",
+    "developer_note_ko": "관측기간과 발표시점을 분리하고 수준보다 예상 대비 변화가 유효한지 검증한다. 당시 수치는 현재 자료가 아니다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "e376d17183ff690c5071c96386a83d89cdb8477f62867fa015c3d4e0a255d578"
+  },
+  {
+    "id": "221105976176",
+    "title": "북한 국채 디폴트 그리고 차익거래",
+    "date": "2017. 9. 27.",
+    "url": "https://blog.naver.com/nomore_bet/221105976176",
+    "inventory_index": 348,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "부실채권",
+      "회수위험"
+    ],
+    "summary_ko": "북한 채무의 부도와 잔존 청구권 거래를 통해 체제 변화와 회수 가능성에 대한 투기를 설명한다.",
+    "developer_note_ko": "값이 싸다는 이유로 무위험 차익거래로 분류하지 않는다. 제재·권리·회수·유동성 조건을 분리하며 거래 권고로 쓰지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "f2615aef64f051c963331c5d56e9ec36c57663471c57a8d0a9d08eea004e12f2"
+  },
+  {
+    "id": "221102628207",
+    "title": "골드만 삭스 × 트레이딩 vs 대출 비즈니스",
+    "date": "2017. 9. 22.",
+    "url": "https://blog.naver.com/nomore_bet/221102628207",
+    "inventory_index": 349,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "은행사업",
+      "레짐"
+    ],
+    "summary_ko": "골드만삭스의 트레이딩 수익 압박과 대출 사업 확대 계획을 대비한다.",
+    "developer_note_ko": "당시 계획과 실현 결과를 구분한다. 낮은 변동성이 모든 전략에 동일한 영향을 준다고 가정하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "b07fcdd19bf278fd2c9714da2d51c19cb29aa5d615888e270693203e77e35fe0"
+  },
+  {
+    "id": "221099868521",
+    "title": "워런 버핏식 투자 스타일이 자본주의에 끼치는 해악",
+    "date": "2017. 9. 19.",
+    "url": "https://blog.naver.com/nomore_bet/221099868521",
+    "inventory_index": 350,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "경쟁",
+      "경제적해자"
+    ],
+    "summary_ko": "버핏식 경제적 해자가 주주에게는 유리해도 경쟁·투자·사회적 후생에는 다른 영향을 줄 수 있다는 비판을 소개한다.",
+    "developer_note_ko": "규범적 주장과 검증된 인과를 구분한다. 투자 수익과 사회적 가치가 같은 목표라는 가정은 피한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "6538a6da9891515bf4b883af45adcecf4e71a604e4f72132eb6df7057bfb4b9a"
+  },
+  {
+    "id": "221096538497",
+    "title": "한국 땅값 6981조 원 × 큰 수에 대한 감각",
+    "date": "2017. 9. 14.",
+    "url": "https://blog.naver.com/nomore_bet/221096538497",
+    "inventory_index": 351,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "규모감각",
+      "단위"
+    ],
+    "summary_ko": "토지가치·국가예산·시가총액 같은 기준 숫자를 비교하며 경제 규모에 대한 감각을 기르자고 제안한다.",
+    "developer_note_ko": "통화·시점·명목/실질·stock/flow를 태그로 보존한다. 서로 다른 단위의 숫자를 무조건 비율화하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "5ed85e5c201c3be24ddc5c9a00798cbf7aefdc7cbf121e19b833b8495753617e"
+  },
+  {
+    "id": "221095779553",
+    "title": "위안화 약세 베팅 헤지펀드의 패배 선언을 보며",
+    "date": "2017. 9. 13.",
+    "url": "https://blog.naver.com/nomore_bet/221095779553",
+    "inventory_index": 352,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "환율",
+      "정책개입"
+    ],
+    "summary_ko": "위안화 약세에 베팅한 펀드의 손실과 견해 수정을 통해 자본 통제 및 당국 개입의 중요성을 논한다.",
+    "developer_note_ko": "이전 위기의 성공을 다른 정책 체제에 일반화하지 않는다. 공표된 포지션과 실제 주문흐름을 구별한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "47506b994b79d67a3948eea5ca09afaf9797381b5571046244e752720225137c"
+  },
+  {
+    "id": "221092142144",
+    "title": "노르웨이 국부 펀드 × 신흥통화 채권 조정",
+    "date": "2017. 9. 8.",
+    "url": "https://blog.naver.com/nomore_bet/221092142144",
+    "inventory_index": 353,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "벤치마크",
+      "채권수급"
+    ],
+    "summary_ko": "노르웨이 국부펀드의 채권 벤치마크 축소 제안과 한국·일본 채권 시장 영향을 해석한다.",
+    "developer_note_ko": "제안·승인·실행일을 분리하고 통화별 명목 수익률만 비교하지 않는다. 환헤지와 유동성을 포함한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "e9d73b9fd52a1aad866d789dfdab2cb54e1e1397b5e2475cf84f63b36cd1f824"
+  },
+  {
+    "id": "221086243784",
+    "title": "비트코인 반길 나라들 × 안전자산의 저주에 걸린 나라",
+    "date": "2017. 8. 31.",
+    "url": "https://blog.naver.com/nomore_bet/221086243784",
+    "inventory_index": 354,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "안전자산",
+      "채택가설"
+    ],
+    "summary_ko": "안전자산 통화의 강세 부담이 있는 나라가 비트코인 채택에 호의적일 수 있다는 가설을 제시한다.",
+    "developer_note_ko": "정책 동기와 단순 국가 간 동시 발생은 다르다. 비트코인의 안전자산 성격을 전제하지 않고 위기별 검증한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "92fee270305ce6a6dc03c1a533474e3726c4830ac6bc6ff8520ef8700b64bca0"
+  },
+  {
+    "id": "221084474708",
+    "title": "북한 미사일, 북핵위기 × 비트코인 안전자산으로",
+    "date": "2017. 8. 29.",
+    "url": "https://blog.naver.com/nomore_bet/221084474708",
+    "inventory_index": 355,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "지정학",
+      "거래량"
+    ],
+    "summary_ko": "2017년 북미 긴장과 암호자산 거래 증가를 연결하며 피난 자산 수요 가능성을 해석한다.",
+    "developer_note_ko": "거래량 증가는 안전성이나 순유입의 증거가 아니다. 사건 시각·가격·청산·시장 공통 움직임을 함께 검증한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "987a78c9fc981d88e5813579d9339c6146710cc663b6d0ac4bcf421c3641b2de"
+  },
+  {
+    "id": "221079428254",
+    "title": "버핏 지표 × 지표를 바라보는 시장 참여자들",
+    "date": "2017. 8. 22.",
+    "url": "https://blog.naver.com/nomore_bet/221079428254",
+    "inventory_index": 356,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "가치평가",
+      "반사성"
+    ],
+    "summary_ko": "시가총액/GDP 지표와 그 지표를 바라보는 시장·정책 참여자의 반응을 논한다.",
+    "developer_note_ko": "글로벌/국가 범위와 GDP 공개시차를 일치시킨다. 고평가 지표를 즉시 매도 타이밍으로 바꾸지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "93d4b6fb1a3cc7443fd838ca125f62c294281c56c23d637a5c82e214af789723"
+  },
+  {
+    "id": "221076696124",
+    "title": "엔비디아, AMD, 블리자드 주식을 매도하며",
+    "date": "2017. 8. 18.",
+    "url": "https://blog.naver.com/nomore_bet/221076696124",
+    "inventory_index": 357,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "자금이동",
+      "회고"
+    ],
+    "summary_ko": "개인의 기술주 매도 회고와 기관의 자금 유출 보도를 연결해 섹터 내 이동과 자산 간 이동을 질문한다.",
+    "developer_note_ko": "개인 성공담은 검증된 전략이 아니다. 공시 지연과 포트폴리오 일부만 보이는 한계를 반영한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "c41d103641fa8068b4959492c79f4efaf97764e9f46189898132cd9802c8600f"
+  },
+  {
+    "id": "221073441417",
+    "title": "비트코인, 기관투자자들의 투자 대상 자산이 될 수 있을까?",
+    "date": "2017. 8. 14.",
+    "url": "https://blog.naver.com/nomore_bet/221073441417",
+    "inventory_index": 358,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "포트폴리오",
+      "상관"
+    ],
+    "summary_ko": "비트코인의 당시 낮은 전통자산 상관과 파생상품을 기관 투자 확대의 가능성으로 해석한다.",
+    "developer_note_ko": "저상관은 고정 속성이 아니며 낮은 상관만으로 기대수익 증가가 보장되지 않는다. 위기 상관·꼬리위험·헤지 비용을 검증한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "785d1c0a7975e30a269dd23f517acd09f315224f11ddf5ea8db409824b742d7a"
+  },
+  {
+    "id": "221071648722",
+    "title": "버핏과 헤지펀드 간의 대결 × 진정한 승자는 자금 관리",
+    "date": "2017. 8. 11.",
+    "url": "https://blog.naver.com/nomore_bet/221071648722",
+    "inventory_index": 359,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "벤치마크",
+      "수익계산"
+    ],
+    "summary_ko": "버핏과 헤지펀드의 내기 성과보다 별도로 운용한 판돈의 증가가 컸다는 일화를 소개한다.",
+    "developer_note_ko": "원금 대비 최종가치 배율과 순수익률을 구분한다. 64가 180이 된 경우 약 181% 수익이지 282% 수익이 아니다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "2cf74714ba0bbb11a9d10da2994f6b0223ab45175463384c16b8137d10c5da23"
+  },
+  {
+    "id": "221070946969",
+    "title": "블리자드 주식 × 아뿔싸",
+    "date": "2017. 8. 10.",
+    "url": "https://blog.naver.com/nomore_bet/221070946969",
+    "inventory_index": 360,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "인지편향",
+      "사업모델"
+    ],
+    "summary_ko": "게임 이용 경험에 따른 주식 매도 판단을 회고하며 게임사가 IP 기반 미디어로 확장할 가능성을 재고한다.",
+    "developer_note_ko": "개인 만족도와 기업 현금흐름을 구분하고 사후 가격을 근거로 과거 판단을 재작성하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "8fdb88e167c8d950f47945e5aad29e811a98cdc0bd650f845343f2cf844a4b4a"
+  },
+  {
+    "id": "221070098659",
+    "title": "여전한 르네상스 테크놀로지 × 퀀트펀드 업계",
+    "date": "2017. 8. 9.",
+    "url": "https://blog.naver.com/nomore_bet/221070098659",
+    "inventory_index": 361,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "퀀트산업",
+      "성과해석"
+    ],
+    "summary_ko": "르네상스의 당시 일부 펀드 성과와 AI 퀀트 업계 확장을 소개한다. 자동 지능의 내부 역할은 저자의 추측이다.",
+    "developer_note_ko": "RIEF와 다른 펀드를 혼동하지 않는다. 보도된 단기 성과로 비공개 알고리즘 또는 장기 우위를 추정하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "3c8b12299eca23b2e3300ce9f787446795a4fbe13222e20302dcf21b05e4525b"
+  },
+  {
+    "id": "221066697584",
+    "title": "원유 트레이더의 연봉 × 오일갓, 앤드루 홀",
+    "date": "2017. 8. 4.",
+    "url": "https://blog.naver.com/nomore_bet/221066697584",
+    "inventory_index": 362,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "원유",
+      "성과변동"
+    ],
+    "summary_ko": "원유 트레이더의 과거 큰 보수와 앤드루 홀의 이후 투자 실패를 대비하는 업계 일화다.",
+    "developer_note_ko": "성과급이나 명성을 신호 신뢰도의 대리변수로 쓰지 않는다. 성공 사례와 레짐 전환 손실을 함께 기록한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "978a66849f270b023b9cab22665a829f276c53b3a8d2c9dc749e9593f1663afd"
+  },
+  {
+    "id": "221065866954",
+    "title": "금형트옵의 술자리 재테크, 자기계발과 재테크에 대한 낙서",
+    "date": "2017. 8. 3.",
+    "url": "https://blog.naver.com/nomore_bet/221065866954",
+    "inventory_index": 363,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "현금흐름",
+      "교육"
+    ],
+    "summary_ko": "과거·미래와 수입·지출의 네 구역으로 개인 현금흐름을 나누고 자기계발과 투자 역할을 설명한다.",
+    "developer_note_ko": "투자 수익과 외부 입출금을 분리하는 교육 자료다. 미래 소득을 확정 현금으로 인식하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "007e3d742bd87f5fd52686509d844103dbb411f7ae800e825615c0fc0d2f48e6"
+  },
+  {
+    "id": "221060828421",
+    "title": "엔씨소프트 주식에 투자하냐, 리니지M에 현질하냐",
+    "date": "2017. 7. 27.",
+    "url": "https://blog.naver.com/nomore_bet/221060828421",
+    "inventory_index": 364,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "게임경제",
+      "지속가능성"
+    ],
+    "summary_ko": "게임 출시 초기 매출과 이용자 투자 동기를 구분하며 과금 구조의 장기 지속가능성에 의문을 제기한다.",
+    "developer_note_ko": "초기 유입·잔존율·반복 과금·회수 기대를 분리한다. 게임 아이템 차입 투자 제안은 채택하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "ccff31ec5fe4d1afe8544bd3011e35a61424a611e5c6d84171103a06f04e2fb6"
+  },
+  {
+    "id": "221059115286",
+    "title": "금형트옵 재테크 - 거부할 수 있는 제안, 리스크와 기대수익률",
+    "date": "2017. 7. 25.",
+    "url": "https://blog.naver.com/nomore_bet/221059115286",
+    "inventory_index": 365,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "위험보상",
+      "방어"
+    ],
+    "summary_ko": "리스크 없는 고수익 약속을 의심하고 생존을 우선하는 투자 학습을 강조한다.",
+    "developer_note_ko": "손익 분해는 부호·기초자본·자금조달을 명시한다. 높은 위험이 반드시 높은 기대수익을 준다는 규칙은 두지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "dee55553659a8aec45446abf4495e5906f0af50a19b5ff40c6bac77db76651f5"
+  },
+  {
+    "id": "221056376912",
+    "title": "금형트옵의 술자리 재테크, 불확실성과 위험 사이 #4 번",
+    "date": "2017. 7. 21.",
+    "url": "https://blog.naver.com/nomore_bet/221056376912",
+    "inventory_index": 366,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "확률",
+      "모형위험"
+    ],
+    "summary_ko": "가격을 하나의 확정 예측 대신 여러 가능성과 확률 분포로 생각하자는 교육적 비유를 전개한다.",
+    "developer_note_ko": "정규분포를 금융가격의 법칙으로 보지 않는다. 추정 불확실성·꼬리·확률 교정을 명시한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "99939a107e5a92c7792bba5f4b465bbacf9821a40a24c57cc6981130667d9cb4"
+  },
+  {
+    "id": "221055503736",
+    "title": "금형트옵의 술자리 재테크, 불확실성과 위험 사이 #3",
+    "date": "2017. 7. 20.",
+    "url": "https://blog.naver.com/nomore_bet/221055503736",
+    "inventory_index": 367,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "위험",
+      "불확실성"
+    ],
+    "summary_ko": "알려진 확률로 설명하는 위험과 확률 자체를 모르는 불확실성을 대비하고 공부를 통한 구조화를 강조한다.",
+    "developer_note_ko": "임의 확률을 붙이는 것만으로 불확실성이 사라지지 않는다. 모델 위험과 식별 불가능성을 별도 보존한다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "801d7fb50915f60b511813b9e2034b9149cb80aeec551906f1b1f48ce4973785"
+  },
+  {
+    "id": "221055501086",
+    "title": "[목차] 금융공학 형님, 트레이딩 오빠의 술자리 재테크 에세이",
+    "date": "2017. 7. 20.",
+    "url": "https://blog.naver.com/nomore_bet/221055501086",
+    "inventory_index": 368,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "목차",
+      "학습지도"
+    ],
+    "summary_ko": "숫자 감각·부동산·주식·위험·금리 등 재테크 에세이의 목차이며 저자 스스로 수익 비법이 아닌 교육적 의견이라고 한정한다.",
+    "developer_note_ko": "탐색용 색인으로 활용한다. 링크 목록을 연결된 글 전체의 본문 검토 완료로 계산하지 않는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "4dcd1ecf5ddaa54bd50371c68106949c0087673e91e39a06fb8ff93e6f6dd7f0"
+  },
+  {
+    "id": "221054700499",
+    "title": "금융공학 형님, 트레이더 오빠의 술자리 재테크 에세이 #2",
+    "date": "2017. 7. 19.",
+    "url": "https://blog.naver.com/nomore_bet/221054700499",
+    "inventory_index": 369,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "가치평가",
+      "포지션"
+    ],
+    "summary_ko": "보유자산을 수량과 가격으로 나누고 통제 가능한 포지션과 시장가격, 이론가격을 구분한다.",
+    "developer_note_ko": "모형가와 실행 가능한 호가를 분리한다. 시장가격이 언젠가 특정 모형가로 수렴한다는 보장은 없다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "66f0157a21c5b1b86a9c6ae7c596b433cc7647f8bfe03007cbfc75a9c2994049"
+  },
+  {
+    "id": "221053915620",
+    "title": "금융공학 형아와 트레이더 오빠의 술자리에서 떠들었던 재테크 에세이",
+    "date": "2017. 7. 18.",
+    "url": "https://blog.naver.com/nomore_bet/221053915620",
+    "inventory_index": 370,
+    "review_status": "public_text_reviewed",
+    "topic_tags": [
+      "자산",
+      "현금"
+    ],
+    "summary_ko": "파편적인 투자 지식을 정리하기 위해 현금과 가격이 변하는 자산 사이의 흐름이라는 개인적 설명 틀을 제시한다.",
+    "developer_note_ko": "공식 회계 정의가 아닌 입문 비유다. 평가액 변화·거래현금·외부 입출금을 분리해 이중계상을 막는다.",
+    "limitations": [
+      "공개 본문 텍스트만 검토; 이미지·표 픽셀·외부 링크 미검토",
+      "역사적 작성 시점의 저자 견해이며 사실·성과를 독립 재현하지 않음"
+    ],
+    "source_document_sha256": "283f26cb6ddd546422dc36cfb880523639e2d2c0a487c985738f14f9bed9a51d"
+  }
+]
