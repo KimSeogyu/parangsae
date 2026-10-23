@@ -13,13 +13,14 @@ use std::path::Path;
 
 use parangsae_backtest::{
     btcusdt_schedule, canonical_config_id, check_window_result, daily_return_tick, fold_schedule,
-    forced_flat_at, run_targets, run_walk_forward, selection_costs, sharpe_ticks, trial_id,
-    window_result, Decision, EngineError, FamilyGrid, Fold, GridPoint, RunConfig, ScheduleSpec,
-    SignalOutput, SweepPins, Target, TargetSignal, TrialSpec, UtcDate, UtcRange, WalkContext,
-    WalkError, WalkForward, WindowResult, FEE_GRID_BPS, HOLDOUT_START_US, STRESS_SLIPPAGE_BPS,
+    forced_flat_at, run, run_targets, run_walk_forward, selection_costs, sharpe_ticks, trial_id,
+    window_result, BarView, Decision, EngineError, FamilyGrid, Fold, GridPoint, RunConfig,
+    ScheduleSpec, SignalOutput, Strategy, SweepPins, Target, TargetSignal, TrialSpec, UtcDate,
+    UtcRange, WalkContext, WalkError, WalkForward, WindowResult, FEE_GRID_BPS, HOLDOUT_START_US,
+    STRESS_SLIPPAGE_BPS,
 };
-use parangsae_core::{Causal, DecisionTime, Interval, Side, UtcMicros};
-use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
+use parangsae_core::{Causal, DecisionTime, Interval, Qty, Side, UtcMicros};
+use parangsae_sim::{Cash, Costs, FeeBps, MarketOrder, SlippageBps};
 use serde_json::Value;
 use support::{bar_at, cfg, px, stamp, tape_marked, usd};
 
@@ -82,6 +83,7 @@ fn from_levels(levels: Vec<i64>, round_trips: u64) -> WindowResult {
         equity_ticks: levels,
         net_result_ticks,
         round_trips,
+        fill_notional_ticks: 0,
     }
 }
 
@@ -98,6 +100,7 @@ fn shaped(initial: i64, days: usize, extra: i64, round_trips: u64) -> WindowResu
         equity_ticks,
         net_result_ticks: extra,
         round_trips,
+        fill_notional_ticks: 0,
     }
 }
 
@@ -1058,6 +1061,83 @@ fn a_mid_history_window_flattens_on_the_last_traded_minute() {
         .fills
         .iter()
         .all(|fill| fill.ts.micros() != flat_open && fill.ts.micros() != last_open));
+}
+
+#[test]
+fn warmup_on_run_changes_the_first_order_and_is_not_scored() {
+    let start_us = date("2022-06-14").start_us().micros();
+    let minutes = 2 * 1_440;
+    let bars: Vec<_> = (0..minutes)
+        .map(|minute| {
+            let day = minute / 1_440;
+            let price = px(if day == 0 { 500 } else { 100 });
+            bar_at(start_us + minute * MINUTE_US, price, price)
+        })
+        .collect();
+    let last_open = bars.last().unwrap().open_time.micros();
+    let mut funding = Vec::new();
+    let mut ts = start_us;
+    let step = 8 * 3_600_000_000;
+    while ts <= last_open {
+        funding.push(stamp(ts, 100_000));
+        ts += step;
+    }
+    let tape = tape_marked(bars.clone(), bars, funding);
+    let scored = date("2022-06-15").start_us();
+    let end = date("2022-06-16").start_us();
+    let mut warm = cfg(&tape.bars, 10_000);
+    warm.warmup_start = UtcMicros::from_micros(start_us);
+    warm.start = scored;
+    warm.end = end;
+    warm.initial_cash = usd(10_000);
+    let mut cold = warm.clone();
+    cold.warmup_start = scored;
+
+    let mut warm_signal = WarmOrder::default();
+    let warm_report = run(&tape, &mut warm_signal, &selection_costs(), &warm).unwrap();
+    let mut cold_signal = WarmOrder::default();
+    let cold_report = run(&tape, &mut cold_signal, &selection_costs(), &cold).unwrap();
+
+    let warm_fill = warm_report.fills.first().expect("warm fill");
+    let cold_fill = cold_report.fills.first().expect("cold fill");
+    assert_eq!(warm_fill.side, Side::Buy);
+    assert_eq!(cold_fill.side, Side::Sell);
+    assert!(warm_fill.ts >= scored);
+    assert!(cold_fill.ts >= scored);
+    assert!(warm_report
+        .equity_curve
+        .iter()
+        .all(|(ts, _)| ts.micros() >= scored.micros()));
+    assert!(cold_report
+        .equity_curve
+        .iter()
+        .all(|(ts, _)| ts.micros() >= scored.micros()));
+    let first_fill = warm_fill.ts.micros();
+    assert!(warm_report
+        .equity_curve
+        .iter()
+        .filter(|(ts, _)| ts.micros() < first_fill)
+        .all(|(_, cash)| cash.0 == usd(10_000).0));
+}
+
+#[derive(Default)]
+struct WarmOrder {
+    placed: bool,
+}
+
+impl Strategy for WarmOrder {
+    fn on_bar(&mut self, view: BarView<'_>) -> Option<MarketOrder> {
+        if self.placed {
+            return None;
+        }
+        self.placed = true;
+        let hot = view.iter().any(|bar| bar.close.ticks() >= px(500).ticks());
+        let side = if hot { Side::Buy } else { Side::Sell };
+        Some(MarketOrder {
+            side,
+            qty: Qty::from_ticks(100_000_000).unwrap(),
+        })
+    }
 }
 
 struct Spike;

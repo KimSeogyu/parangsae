@@ -30,6 +30,7 @@ mod sweep;
 mod tape;
 mod trial_log;
 mod walkforward;
+mod wfbatch;
 
 pub use bar::{Bar, BarView, FundingStamp, Strategy, Tape};
 pub use batch::{
@@ -58,3 +59,4 @@ pub use walkforward::{
     SELECTION_FEE_BPS, SELECTION_SLIPPAGE_BPS, SESSION_WARMUP_DAYS, STEP_DAYS, STRESS_SLIPPAGE_BPS,
     TEST_DAYS, TRAIN_DAYS, WARMUP_DAYS,
 };
+pub use wfbatch::{run_wf_batch, WfBatchRequest, DEFAULT_DATA_ROOT};

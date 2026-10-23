@@ -42,7 +42,7 @@ use crate::batch::{canonical_config_id, SweepPins, TrialSpec};
 use crate::canon::sha256_hex;
 use crate::date::UtcDate;
 use crate::engine::{RunConfig, UtcRange, FEE_GRID_BPS};
-use crate::metrics::{sharpe_of_return_ticks, sharpe_ticks};
+use crate::metrics::{fill_notional_ticks, sharpe_of_return_ticks, sharpe_ticks, turnover_ticks};
 use crate::report::Report;
 use crate::trial_log::{trial_id, StartRecord, TrialError, TrialLog};
 
@@ -398,12 +398,14 @@ pub struct FamilyGrid<C> {
 /// `equity_ticks[i]` and `equity_ticks[i + 1]`. `net_result_ticks` is the last
 /// equity minus the opening equity, after fees, slippage, and funding.
 /// `round_trips` counts trips that closed inside the window.
+/// `fill_notional_ticks` is the sum of `|price * qty| / 1e8` over fills.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WindowResult {
     pub daily_returns: Vec<i64>,
     pub equity_ticks: Vec<i64>,
     pub net_result_ticks: i64,
     pub round_trips: u64,
+    pub fill_notional_ticks: i128,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -464,11 +466,20 @@ pub fn window_result(initial: Cash, report: &Report) -> Result<WindowResult, Win
         .filter(|trade| trade.close_ts.is_some())
         .count();
     let round_trips = u64::try_from(closed).map_err(|_| WindowShape::Overflow)?;
+    let mut fill_notional = 0i128;
+    for fill in &report.fills {
+        let notional = fill_notional_ticks(fill.price.ticks(), fill.qty.ticks())
+            .map_err(|_| WindowShape::Overflow)?;
+        fill_notional = fill_notional
+            .checked_add(notional)
+            .ok_or(WindowShape::Overflow)?;
+    }
     Ok(WindowResult {
         daily_returns,
         equity_ticks,
         net_result_ticks,
         round_trips,
+        fill_notional_ticks: fill_notional,
     })
 }
 
@@ -523,6 +534,7 @@ pub struct SegmentRun {
     pub round_trips: u64,
     /// Annual Sharpe of this segment's equity, from [`sharpe_ticks`].
     pub sharpe_annual_ticks: Option<i64>,
+    pub fill_notional_ticks: i128,
 }
 
 /// One fee-grid or stress replay of a family's stitched test path.
@@ -540,6 +552,8 @@ pub struct FeeReplay {
     pub net_result_ticks: i64,
     pub round_trips: u64,
     pub sharpe_annual_ticks: Option<i64>,
+    /// `sum(|fill notional|) * 365 / sum(end-of-day equity)`, at `10^8`.
+    pub turnover_ticks: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -806,8 +820,10 @@ impl<F> Drive<'_, F> {
             };
             let mut daily_returns = Vec::new();
             let mut equity_ticks = Vec::new();
+            let mut scored_equity = Vec::new();
             let mut net_result_ticks = 0i64;
             let mut round_trips = 0u64;
+            let mut fill_notional_ticks = 0i128;
             for (fold, outcome) in family.folds.iter().zip(folds) {
                 let index = outcome.selected_index;
                 let row = self.segment(SegmentCall {
@@ -822,11 +838,15 @@ impl<F> Drive<'_, F> {
                 })?;
                 daily_returns.extend_from_slice(&row.daily_returns);
                 equity_ticks.extend_from_slice(&row.equity_ticks);
+                scored_equity.extend(row.equity_ticks.iter().skip(1).copied());
                 net_result_ticks = net_result_ticks
                     .checked_add(row.net_result_ticks)
                     .ok_or(WalkError::Overflow)?;
                 round_trips = round_trips
                     .checked_add(row.round_trips)
+                    .ok_or(WalkError::Overflow)?;
+                fill_notional_ticks = fill_notional_ticks
+                    .checked_add(row.fill_notional_ticks)
                     .ok_or(WalkError::Overflow)?;
             }
             out.push(FeeReplay {
@@ -837,6 +857,7 @@ impl<F> Drive<'_, F> {
                 equity_ticks,
                 net_result_ticks,
                 round_trips,
+                turnover_ticks: turnover_of(fill_notional_ticks, &scored_equity)?,
             });
         }
         Ok(out)
@@ -926,6 +947,7 @@ impl<F> Drive<'_, F> {
                     net_result_ticks: result.net_result_ticks,
                     round_trips: result.round_trips,
                     sharpe_annual_ticks,
+                    fill_notional_ticks: result.fill_notional_ticks,
                 })
             }
             Ok(Err(source)) => {
@@ -1019,17 +1041,23 @@ fn replay_from_selection<E>(
 ) -> Result<FeeReplay, WalkError<E>> {
     let mut daily_returns = Vec::new();
     let mut equity_ticks = Vec::new();
+    let mut scored_equity = Vec::new();
     let mut net_result_ticks = 0i64;
     let mut round_trips = 0u64;
+    let mut fill_notional_ticks = 0i128;
     for fold in folds {
         let chosen = &fold.test[fold.selected_index];
         daily_returns.extend_from_slice(&chosen.daily_returns);
         equity_ticks.extend_from_slice(&chosen.equity_ticks);
+        scored_equity.extend(chosen.equity_ticks.iter().skip(1).copied());
         net_result_ticks = net_result_ticks
             .checked_add(chosen.net_result_ticks)
             .ok_or(WalkError::Overflow)?;
         round_trips = round_trips
             .checked_add(chosen.round_trips)
+            .ok_or(WalkError::Overflow)?;
+        fill_notional_ticks = fill_notional_ticks
+            .checked_add(chosen.fill_notional_ticks)
             .ok_or(WalkError::Overflow)?;
     }
     Ok(FeeReplay {
@@ -1040,7 +1068,14 @@ fn replay_from_selection<E>(
         equity_ticks,
         net_result_ticks,
         round_trips,
+        turnover_ticks: turnover_of(fill_notional_ticks, &scored_equity)?,
     })
+}
+
+fn turnover_of<E>(notional: i128, scored_equity: &[i64]) -> Result<i64, WalkError<E>> {
+    turnover_ticks(notional, scored_equity)
+        .map(|ratio| ratio.ticks())
+        .map_err(|_| WalkError::Overflow)
 }
 
 fn annual_sharpe<E>(returns: &[i64]) -> Result<Option<i64>, WalkError<E>> {

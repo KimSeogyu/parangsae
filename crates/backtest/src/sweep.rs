@@ -157,11 +157,42 @@ impl<'a> FoldRunner<'a> {
         };
         Ok((report, signal.dropped_entries()))
     }
+
+    /// One scored window. Bars from `warmup_us` reach the signal. Fills start at
+    /// `start_us`. The position is flattened at the last traded minute before `end_us`.
+    pub fn run_scored(
+        &self,
+        config: &WindowConfig,
+        warmup_us: i64,
+        start_us: i64,
+        end_us: i64,
+        costs: &Costs,
+    ) -> Result<crate::walkforward::WindowResult, String> {
+        let mut signal = FamilySignal::new(&config.family, &config.params)?;
+        let cfg = research_config(
+            config.initial_cash,
+            warmup_us,
+            start_us,
+            end_us,
+            signal.interval,
+            true,
+        )?;
+        let tape = self.tape;
+        let costs = *costs;
+        let report = match panic::catch_unwind(AssertUnwindSafe(|| {
+            run_targets(tape, &mut signal, &costs, &cfg)
+        })) {
+            Ok(result) => result.map_err(|err| err.to_string())?,
+            Err(payload) => return Err(panic_message(&payload)),
+        };
+        crate::walkforward::window_result(Cash(config.initial_cash), &report)
+            .map_err(|err| err.to_string())
+    }
 }
 
-struct Loaded {
-    slippage_bps: u32,
-    configs: Vec<ConfigRow>,
+pub(crate) struct Loaded {
+    pub(crate) slippage_bps: u32,
+    pub(crate) configs: Vec<ConfigRow>,
 }
 
 #[derive(Deserialize)]
@@ -172,14 +203,14 @@ struct SweepFile {
 }
 
 #[derive(Clone, Deserialize)]
-struct ConfigRow {
-    config_id: String,
-    family: String,
-    grid_index: u32,
-    params: BTreeMap<String, i64>,
-    start_us: i64,
-    end_us: i64,
-    initial_cash: i64,
+pub(crate) struct ConfigRow {
+    pub(crate) config_id: String,
+    pub(crate) family: String,
+    pub(crate) grid_index: u32,
+    pub(crate) params: BTreeMap<String, i64>,
+    pub(crate) start_us: i64,
+    pub(crate) end_us: i64,
+    pub(crate) initial_cash: i64,
 }
 
 struct ConfigRunner<'a> {
@@ -273,7 +304,7 @@ pub fn run_sweep(request: &SweepRequest) -> Result<Vec<ResultRow>, String> {
     Ok(rows)
 }
 
-fn load_configs(path: &Path) -> Result<Loaded, String> {
+pub(crate) fn load_configs(path: &Path) -> Result<Loaded, String> {
     let text = fs::read_to_string(path).map_err(|err| format!("{}: {err}", path.display()))?;
     let file: SweepFile =
         serde_json::from_str(&text).map_err(|err| format!("sweep inputs: {err}"))?;
@@ -318,7 +349,7 @@ fn trial_spec(row: &ConfigRow, ts: UtcMicros, attempt: u64) -> Result<TrialSpec,
     Ok(spec)
 }
 
-fn load_pinned_tape(
+pub(crate) fn load_pinned_tape(
     root: &Path,
     pins: &SweepPins,
     start_us: i64,
@@ -1116,5 +1147,17 @@ mod tests {
         assert_eq!(sell.price.ticks(), 80 * 100_000_000);
         assert_eq!(buy.price.ticks(), 90 * 100_000_000);
         assert!(buy.ts.micros() > sell.ts.micros());
+    }
+
+    #[test]
+    fn a_scored_window_sets_warmup_and_flattens_at_its_own_end() {
+        let flat = research_config(1_000, 10, 20, 30, BarInterval::H1, true).unwrap();
+        assert_eq!(flat.warmup_start.micros(), 10);
+        assert_eq!(flat.start.micros(), 20);
+        assert_eq!(flat.end.micros(), 30);
+        assert_eq!(flat.flatten_before, Some(flat.end));
+        let held = research_config(1_000, 20, 20, 30, BarInterval::H1, false).unwrap();
+        assert!(held.flatten_before.is_none());
+        assert_eq!(held.warmup_start, held.start);
     }
 }
