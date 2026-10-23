@@ -28,6 +28,7 @@ mod signal;
 mod sizing;
 mod tape;
 mod trial_log;
+mod walkforward;
 
 pub use bar::{Bar, BarView, FundingStamp, Strategy, Tape};
 pub use batch::{
@@ -46,3 +47,10 @@ pub use signal::{
 pub use sizing::{abs_notional_ticks, target_qty};
 pub use tape::{funding_available, AppliedOverlay, Overlay, TapeConfig};
 pub use trial_log::{finish_trial, trial_id, TrialError};
+pub use walkforward::{
+    btcusdt_schedule, check_window_result, daily_return_tick, fold_schedule, forced_flat_at,
+    run_walk_forward, selection_costs, window_result, FamilyGrid, FamilyOutput, Fold, FoldOutcome,
+    GridPoint, ScheduleError, ScheduleSpec, Segment, SegmentRun, WalkContext, WalkError,
+    WalkForward, WindowResult, WindowShape, PURGE_DAYS, REMAINDER_OWN_FOLD_DAYS, SELECTION_FEE_BPS,
+    SELECTION_SLIPPAGE_BPS, SESSION_WARMUP_DAYS, STEP_DAYS, TEST_DAYS, TRAIN_DAYS, WARMUP_DAYS,
+};
