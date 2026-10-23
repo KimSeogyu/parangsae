@@ -113,11 +113,11 @@ fn ingest(
         by_prefix
             .entry(file.prefix.clone())
             .or_default()
-            .push((key.clone(), u64::try_from(zip_bytes.len())?));
+            .push((key.clone(), zip_bytes.len() as u64));
         by_prefix
             .entry(file.prefix.clone())
             .or_default()
-            .push((checksum_key.clone(), u64::try_from(checksum.len())?));
+            .push((checksum_key.clone(), checksum.len() as u64));
         map.insert(download_url(&key), zip_bytes);
         map.insert(download_url(&checksum_key), checksum);
     }
@@ -313,7 +313,7 @@ fn date_filter_compares_only_that_days_rows_and_still_fails_inside_the_range(
         conflict(june1_open),
     ];
     assert_eq!(full.fault_lines, full_lines, "{full}");
-    assert_eq!(full.summary.faults, u64::try_from(full_lines.len())?);
+    assert_eq!(full.summary.faults, full_lines.len() as u64);
     assert_eq!(full.summary.conflicts, 0);
     assert_eq!(
         full.summary.first_fault.as_deref(),
@@ -447,7 +447,7 @@ fn unknown_dataset_and_reversed_range_are_usage_errors() -> Result<(), Box<dyn s
 fn cli_unknown_dataset_and_reversed_range_exit_2() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
     let path = dir.path().to_str().ok_or("data dir is not utf-8")?;
-    let bin = collect_bin()?;
+    let bin = collect_bin();
     let unknown = Command::new(bin)
         .args(["verify", "--data-dir", path, "--dataset", "not-a-dataset"])
         .output()?;
@@ -467,14 +467,14 @@ fn cli_unknown_dataset_and_reversed_range_exit_2() -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-fn collect_bin() -> Result<&'static str, Box<dyn std::error::Error>> {
+fn collect_bin() -> &'static str {
     if let Some(path) = option_env!("CARGO_BIN_EXE_parangsae_collect") {
-        return Ok(path);
+        return path;
     }
     if let Some(path) = option_env!("CARGO_BIN_EXE_parangsae-collect") {
-        return Ok(path);
+        return path;
     }
-    Err("parangsae-collect was not exposed to the integration test".into())
+    panic!("parangsae-collect was not exposed to the integration test");
 }
 
 fn assert_usage(

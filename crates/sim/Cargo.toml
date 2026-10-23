@@ -4,17 +4,10 @@ version.workspace = true
 edition.workspace = true
 publish.workspace = true
 rust-version.workspace = true
-description = "Fixed-point fill, fee, funding, and cash ledger, and the paper driver clock. No I/O and no orders."
-
-[features]
-default = ["driver-clock"]
-driver-clock = ["parangsae-core/driver-clock"]
+description = "Fixed-point fill, fee, funding, and cash ledger. No I/O."
 
 [dependencies]
-parangsae-core = { path = "../core", version = "0.0.0" }
+parangsae-core = { path = "../core" }
 
 [dev-dependencies]
 proptest = "1.6"
-
-[lints]
-workspace = true

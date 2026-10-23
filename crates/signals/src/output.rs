@@ -178,17 +178,15 @@ mod tests {
     use crate::target::Target;
 
     #[test]
-    fn decision_flat_maps_to_zero() -> Result<(), String> {
+    fn decision_flat_maps_to_zero() {
         assert_eq!(Decision::Flat(FlatReason::FundingStale).target_ticks(), 0);
         assert_eq!(
             Decision::Flat(FlatReason::FundingSlotMissing).target_ticks(),
             0
         );
-        let unit = match Target::from_f64(1.0) {
-            Ok(target) => target,
-            Err(err) => return Err(err.to_string()),
-        };
-        assert_ne!(Decision::Target(unit).target_ticks(), 0);
-        Ok(())
+        assert_ne!(
+            Decision::Target(Target::from_f64(1.0).expect("unit target")).target_ticks(),
+            0
+        );
     }
 }

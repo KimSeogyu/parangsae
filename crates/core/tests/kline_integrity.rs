@@ -1,11 +1,8 @@
-//! Cucumber runner for `specs/features/kline_integrity.feature`. A failed step returns `Err`.
+//! Cucumber runner for `specs/features`. A failed or undefined step panics the binary.
 
-#[path = "support/feature_floors.rs"]
-mod feature_floors;
-#[path = "support/feature_run.rs"]
-mod feature_run;
+use std::path::PathBuf;
 
-use cucumber::{gherkin::Step, given, then, when};
+use cucumber::{gherkin::Step, given, then, when, World as _};
 use parangsae_core::{
     expected_close, require_declared_unit, require_regular_grid, validate_close_time, Interval,
     KlineSpan, TimeUnit, UtcMicros,
@@ -27,92 +24,74 @@ fn raw_timestamp(world: &mut KlineWorld, raw: i64) {
 }
 
 #[when("it is read as milliseconds")]
-fn read_millis(world: &mut KlineWorld) -> Result<(), String> {
-    let raw = world.raw.ok_or("Given the raw timestamp")?;
+fn read_millis(world: &mut KlineWorld) {
+    let raw = world.raw.expect("Given the raw timestamp");
     world.unit = Some(TimeUnit::Millis);
     world.read = Some(require_declared_unit(raw, TimeUnit::Millis).map_err(|err| err.to_string()));
-    Ok(())
 }
 
 #[when("it is read as microseconds")]
-fn read_micros(world: &mut KlineWorld) -> Result<(), String> {
-    let raw = world.raw.ok_or("Given the raw timestamp")?;
+fn read_micros(world: &mut KlineWorld) {
+    let raw = world.raw.expect("Given the raw timestamp");
     world.unit = Some(TimeUnit::Micros);
     world.read = Some(require_declared_unit(raw, TimeUnit::Micros).map_err(|err| err.to_string()));
-    Ok(())
 }
 
 #[then(regex = r"^the normalized timestamp is (\d+) microseconds$")]
-fn normalized_is(world: &mut KlineWorld, expected: i64) -> Result<(), String> {
+fn normalized_is(world: &mut KlineWorld, expected: i64) {
     match world.read.as_ref() {
-        Some(Ok(timestamp)) => {
-            assert_eq!(timestamp.micros(), expected);
-            Ok(())
-        }
-        Some(Err(message)) => Err(format!("expected a normalized timestamp, got {message}")),
-        None => Err("expected a normalized timestamp, missing read".to_owned()),
+        Some(Ok(timestamp)) => assert_eq!(timestamp.micros(), expected),
+        other => panic!("expected a normalized timestamp, got {other:?}"),
     }
 }
 
 #[then(regex = r"^the 1m close time is (\d+) microseconds$")]
-fn close_time_is(world: &mut KlineWorld, expected: i64) -> Result<(), String> {
+fn close_time_is(world: &mut KlineWorld, expected: i64) {
     let open = match world.read.as_ref() {
         Some(Ok(timestamp)) => *timestamp,
-        Some(Err(message)) => {
-            return Err(format!("expected a normalized open time, got {message}"))
-        }
-        None => return Err("expected a normalized open time, missing read".to_owned()),
+        other => panic!("expected a normalized open time, got {other:?}"),
     };
-    let unit = world.unit.ok_or("declared unit")?;
-    let close = expected_close(open, Interval::ONE_MINUTE, unit).map_err(|err| err.to_string())?;
+    let unit = world.unit.expect("declared unit");
+    let close = expected_close(open, Interval::ONE_MINUTE, unit).expect("close time fits");
     assert_eq!(close.micros(), expected);
-    Ok(())
 }
 
 #[then("the read fails as a unit mismatch")]
-fn read_fails(world: &mut KlineWorld) -> Result<(), String> {
+fn read_fails(world: &mut KlineWorld) {
     match world.read.as_ref() {
         Some(Err(message)) => {
-            if message.contains("unit mismatch") {
-                Ok(())
-            } else {
-                Err(format!("error did not report a unit mismatch: {message}"))
-            }
+            assert!(
+                message.contains("unit mismatch"),
+                "error did not report a unit mismatch: {message}"
+            );
         }
-        Some(Ok(timestamp)) => Err(format!("expected a unit mismatch, got {timestamp}")),
-        None => Err("expected a unit mismatch, missing read".to_owned()),
+        other => panic!("expected a unit mismatch, got {other:?}"),
     }
 }
 
 #[given("1m open times in microseconds")]
-fn open_times(world: &mut KlineWorld, step: &Step) -> Result<(), String> {
-    let table = step.table.as_ref().ok_or("open-time table")?;
-    let mut opens = Vec::new();
-    for row in table.rows.iter().skip(1) {
-        let raw = row[0]
-            .trim()
-            .parse::<i64>()
-            .map_err(|err| format!("open_us integer: {err}"))?;
-        opens.push(UtcMicros::from_micros(raw));
-    }
-    world.opens = opens;
-    Ok(())
+fn open_times(world: &mut KlineWorld, step: &Step) {
+    let table = step.table.as_ref().expect("open-time table");
+    world.opens = table
+        .rows
+        .iter()
+        .skip(1)
+        .map(|row| {
+            let raw = row[0].trim().parse::<i64>().expect("open_us integer");
+            UtcMicros::from_micros(raw)
+        })
+        .collect();
 }
 
 #[then("the open-time grid is continuous")]
-fn grid_continuous(world: &mut KlineWorld) -> Result<(), String> {
-    require_regular_grid(&world.opens, Interval::ONE_MINUTE).map_err(|err| err.to_string())?;
-    Ok(())
+fn grid_continuous(world: &mut KlineWorld) {
+    require_regular_grid(&world.opens, Interval::ONE_MINUTE).expect("grid should be continuous");
 }
 
 #[then("the open-time grid has a gap")]
-fn grid_gap(world: &mut KlineWorld) -> Result<(), String> {
+fn grid_gap(world: &mut KlineWorld) {
     let result = require_regular_grid(&world.opens, Interval::ONE_MINUTE);
-    if result.is_err() {
-        Ok(())
-    } else {
-        Err(format!("expected a grid gap, got {result:?}"))
-    }
+    assert!(result.is_err(), "expected a grid gap, got {result:?}");
 }
 
 #[given(regex = r"^a 1m span opening at (\d+) microseconds$")]
@@ -126,49 +105,40 @@ fn span_close(world: &mut KlineWorld, close: i64) {
 }
 
 #[given(regex = r"^the declared close tick is (milliseconds|microseconds)$")]
-fn declared_tick(world: &mut KlineWorld, text: String) -> Result<(), String> {
+fn declared_tick(world: &mut KlineWorld, text: String) {
     world.unit = Some(match text.as_str() {
         "milliseconds" => TimeUnit::Millis,
         "microseconds" => TimeUnit::Micros,
-        _ => return Err(format!("declared close tick {text}")),
+        _ => panic!("declared close tick {text}"),
     });
-    Ok(())
 }
 
-fn span(world: &KlineWorld) -> Result<KlineSpan, String> {
-    Ok(KlineSpan {
-        open_time: world.span_open.ok_or("opening timestamp")?,
-        close_time: world.span_close.ok_or("closing timestamp")?,
+fn span(world: &KlineWorld) -> KlineSpan {
+    KlineSpan {
+        open_time: world.span_open.expect("opening timestamp"),
+        close_time: world.span_close.expect("closing timestamp"),
         interval: Interval::ONE_MINUTE,
-        unit: world.unit.ok_or("declared close tick")?,
-    })
+        unit: world.unit.expect("declared close tick"),
+    }
 }
 
 #[then("the span matches the interval")]
-fn span_matches(world: &mut KlineWorld) -> Result<(), String> {
-    validate_close_time(span(world)?).map_err(|err| err.to_string())?;
-    Ok(())
+fn span_matches(world: &mut KlineWorld) {
+    validate_close_time(span(world)).expect("span should match the 1m rule");
 }
 
 #[then("the span does not match the interval")]
-fn span_rejects(world: &mut KlineWorld) -> Result<(), String> {
-    let result = validate_close_time(span(world)?);
-    if result.is_err() {
-        Ok(())
-    } else {
-        Err(format!("expected close_time rejection, got {result:?}"))
-    }
+fn span_rejects(world: &mut KlineWorld) {
+    let result = validate_close_time(span(world));
+    assert!(
+        result.is_err(),
+        "expected close_time rejection, got {result:?}"
+    );
 }
 
-const FEATURE_GLOB: &str = "specs/features/kline_integrity.feature";
-
 #[tokio::main]
-async fn main() -> Result<(), String> {
-    let files = feature_floors::expand_feature_glob(FEATURE_GLOB)?;
-    let mut passed_steps = 0usize;
-    for path in &files {
-        let counts = feature_run::run_feature::<KlineWorld>(path).await?;
-        passed_steps += counts.passed_steps;
-    }
-    feature_floors::enforce_floors("kline", &files, passed_steps)
+async fn main() {
+    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../specs/features/kline_integrity.feature");
+    KlineWorld::cucumber().run_and_exit(features).await;
 }

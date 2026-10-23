@@ -6,17 +6,16 @@ use parangsae_sim::{
     SlippageBps,
 };
 use proptest::prelude::*;
-use proptest::test_runner::TestCaseError;
 
 const CASES: u32 = 100;
 const BPS_DENOM: i128 = 10_000;
 
-fn as_price(ticks: i64) -> Result<Price, TestCaseError> {
-    Price::from_ticks(ticks).map_err(|err| TestCaseError::fail(err.to_string()))
+fn as_price(ticks: i64) -> Price {
+    Price::from_ticks(ticks).expect("price ticks are non-negative")
 }
 
-fn qty(ticks: i64) -> Result<Qty, TestCaseError> {
-    Qty::from_ticks(ticks).map_err(|err| TestCaseError::fail(err.to_string()))
+fn qty(ticks: i64) -> Qty {
+    Qty::from_ticks(ticks).expect("qty ticks are non-negative")
 }
 
 fn costs(fee: u32, slip: u32) -> Costs {
@@ -26,15 +25,11 @@ fn costs(fee: u32, slip: u32) -> Costs {
     }
 }
 
-fn some<T>(value: Option<T>, what: &str) -> Result<T, TestCaseError> {
-    value.ok_or_else(|| TestCaseError::fail(what.to_owned()))
-}
-
-fn order(side: Side, lots: i64) -> Result<MarketOrder, TestCaseError> {
-    Ok(MarketOrder {
+fn order(side: Side, lots: i64) -> MarketOrder {
+    MarketOrder {
         side,
-        qty: qty(lots)?,
-    })
+        qty: qty(lots),
+    }
 }
 
 /// Spec rounding: payers away from zero, receivers toward zero.
@@ -219,7 +214,7 @@ proptest! {
         den in 1i128..100_000,
         pays in any::<bool>(),
     ) {
-        let got = round_against_trader(num, den, pays).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        let got = round_against_trader(num, den, pays).unwrap();
         let quot = num / den;
         let rem = num % den;
         if rem == 0 || !pays {
@@ -263,13 +258,13 @@ proptest! {
             };
             let ledger_res = match op {
                 Op::Fill { side, price, qty, bps, slip } => ledger.apply_fill(
-                    order(side, qty)?,
-                    as_price(price)?,
+                    order(side, qty),
+                    as_price(price),
                     &costs(bps, slip),
                     ts,
                 ).map(|_| ()),
                 Op::Funding { mark, rate } => ledger
-                    .apply_funding(Ratio::from_ticks(rate), as_price(mark)?, ts)
+                    .apply_funding(Ratio::from_ticks(rate), as_price(mark), ts)
                     .map(|_| ()),
             };
             match (model_ok, ledger_res) {
@@ -286,22 +281,12 @@ proptest! {
                 }
             }
         }
-        let marked = some(
-            floor_div(
-                some(
-                    i128::from(model.pos).checked_mul(i128::from(mark)),
-                    "position mark",
-                )?,
-                SCALE,
-            ),
-            "mark value",
-        )?;
         let expected = i128::from(initial) - model.buy_cost + model.sell_proceeds
             - i128::from(model.fees)
             + i128::from(model.funding)
-            + marked;
-        prop_assert_eq!(i128::from(ledger.equity(as_price(mark)?).map_err(|err| TestCaseError::fail(err.to_string()))?.0), expected);
-        prop_assert_eq!(ledger.equity(as_price(mark)?).map_err(|err| TestCaseError::fail(err.to_string()))?.0, some(model.equity(mark), "model equity")?);
+            + floor_div(i128::from(model.pos).checked_mul(i128::from(mark)).unwrap(), SCALE).unwrap();
+        prop_assert_eq!(i128::from(ledger.equity(as_price(mark)).unwrap().0), expected);
+        prop_assert_eq!(ledger.equity(as_price(mark)).unwrap().0, model.equity(mark).unwrap());
     }
 
     /// P2. Fee is a ceiling, never negative, and monotone in bps and notional.
@@ -314,7 +299,7 @@ proptest! {
         bps in 0u32..=100,
         more_bps in 0u32..=100,
     ) {
-        let fee = taker_fee(as_price(px)?, qty(lots)?, FeeBps(bps)).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        let fee = taker_fee(as_price(px), qty(lots), FeeBps(bps)).unwrap();
         prop_assert!(fee.0 >= 0);
         let num = i128::from(lots) * i128::from(px) * i128::from(bps);
         let den = SCALE * BPS_DENOM;
@@ -322,18 +307,18 @@ proptest! {
         prop_assert!(i128::from(fee.0) * den - num < den);
         let hi_bps = bps.max(more_bps);
         let lo_bps = bps.min(more_bps);
-        let hi = taker_fee(as_price(px)?, qty(lots)?, FeeBps(hi_bps)).map_err(|err| TestCaseError::fail(err.to_string()))?;
-        let lo = taker_fee(as_price(px)?, qty(lots)?, FeeBps(lo_bps)).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        let hi = taker_fee(as_price(px), qty(lots), FeeBps(hi_bps)).unwrap();
+        let lo = taker_fee(as_price(px), qty(lots), FeeBps(lo_bps)).unwrap();
         prop_assert!(hi.0 >= lo.0);
         let big_qty = lots.max(more_lots);
         let small_qty = lots.min(more_lots);
-        let at_big = taker_fee(as_price(px)?, qty(big_qty)?, FeeBps(bps)).map_err(|err| TestCaseError::fail(err.to_string()))?;
-        let at_small = taker_fee(as_price(px)?, qty(small_qty)?, FeeBps(bps)).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        let at_big = taker_fee(as_price(px), qty(big_qty), FeeBps(bps)).unwrap();
+        let at_small = taker_fee(as_price(px), qty(small_qty), FeeBps(bps)).unwrap();
         prop_assert!(at_big.0 >= at_small.0);
         let big_px = px.max(more_px);
         let small_px = px.min(more_px);
-        let px_big = taker_fee(as_price(big_px)?, qty(lots)?, FeeBps(bps)).map_err(|err| TestCaseError::fail(err.to_string()))?;
-        let px_small = taker_fee(as_price(small_px)?, qty(lots)?, FeeBps(bps)).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        let px_big = taker_fee(as_price(big_px), qty(lots), FeeBps(bps)).unwrap();
+        let px_small = taker_fee(as_price(small_px), qty(lots), FeeBps(bps)).unwrap();
         prop_assert!(px_big.0 >= px_small.0);
     }
 
@@ -345,14 +330,14 @@ proptest! {
         let initial = 10_000 * 100_000_000;
         let ts = UtcMicros::from_micros(0);
         let mut paid = Ledger::new(Cash(initial));
-        paid.apply_fill(order(Side::Buy, lots)?, as_price(px)?, &costs(bps, 0), ts).map_err(|err| TestCaseError::fail(err.to_string()))?;
-        paid.apply_fill(order(Side::Sell, lots)?, as_price(px)?, &costs(bps, 0), ts).map_err(|err| TestCaseError::fail(err.to_string()))?;
-        prop_assert!(paid.equity(as_price(px)?).map_err(|err| TestCaseError::fail(err.to_string()))?.0 < initial);
+        paid.apply_fill(order(Side::Buy, lots), as_price(px), &costs(bps, 0), ts).unwrap();
+        paid.apply_fill(order(Side::Sell, lots), as_price(px), &costs(bps, 0), ts).unwrap();
+        prop_assert!(paid.equity(as_price(px)).unwrap().0 < initial);
         prop_assert_eq!(paid.position().0, 0);
         let mut free = Ledger::new(Cash(initial));
-        free.apply_fill(order(Side::Buy, lots)?, as_price(px)?, &costs(0, 0), ts).map_err(|err| TestCaseError::fail(err.to_string()))?;
-        free.apply_fill(order(Side::Sell, lots)?, as_price(px)?, &costs(0, 0), ts).map_err(|err| TestCaseError::fail(err.to_string()))?;
-        prop_assert_eq!(free.equity(as_price(px)?).map_err(|err| TestCaseError::fail(err.to_string()))?.0, initial);
+        free.apply_fill(order(Side::Buy, lots), as_price(px), &costs(0, 0), ts).unwrap();
+        free.apply_fill(order(Side::Sell, lots), as_price(px), &costs(0, 0), ts).unwrap();
+        prop_assert_eq!(free.equity(as_price(px)).unwrap().0, initial);
         prop_assert_eq!(free.position().0, 0);
     }
 
@@ -370,13 +355,13 @@ proptest! {
         let initial = 1_000_000 * 100_000_000;
         let ts = UtcMicros::from_micros(0);
         let mut once = Ledger::new(Cash(initial));
-        once.apply_fill(order(side, total)?, as_price(px)?, &costs(bps, 0), ts).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        once.apply_fill(order(side, total), as_price(px), &costs(bps, 0), ts).unwrap();
         let mut split = Ledger::new(Cash(initial));
         for part in parts {
-            split.apply_fill(order(side, part)?, as_price(px)?, &costs(bps, 0), ts).map_err(|err| TestCaseError::fail(err.to_string()))?;
+            split.apply_fill(order(side, part), as_price(px), &costs(bps, 0), ts).unwrap();
         }
         prop_assert_eq!(once.position().0, split.position().0);
-        prop_assert!(split.equity(as_price(mark)?).map_err(|err| TestCaseError::fail(err.to_string()))?.0 <= once.equity(as_price(mark)?).map_err(|err| TestCaseError::fail(err.to_string()))?.0);
+        prop_assert!(split.equity(as_price(mark)).unwrap().0 <= once.equity(as_price(mark)).unwrap().0);
     }
 
     /// P5. A payer's cash does not rise. A receiver's does not fall. Flat is zero.
@@ -388,9 +373,9 @@ proptest! {
         let initial = 1_000_000 * 100_000_000;
         let ts = UtcMicros::from_micros(0);
         let mut ledger = Ledger::new(Cash(initial));
-        ledger.apply_fill(order(side, lots)?, as_price(1)?, &costs(0, 0), ts).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        ledger.apply_fill(order(side, lots), as_price(1), &costs(0, 0), ts).unwrap();
         let before = ledger.cash().0;
-        let event = ledger.apply_funding(Ratio::from_ticks(rate), as_price(mark)?, ts).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        let event = ledger.apply_funding(Ratio::from_ticks(rate), as_price(mark), ts).unwrap();
         let pays = (long && rate > 0) || (!long && rate < 0);
         if pays {
             prop_assert!(ledger.cash().0 <= before);
@@ -400,7 +385,7 @@ proptest! {
             prop_assert!(event.amount.0 >= 0);
         }
         let mut flat = Ledger::new(Cash(initial));
-        let flat_event = flat.apply_funding(Ratio::from_ticks(rate), as_price(mark)?, ts).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        let flat_event = flat.apply_funding(Ratio::from_ticks(rate), as_price(mark), ts).unwrap();
         prop_assert_eq!(flat_event.amount.0, 0);
         prop_assert_eq!(flat.cash().0, initial);
         prop_assert_eq!(flat.position().0, 0);
@@ -411,15 +396,12 @@ proptest! {
     fn p6_overflow_does_not_wrap(bump in 0i64..1_000) {
         let ticks = 1_000_000_000_000_000 + bump;
         let mut ledger = Ledger::new(Cash(1_000));
-        let err = match ledger.apply_fill(
-            order(Side::Buy, ticks)?,
-            as_price(ticks)?,
+        let err = ledger.apply_fill(
+            order(Side::Buy, ticks),
+            as_price(ticks),
             &costs(5, 0),
             UtcMicros::from_micros(0),
-        ) {
-            Err(err) => err,
-            Ok(_) => return Err(TestCaseError::fail("overflow fill was accepted".to_owned())),
-        };
+        ).unwrap_err();
         prop_assert_eq!(err, SimError::Overflow);
         prop_assert_eq!(ledger.cash().0, 1_000);
         prop_assert_eq!(ledger.position().0, 0);
@@ -427,20 +409,17 @@ proptest! {
 
         let mut funded = Ledger::new(Cash(1_000_000));
         funded.apply_fill(
-            order(Side::Buy, 100_000_000)?,
-            as_price(1)?,
+            order(Side::Buy, 100_000_000),
+            as_price(1),
             &costs(0, 0),
             UtcMicros::from_micros(0),
-        ).map_err(|err| TestCaseError::fail(err.to_string()))?;
+        ).unwrap();
         let before = snap(&funded);
-        let err = match funded.apply_funding(
+        let err = funded.apply_funding(
             Ratio::from_ticks(i64::MAX),
-            as_price(i64::MAX)?,
+            as_price(i64::MAX),
             UtcMicros::from_micros(1),
-        ) {
-            Err(err) => err,
-            Ok(_) => return Err(TestCaseError::fail("overflow funding was accepted".to_owned())),
-        };
+        ).unwrap_err();
         prop_assert_eq!(err, SimError::Overflow);
         prop_assert_eq!(snap(&funded), before);
     }

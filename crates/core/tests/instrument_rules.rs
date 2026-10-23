@@ -1,11 +1,8 @@
 //! Cucumber runner for `specs/features/instrument_rules.feature`.
 
-#[path = "support/feature_floors.rs"]
-mod feature_floors;
-#[path = "support/feature_run.rs"]
-mod feature_run;
+use std::path::PathBuf;
 
-use cucumber::{then, when};
+use cucumber::{then, when, World as _};
 use parangsae_core::instrument_spec::{rule_at, BracketPolicy, Field, RuleValue, UtcDateTime};
 
 #[derive(Debug, Default, cucumber::World)]
@@ -99,15 +96,9 @@ fn unresolved(world: &mut RulesWorld) -> Result<(), String> {
     }
 }
 
-const FEATURE_GLOB: &str = "specs/features/instrument_rules.feature";
-
 #[tokio::main]
-async fn main() -> Result<(), String> {
-    let files = feature_floors::expand_feature_glob(FEATURE_GLOB)?;
-    let mut passed_steps = 0usize;
-    for path in &files {
-        let counts = feature_run::run_feature::<RulesWorld>(path).await?;
-        passed_steps += counts.passed_steps;
-    }
-    feature_floors::enforce_floors("instrument_rules", &files, passed_steps)
+async fn main() {
+    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../specs/features/instrument_rules.feature");
+    RulesWorld::cucumber().run_and_exit(features).await;
 }

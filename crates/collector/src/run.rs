@@ -25,7 +25,7 @@ use crate::vision::{
     require_sha256, sha256_bytes, unzip_csv, ArchiveName, Cadence, Classified, FaultReport, Gap,
     KlineFact, VisionDataset,
 };
-use crate::{u64_from_usize, Error};
+use crate::Error;
 
 #[derive(Clone, Debug)]
 pub struct RunRequest {
@@ -344,7 +344,7 @@ fn run_dataset<G: BlobGet>(
     for (key, reason) in &quarantined {
         append_quarantine(&request.data_dir, key, reason)?;
     }
-    summary.quarantined = u64_from_usize(quarantined.len())?;
+    summary.quarantined = quarantined.len() as u64;
     planned.sort_by_key(|item| sort_key(&item.name));
 
     let jobs: Vec<FetchJob> = planned
@@ -388,7 +388,7 @@ fn run_dataset<G: BlobGet>(
             );
         }
         if item.name.cadence == Cadence::Monthly {
-            months.insert((item.name.month.year(), item.name.month.month()));
+            months.insert((item.name.month.year, item.name.month.month));
         }
         match ingest_one(
             request,
@@ -574,23 +574,19 @@ fn ingest_one(
             dataset,
             item,
             &csv,
-            IngestWrite {
-                object,
-                previous: fetched.previous,
-                manifest,
-                summary,
-            },
+            object,
+            fetched.previous,
+            manifest,
+            summary,
         )?,
         VisionDataset::FundingRate => ingest_funding(
             request,
             item,
             &csv,
-            IngestWrite {
-                object,
-                previous: fetched.previous,
-                manifest,
-                summary,
-            },
+            object,
+            fetched.previous,
+            manifest,
+            summary,
             funding_gaps,
         )?,
         VisionDataset::Metrics => {
@@ -603,26 +599,17 @@ fn ingest_one(
     Ok(accepted)
 }
 
-struct IngestWrite<'a> {
-    object: ObjectManifest,
-    previous: Option<[u8; 32]>,
-    manifest: &'a mut ManifestLog,
-    summary: &'a mut RunSummary,
-}
-
+#[allow(clippy::too_many_arguments)]
 fn ingest_klines(
     request: &RunRequest,
     dataset: VisionDataset,
     item: &Planned,
     csv: &str,
-    write: IngestWrite<'_>,
+    mut object: ObjectManifest,
+    previous: Option<[u8; 32]>,
+    manifest: &mut ManifestLog,
+    summary: &mut RunSummary,
 ) -> Result<bool, Error> {
-    let IngestWrite {
-        mut object,
-        previous,
-        manifest,
-        summary,
-    } = write;
     let day = archive_clock_day(&item.name);
     let clock = dataset
         .clock(day)
@@ -640,7 +627,7 @@ fn ingest_klines(
         }
     };
     object.schema_version = parsed.schema_version;
-    object.row_count = u64_from_usize(parsed.rows.len())?;
+    object.row_count = parsed.rows.len() as u64;
     let faults = kline_row_faults(&parsed.rows, clock.expected());
     if !faults.is_empty() {
         reject_faults(
@@ -676,19 +663,17 @@ fn ingest_klines(
     Ok(true)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn ingest_funding(
     request: &RunRequest,
     item: &Planned,
     csv: &str,
-    write: IngestWrite<'_>,
+    mut object: ObjectManifest,
+    previous: Option<[u8; 32]>,
+    manifest: &mut ManifestLog,
+    summary: &mut RunSummary,
     funding_gaps: &mut BTreeMap<crate::civil::CivilDay, Vec<Gap>>,
 ) -> Result<bool, Error> {
-    let IngestWrite {
-        mut object,
-        previous,
-        manifest,
-        summary,
-    } = write;
     let parsed = match parse_funding(csv, &request.symbol, request.fetched_at) {
         Ok(parsed) => parsed,
         Err(err) => {
@@ -699,7 +684,7 @@ fn ingest_funding(
         }
     };
     object.schema_version = parsed.schema_version;
-    object.row_count = u64_from_usize(parsed.rows.len())?;
+    object.row_count = parsed.rows.len() as u64;
     let collapsed = match collapse_by(parsed.rows, |row| row.funding_time.micros()) {
         Ok(rows) => rows,
         Err(fault) => {
@@ -758,7 +743,7 @@ fn ingest_metrics(
         }
     };
     object.schema_version = parsed.schema_version;
-    object.row_count = u64_from_usize(parsed.rows.len())?;
+    object.row_count = parsed.rows.len() as u64;
     let faults = metrics_row_faults(&parsed.rows);
     if !faults.is_empty() {
         let path = object.path.clone();
@@ -811,7 +796,7 @@ fn ingest_book(
         }
     };
     object.schema_version = parsed.schema_version;
-    object.row_count = u64_from_usize(parsed.rows.len())?;
+    object.row_count = parsed.rows.len() as u64;
     let faults = book_row_faults(&mut parsed.rows);
     if !faults.is_empty() {
         let path = object.path.clone();
@@ -882,7 +867,7 @@ fn reject_faults(
         .first()
         .map(|fault| format!("{}: {}", fault.name, fault.detail))
         .unwrap_or_else(|| "fault".into());
-    summary.faults += u64_from_usize(faults.len())?;
+    summary.faults += faults.len() as u64;
     if summary.first_fault.is_none() {
         summary.first_fault = Some(format!("{path}: {first}"));
     }
@@ -969,7 +954,7 @@ fn sort_key(name: &ArchiveName) -> (u8, i32, u8, u8) {
         Cadence::Daily => 1,
     };
     let day = name.day.map(|day| day.day()).unwrap_or(0);
-    (cadence, name.month.year(), name.month.month(), day)
+    (cadence, name.month.year, name.month.month, day)
 }
 
 struct FetchJob {
@@ -1028,7 +1013,7 @@ fn fetch_one<G: BlobGet>(
 ) -> Result<Fetched, Error> {
     pace.wait()?;
     let checksum_bytes = getter.get(&download_url(&job.checksum_key))?;
-    if u64_from_usize(checksum_bytes.len())? != job.checksum_size {
+    if checksum_bytes.len() as u64 != job.checksum_size {
         return Err(Error::check(
             "size",
             format!(
@@ -1048,11 +1033,11 @@ fn fetch_one<G: BlobGet>(
             path: dest.display().to_string(),
             source,
         })?;
-        if u64_from_usize(local.len())? == job.listed_size && sha256_bytes(&local) == expected {
+        if local.len() as u64 == job.listed_size && sha256_bytes(&local) == expected {
             write_bytes(&checksum_path(&dest), &checksum_bytes)?;
             return Ok(Fetched {
                 sha256: expected,
-                size: u64_from_usize(local.len())?,
+                size: local.len() as u64,
                 previous: job.previous_sha.filter(|sha| *sha != expected),
             });
         }
@@ -1060,7 +1045,7 @@ fn fetch_one<G: BlobGet>(
     }
     pace.wait()?;
     let bytes = getter.get(&download_url(&job.key))?;
-    if u64_from_usize(bytes.len())? != job.listed_size {
+    if bytes.len() as u64 != job.listed_size {
         return Err(Error::check(
             "size",
             format!(
@@ -1082,7 +1067,7 @@ fn fetch_one<G: BlobGet>(
     write_bytes(&checksum_path(&dest), &checksum_bytes)?;
     Ok(Fetched {
         sha256: expected,
-        size: u64_from_usize(bytes.len())?,
+        size: bytes.len() as u64,
         previous: job.previous_sha.filter(|sha| *sha != expected),
     })
 }
@@ -1272,13 +1257,11 @@ pub fn verify(data_dir: &Path, filter: &VerifyFilter) -> Result<VerifyReport, Er
         }
         decisions.push(decision);
     }
-    let archives_total = u64_from_usize(decisions.len())?;
-    let archives_in_scope = u64_from_usize(
-        decisions
-            .iter()
-            .filter(|decision| decision.in_scope)
-            .count(),
-    )?;
+    let archives_total = decisions.len() as u64;
+    let archives_in_scope = decisions
+        .iter()
+        .filter(|decision| decision.in_scope)
+        .count() as u64;
     {
         let mut ctx = VerifyCtx {
             data_dir,
@@ -1323,7 +1306,7 @@ fn verify_object(ctx: &mut VerifyCtx<'_>, object: &ObjectManifest) -> Result<boo
             return Ok(false);
         }
     };
-    if u64_from_usize(bytes.len())? != object.size_bytes {
+    if bytes.len() as u64 != object.size_bytes {
         ctx.out.fault(format!("size {}", object.path));
         return Ok(false);
     }
@@ -1418,7 +1401,7 @@ fn verify_kline_archive(
         .tick_domain()
         .ok_or_else(|| Error::check("schema", "domain"))?;
     let parsed = parse_klines(csv, symbol, clock, domain, object.fetched_at)?;
-    if u64_from_usize(parsed.rows.len())? != object.row_count {
+    if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
     let faults = kline_faults_in_scope(&parsed.rows, clock.expected(), ctx.filter)?;
@@ -1457,7 +1440,7 @@ fn verify_funding_archive(
     object: &ObjectManifest,
 ) -> Result<(), Error> {
     let parsed = parse_funding(csv, symbol, object.fetched_at)?;
-    if u64_from_usize(parsed.rows.len())? != object.row_count {
+    if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
     let gaps = match funding_window(&parsed.rows, name.month) {
@@ -1492,7 +1475,7 @@ fn verify_metrics_archive(
     object: &ObjectManifest,
 ) -> Result<(), Error> {
     let parsed = parse_metrics(csv, symbol, object.fetched_at)?;
-    if u64_from_usize(parsed.rows.len())? != object.row_count {
+    if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
     let faults = if ctx.filter.limits_days() {
@@ -1519,7 +1502,7 @@ fn verify_book_archive(
     object: &ObjectManifest,
 ) -> Result<(), Error> {
     let mut parsed = parse_book(csv, symbol, object.fetched_at)?;
-    if u64_from_usize(parsed.rows.len())? != object.row_count {
+    if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
     let faults = if ctx.filter.limits_days() {

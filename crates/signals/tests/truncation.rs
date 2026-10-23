@@ -6,8 +6,6 @@
 #[path = "support/mod.rs"]
 mod support;
 
-pub use support::Must;
-
 use parangsae_core::BarInterval;
 use parangsae_signals::{
     drive, drive_feature, drive_funding_z, FundingZ, Tsmom, VolRegime, PROD_MAX_AGE_US, SIGNAL_IDS,
@@ -23,7 +21,7 @@ mod truncation {
 
     #[test]
     fn tsmom() {
-        let signal = Tsmom::<24>::new(BarInterval::H1, 0.05).must();
+        let signal = Tsmom::<24>::new(BarInterval::H1, 0.05).unwrap();
         let (bars, decision) = tsmom_prod_witness();
         check_bar_truncation(
             TSMOM_REGRESSION,
@@ -32,12 +30,12 @@ mod truncation {
             decision,
             |rows, d| drive(&signal, rows, d),
         )
-        .unwrap_or_else(|err| support::fail_test(&format!("{err:?}")));
+        .unwrap_or_else(|err| panic!("{err:?}"));
     }
 
     #[test]
     fn volregime() {
-        let feature = VolRegime::<24, 168>::new(BarInterval::H1).must();
+        let feature = VolRegime::<24, 168>::new(BarInterval::H1).unwrap();
         let (bars, decision) = volregime_prod_witness();
         check_bar_truncation(
             VOLREGIME_REGRESSION,
@@ -46,12 +44,12 @@ mod truncation {
             decision,
             |rows, d| drive_feature(&feature, rows, d),
         )
-        .unwrap_or_else(|err| support::fail_test(&format!("{err:?}")));
+        .unwrap_or_else(|err| panic!("{err:?}"));
     }
 
     #[test]
     fn funding_z() {
-        let signal = FundingZ::<90>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).must();
+        let signal = FundingZ::<90>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
         let (bars, funding, decision) = funding_prod_witness();
         check_funding_truncation(
             FUNDING_REGRESSION,
@@ -60,7 +58,7 @@ mod truncation {
             decision,
             |bars, funding, d| drive_funding_z(&signal, bars, funding, d),
         )
-        .unwrap_or_else(|err| support::fail_test(&format!("{err:?}")));
+        .unwrap_or_else(|err| panic!("{err:?}"));
     }
 
     #[test]

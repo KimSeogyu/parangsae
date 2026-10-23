@@ -875,13 +875,10 @@ parangsae-core feature \"test-support-extra\"|
     }
 
     #[test]
-    fn sim_alone_enables_driver_clock_in_its_non_test_build() -> Result<(), String> {
+    fn non_test_builds_do_not_enable_sealed_features_outside_sim() -> Result<(), String> {
         let root = crate::workspace_root()?;
         let manifest = root.join("Cargo.toml");
         let sim = cargo_tree(&manifest, "parangsae-sim", "no-dev,features")?;
-        if !enables_feature(&sim, "driver-clock") {
-            return Err("parangsae-sim non-test build does not enable driver-clock".to_owned());
-        }
         if enables_feature(&sim, "test-support") {
             return Err("parangsae-sim non-test build enables test-support".to_owned());
         }

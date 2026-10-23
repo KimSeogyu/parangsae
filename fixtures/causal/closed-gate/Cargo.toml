@@ -1,7 +1,5 @@
-# Separate workspace so `cargo test --workspace` cannot unify
-# `parangsae-sim`'s `driver-clock` feature onto `parangsae-core`.
-# trybuild is dev-only here: these compile-fail crates are not a normal
-# dependency of any production crate.
+# Separate workspace. trybuild is dev-only here: these compile-fail crates
+# are not a normal dependency of any production crate.
 [workspace]
 resolver = "2"
 members = ["."]

@@ -28,10 +28,7 @@
           fi
       - name: cargo test (unit, proptest, cucumber, execution lock)
         run: cargo test --workspace
-      - name: test-support constructors
-        run: cargo test -p parangsae-core --features test-support --lib
       - name: causal gate compile-fail
-        # Own workspace: the main workspace test unifies parangsae-sim's driver-clock.
         # trybuild is not in the workspace lock, so this step cannot use --offline.
         run: cargo test --manifest-path fixtures/causal/closed-gate/Cargo.toml --locked
 

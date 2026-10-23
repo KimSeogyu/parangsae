@@ -10,6 +10,6 @@ A signal function takes `parangsae_core::Causal<T>`. It does not take a raw slic
 
 `Causal` is built only by `Observation::causal_at`. Do not add a second constructor. The comparison is `available_ts <= decision`. `event_ts` and `received_ts` do not decide visibility.
 
-A producer calls `Observation::from_source`. The decision clock is `parangsae_sim::Driver::decision_at`. `DecisionTime::from_micros` stays behind `driver-clock`. `Observation::for_test` stays behind `test-support`.
+A producer calls `Observation::new`. The decision clock is `DecisionTime::from_micros`.
 
 A new signal entry point needs a proptest that mutates rows with `available_ts` after the decision and shows the output unchanged. Do not weaken the proptest in `crates/core/src/causal.rs` to fit a signal.

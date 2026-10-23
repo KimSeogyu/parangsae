@@ -1,16 +1,11 @@
-//! Cucumber runner for `specs/features/collector`. A failed step returns `Err`.
-
-#[path = "../../core/tests/support/feature_floors.rs"]
-mod feature_floors;
-#[path = "../../core/tests/support/feature_run.rs"]
-mod feature_run;
+//! Cucumber runner for `specs/features/collector`. A failed step exits non-zero.
 
 use std::collections::HashMap;
 use std::io::{Cursor, Write};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use cucumber::{given, then, when};
+use cucumber::{given, then, when, World as _};
 use parangsae_collector::civil::{parse_day, CivilDay, DayRange, YearMonth};
 use parangsae_collector::fetch::MapBlob;
 use parangsae_collector::run::{self, RunRequest, VerifyFilter, VerifyReport};
@@ -54,26 +49,26 @@ struct VisionWorld {
     verify_error: Option<String>,
 }
 
-fn symbol() -> Result<Symbol, String> {
-    Symbol::new("BTCUSDT").map_err(|_| "symbol".to_string())
+fn symbol() -> Symbol {
+    Symbol::new("BTCUSDT").expect("symbol")
 }
 
 fn received() -> ReceivedTs {
     ReceivedTs::from_micros(UtcMicros::from_micros(1))
 }
 
-fn fixture(name: &str) -> Result<String, String> {
+fn fixture(name: &str) -> String {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/vision")
         .join(name);
-    std::fs::read_to_string(&path).map_err(|err| format!("read {}: {err}", path.display()))
+    std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
 
-fn fixture_bytes(name: &str) -> Result<Vec<u8>, String> {
+fn fixture_bytes(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../fixtures/vision")
         .join(name);
-    std::fs::read(&path).map_err(|err| format!("read {}: {err}", path.display()))
+    std::fs::read(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()))
 }
 
 fn note_error(world: &mut VisionWorld, err: Error) {
@@ -83,11 +78,11 @@ fn note_error(world: &mut VisionWorld, err: Error) {
 }
 
 #[given(regex = r#"^the kline fixture "([^"]+)" as USD-M milliseconds$"#)]
-fn given_um(world: &mut VisionWorld, name: String) -> Result<(), String> {
+fn given_um(world: &mut VisionWorld, name: String) {
     world.close_unit = Some(TimeUnit::Millis);
     match parse_klines(
-        &fixture(&name)?,
-        &symbol()?,
+        &fixture(&name),
+        &symbol(),
         parangsae_collector::normalize::UM_KLINE_CLOCK,
         TickDomain::Price,
         received(),
@@ -95,16 +90,15 @@ fn given_um(world: &mut VisionWorld, name: String) -> Result<(), String> {
         Ok(parsed) => world.loaded = Loaded::Klines(parsed.rows),
         Err(err) => note_error(world, err),
     }
-    Ok(())
 }
 
 #[given(regex = r#"^the kline fixture "([^"]+)" as spot on (\d{4}-\d{2}-\d{2})$"#)]
-fn given_spot(world: &mut VisionWorld, name: String, day_text: String) -> Result<(), String> {
-    let day = parse_day(&day_text).map_err(|_| "day".to_string())?;
+fn given_spot(world: &mut VisionWorld, name: String, day_text: String) {
+    let day = parse_day(&day_text).expect("day");
     world.close_unit = Some(parangsae_collector::normalize::spot_kline_clock(day).expected());
     match parse_klines(
-        &fixture(&name)?,
-        &symbol()?,
+        &fixture(&name),
+        &symbol(),
         parangsae_collector::normalize::spot_kline_clock(day),
         TickDomain::Price,
         received(),
@@ -112,15 +106,14 @@ fn given_spot(world: &mut VisionWorld, name: String, day_text: String) -> Result
         Ok(parsed) => world.loaded = Loaded::Klines(parsed.rows),
         Err(err) => note_error(world, err),
     }
-    Ok(())
 }
 
 #[given(regex = r#"^the kline fixture "([^"]+)" as spot microseconds$"#)]
-fn given_spot_micros(world: &mut VisionWorld, name: String) -> Result<(), String> {
+fn given_spot_micros(world: &mut VisionWorld, name: String) {
     world.close_unit = Some(TimeUnit::Micros);
     match parse_klines(
-        &fixture(&name)?,
-        &symbol()?,
+        &fixture(&name),
+        &symbol(),
         parangsae_collector::normalize::SPOT_KLINE_CLOCK,
         TickDomain::Price,
         received(),
@@ -128,52 +121,44 @@ fn given_spot_micros(world: &mut VisionWorld, name: String) -> Result<(), String
         Ok(parsed) => world.loaded = Loaded::Klines(parsed.rows),
         Err(err) => note_error(world, err),
     }
-    Ok(())
 }
 
-fn check_with(world: &mut VisionWorld, unit: TimeUnit) -> Result<(), String> {
+fn check_with(world: &mut VisionWorld, unit: TimeUnit) {
     let Loaded::Klines(rows) = &world.loaded else {
-        return Err(format!(
+        panic!(
             "expected kline rows, check {}",
             world.check.as_deref().unwrap_or("none")
-        ));
+        );
     };
     world.faults = kline_row_faults(rows, unit)
         .into_iter()
         .map(|fault| fault.name.to_owned())
         .collect();
-    Ok(())
 }
 
 #[when("the kline rows are checked")]
-fn check_klines(world: &mut VisionWorld) -> Result<(), String> {
-    let unit = world
-        .close_unit
-        .ok_or_else(|| "declared close tick".to_string())?;
-    check_with(world, unit)?;
-    Ok(())
+fn check_klines(world: &mut VisionWorld) {
+    let unit = world.close_unit.expect("declared close tick");
+    check_with(world, unit);
 }
 
 #[when("the kline rows are checked as a one-millisecond close tick")]
-fn check_millis_tick(world: &mut VisionWorld) -> Result<(), String> {
-    check_with(world, TimeUnit::Millis)?;
-    Ok(())
+fn check_millis_tick(world: &mut VisionWorld) {
+    check_with(world, TimeUnit::Millis);
 }
 
 #[when("the kline rows are checked as a one-microsecond close tick")]
-fn check_micros_tick(world: &mut VisionWorld) -> Result<(), String> {
-    check_with(world, TimeUnit::Micros)?;
-    Ok(())
+fn check_micros_tick(world: &mut VisionWorld) {
+    check_with(world, TimeUnit::Micros);
 }
 
 #[then("there is no row fault")]
-fn no_fault(world: &mut VisionWorld) -> Result<(), String> {
+fn no_fault(world: &mut VisionWorld) {
     assert!(
         world.faults.is_empty(),
         "expected no fault, got {:?}",
         world.faults
     );
-    Ok(())
 }
 
 #[then(regex = r#"^the first fault is "([^"]+)"$"#)]
@@ -185,13 +170,12 @@ fn first_fault(world: &mut VisionWorld, name: String) {
 }
 
 #[then(regex = r#"^a fault is "([^"]+)"$"#)]
-fn some_fault(world: &mut VisionWorld, name: String) -> Result<(), String> {
+fn some_fault(world: &mut VisionWorld, name: String) {
     assert!(
         world.faults.iter().any(|fault| fault == &name),
         "{:?}",
         world.faults
     );
-    Ok(())
 }
 
 #[then(regex = r#"^parsing fails the "([^"]+)" check$"#)]
@@ -200,10 +184,10 @@ fn parse_fails(world: &mut VisionWorld, name: String) {
 }
 
 #[given(regex = r#"^the listing fixture "([^"]+)""#)]
-fn given_listing(world: &mut VisionWorld, name: String) -> Result<(), String> {
+fn given_listing(world: &mut VisionWorld, name: String) {
     world.names.clear();
-    let xml = fixture(&name)?;
-    let page = parangsae_collector::vision::list_page(&xml).map_err(|_| "listing".to_string())?;
+    let xml = fixture(&name);
+    let page = parangsae_collector::vision::list_page(&xml).expect("listing");
     for object in page.objects {
         let file_name = object
             .key
@@ -211,8 +195,7 @@ fn given_listing(world: &mut VisionWorld, name: String) -> Result<(), String> {
             .next()
             .unwrap_or(&object.key)
             .to_owned();
-        let kind = match classify(VisionDataset::UmKline, "BTCUSDT", &file_name)
-            .map_err(|_| "classify".to_string())?
+        let kind = match classify(VisionDataset::UmKline, "BTCUSDT", &file_name).expect("classify")
         {
             Classified::Archive(_) => "archive",
             Classified::Checksum { .. } => "checksum",
@@ -220,7 +203,6 @@ fn given_listing(world: &mut VisionWorld, name: String) -> Result<(), String> {
         };
         world.names.push((file_name, kind.to_owned()));
     }
-    Ok(())
 }
 
 #[when("the names are classified for um-kline BTCUSDT")]
@@ -243,19 +225,14 @@ fn is_archive(world: &mut VisionWorld, name: String) {
 }
 
 #[given(regex = r#"^the zip fixture "([^"]+)" and checksum "([^"]+)""#)]
-fn given_zip(
-    world: &mut VisionWorld,
-    zip_name: String,
-    checksum_name: String,
-) -> Result<(), String> {
-    let bytes = fixture_bytes(&zip_name)?;
-    let text = fixture(&checksum_name)?;
+fn given_zip(world: &mut VisionWorld, zip_name: String, checksum_name: String) {
+    let bytes = fixture_bytes(&zip_name);
+    let text = fixture(&checksum_name);
     match parse_checksum(&text, &zip_name).and_then(|digest| require_sha256(&bytes, digest)) {
         Ok(()) => world.check = None,
         Err(err) => world.check = err.check_name().map(str::to_owned),
     }
     let _ = sha256_bytes(&bytes);
-    Ok(())
 }
 
 #[then("the checksum check fails")]
@@ -264,33 +241,30 @@ fn checksum_fails(world: &mut VisionWorld) {
 }
 
 #[then("the checksum matches")]
-fn checksum_ok(world: &mut VisionWorld) -> Result<(), String> {
+fn checksum_ok(world: &mut VisionWorld) {
     assert!(world.check.is_none(), "{:?}", world.check);
-    Ok(())
 }
 
 #[given(regex = r#"^the funding fixture "([^"]+)""#)]
-fn given_funding(world: &mut VisionWorld, name: String) -> Result<(), String> {
-    match parse_funding(&fixture(&name)?, &symbol()?, received()) {
+fn given_funding(world: &mut VisionWorld, name: String) {
+    match parse_funding(&fixture(&name), &symbol(), received()) {
         Ok(parsed) => world.loaded = Loaded::Funding(parsed.rows),
         Err(err) => note_error(world, err),
     }
-    Ok(())
 }
 
 #[then(regex = r"^the first funding raw time is (\d+) microseconds$")]
-fn raw_funding(world: &mut VisionWorld, micros: i64) -> Result<(), String> {
+fn raw_funding(world: &mut VisionWorld, micros: i64) {
     let Loaded::Funding(rows) = &world.loaded else {
-        return Err("funding".to_string());
+        panic!("funding")
     };
     assert_eq!(rows[0].raw_calc_time.micros(), micros);
-    Ok(())
 }
 
 #[then(regex = r"^the first funding slot is (\d+) microseconds$")]
-fn slot_funding(world: &mut VisionWorld, micros: i64) -> Result<(), String> {
+fn slot_funding(world: &mut VisionWorld, micros: i64) {
     let Loaded::Funding(rows) = &world.loaded else {
-        return Err("funding".to_string());
+        panic!("funding")
     };
     assert_eq!(rows[0].funding_time.micros(), micros);
     assert_eq!(
@@ -301,54 +275,40 @@ fn slot_funding(world: &mut VisionWorld, micros: i64) -> Result<(), String> {
         rows[0].available_ts.micros().micros(),
         rows[0].funding_time.micros()
     );
-    Ok(())
 }
 
 #[when("the September 2026 funding slots are checked")]
-fn funding_slots(world: &mut VisionWorld) -> Result<(), String> {
+fn funding_slots(world: &mut VisionWorld) {
     let Loaded::Funding(rows) = &world.loaded else {
-        return Err("funding".to_string());
+        panic!("funding")
     };
-    let gaps = funding_window(
-        rows,
-        YearMonth::new(2026, 9).ok_or_else(|| "month".to_string())?,
-    )
-    .map_err(|_| "slots".to_string())?;
+    let gaps = funding_window(rows, YearMonth::new(2026, 9).unwrap()).expect("slots");
     world.faults = gaps
         .into_iter()
         .map(|gap| gap.start.micros().to_string())
         .collect();
-    Ok(())
 }
 
 #[then(regex = r"^the funding row at calc_time (\d+) has (-?\d+) rate ticks$")]
-fn funding_rate_ticks(world: &mut VisionWorld, calc_ms: i64, ticks: i64) -> Result<(), String> {
+fn funding_rate_ticks(world: &mut VisionWorld, calc_ms: i64, ticks: i64) {
     let Loaded::Funding(rows) = &world.loaded else {
-        return Err(format!("funding parse failed: {:?}", world.check));
+        panic!("funding parse failed: {:?}", world.check);
     };
-    let calc_us = calc_ms
-        .checked_mul(1_000)
-        .ok_or_else(|| "calc_time fits".to_string())?;
+    let calc_us = calc_ms.checked_mul(1_000).expect("calc_time fits");
     let found = rows
         .iter()
         .find(|row| row.raw_calc_time.micros() == calc_us)
         .map(|row| row.rate.ticks());
     assert_eq!(found, Some(ticks));
-    Ok(())
 }
 
 #[then("January 2020 has no funding_slot gap")]
-fn january_2020_funding_has_no_gap(world: &mut VisionWorld) -> Result<(), String> {
+fn january_2020_funding_has_no_gap(world: &mut VisionWorld) {
     let Loaded::Funding(rows) = &world.loaded else {
-        return Err(format!("funding parse failed: {:?}", world.check));
+        panic!("funding parse failed: {:?}", world.check);
     };
-    let gaps = funding_window(
-        rows,
-        YearMonth::new(2020, 1).ok_or_else(|| "month".to_string())?,
-    )
-    .map_err(|err| format!("{err:?}"))?;
+    let gaps = funding_window(rows, YearMonth::new(2020, 1).expect("month")).expect("slots");
     assert!(gaps.is_empty(), "{gaps:?}");
-    Ok(())
 }
 
 #[then(regex = r"^a funding gap covers (\d+) plus 8 hours$")]
@@ -361,56 +321,49 @@ fn funding_gap(world: &mut VisionWorld, start: i64) {
 }
 
 #[given(regex = r#"^the metrics fixture "([^"]+)""#)]
-fn given_metrics(world: &mut VisionWorld, name: String) -> Result<(), String> {
-    match parse_metrics(&fixture(&name)?, &symbol()?, received()) {
+fn given_metrics(world: &mut VisionWorld, name: String) {
+    match parse_metrics(&fixture(&name), &symbol(), received()) {
         Ok(parsed) => world.loaded = Loaded::Metrics(parsed.rows),
         Err(err) => note_error(world, err),
     }
-    Ok(())
 }
 
 #[when("the metrics rows are ordered")]
-fn order_metrics(world: &mut VisionWorld) -> Result<(), String> {
+fn order_metrics(world: &mut VisionWorld) {
     let rows = match std::mem::take(&mut world.loaded) {
         Loaded::Metrics(rows) => rows,
-        other @ (Loaded::Empty | Loaded::Klines(_) | Loaded::Funding(_)) => {
-            return Err(format!("metrics, got {other:?}"))
-        }
+        other => panic!("metrics, got {other:?}"),
     };
     world.faults = metrics_row_faults(&rows)
         .into_iter()
         .map(|fault| fault.name.to_owned())
         .collect();
-    world.loaded = Loaded::Metrics(
-        collapse_by(rows, |row| row.create_time.micros()).map_err(|_| "collapse".to_string())?,
-    );
-    Ok(())
+    world.loaded =
+        Loaded::Metrics(collapse_by(rows, |row| row.create_time.micros()).expect("collapse"));
 }
 
 #[then("the metrics rows increase by create_time")]
-fn metrics_sorted(world: &mut VisionWorld) -> Result<(), String> {
+fn metrics_sorted(world: &mut VisionWorld) {
     let Loaded::Metrics(rows) = &world.loaded else {
-        return Err("metrics".to_string());
+        panic!("metrics")
     };
     assert!(rows
         .windows(2)
         .all(|pair| pair[0].create_time < pair[1].create_time));
-    Ok(())
 }
 
 #[then("the metrics publication lag is unverified")]
-fn lag_unverified(world: &mut VisionWorld) -> Result<(), String> {
+fn lag_unverified(world: &mut VisionWorld) {
     let Loaded::Metrics(rows) = &world.loaded else {
-        return Err("metrics".to_string());
+        panic!("metrics")
     };
     assert!(rows.iter().all(|row| !row.available_lag_verified));
-    Ok(())
 }
 
 #[then("available_ts is create_time plus 5 minutes")]
-fn metrics_available(world: &mut VisionWorld) -> Result<(), String> {
+fn metrics_available(world: &mut VisionWorld) {
     let Loaded::Metrics(rows) = &world.loaded else {
-        return Err("metrics".to_string());
+        panic!("metrics")
     };
     for row in rows {
         assert_eq!(
@@ -418,26 +371,23 @@ fn metrics_available(world: &mut VisionWorld) -> Result<(), String> {
             row.create_time.micros() + 300_000_000
         );
     }
-    Ok(())
 }
 
 #[then(regex = r"^the metrics row count is (\d+)$")]
-fn metrics_count(world: &mut VisionWorld, count: usize) -> Result<(), String> {
+fn metrics_count(world: &mut VisionWorld, count: usize) {
     let Loaded::Metrics(rows) = &world.loaded else {
-        return Err("metrics".to_string());
+        panic!("metrics")
     };
     assert_eq!(rows.len(), count);
-    Ok(())
 }
 
 #[given(regex = r#"^the book fixture "([^"]+)""#)]
-fn given_book(world: &mut VisionWorld, name: String) -> Result<(), String> {
+fn given_book(world: &mut VisionWorld, name: String) {
     world.faults.clear();
-    match parse_book(&fixture(&name)?, &symbol()?, received()) {
+    match parse_book(&fixture(&name), &symbol(), received()) {
         Ok(parsed) => world.book = parsed.rows,
         Err(err) => note_error(world, err),
     }
-    Ok(())
 }
 
 #[when("the book rows are checked")]
@@ -455,35 +405,29 @@ fn book_schema(world: &mut VisionWorld, schema: u32) {
 }
 
 #[when(regex = r"^the book gaps on (\d{4}-\d{2}-\d{2}) are checked$")]
-fn book_gaps(world: &mut VisionWorld, day_text: String) -> Result<(), String> {
-    let day = parse_day(&day_text).map_err(|_| "day".to_string())?;
+fn book_gaps(world: &mut VisionWorld, day_text: String) {
+    let day = parse_day(&day_text).expect("day");
     let _ = book_row_faults(&mut world.book);
     let gaps = book_day_gaps(&world.book, day);
     world.faults = gaps
         .into_iter()
         .map(|gap| (gap.end.micros() - gap.start.micros()).to_string())
         .collect();
-    Ok(())
 }
 
 #[then("a book gap is longer than 90 seconds")]
-fn book_gap_long(world: &mut VisionWorld) -> Result<(), String> {
-    let mut long = false;
-    for span in &world.faults {
-        if span.parse::<i64>().map_err(|err| err.to_string())? > BOOK_GAP_LIMIT_US {
-            long = true;
-        }
-    }
-    assert!(long);
-    Ok(())
+fn book_gap_long(world: &mut VisionWorld) {
+    assert!(world
+        .faults
+        .iter()
+        .any(|span| span.parse::<i64>().unwrap() > BOOK_GAP_LIMIT_US));
 }
 
 #[when(regex = r"^coverage for missing book day (\d{4}-\d{2}-\d{2}) is judged$")]
-fn coverage(world: &mut VisionWorld, day_text: String) -> Result<(), String> {
-    let day = parse_day(&day_text).map_err(|_| "day".to_string())?;
+fn coverage(world: &mut VisionWorld, day_text: String) {
+    let day = parse_day(&day_text).expect("day");
     let gap = missing_coverage(day, true);
     world.gap_fails = Some(gap.kind.fails_command());
-    Ok(())
 }
 
 #[then("the gap does not fail the command")]
@@ -497,27 +441,25 @@ fn gap_fails(world: &mut VisionWorld) {
 }
 
 #[given(regex = r"^a complete BTCUSDT 1m day on (\d{4}-\d{2}-\d{2})$")]
-fn complete_day(world: &mut VisionWorld, day_text: String) -> Result<(), String> {
-    let day = parse_day(&day_text).map_err(|_| "day".to_string())?;
+fn complete_day(world: &mut VisionWorld, day_text: String) {
+    let day = parse_day(&day_text).expect("day");
     world.day = Some(day);
     let mut rows = Vec::new();
     for index in 0..1_440 {
         let open = day.start_us().micros() + index * 60_000_000;
         let close = open + 60_000_000 - 1_000;
-        rows.push(bar(open, close, 1)?);
+        rows.push(bar(open, close, 1));
     }
     world.loaded = Loaded::Klines(rows);
-    Ok(())
 }
 
 #[then("that day has no kline gap")]
-fn no_gap(world: &mut VisionWorld) -> Result<(), String> {
-    let day = world.day.ok_or_else(|| "day".to_string())?;
+fn no_gap(world: &mut VisionWorld) {
+    let day = world.day.expect("day");
     let Loaded::Klines(rows) = &world.loaded else {
-        return Err("klines".to_string());
+        panic!("klines")
     };
     assert!(kline_day_gaps(rows, day).is_empty());
-    Ok(())
 }
 
 #[when("the last bar is removed")]
@@ -528,29 +470,27 @@ fn drop_last(world: &mut VisionWorld) {
 }
 
 #[then("that day has a kline gap")]
-fn has_gap(world: &mut VisionWorld) -> Result<(), String> {
-    let day = world.day.ok_or_else(|| "day".to_string())?;
+fn has_gap(world: &mut VisionWorld) {
+    let day = world.day.expect("day");
     let Loaded::Klines(rows) = &world.loaded else {
-        return Err("klines".to_string());
+        panic!("klines")
     };
     let gaps: Vec<Gap> = kline_day_gaps(rows, day);
     assert_eq!(gaps.len(), 1);
-    Ok(())
 }
 
 #[given("a stored BTCUSDT kline in a fresh data directory")]
-fn stored_kline(world: &mut VisionWorld) -> Result<(), String> {
-    let dir = tempfile::tempdir().map_err(|_| "temp".to_string())?.keep();
-    let row = bar(1_788_220_800_000_000, 1_788_220_859_999_000, 42)?;
+fn stored_kline(world: &mut VisionWorld) {
+    let dir = tempfile::tempdir().expect("temp").keep();
+    let row = bar(1_788_220_800_000_000, 1_788_220_859_999_000, 42);
     world.open_ticks = row.open_ticks;
-    store::upsert_klines(&dir, "um-kline", vec![row]).map_err(|_| "insert".to_string())?;
+    store::upsert_klines(&dir, "um-kline", vec![row]).expect("insert");
     world.data_dir = Some(dir);
-    Ok(())
 }
 
 #[when("the same kline is written again")]
-fn write_same(world: &mut VisionWorld) -> Result<(), String> {
-    let dir = world.data_dir.as_ref().ok_or_else(|| "dir".to_string())?;
+fn write_same(world: &mut VisionWorld) {
+    let dir = world.data_dir.as_ref().expect("dir");
     let counts = store::upsert_klines(
         dir,
         "um-kline",
@@ -558,12 +498,11 @@ fn write_same(world: &mut VisionWorld) -> Result<(), String> {
             1_788_220_800_000_000,
             1_788_220_859_999_000,
             world.open_ticks,
-        )?],
+        )],
     )
-    .map_err(|_| "rewrite".to_string())?;
+    .expect("rewrite");
     world.unchanged = counts.unchanged;
     world.conflicts = counts.conflicts;
-    Ok(())
 }
 
 #[then("the write counts as unchanged")]
@@ -573,8 +512,8 @@ fn unchanged(world: &mut VisionWorld) {
 }
 
 #[when("a different open is written for that key")]
-fn write_different(world: &mut VisionWorld) -> Result<(), String> {
-    let dir = world.data_dir.as_ref().ok_or_else(|| "dir".to_string())?;
+fn write_different(world: &mut VisionWorld) {
+    let dir = world.data_dir.as_ref().expect("dir");
     let counts = store::upsert_klines(
         dir,
         "um-kline",
@@ -582,12 +521,11 @@ fn write_different(world: &mut VisionWorld) -> Result<(), String> {
             1_788_220_800_000_000,
             1_788_220_859_999_000,
             world.open_ticks + 1,
-        )?],
+        )],
     )
-    .map_err(|_| "conflict".to_string())?;
+    .expect("conflict");
     world.conflicts = counts.conflicts;
     world.unchanged = counts.unchanged;
-    Ok(())
 }
 
 #[then("the write counts as a conflict")]
@@ -596,14 +534,12 @@ fn conflicted(world: &mut VisionWorld) {
 }
 
 #[then("the stored open is unchanged")]
-fn stored_open(world: &mut VisionWorld) -> Result<(), String> {
-    let dir = world.data_dir.as_ref().ok_or_else(|| "dir".to_string())?;
-    let day = CivilDay::new(2026, 9, 1).ok_or_else(|| "day".to_string())?;
-    let rows =
-        store::load_klines(dir, "um-kline", "BTCUSDT", day).map_err(|_| "load".to_string())?;
+fn stored_open(world: &mut VisionWorld) {
+    let dir = world.data_dir.as_ref().expect("dir");
+    let day = CivilDay::new(2026, 9, 1).unwrap();
+    let rows = store::load_klines(dir, "um-kline", "BTCUSDT", day).expect("load");
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].open_ticks, world.open_ticks);
-    Ok(())
 }
 
 fn verify_prefix(dataset: VisionDataset, cadence: Cadence) -> Result<String, String> {
@@ -654,9 +590,10 @@ fn verify_ingest(
         );
     }
     let mut xml = String::from("<ListBucketResult><IsTruncated>false</IsTruncated>");
-    let zip_len = u64::try_from(zip_bytes.len()).map_err(|err| err.to_string())?;
-    let checksum_len = u64::try_from(checksum.len()).map_err(|err| err.to_string())?;
-    for (entry, size) in [(&key, zip_len), (&checksum_key, checksum_len)] {
+    for (entry, size) in [
+        (&key, zip_bytes.len() as u64),
+        (&checksum_key, checksum.len() as u64),
+    ] {
         xml.push_str(&format!(
             "<Contents><Key>{entry}</Key><Size>{size}</Size></Contents>"
         ));
@@ -668,7 +605,7 @@ fn verify_ingest(
     map.insert(download_url(&checksum_key), checksum);
     let request = RunRequest {
         datasets: vec![dataset],
-        symbol: symbol()?,
+        symbol: symbol(),
         range: DayRange::new(from, to).map_err(|err| err.to_string())?,
         data_dir: dir.to_path_buf(),
         jobs: 1,
@@ -698,8 +635,7 @@ fn run_verify(world: &mut VisionWorld, filter: Result<VerifyFilter, Error>) {
         }
     };
     let Some(dir) = world.verify_dir.as_ref() else {
-        world.verify_error = Some("verify store was not prepared".to_string());
-        return;
+        panic!("verify store was not prepared");
     };
     match run::verify(dir.path(), &filter) {
         Ok(report) => world.verify_report = Some(report),
@@ -708,56 +644,48 @@ fn run_verify(world: &mut VisionWorld, filter: Result<VerifyFilter, Error>) {
 }
 
 #[given("a temp store with the 2021-06-01 um-kline fixture and the September 2026 funding fixture")]
-fn given_verify_store(world: &mut VisionWorld) -> Result<(), String> {
-    let dir = tempfile::tempdir().map_err(|err| err.to_string())?;
-    let june1 = CivilDay::new(2021, 6, 1).ok_or_else(|| "june".to_string())?;
-    let september = CivilDay::new(2026, 9, 1).ok_or_else(|| "september".to_string())?;
-    let september_end = CivilDay::new(2026, 9, 30).ok_or_else(|| "september end".to_string())?;
+fn given_verify_store(world: &mut VisionWorld) {
+    let dir = tempfile::tempdir().expect("temp");
+    let june1 = CivilDay::new(2021, 6, 1).expect("june");
+    let september = CivilDay::new(2026, 9, 1).expect("september");
+    let september_end = CivilDay::new(2026, 9, 30).expect("september end");
     verify_ingest(
         dir.path(),
         VisionDataset::UmKline,
         june1,
         june1,
-        &verify_prefix(VisionDataset::UmKline, Cadence::Daily)?,
+        &verify_prefix(VisionDataset::UmKline, Cadence::Daily).expect("prefix"),
         "BTCUSDT-1m-2021-06-01.zip",
-        &fixture("um_kline_2021-06-01_headerless.csv")?,
-    )?;
+        &fixture("um_kline_2021-06-01_headerless.csv"),
+    )
+    .expect("um ingest");
     verify_ingest(
         dir.path(),
         VisionDataset::FundingRate,
         september,
         september_end,
-        &verify_prefix(VisionDataset::FundingRate, Cadence::Monthly)?,
+        &verify_prefix(VisionDataset::FundingRate, Cadence::Monthly).expect("prefix"),
         "BTCUSDT-fundingRate-2026-09.zip",
-        &fixture("funding_2026-09-01.csv")?,
-    )?;
+        &fixture("funding_2026-09-01.csv"),
+    )
+    .expect("funding ingest");
     world.verify_dir = Some(dir);
-    Ok(())
 }
 
 #[given("the stored um-kline open on 2021-06-01 differs from the archive")]
-fn corrupt_stored_um(world: &mut VisionWorld) -> Result<(), String> {
-    let dir = world
-        .verify_dir
-        .as_ref()
-        .ok_or_else(|| "store".to_string())?
-        .path();
-    let june1 = CivilDay::new(2021, 6, 1).ok_or_else(|| "june".to_string())?;
-    let mut rows =
-        store::load_klines(dir, "um-kline", "BTCUSDT", june1).map_err(|err| err.to_string())?;
+fn corrupt_stored_um(world: &mut VisionWorld) {
+    let dir = world.verify_dir.as_ref().expect("store").path();
+    let june1 = CivilDay::new(2021, 6, 1).expect("june");
+    let mut rows = store::load_klines(dir, "um-kline", "BTCUSDT", june1).expect("rows");
     let open_us = june1.start_us().micros();
     let row = rows
         .iter_mut()
         .find(|row| row.open_time.micros() == open_us)
-        .ok_or_else(|| "opening bar".to_string())?;
-    row.open_ticks = row
-        .open_ticks
-        .checked_add(1)
-        .ok_or_else(|| "open ticks".to_string())?;
+        .expect("opening bar");
+    row.open_ticks = row.open_ticks.checked_add(1).expect("open ticks");
     let path = store::fact_path(dir, "um-kline", "BTCUSDT", june1);
-    std::fs::remove_file(path).map_err(|err| err.to_string())?;
-    store::upsert_klines(dir, "um-kline", rows).map_err(|err| err.to_string())?;
-    Ok(())
+    std::fs::remove_file(path).expect("remove partition");
+    store::upsert_klines(dir, "um-kline", rows).expect("rewrite");
 }
 
 #[when(regex = r#"^verify is limited to dataset "([^"]+)"$"#)]
@@ -789,81 +717,62 @@ fn when_verify_range(world: &mut VisionWorld, from: String, to: String) {
 }
 
 #[then("verify reports no faults")]
-fn then_verify_clean(world: &mut VisionWorld) -> Result<(), String> {
+fn then_verify_clean(world: &mut VisionWorld) {
     let report = world
         .verify_report
         .as_ref()
-        .ok_or_else(|| format!("verify error: {:?}", world.verify_error))?;
-    if !report.fault_lines.is_empty() {
-        return Err(report.fault_lines.join("; "));
-    }
-    if !report.ok() {
-        return Err(format!("{report}"));
-    }
-    Ok(())
+        .unwrap_or_else(|| panic!("verify error: {:?}", world.verify_error));
+    assert!(
+        report.fault_lines.is_empty(),
+        "{}",
+        report.fault_lines.join("; ")
+    );
+    assert!(report.ok(), "{report}");
 }
 
 #[then("verify checked only the funding-rate archives")]
-fn then_funding_only(world: &mut VisionWorld) -> Result<(), String> {
-    let report = world
-        .verify_report
-        .as_ref()
-        .ok_or_else(|| "report".to_string())?;
-    if report.summary.archives != 1 {
-        return Err(format!("{report}"));
-    }
-    if report.archives_in_scope != 1 || report.archives_total != 2 {
-        return Err(format!("{report}"));
-    }
-    if report.datasets_label != "funding-rate" {
-        return Err(report.datasets_label.clone());
-    }
-    let text = report.to_string();
-    if !text.contains("datasets=funding-rate, days=all, archives=1/2 in scope") {
-        return Err(text);
-    }
-    Ok(())
+fn then_funding_only(world: &mut VisionWorld) {
+    let report = world.verify_report.as_ref().expect("report");
+    assert_eq!(report.summary.archives, 1, "{report}");
+    assert_eq!(report.archives_in_scope, 1);
+    assert_eq!(report.archives_total, 2);
+    assert_eq!(report.datasets_label, "funding-rate");
+    assert!(report
+        .to_string()
+        .contains("datasets=funding-rate, days=all, archives=1/2 in scope"));
 }
 
 #[then("verify reports a conflict fault")]
-fn then_verify_conflict(world: &mut VisionWorld) -> Result<(), String> {
+fn then_verify_conflict(world: &mut VisionWorld) {
     let report = world
         .verify_report
         .as_ref()
-        .ok_or_else(|| format!("verify error: {:?}", world.verify_error))?;
-    if !report
-        .fault_lines
-        .iter()
-        .any(|line| line.starts_with("conflict "))
-    {
-        return Err(format!("{report}"));
-    }
-    if report.ok() {
-        return Err(format!("{report}"));
-    }
-    Ok(())
+        .unwrap_or_else(|| panic!("verify error: {:?}", world.verify_error));
+    assert!(
+        report
+            .fault_lines
+            .iter()
+            .any(|line| line.starts_with("conflict ")),
+        "{report}"
+    );
+    assert!(!report.ok());
 }
 
 #[then("verify rejects the request as usage")]
-fn then_verify_usage(world: &mut VisionWorld) -> Result<(), String> {
-    if world.verify_report.is_some() {
-        return Err(format!("{:?}", world.verify_report));
-    }
-    let err = world
-        .verify_error
-        .as_deref()
-        .ok_or_else(|| "usage error".to_string())?;
-    if !(err.contains("unknown dataset") || err.contains("reversed")) {
-        return Err(err.to_string());
-    }
-    Ok(())
+fn then_verify_usage(world: &mut VisionWorld) {
+    assert!(world.verify_report.is_none(), "{:?}", world.verify_report);
+    let err = world.verify_error.as_deref().expect("usage error");
+    assert!(
+        err.contains("unknown dataset") || err.contains("reversed"),
+        "{err}"
+    );
 }
 
-fn bar(open: i64, close: i64, price: i64) -> Result<KlineFact, String> {
+fn bar(open: i64, close: i64, price: i64) -> KlineFact {
     let open_time = UtcMicros::from_micros(open);
     let close_time = UtcMicros::from_micros(close);
-    Ok(KlineFact {
-        symbol: symbol()?,
+    KlineFact {
+        symbol: symbol(),
         interval_us: 60_000_000,
         open_time,
         close_time,
@@ -871,32 +780,21 @@ fn bar(open: i64, close: i64, price: i64) -> Result<KlineFact, String> {
         high_ticks: price,
         low_ticks: price,
         close_ticks: price,
-        volume: Qty::from_ticks(0).map_err(|err| err.to_string())?,
-        quote_volume: Amount::from_ticks(0).map_err(|err| err.to_string())?,
+        volume: Qty::from_ticks(0).unwrap(),
+        quote_volume: Amount::from_ticks(0).unwrap(),
         count: 0,
-        taker_buy_volume: Qty::from_ticks(0).map_err(|err| err.to_string())?,
-        taker_buy_quote_volume: Amount::from_ticks(0).map_err(|err| err.to_string())?,
+        taker_buy_volume: Qty::from_ticks(0).unwrap(),
+        taker_buy_quote_volume: Amount::from_ticks(0).unwrap(),
         event_ts: EventTs::from_micros(open_time),
-        available_ts: AvailableTs::from_micros(
-            close_time
-                .checked_add_micros(1_000)
-                .ok_or_else(|| "close".to_string())?,
-        ),
+        available_ts: AvailableTs::from_micros(close_time.checked_add_micros(1_000).unwrap()),
         received_ts: received(),
         schema_version: 1,
         tick_domain: TickDomain::Price,
-    })
+    }
 }
 
-const FEATURE_GLOB: &str = "specs/features/collector/**/*.feature";
-
 #[tokio::main]
-async fn main() -> Result<(), String> {
-    let files = feature_floors::expand_feature_glob(FEATURE_GLOB)?;
-    let mut passed_steps = 0usize;
-    for path in &files {
-        let counts = feature_run::run_feature::<VisionWorld>(path).await?;
-        passed_steps += counts.passed_steps;
-    }
-    feature_floors::enforce_floors("vision", &files, passed_steps)
+async fn main() {
+    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs/features/collector");
+    VisionWorld::cucumber().run_and_exit(features).await;
 }

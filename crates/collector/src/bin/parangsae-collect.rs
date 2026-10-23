@@ -1,6 +1,5 @@
 //! Binance Vision backfill. Public archives only. No API key and no order route.
 
-use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
@@ -63,46 +62,62 @@ struct VerifyArgs {
     to: Option<String>,
 }
 
-fn main() -> Result<ExitCode, io::Error> {
+fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Vision(args) => vision(args),
         Command::Verify(args) => verify(args),
     }
 }
 
-fn fail(err: impl std::fmt::Display) -> Result<ExitCode, io::Error> {
-    writeln!(io::stderr().lock(), "{err}")?;
-    Ok(ExitCode::from(2))
-}
-
-fn vision(args: VisionArgs) -> Result<ExitCode, io::Error> {
+fn vision(args: VisionArgs) -> ExitCode {
     let datasets = match datasets(&args.dataset) {
         Ok(datasets) => datasets,
-        Err(err) => return fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
     };
     let symbol = match Symbol::new(&args.symbol) {
         Ok(symbol) => symbol,
-        Err(err) => return fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
     };
     let from = match parse_day(&args.from) {
         Ok(day) => day,
-        Err(err) => return fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
     };
     let to = match parse_day(&args.to) {
         Ok(day) => day,
-        Err(err) => return fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
     };
     let range = match DayRange::new(from, to) {
         Ok(range) => range,
-        Err(err) => return fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
     };
     let fetched_at = match run::received_now() {
         Ok(ts) => ts,
-        Err(err) => return fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
     };
     let client = match HttpGet::new() {
         Ok(client) => client,
-        Err(err) => return fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
     };
     let request = RunRequest {
         datasets,
@@ -115,42 +130,50 @@ fn vision(args: VisionArgs) -> Result<ExitCode, io::Error> {
     };
     match run::run_vision(&request, &client) {
         Ok(rows) => print_rows(&rows),
-        Err(err) => fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            ExitCode::from(2)
+        }
     }
 }
 
-fn verify(args: VerifyArgs) -> Result<ExitCode, io::Error> {
+fn verify(args: VerifyArgs) -> ExitCode {
     let filter = match VerifyFilter::parse(&args.dataset, args.from.as_deref(), args.to.as_deref())
     {
         Ok(filter) => filter,
-        Err(err) => return fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            return ExitCode::from(2);
+        }
     };
     match run::verify(&args.data_dir, &filter) {
         Ok(report) => {
-            writeln!(io::stdout().lock(), "verify {report}")?;
+            println!("verify {report}");
             if report.ok() {
-                Ok(ExitCode::SUCCESS)
+                ExitCode::SUCCESS
             } else {
-                Ok(ExitCode::from(1))
+                ExitCode::from(1)
             }
         }
-        Err(err) => fail(err),
+        Err(err) => {
+            eprintln!("{err}");
+            ExitCode::from(2)
+        }
     }
 }
 
-fn print_rows(rows: &[(VisionDataset, run::RunSummary)]) -> Result<ExitCode, io::Error> {
+fn print_rows(rows: &[(VisionDataset, run::RunSummary)]) -> ExitCode {
     let mut failed = false;
-    let mut stdout = io::stdout().lock();
     for (dataset, summary) in rows {
-        writeln!(stdout, "{dataset} {summary}")?;
+        println!("{dataset} {summary}");
         if !summary.ok() {
             failed = true;
         }
     }
     if failed {
-        Ok(ExitCode::from(1))
+        ExitCode::from(1)
     } else {
-        Ok(ExitCode::SUCCESS)
+        ExitCode::SUCCESS
     }
 }
 

@@ -1,15 +1,11 @@
 //! Cucumber runner for `specs/features/signals/signals_v0.feature`.
 
-#[path = "../../core/tests/support/feature_floors.rs"]
-mod feature_floors;
-#[path = "../../core/tests/support/feature_run.rs"]
-mod feature_run;
 #[path = "support/mod.rs"]
 mod support;
 
-pub use support::Must;
+use std::path::PathBuf;
 
-use cucumber::{given, then, when};
+use cucumber::{given, then, when, World as _};
 use parangsae_core::{BarInterval, Observation, Ratio, ReceivedTs, ResampledBar};
 use parangsae_signals::{
     drive, drive_feature, drive_funding_z, funding_observation, Decision, FeatureOutput,
@@ -61,12 +57,8 @@ fn funding_gap(world: &mut SignalWorld) {
 #[given("the funding z toy rows with the last interval at 4 hours")]
 fn funding_interval(world: &mut SignalWorld) {
     let mut rows = toy_funding();
-    let last = rows.pop().must_because("toy row");
-    rows.push(fund_obs(
-        support::row_value(&last).funding_time().micros(),
-        -10_000,
-        4,
-    ));
+    let last = rows.pop().expect("toy row");
+    rows.push(fund_obs(last.value().funding_time().micros(), -10_000, 4));
     world.funding = rows;
 }
 
@@ -78,7 +70,7 @@ fn one_funding(world: &mut SignalWorld, h: i64, rate: i64) {
         8,
         ReceivedTs::from_micros(us(hour(h))),
     )
-    .must_because("funding observation")];
+    .expect("funding observation")];
 }
 
 #[given("10 rising hourly closes")]
@@ -95,7 +87,7 @@ fn drop_closes(world: &mut SignalWorld) {
         .enumerate()
         .map(|(index, px)| {
             bar_obs(
-                hour(i64::try_from(index).must_because("index")),
+                hour(i64::try_from(index).expect("index")),
                 BarInterval::H1,
                 usdt_ticks(px),
             )
@@ -109,7 +101,7 @@ fn zero_close(world: &mut SignalWorld) {
 }
 
 fn tsmom_at(world: &mut SignalWorld, decision_us: i64) {
-    let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).must_because("params");
+    let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).expect("params");
     world.signal = Some(drive(&signal, &world.bars, at(decision_us)));
 }
 
@@ -124,7 +116,7 @@ fn tsmom_before(world: &mut SignalWorld, h: i64) {
 }
 
 fn funding_at(world: &mut SignalWorld, h: i64) {
-    let signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).must_because("params");
+    let signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).expect("params");
     let bars = vec![bar_ending_at(hour(h), BarInterval::H1, usdt_ticks(40_000))];
     world.signal = Some(drive_funding_z(&signal, &bars, &world.funding, at(hour(h))));
 }
@@ -136,7 +128,7 @@ fn funding_hour(world: &mut SignalWorld, h: i64) {
 
 #[when(regex = r"^volregime is evaluated at hour (\d+)$")]
 fn vol_hour(world: &mut SignalWorld, h: i64) {
-    let feature = VolRegime::<2, 3>::new(BarInterval::H1).must_because("params");
+    let feature = VolRegime::<2, 3>::new(BarInterval::H1).expect("params");
     world.feature = Some(drive_feature(&feature, &world.bars, at(hour(h))));
 }
 
@@ -150,11 +142,9 @@ fn target_ticks(world: &mut SignalWorld, ticks: i64) {
     match world.signal.as_ref() {
         Some(Ok(Some(out))) => match out.decision {
             Decision::Target(target) => assert_eq!(target.ticks(), ticks, "{out:?}"),
-            Decision::Flat(reason) => {
-                support::fail_test(&format!("flat {reason:?} for target {ticks}"))
-            }
+            Decision::Flat(reason) => panic!("flat {reason:?} for target {ticks}"),
         },
-        other => support::fail_test(&format!("expected target {ticks}, got {other:?}")),
+        other => panic!("expected target {ticks}, got {other:?}"),
     }
 }
 
@@ -167,7 +157,7 @@ fn no_output(world: &mut SignalWorld) {
 fn signal_error(world: &mut SignalWorld, name: String) {
     let err = match world.signal.as_ref() {
         Some(Err(err)) => err,
-        other => support::fail_test(&format!("expected {name}, got {other:?}")),
+        other => panic!("expected {name}, got {other:?}"),
     };
     match name.as_str() {
         "NoTriggeringBar" => assert!(matches!(err, SignalError::NoTriggeringBar), "{err:?}"),
@@ -184,7 +174,7 @@ fn signal_error(world: &mut SignalWorld, name: String) {
                 "{err:?}"
             );
         }
-        other => support::fail_test(&format!("unchecked error name {other}")),
+        other => panic!("unchecked error name {other}"),
     }
 }
 
@@ -193,14 +183,14 @@ fn flat_reason(world: &mut SignalWorld, name: String) {
     let reason = match name.as_str() {
         "FundingSlotMissing" => FlatReason::FundingSlotMissing,
         "FundingStale" => FlatReason::FundingStale,
-        other => support::fail_test(&format!("unchecked flat reason {other}")),
+        other => panic!("unchecked flat reason {other}"),
     };
     match world.signal.as_ref() {
         Some(Ok(Some(out))) => {
             assert_eq!(out.decision, Decision::Flat(reason), "{out:?}");
             assert_eq!(out.decision.target_ticks(), 0);
         }
-        other => support::fail_test(&format!("expected flat {reason:?}, got {other:?}")),
+        other => panic!("expected flat {reason:?}, got {other:?}"),
     }
 }
 
@@ -208,7 +198,7 @@ fn flat_reason(world: &mut SignalWorld, name: String) {
 fn feature_ticks(world: &mut SignalWorld, ticks: i64) {
     match world.feature.as_ref() {
         Some(Ok(Some(out))) => assert_eq!(out.value.ticks(), ticks, "{out:?}"),
-        other => support::fail_test(&format!("expected rank {ticks}, got {other:?}")),
+        other => panic!("expected rank {ticks}, got {other:?}"),
     }
 }
 
@@ -219,13 +209,13 @@ fn rank_non_finite(world: &mut SignalWorld) {
 
 #[then(regex = r"^the funding row is visible at hour (\d+) plus (\d+) microseconds$")]
 fn funding_visible(world: &mut SignalWorld, h: i64, plus: i64) {
-    let row = world.funding.first().must_because("funding row");
+    let row = world.funding.first().expect("funding row");
     assert!(row.causal_at(at(hour(h) + plus)).is_some());
 }
 
 #[then(regex = r"^the funding row is not visible at hour (\d+) plus (\d+) microseconds$")]
 fn funding_hidden(world: &mut SignalWorld, h: i64, plus: i64) {
-    let row = world.funding.first().must_because("funding row");
+    let row = world.funding.first().expect("funding row");
     assert!(row.causal_at(at(hour(h) + plus)).is_none());
 }
 
@@ -233,31 +223,25 @@ fn funding_hidden(world: &mut SignalWorld, h: i64, plus: i64) {
     regex = r"^the funding row is not visible 1 microsecond before hour (\d+) plus (\d+) microseconds$"
 )]
 fn funding_hidden_early(world: &mut SignalWorld, h: i64, plus: i64) {
-    let row = world.funding.first().must_because("funding row");
+    let row = world.funding.first().expect("funding row");
     assert!(row.causal_at(at(hour(h) + plus - 1)).is_none());
 }
 
 #[then(regex = r"^tsmom emits a target on hours (\d+) through (\d+)$")]
 fn emits_range(world: &mut SignalWorld, start: i64, end: i64) {
-    let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).must_because("params");
+    let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).expect("params");
     for h in start..=end {
         match drive(&signal, &world.bars, at(hour(h))) {
             Ok(Some(out)) => assert!(matches!(out.decision, Decision::Target(_)), "{out:?}"),
-            other => support::fail_test(&format!("hour {h} did not emit a target: {other:?}")),
+            other => panic!("hour {h} did not emit a target: {other:?}"),
         }
     }
 }
 
-const FEATURE_GLOB: &str = "specs/features/signals/signals_v0.feature";
-
 #[tokio::main]
-async fn main() -> Result<(), String> {
+async fn main() {
+    let features = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../specs/features/signals/signals_v0.feature");
     support::anchors();
-    let files = feature_floors::expand_feature_glob(FEATURE_GLOB)?;
-    let mut passed_steps = 0usize;
-    for path in &files {
-        let counts = feature_run::run_feature::<SignalWorld>(path).await?;
-        passed_steps += counts.passed_steps;
-    }
-    feature_floors::enforce_floors("signals", &files, passed_steps)
+    SignalWorld::cucumber().run_and_exit(features).await;
 }

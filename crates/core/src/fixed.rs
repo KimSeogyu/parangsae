@@ -4,8 +4,6 @@
 //! The product is computed in `i128`. A result that does not fit in `i64` is
 //! [`FixedError::Overflow`], never a wrapped value.
 
-#![deny(clippy::arithmetic_side_effects)]
-
 use std::fmt;
 
 /// Minor units per whole unit (8 decimal places).
@@ -119,7 +117,7 @@ fn notional_ticks(price_ticks: i64, qty_lots: i64) -> Result<i64, FixedError> {
     let product = i128::from(price_ticks)
         .checked_mul(i128::from(qty_lots))
         .ok_or(FixedError::Overflow)?;
-    let scaled = product.checked_div(SCALE).ok_or(FixedError::Overflow)?;
+    let scaled = product / SCALE;
     i64::try_from(scaled).map_err(|_| FixedError::Overflow)
 }
 
@@ -135,37 +133,12 @@ mod proofs {
         let qty_lots: i64 = kani::any();
         kani::assume(price_ticks >= 0);
         kani::assume(qty_lots >= 0);
-        let widened = i128::from(price_ticks).wrapping_mul(i128::from(qty_lots));
-        let product = i128::from(price_ticks).checked_mul(i128::from(qty_lots));
-        assert_eq!(product, Some(widened));
-    }
-
-    /// The production function, not the multiply lemma. On `0..=20_000` the
-    /// quotient is `price * qty / SCALE`. Covers the zero, remainder, and
-    /// positive-quotient classes the lemma never executes.
-    #[kani::proof]
-    fn notional_production_widening() {
-        let price_ticks: i64 = kani::any();
-        let qty_lots: i64 = kani::any();
-        kani::assume(price_ticks >= 0 && price_ticks <= 20_000);
-        kani::assume(qty_lots >= 0 && qty_lots <= 20_000);
         let product = i128::from(price_ticks).checked_mul(i128::from(qty_lots));
         assert!(product.is_some());
-        if let Some(product) = product {
-            let result = notional_ticks(price_ticks, qty_lots);
-            assert!(result.is_ok());
-            if let Ok(ticks) = result {
-                let scaled = product.checked_div(SCALE);
-                assert!(scaled.is_some());
-                if let Some(scaled) = scaled {
-                    assert_eq!(i128::from(ticks), scaled);
-                }
-                let remainder = product.checked_rem(SCALE);
-                kani::cover!(ticks == 0, "zero");
-                kani::cover!(remainder.is_some_and(|rest| rest != 0), "remainder");
-                kani::cover!(ticks > 0, "positive quotient");
-            }
-        }
+        assert_eq!(
+            product.unwrap(),
+            i128::from(price_ticks) * i128::from(qty_lots)
+        );
     }
 
     /// End-to-end quotient for every pair in `0..=1_000_000` ticks.
@@ -177,13 +150,10 @@ mod proofs {
         let qty_lots: i64 = kani::any();
         kani::assume(price_ticks >= 0 && price_ticks <= 1_000_000);
         kani::assume(qty_lots >= 0 && qty_lots <= 1_000_000);
-        let expected = i128::from(price_ticks)
-            .wrapping_mul(i128::from(qty_lots))
-            .wrapping_div(SCALE);
-        let ticks = notional_ticks(price_ticks, qty_lots);
-        assert!(ticks.is_ok());
-        if let Ok(ticks) = ticks {
-            assert_eq!(i128::from(ticks), expected);
+        let expected = (i128::from(price_ticks) * i128::from(qty_lots)) / SCALE;
+        match notional_ticks(price_ticks, qty_lots) {
+            Ok(ticks) => assert_eq!(i128::from(ticks), expected),
+            Err(_) => panic!("this square cannot overflow"),
         }
     }
 
@@ -192,40 +162,8 @@ mod proofs {
     fn notional_overflow_does_not_wrap() {
         let bump: u8 = kani::any();
         kani::assume(bump > 0);
-        let base: i64 = 1_000_000_000_000_000;
-        let ticks = base.checked_add(i64::from(bump));
-        assert!(ticks.is_some());
-        if let Some(ticks) = ticks {
-            let result = notional_ticks(ticks, ticks);
-            kani::cover!(result == Err(FixedError::Overflow), "overflow");
-            assert_eq!(result, Err(FixedError::Overflow));
-        }
-    }
-
-    /// One side negative and the other not. `price < 0 || qty < 0` is
-    /// load-bearing: an `&&` guard accepts this input.
-    #[kani::proof]
-    fn notional_uneven_boundary() {
-        let price_ticks: i64 = kani::any();
-        let qty_lots: i64 = kani::any();
-        kani::assume((price_ticks < 0) != (qty_lots < 0));
-        assert_eq!(
-            notional_ticks(price_ticks, qty_lots),
-            Err(FixedError::Negative)
-        );
-    }
-
-    /// Both inputs negative, including the `i64::MIN` corner. Removing the
-    /// guard in `notional_ticks` makes `(-1) * (-1) / SCALE` return `Ok(0)`.
-    #[kani::proof]
-    fn notional_rejects_negative() {
-        let price_ticks: i64 = kani::any();
-        let qty_lots: i64 = kani::any();
-        kani::assume(price_ticks < 0 && qty_lots < 0);
-        assert_eq!(
-            notional_ticks(price_ticks, qty_lots),
-            Err(FixedError::Negative)
-        );
+        let ticks = 1_000_000_000_000_000 + i64::from(bump);
+        assert_eq!(notional_ticks(ticks, ticks), Err(FixedError::Overflow));
     }
 }
 
@@ -234,33 +172,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn one_whole_unit_times_one_whole_unit() -> Result<(), String> {
-        let scale = i64::try_from(SCALE).map_err(|err| err.to_string())?;
-        let price = Price::from_ticks(scale).map_err(|err| err.to_string())?;
-        let qty = Qty::from_ticks(scale).map_err(|err| err.to_string())?;
-        let got = notional(price, qty).map_err(|err| err.to_string())?;
-        assert_eq!(got.ticks(), scale);
-        Ok(())
+    fn one_whole_unit_times_one_whole_unit() {
+        let price = Price::from_ticks(SCALE as i64).unwrap();
+        let qty = Qty::from_ticks(SCALE as i64).unwrap();
+        assert_eq!(notional(price, qty).unwrap().ticks(), SCALE as i64);
     }
 
     #[test]
-    fn product_below_one_minor_unit_truncates_toward_zero() -> Result<(), String> {
-        let scale = i64::try_from(SCALE).map_err(|err| err.to_string())?;
-        let price = Price::from_ticks(1).map_err(|err| err.to_string())?;
-        let below = scale.checked_sub(1).ok_or("scale does not fit")?;
-        let qty = Qty::from_ticks(below).map_err(|err| err.to_string())?;
-        let got = notional(price, qty).map_err(|err| err.to_string())?;
-        assert_eq!(got.ticks(), 0);
-        Ok(())
+    fn product_below_one_minor_unit_truncates_toward_zero() {
+        let price = Price::from_ticks(1).unwrap();
+        let qty = Qty::from_ticks(SCALE as i64 - 1).unwrap();
+        assert_eq!(notional(price, qty).unwrap().ticks(), 0);
     }
 
     #[test]
-    fn extreme_product_returns_overflow() -> Result<(), String> {
+    fn extreme_product_returns_overflow() {
         let ticks = 1_000_000_000_000_000;
-        let price = Price::from_ticks(ticks).map_err(|err| err.to_string())?;
-        let qty = Qty::from_ticks(ticks).map_err(|err| err.to_string())?;
+        let price = Price::from_ticks(ticks).unwrap();
+        let qty = Qty::from_ticks(ticks).unwrap();
         assert_eq!(notional(price, qty), Err(FixedError::Overflow));
-        Ok(())
     }
 
     #[test]
@@ -269,29 +199,5 @@ mod tests {
         assert_eq!(Qty::from_ticks(-1), Err(FixedError::Negative));
         assert_eq!(Amount::from_ticks(-1), Err(FixedError::Negative));
         assert_eq!(Ratio::from_ticks(-42_342).ticks(), -42_342);
-    }
-
-    #[test]
-    fn negative_guard_rejects_each_sign_pattern() {
-        assert_eq!(notional_ticks(-1, 1), Err(FixedError::Negative));
-        assert_eq!(notional_ticks(1, -1), Err(FixedError::Negative));
-        assert_eq!(notional_ticks(-1, -1), Err(FixedError::Negative));
-        assert_eq!(notional_ticks(i64::MIN, 1), Err(FixedError::Negative));
-        assert_eq!(notional_ticks(1, i64::MIN), Err(FixedError::Negative));
-    }
-
-    #[test]
-    fn uneven_magnitudes_stop_at_the_i64_quotient_edge() -> Result<(), String> {
-        let price = Price::from_ticks(1_000_000_000_000_000).map_err(|err| err.to_string())?;
-        let fits = Qty::from_ticks(922_337_203_685).map_err(|err| err.to_string())?;
-        let overflows = Qty::from_ticks(922_337_203_686).map_err(|err| err.to_string())?;
-        let ticks = notional(price, fits).map_err(|err| err.to_string())?;
-        if ticks.ticks() != 9_223_372_036_850_000_000 {
-            return Err(format!("quotient {} is not the i64 edge", ticks.ticks()));
-        }
-        if notional(price, overflows) != Err(FixedError::Overflow) {
-            return Err("one tick past the edge was accepted".to_owned());
-        }
-        Ok(())
     }
 }

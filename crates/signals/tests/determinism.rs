@@ -3,8 +3,6 @@
 #[path = "support/mod.rs"]
 mod support;
 
-pub use support::Must;
-
 use parangsae_core::BarInterval;
 use parangsae_signals::{
     drive, drive_feature, drive_funding_z, FundingZ, Tsmom, VolRegime, PROD_MAX_AGE_US,
@@ -19,17 +17,17 @@ mod determinism {
         let bars = toy_tsmom_bars();
         let decision = at(hour(4));
         let other = at(hour(5));
-        let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).must();
-        let first = drive(&signal, &bars, decision).must();
-        let again = drive(&signal, &bars, decision).must();
+        let signal = Tsmom::<3>::new(BarInterval::H1, 0.05).unwrap();
+        let first = drive(&signal, &bars, decision).unwrap();
+        let again = drive(&signal, &bars, decision).unwrap();
         assert_eq!(first, again);
-        let _interleaved = drive(&signal, &bars, other).must();
-        assert_eq!(drive(&signal, &bars, decision).must(), first);
-        let fresh = Tsmom::<3>::new(BarInterval::H1, 0.05).must();
-        assert_eq!(drive(&fresh, &bars, decision).must(), first);
+        let _interleaved = drive(&signal, &bars, other).unwrap();
+        assert_eq!(drive(&signal, &bars, decision).unwrap(), first);
+        let fresh = Tsmom::<3>::new(BarInterval::H1, 0.05).unwrap();
+        assert_eq!(drive(&fresh, &bars, decision).unwrap(), first);
         match first {
             Some(out) => assert_eq!(out.decision.target_ticks(), 49_385_225),
-            None => support::fail_test("04:00 emits"),
+            None => panic!("04:00 emits"),
         }
 
         let closes = [
@@ -41,37 +39,43 @@ mod determinism {
             9_801_000_000,
         ];
         let vol_bars = toy_vol_bars(&closes);
-        let vol = VolRegime::<2, 3>::new(BarInterval::H1).must();
-        let feature = drive_feature(&vol, &vol_bars, at(hour(6))).must();
-        assert_eq!(drive_feature(&vol, &vol_bars, at(hour(6))).must(), feature);
-        let _other = drive_feature(&vol, &vol_bars, at(hour(5))).must();
-        assert_eq!(drive_feature(&vol, &vol_bars, at(hour(6))).must(), feature);
-        let fresh_vol = VolRegime::<2, 3>::new(BarInterval::H1).must();
+        let vol = VolRegime::<2, 3>::new(BarInterval::H1).unwrap();
+        let feature = drive_feature(&vol, &vol_bars, at(hour(6))).unwrap();
         assert_eq!(
-            drive_feature(&fresh_vol, &vol_bars, at(hour(6))).must(),
+            drive_feature(&vol, &vol_bars, at(hour(6))).unwrap(),
             feature
         );
-        assert_eq!(feature.must_because("06:00 rank").value.ticks(), 83_333_333);
+        let _other = drive_feature(&vol, &vol_bars, at(hour(5))).unwrap();
+        assert_eq!(
+            drive_feature(&vol, &vol_bars, at(hour(6))).unwrap(),
+            feature
+        );
+        let fresh_vol = VolRegime::<2, 3>::new(BarInterval::H1).unwrap();
+        assert_eq!(
+            drive_feature(&fresh_vol, &vol_bars, at(hour(6))).unwrap(),
+            feature
+        );
+        assert_eq!(feature.expect("06:00 rank").value.ticks(), 83_333_333);
 
         let funding = toy_funding();
-        let signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).must();
+        let signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
         let bars = vec![
             bar_ending_at(hour(25), BarInterval::H1, usdt_ticks(40_000)),
             bar_ending_at(hour(33), BarInterval::H1, usdt_ticks(40_000)),
         ];
-        let first = drive_funding_z(&signal, &bars, &funding, at(hour(25))).must();
-        let _later = drive_funding_z(&signal, &bars, &funding, at(hour(33))).must();
+        let first = drive_funding_z(&signal, &bars, &funding, at(hour(25))).unwrap();
+        let _later = drive_funding_z(&signal, &bars, &funding, at(hour(33))).unwrap();
         assert_eq!(
-            drive_funding_z(&signal, &bars, &funding, at(hour(25))).must(),
+            drive_funding_z(&signal, &bars, &funding, at(hour(25))).unwrap(),
             first
         );
-        let fresh = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).must();
+        let fresh = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
         assert_eq!(
-            drive_funding_z(&fresh, &bars, &funding, at(hour(25))).must(),
+            drive_funding_z(&fresh, &bars, &funding, at(hour(25))).unwrap(),
             first
         );
         assert_eq!(
-            first.must_because("01:00 funding").decision.target_ticks(),
+            first.expect("01:00 funding").decision.target_ticks(),
             -81_649_658
         );
     }

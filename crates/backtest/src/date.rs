@@ -66,31 +66,22 @@ impl UtcDate {
         }
     }
 
-    pub fn start_us(self) -> Result<UtcMicros, DateError> {
+    pub fn start_us(self) -> UtcMicros {
         let days = days_from_civil(
             i64::from(self.year),
             i64::from(self.month),
             i64::from(self.day),
         );
-        let micros = days.checked_mul(MICROS_PER_DAY).ok_or(DateError)?;
-        Ok(UtcMicros::from_micros(micros))
+        let micros = days
+            .checked_mul(MICROS_PER_DAY)
+            .expect("UTC date fits in microseconds");
+        UtcMicros::from_micros(micros)
     }
 
     /// The UTC date containing `ts`. A timestamp exactly at midnight belongs to the new day.
-    pub fn from_micros(ts: UtcMicros) -> Result<Self, DateError> {
+    pub fn from_micros(ts: UtcMicros) -> Self {
         let days = ts.micros().div_euclid(MICROS_PER_DAY);
-        civil_from_days(days).ok_or(DateError)
-    }
-}
-
-/// A civil date that does not fit in `i64` microseconds, or a day count that
-/// does not fit back into a year, month, and day.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DateError;
-
-impl fmt::Display for DateError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("UTC date is outside the microsecond range")
+        civil_from_days(days)
     }
 }
 
@@ -126,22 +117,22 @@ fn days_from_civil(mut year: i64, month: i64, day: i64) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
-fn civil_from_days(days: i64) -> Option<UtcDate> {
+fn civil_from_days(days: i64) -> UtcDate {
     let z = days + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = u64::try_from(z - era * 146_097).ok()?;
+    let doe = u64::try_from(z - era * 146_097).expect("day of era fits");
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
-    let year = i64::try_from(yoe).ok()? + era * 400;
+    let year = i64::try_from(yoe).expect("year of era fits") + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     let mp = (5 * doy + 2) / 153;
     let day = doy - (153 * mp + 2) / 5 + 1;
     let month = if mp < 10 { mp + 3 } else { mp - 9 };
     let year = if month <= 2 { year + 1 } else { year };
-    Some(UtcDate {
-        year: i32::try_from(year).ok()?,
-        month: u8::try_from(month).ok()?,
-        day: u8::try_from(day).ok()?,
-    })
+    UtcDate {
+        year: i32::try_from(year).expect("year fits"),
+        month: u8::try_from(month).expect("month fits"),
+        day: u8::try_from(day).expect("day fits"),
+    }
 }
 
 #[cfg(test)]
@@ -150,41 +141,26 @@ mod tests {
     use parangsae_core::UtcMicros;
 
     #[test]
-    fn unix_epoch_and_leap_day_round_trip() -> Result<(), String> {
-        let epoch = UtcDate::parse("1970-01-01").ok_or("1970-01-01")?;
-        assert_eq!(epoch.start_us().map_err(|err| err.to_string())?.micros(), 0);
+    fn unix_epoch_and_leap_day_round_trip() {
+        assert_eq!(UtcDate::parse("1970-01-01").unwrap().start_us().micros(), 0);
         assert_eq!(
-            UtcDate::from_micros(UtcMicros::from_micros(0))
-                .map_err(|err| err.to_string())?
-                .to_string(),
+            UtcDate::from_micros(UtcMicros::from_micros(0)).to_string(),
             "1970-01-01"
         );
         assert_eq!(
-            UtcDate::from_micros(UtcMicros::from_micros(MICROS_PER_DAY - 1))
-                .map_err(|err| err.to_string())?
-                .to_string(),
+            UtcDate::from_micros(UtcMicros::from_micros(MICROS_PER_DAY - 1)).to_string(),
             "1970-01-01"
         );
         assert_eq!(
-            UtcDate::from_micros(UtcMicros::from_micros(MICROS_PER_DAY))
-                .map_err(|err| err.to_string())?
-                .to_string(),
+            UtcDate::from_micros(UtcMicros::from_micros(MICROS_PER_DAY)).to_string(),
             "1970-01-02"
         );
-        let start = UtcDate::parse("2024-01-01").ok_or("2024-01-01")?;
-        assert_eq!(
-            start.start_us().map_err(|err| err.to_string())?.micros(),
-            1_704_067_200_000_000
-        );
-        assert_eq!(
-            UtcDate::from_micros(start.start_us().map_err(|err| err.to_string())?)
-                .map_err(|err| err.to_string())?,
-            start
-        );
-        let leap = UtcDate::parse("2024-02-29").ok_or("2024-02-29")?;
+        let start = UtcDate::parse("2024-01-01").unwrap();
+        assert_eq!(start.start_us().micros(), 1_704_067_200_000_000);
+        assert_eq!(UtcDate::from_micros(start.start_us()), start);
+        let leap = UtcDate::parse("2024-02-29").unwrap();
         assert_eq!(leap.next().to_string(), "2024-03-01");
         assert!(UtcDate::parse("2024-02-30").is_none());
         assert!(UtcDate::parse("2023-02-29").is_none());
-        Ok(())
     }
 }

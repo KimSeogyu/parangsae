@@ -71,13 +71,6 @@ impl CivilDay {
     pub fn end_us(self) -> UtcMicros {
         self.next().start_us()
     }
-
-    /// First spot-kline archive day whose timestamps are microseconds.
-    pub const SPOT_MICROS_FROM: Self = Self {
-        year: 2025,
-        month: 1,
-        day: 1,
-    };
 }
 
 impl std::fmt::Display for CivilDay {
@@ -131,9 +124,9 @@ pub fn day_of(ts: UtcMicros) -> Result<CivilDay, super::Error> {
 fn civil_from_days(mut z: i64) -> Option<CivilDay> {
     z += 719468;
     let era = if z >= 0 { z } else { z - 146096 } / 146097;
-    let doe = u64::try_from(z - era * 146097).ok()?;
+    let doe = (z - era * 146097) as u64;
     let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
-    let y = i64::try_from(yoe).ok()? + era * 400;
+    let y = yoe as i64 + era * 400;
     let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     let mp = (5 * doy + 2) / 153;
     let d = doy - (153 * mp + 2) / 5 + 1;
@@ -189,8 +182,8 @@ impl DayRange {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct YearMonth {
-    year: i32,
-    month: u8,
+    pub year: i32,
+    pub month: u8,
 }
 
 impl YearMonth {
@@ -202,30 +195,13 @@ impl YearMonth {
         }
     }
 
-    pub const fn year(self) -> i32 {
-        self.year
-    }
-
-    pub const fn month(self) -> u8 {
-        self.month
-    }
-
-    /// Day 1 of a month that `new` already restricted to 1..=12.
     pub fn first(self) -> CivilDay {
-        CivilDay {
-            year: self.year,
-            month: self.month,
-            day: 1,
-        }
+        CivilDay::new(self.year, self.month, 1).expect("month 1..=12 has a first day")
     }
 
-    /// Last civil day. `days_in_month` is 28..=31 for every month `new` accepts.
     pub fn last(self) -> CivilDay {
-        CivilDay {
-            year: self.year,
-            month: self.month,
-            day: days_in_month(self.year, self.month),
-        }
+        let day = days_in_month(self.year, self.month);
+        CivilDay::new(self.year, self.month, day).expect("days_in_month matches CivilDay::new")
     }
 
     pub fn overlaps(self, range: DayRange) -> bool {
@@ -302,26 +278,22 @@ fn parse_hms(text: &str, max: i64, full: &str) -> Result<i64, super::Error> {
 mod tests {
     use super::*;
 
-    fn day(y: i32, m: u8, d: u8) -> Result<CivilDay, String> {
-        CivilDay::new(y, m, d).ok_or_else(|| "fixture date".to_string())
+    fn day(y: i32, m: u8, d: u8) -> CivilDay {
+        CivilDay::new(y, m, d).expect("fixture date")
     }
 
     #[test]
-    fn known_epoch_days() -> Result<(), String> {
-        assert_eq!(day(1970, 1, 1)?.epoch_days(), 0);
-        assert_eq!(day(1970, 1, 1)?.start_us().micros(), 0);
-        assert_eq!(day(2020, 1, 1)?.start_us().micros(), 1_577_836_800_000_000);
-        assert_eq!(day(2025, 1, 1)?.start_us().micros(), 1_735_689_600_000_000);
-        assert_eq!(day(2026, 9, 1)?.start_us().micros(), 1_788_220_800_000_000);
-        assert_eq!(
-            day(2026, 10, 20)?.start_us().micros(),
-            1_792_454_400_000_000
-        );
-        Ok(())
+    fn known_epoch_days() {
+        assert_eq!(day(1970, 1, 1).epoch_days(), 0);
+        assert_eq!(day(1970, 1, 1).start_us().micros(), 0);
+        assert_eq!(day(2020, 1, 1).start_us().micros(), 1_577_836_800_000_000);
+        assert_eq!(day(2025, 1, 1).start_us().micros(), 1_735_689_600_000_000);
+        assert_eq!(day(2026, 9, 1).start_us().micros(), 1_788_220_800_000_000);
+        assert_eq!(day(2026, 10, 20).start_us().micros(), 1_792_454_400_000_000);
     }
 
     #[test]
-    fn round_trip_known_days() -> Result<(), String> {
+    fn round_trip_known_days() {
         for (y, m, d) in [
             (1970, 1, 1),
             (2020, 2, 29),
@@ -331,13 +303,9 @@ mod tests {
             (2026, 9, 30),
             (2099, 12, 31),
         ] {
-            let civil = day(y, m, d)?;
-            assert_eq!(
-                day_of(civil.start_us()).map_err(|err| err.to_string())?,
-                civil
-            );
+            let civil = day(y, m, d);
+            assert_eq!(day_of(civil.start_us()).unwrap(), civil);
         }
-        Ok(())
     }
 
     #[test]
@@ -347,11 +315,10 @@ mod tests {
     }
 
     #[test]
-    fn datetime_is_utc_and_rejects_a_bad_clock() -> Result<(), String> {
-        let ts = parse_utc_datetime("2026-09-01 00:00:00").map_err(|err| err.to_string())?;
-        assert_eq!(ts.micros(), day(2026, 9, 1)?.start_us().micros());
+    fn datetime_is_utc_and_rejects_a_bad_clock() {
+        let ts = parse_utc_datetime("2026-09-01 00:00:00").unwrap();
+        assert_eq!(ts.micros(), day(2026, 9, 1).start_us().micros());
         assert!(parse_utc_datetime("2026-09-01 24:00:00").is_err());
         assert!(parse_utc_datetime("2026-09-01T00:00:00Z").is_err());
-        Ok(())
     }
 }

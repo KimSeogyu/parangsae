@@ -272,46 +272,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn real_archive_literals() -> Result<(), String> {
+    fn real_archive_literals() {
+        assert_eq!(parse_ticks("81903.30").unwrap(), 8_190_330_000_000);
+        assert_eq!(parse_ticks("-0.00042342").unwrap(), -42_342);
+        assert_eq!(parse_ticks("0.00008482").unwrap(), 8_482);
+        assert_eq!(parse_ticks("-5.00").unwrap(), -500_000_000);
+        assert_eq!(parse_ticks("-0.20").unwrap(), -20_000_000);
         assert_eq!(
-            parse_ticks("81903.30").map_err(|err| err.to_string())?,
-            8_190_330_000_000
-        );
-        assert_eq!(
-            parse_ticks("-0.00042342").map_err(|err| err.to_string())?,
-            -42_342
-        );
-        assert_eq!(
-            parse_ticks("0.00008482").map_err(|err| err.to_string())?,
-            8_482
-        );
-        assert_eq!(
-            parse_ticks("-5.00").map_err(|err| err.to_string())?,
-            -500_000_000
-        );
-        assert_eq!(
-            parse_ticks("-0.20").map_err(|err| err.to_string())?,
-            -20_000_000
-        );
-        assert_eq!(
-            parse_ticks("7743705995.7837090000000000").map_err(|err| err.to_string())?,
+            parse_ticks("7743705995.7837090000000000").unwrap(),
             774_370_599_578_370_900
         );
         assert_eq!(parse_ticks("1.000000009"), Err(ScaleError::Scale));
         assert_eq!(parse_ticks("1e-3"), Err(ScaleError::Charset));
         assert_eq!(parse_ticks(""), Err(ScaleError::Empty));
-        Ok(())
     }
 
     #[test]
-    fn format_round_trip_drops_only_trailing_zeros() -> Result<(), String> {
-        let ticks = parse_ticks("81903.3000").map_err(|err| err.to_string())?;
-        assert_eq!(
-            parse_ticks(&format_ticks(ticks)).map_err(|err| err.to_string())?,
-            ticks
-        );
+    fn format_round_trip_drops_only_trailing_zeros() {
+        let ticks = parse_ticks("81903.3000").unwrap();
+        assert_eq!(parse_ticks(&format_ticks(ticks)).unwrap(), ticks);
         assert_eq!(format_ticks(ticks), "81903.3");
-        Ok(())
     }
 
     #[test]
@@ -454,7 +434,7 @@ mod tests {
             (0, -16, "0E-16"),
         ];
         for (ticks, exponent, expected) in cases {
-            let form = equivalent_exponent(ticks, TICK_PLACES, exponent, style)?;
+            let form = equivalent_exponent(ticks, TICK_PLACES, exponent, style);
             if form != expected {
                 return Err(format!(
                     "{ticks} at exponent {exponent} spelled {form}, expected {expected}"
@@ -475,8 +455,7 @@ mod tests {
                 prop_assert_eq!(parse_ticks(&plain), Ok(sample.ticks));
                 prop_assert_eq!(parse_ticks_exact(&plain, TICK_PLACES), Ok(sample.ticks));
                 let sci =
-                    equivalent_exponent(sample.ticks, TICK_PLACES, sample.exponent, sample.style)
-                        .map_err(proptest::test_runner::TestCaseError::fail)?;
+                    equivalent_exponent(sample.ticks, TICK_PLACES, sample.exponent, sample.style);
                 prop_assert_eq!(
                     parse_ticks_exact(&sci, TICK_PLACES),
                     Ok(sample.ticks),
@@ -551,13 +530,8 @@ mod tests {
             )
     }
 
-    fn equivalent_exponent(
-        ticks: i64,
-        scale: u32,
-        exponent: i32,
-        style: ExponentStyle,
-    ) -> Result<String, String> {
-        let scale_i = i32::try_from(scale).map_err(|err| err.to_string())?;
+    fn equivalent_exponent(ticks: i64, scale: u32, exponent: i32, style: ExponentStyle) -> String {
+        let scale_i = i32::try_from(scale).expect("scale fits in i32");
         let neg = ticks < 0;
         let digits = ticks.unsigned_abs().to_string();
         let body = if ticks == 0 {
@@ -571,7 +545,7 @@ mod tests {
         }
         out.push_str(&body);
         out.push_str(&exponent_suffix(exponent, style));
-        Ok(out)
+        out
     }
 
     fn zero_coefficient(style: ExponentStyle) -> String {
@@ -592,10 +566,10 @@ mod tests {
         let shift = -scale - exponent;
         if shift >= 0 {
             let mut int_digits = digits.to_owned();
-            int_digits.push_str(&"0".repeat(usize::try_from(shift).unwrap_or(0)));
+            int_digits.push_str(&"0".repeat(shift as usize));
             return with_fraction(&int_digits, "", style);
         }
-        let places = usize::try_from(-shift).unwrap_or(0);
+        let places = (-shift) as usize;
         if digits.len() > places {
             let split = digits.len() - places;
             with_fraction(&digits[..split], &digits[split..], style)

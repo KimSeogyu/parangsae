@@ -3,12 +3,9 @@
 #[path = "support/mod.rs"]
 mod support;
 
-pub use support::Must;
-
 use std::cmp::Ordering;
 
 use libm::trunc;
-use std::ops::Mul;
 
 use parangsae_core::BarInterval;
 use parangsae_signals::{
@@ -110,18 +107,18 @@ mod target_props {
                 Err(TargetError::NonFinite)
             );
         }
-        assert_eq!(Target::from_f64(0.0).must().ticks(), 0);
-        assert_eq!(Target::from_f64(-0.0).must().ticks(), 0);
-        assert_eq!(Target::from_f64(f64::MIN_POSITIVE).must().ticks(), 0);
-        assert_eq!(Target::from_f64(f64::from_bits(1)).must().ticks(), 0);
-        assert_eq!(Target::from_f64(1.0).must().ticks(), TARGET_SCALE);
-        assert_eq!(Target::from_f64(-1.0).must().ticks(), -TARGET_SCALE);
-        assert_eq!(Target::from_f64(0.999_999_999).must().ticks(), 99_999_999);
-        assert_eq!(Target::from_f64(-0.000_000_009).must().ticks(), 0);
-        assert_eq!(Target::from_f64(f64::MAX).must().ticks(), TARGET_SCALE);
-        assert_eq!(Target::from_f64(f64::MIN).must().ticks(), -TARGET_SCALE);
-        assert_eq!(Target::from_f64(2.0).must().ticks(), TARGET_SCALE);
-        assert_eq!(Target::from_f64(-2.0).must().ticks(), -TARGET_SCALE);
+        assert_eq!(Target::from_f64(0.0).unwrap().ticks(), 0);
+        assert_eq!(Target::from_f64(-0.0).unwrap().ticks(), 0);
+        assert_eq!(Target::from_f64(f64::MIN_POSITIVE).unwrap().ticks(), 0);
+        assert_eq!(Target::from_f64(f64::from_bits(1)).unwrap().ticks(), 0);
+        assert_eq!(Target::from_f64(1.0).unwrap().ticks(), TARGET_SCALE);
+        assert_eq!(Target::from_f64(-1.0).unwrap().ticks(), -TARGET_SCALE);
+        assert_eq!(Target::from_f64(0.999_999_999).unwrap().ticks(), 99_999_999);
+        assert_eq!(Target::from_f64(-0.000_000_009).unwrap().ticks(), 0);
+        assert_eq!(Target::from_f64(f64::MAX).unwrap().ticks(), TARGET_SCALE);
+        assert_eq!(Target::from_f64(f64::MIN).unwrap().ticks(), -TARGET_SCALE);
+        assert_eq!(Target::from_f64(2.0).unwrap().ticks(), TARGET_SCALE);
+        assert_eq!(Target::from_f64(-2.0).unwrap().ticks(), -TARGET_SCALE);
     }
 
     #[test]
@@ -141,7 +138,7 @@ mod target_props {
             let value = f64::from_bits(bits);
             let got = Target::from_f64(value);
             if value.is_finite() {
-                let ticks = got.must().ticks();
+                let ticks = got.unwrap().ticks();
                 prop_assert!((-TARGET_SCALE..=TARGET_SCALE).contains(&ticks));
             } else {
                 prop_assert_eq!(got, Err(TargetError::NonFinite));
@@ -153,8 +150,8 @@ mod target_props {
             let value = f64::from_bits(bits);
             prop_assume!(value.is_finite());
             prop_assume!((-1.0..=1.0).contains(&value));
-            let expected = trunc_to_i64(trunc(<f64 as Mul>::mul(value, 100_000_000.0))).must();
-            prop_assert_eq!(Target::from_f64(value).must().ticks(), expected);
+            let expected = trunc_to_i64(trunc(value * 100_000_000.0)).unwrap();
+            prop_assert_eq!(Target::from_f64(value).unwrap().ticks(), expected);
         }
 
         #[test]
@@ -162,21 +159,21 @@ mod target_props {
             let value = f64::from_bits(bits);
             prop_assume!(value.is_finite());
             if value > 1.0 {
-                prop_assert_eq!(Target::from_f64(value).must().ticks(), TARGET_SCALE);
+                prop_assert_eq!(Target::from_f64(value).unwrap().ticks(), TARGET_SCALE);
             } else if value < -1.0 {
-                prop_assert_eq!(Target::from_f64(value).must().ticks(), -TARGET_SCALE);
+                prop_assert_eq!(Target::from_f64(value).unwrap().ticks(), -TARGET_SCALE);
             }
         }
 
         #[test]
         fn rank_matches_the_integer_formula(seed in any::<u64>()) {
             let mut rng = Rng::new(seed);
-            let len = usize::try_from(rng.below(400) + 1).must();
-            let cur_i = i16::try_from(rng.below(2_001)).must() - 1_000;
+            let len = usize::try_from(rng.below(400) + 1).unwrap();
+            let cur_i = i16::try_from(rng.below(2_001)).unwrap() - 1_000;
             let cur = f64::from(cur_i);
             let mut refs = Vec::with_capacity(len);
             for index in 0..len {
-                let sample = i16::try_from(rng.below(2_001)).must() - 1_000;
+                let sample = i16::try_from(rng.below(2_001)).unwrap() - 1_000;
                 let value = if index == 0 { cur } else { f64::from(sample) };
                 refs.push(value);
             }
@@ -190,14 +187,14 @@ mod target_props {
                     None => prop_assert!(false, "finite inputs"),
                 }
             }
-            let k = u64::try_from(refs.len()).must();
-            let expected = i64::try_from((less * 2 + equal) * 100_000_000 / (k * 2)).must();
-            let rank = Rank::of(cur, &refs).must();
+            let k = u64::try_from(refs.len()).unwrap();
+            let expected = i64::try_from((less * 2 + equal) * 100_000_000 / (k * 2)).unwrap();
+            let rank = Rank::of(cur, &refs).unwrap();
             prop_assert_eq!(rank.ticks(), expected);
             prop_assert!((0..=RANK_SCALE).contains(&rank.ticks()));
 
             let higher = f64::from(cur_i.saturating_add(1));
-            let raised = Rank::of(higher, &refs).must().ticks();
+            let raised = Rank::of(higher, &refs).unwrap().ticks();
             prop_assert!(raised >= rank.ticks());
         }
 
@@ -206,7 +203,7 @@ mod target_props {
             let mut rng = Rng::new(seed);
             let refs = [0.0, 1.0, -1.0];
             let bad = f64::from_bits(0x7ff8_0000_0000_0001);
-            let slot = usize::try_from(rng.below(4)).must();
+            let slot = usize::try_from(rng.below(4)).unwrap();
             if slot == 3 {
                 prop_assert_eq!(Rank::of(bad, &refs), Err(RankError::NonFinite));
             } else {
@@ -219,13 +216,13 @@ mod target_props {
         #[test]
         fn emitted_decisions_stay_in_range(seed in any::<u64>()) {
             let mut rng = Rng::new(seed);
-            let count = i64::try_from(rng.below(40) + 1).must();
+            let count = i64::try_from(rng.below(40) + 1).unwrap();
             let bars = contiguous_bars(BarInterval::H1, count, |index| {
                 usdt_ticks(30_000) + index * 1_000_000
             });
-            let tsmom = Tsmom::<3>::new(BarInterval::H1, 0.05).must();
-            let vol = VolRegime::<2, 3>::new(BarInterval::H1).must();
-            let funding_signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).must();
+            let tsmom = Tsmom::<3>::new(BarInterval::H1, 0.05).unwrap();
+            let vol = VolRegime::<2, 3>::new(BarInterval::H1).unwrap();
+            let funding_signal = FundingZ::<4>::new(BarInterval::H1, 2.0, PROD_MAX_AGE_US).unwrap();
             let funding: Vec<_> = (0..8)
                 .map(|slot| {
                     let rate = slot * 1_000 - 500;

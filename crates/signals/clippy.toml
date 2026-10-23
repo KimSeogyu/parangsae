@@ -1,3 +1,5 @@
+allow-unwrap-in-tests = true
+
 disallowed-methods = [
     { path = "f64::ln", reason = "use libm::log" },
     { path = "f64::log", reason = "use libm::log" },

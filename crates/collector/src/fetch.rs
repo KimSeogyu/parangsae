@@ -169,18 +169,13 @@ mod tests {
     }
 
     #[test]
-    fn other_hosts_are_refused() -> Result<(), String> {
-        let err = match require_public_host("https://example.com/market") {
-            Err(err) => err,
-            Ok(_) => return Err("expected a host error".to_string()),
-        };
+    fn other_hosts_are_refused() {
+        let err = require_public_host("https://example.com/market").unwrap_err();
         assert_eq!(err.check_name(), Some("host"));
-        require_public_host("https://data.binance.vision/data/spot/BTCUSDT.zip")
-            .map_err(|err| err.to_string())?;
+        require_public_host("https://data.binance.vision/data/spot/BTCUSDT.zip").unwrap();
         require_public_host(
             "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision/?prefix=data/",
         )
-        .map_err(|err| err.to_string())?;
-        Ok(())
+        .unwrap();
     }
 }

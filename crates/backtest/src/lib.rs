@@ -34,7 +34,7 @@ pub use batch::{
     turnover_ratio, BatchError, FeeGridRunner, FlatBars, ResultRow, SweepPins, TargetRunner,
     TrialMetrics, TrialSpec, HOLDOUT_START_US,
 };
-pub use date::{DateError, UtcDate};
+pub use date::UtcDate;
 pub use engine::{run, run_fee_grid, RunConfig, FEE_GRID_BPS};
 pub use error::{EngineError, TapeError};
 pub use metrics::{max_drawdown, sharpe_f64};

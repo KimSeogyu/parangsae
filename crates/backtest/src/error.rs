@@ -14,8 +14,6 @@ pub enum EngineError {
     MissingMark(UtcMicros),
     MissingFunding(UtcMicros),
     Unsorted,
-    Date,
-    Broken(&'static str),
     Sim(SimError),
     Tape(TapeError),
 }
@@ -29,8 +27,6 @@ impl fmt::Display for EngineError {
             Self::MissingMark(ts) => write!(f, "missing mark bar at {ts}"),
             Self::MissingFunding(ts) => write!(f, "missing funding stamp at {ts}"),
             Self::Unsorted => write!(f, "tape timestamps are not strictly increasing"),
-            Self::Date => write!(f, "UTC date is outside the microsecond range"),
-            Self::Broken(what) => write!(f, "broken engine invariant: {what}"),
             Self::Sim(err) => write!(f, "{err}"),
             Self::Tape(err) => write!(f, "{err}"),
         }
@@ -42,12 +38,9 @@ impl std::error::Error for EngineError {
         match self {
             Self::Sim(err) => Some(err),
             Self::Tape(err) => Some(err),
-            Self::Gap { .. }
-            | Self::MissingMark(_)
-            | Self::MissingFunding(_)
-            | Self::Unsorted
-            | Self::Date
-            | Self::Broken(_) => None,
+            Self::Gap { .. } | Self::MissingMark(_) | Self::MissingFunding(_) | Self::Unsorted => {
+                None
+            }
         }
     }
 }

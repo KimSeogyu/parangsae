@@ -1,8 +1,6 @@
 //! Funding rows. Visibility is applied here and nowhere else.
 
-use parangsae_core::{
-    AvailableTs, EventTs, Observation, ObservationError, Ratio, ReceivedTs, Timestamps, UtcMicros,
-};
+use parangsae_core::{AvailableTs, EventTs, Observation, Ratio, ReceivedTs, Timestamps, UtcMicros};
 
 use crate::output::SignalError;
 
@@ -56,7 +54,7 @@ pub fn funding_observation(
     let available = funding_time
         .checked_add_micros(VISIBILITY_LAG_US)
         .ok_or(SignalError::Overflow)?;
-    match Observation::from_source(
+    Ok(Observation::new(
         Timestamps {
             event_ts: EventTs::from_micros(funding_time),
             available_ts: AvailableTs::from_micros(available),
@@ -67,8 +65,5 @@ pub fn funding_observation(
             rate,
             interval_hours,
         },
-    ) {
-        Ok(row) => Ok(row),
-        Err(ObservationError::AvailableBeforeEvent) => Err(SignalError::Overflow),
-    }
+    ))
 }

@@ -43,17 +43,8 @@ impl Day {
 }
 
 pub fn write_day(root: &Path, day: &Day) -> std::io::Result<()> {
-    let date = UtcDate::parse(DAY)
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "fixture date"))?;
-    let start = date
-        .start_us()
-        .map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "fixture date is outside the microsecond range",
-            )
-        })?
-        .micros();
+    let date = UtcDate::parse(DAY).expect("fixture date");
+    let start = date.start_us().micros();
     write_klines(root, "um-kline", day, start, |index| {
         (100 + index) * 100_000_000
     })?;
@@ -71,7 +62,6 @@ fn write_klines(
     start: i64,
     close_of: impl Fn(i64) -> i64,
 ) -> std::io::Result<()> {
-    let rows = 3usize;
     let n = 3i64;
     let mut fields = Vec::new();
     let mut columns: Vec<ArrayRef> = Vec::new();
@@ -79,14 +69,14 @@ fn write_klines(
         &mut fields,
         &mut columns,
         "symbol",
-        vec![day.row_symbol; rows],
+        vec![day.row_symbol; n as usize],
         false,
     );
     push_i64(
         &mut fields,
         &mut columns,
         "interval_us",
-        vec![day.interval_us; rows],
+        vec![day.interval_us; n as usize],
         false,
     );
     let open_time: Vec<i64> = (0..n).map(|index| start + index * 60_000_000).collect();
@@ -155,14 +145,14 @@ fn write_klines(
         &mut fields,
         &mut columns,
         "volume_ticks",
-        vec![2 * 100_000_000; rows],
+        vec![2 * 100_000_000; n as usize],
         false,
     );
     push_u32(
         &mut fields,
         &mut columns,
         "schema_version",
-        vec![day.schema_version; rows],
+        vec![day.schema_version; n as usize],
     );
     write_batch(&part(root, dataset), &fields, columns, day.scale)
 }
@@ -268,19 +258,13 @@ fn write_batch(
     let mut metadata = std::collections::HashMap::new();
     metadata.insert("parangsae.scale".to_owned(), scale.to_owned());
     let schema = Arc::new(Schema::new_with_metadata(fields.to_vec(), metadata));
-    let batch = RecordBatch::try_new(schema.clone(), columns)
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err.to_string()))?;
+    let batch = RecordBatch::try_new(schema.clone(), columns).expect("fixture batch");
     let file = File::create(path)?;
     let properties = WriterProperties::builder()
         .set_compression(Compression::SNAPPY)
         .build();
-    let mut writer = ArrowWriter::try_new(file, schema, Some(properties))
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err.to_string()))?;
-    writer
-        .write(&batch)
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err.to_string()))?;
-    writer
-        .close()
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err.to_string()))?;
+    let mut writer = ArrowWriter::try_new(file, schema, Some(properties)).expect("arrow writer");
+    writer.write(&batch).expect("write batch");
+    writer.close().expect("close parquet");
     Ok(())
 }

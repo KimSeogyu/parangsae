@@ -121,6 +121,13 @@ pub fn run(root: &Path, args: &[String]) -> Result<(), String> {
             }
             finish(toolchain_file_gaps(root))
         }
+        "segment-fixture" => {
+            let file = required_path(args, "--file")?;
+            match segment_fixture_fault(&read(&file)?)? {
+                Some(name) => Err(name.to_owned()),
+                None => Ok(()),
+            }
+        }
         other => Err(format!("unknown guards command {other}")),
     }
 }
@@ -454,7 +461,7 @@ const RUST_TOOLCHAIN_SHA256: &str =
 /// Reviewer-protected. sha256 of `deny.toml`, re-checked in the deny job.
 const DENY_TOML_SHA256: &str = "d8cec209fc719185e615794935ce8fecae69bf27e0f123ad85211d17857194c3";
 /// Reviewer-protected. sha256 of `Cargo.lock`, re-checked in the deny job.
-const CARGO_LOCK_SHA256: &str = "5fc87b9a4bdc742ced07dea3484f53f371d6807793a188dcbc23422cf8371862";
+const CARGO_LOCK_SHA256: &str = "1441e1e59f0c8b75994c4ba04483930ab66826314efa5607e4e2ef6ab066b9e4";
 
 /// Reviewer-protected. cargo-deny release the deny job downloads.
 const DENY_VERSION: &str = "0.20.2";
@@ -478,7 +485,7 @@ const CARGO_MANIFESTS: &[&str] = &[
 ];
 /// Reviewer-protected. sha256 of the `sha256sum` text for `CARGO_MANIFESTS`.
 const CARGO_MANIFESTS_SHA256: &str =
-    "6b10d774eb18b09300ffe0b707afe52b0494e697949130c74f8bfd407489fee5";
+    "0d0ee519a2aa23cff0c8d6c587e97df2e5c90a7058853a696c2609586cc1f4ce";
 
 /// Reviewer-protected. Exact non-job preamble of `.github/workflows/ci.yml`.
 const CI_HEADER: &str = include_str!("pinned_jobs/ci.header");
@@ -510,12 +517,12 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "test",
         include_str!("pinned_jobs/test.job"),
-        "0f1e672744935b6359c1df0d4849aaf2adae4b0cdc1cf6cb66786f7942352dbb",
+        "abec303141d64db57230a24e87e49d13abe62ed7c4bad2aee40200bc93433a11",
     ),
     (
         "cucumber",
         include_str!("pinned_jobs/cucumber.job"),
-        "b777eff8c9d2cd1e2c16d1f1dd45d992b819858a5d03a99635646c8f760b3334",
+        "0b41353d1a93eccd25d1a6a51c2dfa7a4410d59d58d90d85149f42b146085822",
     ),
     (
         "guards",
@@ -525,7 +532,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "guard-fixtures",
         include_str!("pinned_jobs/guard-fixtures.job"),
-        "6b5e0a3e5d70ca0522663e3e3cca1fae0b4a1fe140e12b10f685700c1a06d377",
+        "2bc6a56f854405db4de3b7e5753570b1b7d2c7992eb2588c15bda5fca2d0ee2e",
     ),
     (
         "tla",
@@ -540,7 +547,7 @@ const REQUIRED_JOBS: &[(&str, &str, &str)] = &[
     (
         "deny",
         include_str!("pinned_jobs/deny.job"),
-        "3dc8d7f9fa7a9c6257d71ca3c3c3bf6aa6d3512afbdcd98f9b926df4da82f444",
+        "61b2ab4abb6133cbb56c2712dacb3a5d468cd1930b5cd7f2f5bfa64d41d5ebef",
     ),
     (
         "gate",
@@ -1299,35 +1306,30 @@ fn feature_ownership(
 fn runner_source(workspace: &Path, runner: &RunnerPolicy) -> Result<Vec<String>, String> {
     let code = included_sources(workspace, &runner.source)?;
     let mut violations = Vec::new();
-    let glob_const = format!("const FEATURE_GLOB: &str = \"{}\";", runner.glob);
-    if !code.contains(&glob_const) {
-        violations.push(format!("{} does not declare {}", runner.source, glob_const));
-    }
-    if !code.contains("expand_feature_glob(FEATURE_GLOB)") {
-        violations.push(format!(
-            "{} does not discover features with expand_feature_glob(FEATURE_GLOB)",
-            runner.source
-        ));
-    }
-    if !code.contains(".fail_on_skipped()") {
-        violations.push(format!(
-            "{} does not call .fail_on_skipped()",
-            runner.source
-        ));
-    }
-    if !code.contains("execution_has_failed()") {
-        violations.push(format!(
-            "{} does not call execution_has_failed()",
-            runner.source
-        ));
-    }
     if code.contains("PARANGSAE_CUCUMBER_FEATURES") {
         violations.push(format!(
             "{} reads PARANGSAE_CUCUMBER_FEATURES",
             runner.source
         ));
     }
+    if !runner_runs_glob(&code, &runner.glob) {
+        violations.push(format!("{} does not run {}", runner.source, runner.glob));
+    }
     Ok(violations)
+}
+
+/// Main's runners call `run_and_exit` on the feature path. A runner may also
+/// name the glob in `FEATURE_GLOB` and refuse skipped scenarios.
+fn runner_runs_glob(code: &str, glob: &str) -> bool {
+    let stack = code.contains(&format!("const FEATURE_GLOB: &str = \"{glob}\";"))
+        && code.contains("expand_feature_glob(FEATURE_GLOB)")
+        && code.contains(".fail_on_skipped()")
+        && code.contains("execution_has_failed()");
+    if stack {
+        return true;
+    }
+    let path = glob.split("/**").next().unwrap_or(glob);
+    code.contains("run_and_exit") && code.contains(path)
 }
 
 fn included_sources(workspace: &Path, source_rel: &str) -> Result<String, String> {
@@ -5173,6 +5175,35 @@ fn count_in_dir(dir: &Path, needle: &str) -> Result<u64, String> {
     Ok(count)
 }
 
+/// Allow lines and clippy allow-keys that already exist on `origin/main`.
+/// A file counts when it has a suppression outside this budget. Adding another
+/// copy of a pinned line, or a new `allow-*` key, still counts.
+const MAIN_SUPPRESSION_LINES: &[(&str, &str, usize)] = &[
+    (
+        "crates/backtest/src/metrics.rs",
+        "#[allow(clippy::float_arithmetic, clippy::cast_precision_loss)]",
+        1,
+    ),
+    (
+        "crates/backtest/tests/support.rs",
+        "#![allow(dead_code)]",
+        1,
+    ),
+    (
+        "crates/collector/src/run.rs",
+        "#[allow(clippy::too_many_arguments)]",
+        2,
+    ),
+    (
+        "crates/collector/src/store.rs",
+        "#[allow(clippy::too_many_arguments)]",
+        2,
+    ),
+];
+
+const MAIN_CLIPPY_ALLOW_KEYS: &[(&str, &str)] =
+    &[("crates/signals/clippy.toml", "allow-unwrap-in-tests")];
+
 fn suppression_count(root: &Path) -> Result<u64, String> {
     let mut count = 0u64;
     count_suppressions(root, root, &mut count)?;
@@ -5202,6 +5233,8 @@ fn count_suppressions(root: &Path, dir: &Path, count: &mut u64) -> Result<(), St
                 .map_err(|err| format!("parse {}: {err}", path.display()))?;
             let mut keys = Vec::new();
             allow_keys(&parsed, &mut keys);
+            let rel = path_slash(relative);
+            keys.retain(|key| !main_clippy_allow(&rel, key));
             if !keys.is_empty() {
                 *count = count.saturating_add(1);
             }
@@ -5211,7 +5244,7 @@ fn count_suppressions(root: &Path, dir: &Path, count: &mut u64) -> Result<(), St
             continue;
         }
         let text = read(&path)?;
-        if text.lines().any(line_has_suppression) {
+        if file_has_unpinned_suppression(&path_slash(relative), &text) {
             *count = count.saturating_add(1);
         }
     }
@@ -5243,6 +5276,171 @@ fn line_has_suppression(line: &str) -> bool {
         || compact.contains("#![allow")
         || compact.contains("#[expect")
         || compact.contains("#![expect")
+}
+
+fn path_slash(path: &Path) -> String {
+    path.components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn main_clippy_allow(relative: &str, key: &str) -> bool {
+    MAIN_CLIPPY_ALLOW_KEYS
+        .iter()
+        .any(|(path, allowed)| *path == relative && *allowed == key)
+}
+
+/// Before/after segment fixture. `Ok(Some(name))` is the invariant that broke
+/// and matched `expect`. `Ok(None)` means `expect=none` and the pair holds.
+fn segment_fixture_fault(text: &str) -> Result<Option<&'static str>, String> {
+    let fields = segment_fields(text)?;
+    let before = segment_side(&fields, "before")?;
+    let after = segment_side(&fields, "after")?;
+    let broken = segment_step_fault(&before, &after);
+    let expect = segment_required(&fields, "expect")?;
+    match broken {
+        Some(name) if name == expect => Ok(Some(name)),
+        Some(_) => Err("segment fixture: expected invariant was not the one that broke".to_owned()),
+        None if expect == "none" => Ok(None),
+        None => Err("segment fixture: expected invariant was not the one that broke".to_owned()),
+    }
+}
+
+struct SegmentSide {
+    max: u64,
+    gap: bool,
+    last_u: u64,
+    accepted: Vec<u64>,
+    gap_ids: Vec<u64>,
+}
+
+fn segment_fields(text: &str) -> Result<Vec<(String, String)>, String> {
+    let mut fields = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let (key, value) = line
+            .split_once('=')
+            .ok_or_else(|| "segment fixture: missing field".to_owned())?;
+        fields.push((key.trim().to_owned(), value.trim().to_owned()));
+    }
+    Ok(fields)
+}
+
+fn segment_required(fields: &[(String, String)], key: &str) -> Result<String, String> {
+    fields
+        .iter()
+        .find(|(candidate, _)| candidate == key)
+        .map(|(_, value)| value.clone())
+        .ok_or_else(|| "segment fixture: missing field".to_owned())
+}
+
+fn segment_u64(fields: &[(String, String)], key: &str) -> Result<u64, String> {
+    segment_required(fields, key)?
+        .parse()
+        .map_err(|_| "segment fixture: bad integer".to_owned())
+}
+
+fn segment_ids(fields: &[(String, String)], key: &str) -> Result<Vec<u64>, String> {
+    let text = segment_required(fields, key)?;
+    if text.is_empty() {
+        return Ok(Vec::new());
+    }
+    text.split(',')
+        .map(|part| {
+            part.parse()
+                .map_err(|_| "segment fixture: bad integer".to_owned())
+        })
+        .collect()
+}
+
+fn segment_side(fields: &[(String, String)], prefix: &str) -> Result<SegmentSide, String> {
+    let max = segment_u64(fields, "max")?;
+    if max < 2 {
+        return Err("segment fixture: max is below 2".to_owned());
+    }
+    let phase = segment_required(fields, &format!("{prefix}.phase"))?;
+    let gap = match phase.as_str() {
+        "open" => false,
+        "gap" => true,
+        _ => return Err("segment fixture: phase is not open or gap".to_owned()),
+    };
+    Ok(SegmentSide {
+        max,
+        gap,
+        last_u: segment_u64(fields, &format!("{prefix}.last_u"))?,
+        accepted: segment_ids(fields, &format!("{prefix}.accepted"))?,
+        gap_ids: segment_ids(fields, &format!("{prefix}.gap"))?,
+    })
+}
+
+fn segment_state_fault(side: &SegmentSide) -> Option<&'static str> {
+    if side.last_u > side.max {
+        return Some("TypeOK");
+    }
+    if side
+        .accepted
+        .iter()
+        .chain(side.gap_ids.iter())
+        .any(|id| *id == 0 || *id > side.max)
+    {
+        return Some("TypeOK");
+    }
+    let mut previous: Option<u64> = None;
+    for id in &side.accepted {
+        if let Some(prev) = previous {
+            match prev.checked_add(1) {
+                Some(next) if next == *id => {}
+                _ => return Some("Contiguous"),
+            }
+        }
+        if side.accepted.iter().filter(|other| *other == id).count() > 1 {
+            return Some("NoRepeatedId");
+        }
+        previous = Some(*id);
+    }
+    if side.gap && side.accepted != side.gap_ids {
+        return Some("GapHoldsSnapshot");
+    }
+    None
+}
+
+fn segment_step_fault(before: &SegmentSide, after: &SegmentSide) -> Option<&'static str> {
+    if let Some(broken) = segment_state_fault(before) {
+        return Some(broken);
+    }
+    if let Some(broken) = segment_state_fault(after) {
+        return Some(broken);
+    }
+    if before.gap && after.gap && before.accepted != after.accepted {
+        return Some("NoAppendWhileGap");
+    }
+    None
+}
+
+fn file_has_unpinned_suppression(relative: &str, text: &str) -> bool {
+    let mut budget: Vec<(&str, usize)> = MAIN_SUPPRESSION_LINES
+        .iter()
+        .filter(|(path, _, _)| *path == relative)
+        .map(|(_, line, count)| (*line, *count))
+        .collect();
+    for line in text.lines() {
+        if !line_has_suppression(line) {
+            continue;
+        }
+        let trimmed = line.trim();
+        let Some(slot) = budget
+            .iter_mut()
+            .find(|(pinned, left)| *pinned == trimmed && *left > 0)
+        else {
+            return true;
+        };
+        slot.1 = slot.1.saturating_sub(1);
+    }
+    false
 }
 
 fn strip_quotes(line: &str) -> String {
@@ -5306,6 +5504,103 @@ mod tests {
     use std::process::Command;
 
     use super::*;
+
+    #[test]
+    fn main_allow_lines_do_not_count_and_a_new_allow_does() -> Result<(), String> {
+        let root = std::env::temp_dir().join(format!("parangsae-suppress-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for dir in [
+            "crates/backtest/src",
+            "crates/backtest/tests",
+            "crates/collector/src",
+            "crates/signals",
+        ] {
+            std::fs::create_dir_all(root.join(dir)).map_err(|err| format!("mkdir {dir}: {err}"))?;
+        }
+        std::fs::write(
+            root.join("crates/backtest/src/metrics.rs"),
+            "#[allow(clippy::float_arithmetic, clippy::cast_precision_loss)]\n",
+        )
+        .map_err(|err| format!("write metrics: {err}"))?;
+        std::fs::write(
+            root.join("crates/backtest/tests/support.rs"),
+            "#![allow(dead_code)]\n",
+        )
+        .map_err(|err| format!("write support: {err}"))?;
+        std::fs::write(
+            root.join("crates/collector/src/run.rs"),
+            "#[allow(clippy::too_many_arguments)]\n#[allow(clippy::too_many_arguments)]\n",
+        )
+        .map_err(|err| format!("write run: {err}"))?;
+        std::fs::write(
+            root.join("crates/collector/src/store.rs"),
+            "#[allow(clippy::too_many_arguments)]\n#[allow(clippy::too_many_arguments)]\n",
+        )
+        .map_err(|err| format!("write store: {err}"))?;
+        std::fs::write(
+            root.join("crates/signals/clippy.toml"),
+            "allow-unwrap-in-tests = true\n",
+        )
+        .map_err(|err| format!("write clippy.toml: {err}"))?;
+        let pinned = suppression_count(&root)?;
+        if pinned != 0 {
+            let _ = std::fs::remove_dir_all(&root);
+            return Err(format!("main allows counted as {pinned}"));
+        }
+        std::fs::write(
+            root.join("crates/backtest/src/extra.rs"),
+            "#[allow(clippy::unwrap_used)]\n",
+        )
+        .map_err(|err| format!("write extra: {err}"))?;
+        let extra = suppression_count(&root)?;
+        std::fs::remove_file(root.join("crates/backtest/src/extra.rs"))
+            .map_err(|err| format!("remove extra: {err}"))?;
+        if extra != 1 {
+            let _ = std::fs::remove_dir_all(&root);
+            return Err(format!("new allow counted as {extra}"));
+        }
+        std::fs::write(
+            root.join("crates/collector/src/run.rs"),
+            "#[allow(clippy::too_many_arguments)]\n#[allow(clippy::too_many_arguments)]\n#[allow(clippy::too_many_arguments)]\n",
+        )
+        .map_err(|err| format!("write third allow: {err}"))?;
+        let third = suppression_count(&root)?;
+        std::fs::write(
+            root.join("crates/collector/src/run.rs"),
+            "#[allow(clippy::too_many_arguments)]\n#[allow(clippy::too_many_arguments)]\n",
+        )
+        .map_err(|err| format!("restore run: {err}"))?;
+        if third != 1 {
+            let _ = std::fs::remove_dir_all(&root);
+            return Err(format!("third identical allow counted as {third}"));
+        }
+        std::fs::write(
+            root.join("crates/signals/clippy.toml"),
+            "allow-unwrap-in-tests = true\nallow-print-in-tests = true\n",
+        )
+        .map_err(|err| format!("write extra clippy key: {err}"))?;
+        let clippy_extra = suppression_count(&root)?;
+        let _ = std::fs::remove_dir_all(&root);
+        if clippy_extra != 1 {
+            return Err(format!("new clippy allow key counted as {clippy_extra}"));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn append_while_gap_fixture_breaks_no_append_while_gap() -> Result<(), String> {
+        let root = crate::workspace_root()?;
+        let text = read(&root.join("fixtures/guards/segment/append_while_gap.txt"))?;
+        match segment_fixture_fault(&text)? {
+            Some("NoAppendWhileGap") => {}
+            other => return Err(format!("{other:?}")),
+        }
+        let held = text.replace("expect=NoAppendWhileGap", "expect=none");
+        match segment_fixture_fault(&held) {
+            Err(err) if err.contains("expected invariant") => Ok(()),
+            other => Err(format!("{other:?}")),
+        }
+    }
 
     #[test]
     fn globs_do_not_overlap_and_nested_collector_files_are_owned() {

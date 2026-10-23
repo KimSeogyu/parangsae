@@ -45,7 +45,7 @@ pub const FUNDING_CLOCK: SourceClock = SourceClock::new(TimeUnit::Millis);
 
 /// First archive date whose spot klines are microseconds.
 pub fn spot_micros_from() -> CivilDay {
-    CivilDay::SPOT_MICROS_FROM
+    CivilDay::new(2025, 1, 1).expect("2025-01-01 is a real date")
 }
 
 pub fn spot_kline_clock(archive_day: CivilDay) -> SourceClock {

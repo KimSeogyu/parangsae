@@ -11,7 +11,7 @@ mod name;
 mod parse;
 mod rows;
 
-use crate::civil::CivilDay;
+use crate::civil::{CivilDay, YearMonth};
 use crate::normalize::{spot_kline_clock, SourceClock, FUNDING_CLOCK, UM_KLINE_CLOCK};
 
 pub use check::{
@@ -207,7 +207,9 @@ pub fn list_url(prefix: &str, marker: &str) -> Result<String, crate::Error> {
 pub fn archive_clock_day(name: &ArchiveName) -> CivilDay {
     match name.day {
         Some(day) => day,
-        None => name.month.first(),
+        None => YearMonth::new(name.month.year, name.month.month)
+            .expect("classified months are 1..=12")
+            .first(),
     }
 }
 

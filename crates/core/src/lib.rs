@@ -4,6 +4,8 @@
 //! into these types. Signal code reads a [`Causal`] view, which exists only for
 //! rows whose `available_ts` is at or before the decision time.
 
+#![forbid(unsafe_code)]
+
 pub mod bar;
 pub mod causal;
 pub mod fixed;
@@ -13,7 +15,7 @@ pub mod time;
 pub mod timestamps;
 
 pub use bar::{BarError, BarInterval, ResampledBar};
-pub use causal::{Causal, DecisionTime, Observation, ObservationError};
+pub use causal::{Causal, DecisionTime, Observation};
 pub use fixed::{notional, Amount, FixedError, Notional, Price, Qty, Ratio, SCALE};
 pub use symbol::{Symbol, SymbolError};
 pub use time::{

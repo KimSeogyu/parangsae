@@ -4,6 +4,8 @@
 //! public S3 listing. It does not sign requests, read API keys, or open a
 //! market-data WebSocket. REST and WebSocket modules stay boundaries.
 
+#![forbid(unsafe_code)]
+
 #[cfg(test)]
 mod pipeline_test;
 
@@ -22,7 +24,3 @@ pub mod vision;
 pub mod ws;
 
 pub use error::Error;
-
-pub(crate) fn u64_from_usize(value: usize) -> Result<u64, Error> {
-    u64::try_from(value).map_err(|_| Error::check("overflow", "count does not fit in u64"))
-}

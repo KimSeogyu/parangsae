@@ -232,12 +232,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn zero_is_not_a_millisecond_timestamp() -> Result<(), String> {
-        let err = match require_declared_unit(0, TimeUnit::Millis) {
-            Err(err) => err,
-            Ok(_) => return Err("expected a unit error".to_string()),
-        };
+    fn zero_is_not_a_millisecond_timestamp() {
+        let err = require_declared_unit(0, TimeUnit::Millis).unwrap_err();
         assert!(matches!(err, UnitError::UnexpectedWidth { digits: 1 }));
-        Ok(())
     }
 }

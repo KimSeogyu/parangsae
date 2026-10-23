@@ -91,7 +91,7 @@
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum Cargo.lock)"
           lock_got="${lock_line%% *}"
-          if [ "$lock_got" != "5fc87b9a4bdc742ced07dea3484f53f371d6807793a188dcbc23422cf8371862" ]; then
+          if [ "$lock_got" != "1441e1e59f0c8b75994c4ba04483930ab66826314efa5607e4e2ef6ab066b9e4" ]; then
             echo "Cargo.lock sha256 does not match"
             exit 1
           fi
@@ -128,7 +128,7 @@
             RUSTUP_HOME=/home/runner/.rustup \
             /usr/bin/sha256sum)"
           manifest_got="${manifest_line%% *}"
-          if [ "$manifest_got" != "6b10d774eb18b09300ffe0b707afe52b0494e697949130c74f8bfd407489fee5" ]; then
+          if [ "$manifest_got" != "0d0ee519a2aa23cff0c8d6c587e97df2e5c90a7058853a696c2609586cc1f4ce" ]; then
             echo "cargo manifests sha256 does not match"
             exit 1
           fi

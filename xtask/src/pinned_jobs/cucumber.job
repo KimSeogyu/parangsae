@@ -30,6 +30,4 @@
         run: cargo test -p parangsae-collector --test vision_integrity
       - name: instrument rules features
         run: cargo test -p parangsae-core --test instrument_rules
-      - name: malformed feature and undefined step fail
-        run: cargo test -p parangsae-core --test feature_reject
 

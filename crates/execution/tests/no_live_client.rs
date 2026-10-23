@@ -1,7 +1,7 @@
 //! Fails if the execution crate grows a network client.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 const BANNED: &[&str] = &[
     "std::net",
@@ -16,36 +16,31 @@ const BANNED: &[&str] = &[
 ];
 
 #[test]
-fn execution_sources_have_no_order_transport() -> Result<(), String> {
+fn execution_sources_have_no_order_transport() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let mut files = Vec::new();
-    collect_rs(root.join("src").as_path(), &mut files)?;
-    if files.is_empty() {
-        return Err("execution src is missing".to_owned());
-    }
+    collect_rs(root.join("src").as_path(), &mut files);
+    assert!(!files.is_empty(), "execution src is missing");
     for path in files {
-        let text = fs::read_to_string(&path).map_err(|err| format!("read {path:?}: {err}"))?;
+        let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("read {path:?}: {err}"));
         for banned in BANNED {
-            if text.contains(banned) {
-                return Err(format!(
-                    "{} contains {banned}, which this scaffold does not ship",
-                    path.display()
-                ));
-            }
+            assert!(
+                !text.contains(banned),
+                "{} contains {banned}, which this scaffold does not ship",
+                path.display()
+            );
         }
     }
-    Ok(())
 }
 
-fn collect_rs(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), String> {
-    for entry in fs::read_dir(dir).map_err(|err| format!("read {}: {err}", dir.display()))? {
-        let entry = entry.map_err(|err| err.to_string())?;
+fn collect_rs(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+    for entry in fs::read_dir(dir).unwrap_or_else(|err| panic!("read {}: {err}", dir.display())) {
+        let entry = entry.expect("dir entry");
         let path = entry.path();
         if path.is_dir() {
-            collect_rs(&path, out)?;
+            collect_rs(&path, out);
         } else if path.extension().is_some_and(|ext| ext == "rs") {
             out.push(path);
         }
     }
-    Ok(())
 }

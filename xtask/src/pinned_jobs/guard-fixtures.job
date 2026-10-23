@@ -110,7 +110,7 @@
       - name: append while gap breaks NoAppendWhileGap
         run: |
           set +e
-          output=$(cargo run -q -p parangsae-collector --bin segment-invariants -- fixtures/guards/segment/append_while_gap.txt 2>&1)
+          output=$(cargo xtask guards segment-fixture --file fixtures/guards/segment/append_while_gap.txt 2>&1)
           status=$?
           set -e
           printf '%s\n' "$output"

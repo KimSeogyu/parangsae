@@ -8,7 +8,6 @@ use crate::bars::prepare;
 use crate::feature::FeatureOutput;
 use crate::output::{ParamError, SignalError};
 use crate::rank::Rank;
-use crate::real::{fadd, fdiv, fmul};
 use crate::window::{nonzero, CausalFeature, CausalWindow};
 
 /// Realized-vol percentile over the last `W + K + 1` bars.
@@ -75,7 +74,7 @@ fn log_returns(closes: &[f64]) -> Result<Vec<f64>, SignalError> {
         if pair[0] <= 0.0 || pair[1] <= 0.0 {
             return Err(SignalError::InvalidFeature);
         }
-        let step = log(fdiv(pair[1], pair[0]));
+        let step = log(pair[1] / pair[0]);
         if !step.is_finite() {
             return Err(SignalError::InvalidFeature);
         }
@@ -92,12 +91,9 @@ fn realized_vol(returns: &[f64], end: usize, width: usize) -> Result<f64, Signal
     let start = end - width;
     let mut squares = 0.0;
     for value in &returns[start..end] {
-        squares = fadd(squares, fmul(*value, *value));
+        squares += value * value;
     }
-    let mean = fdiv(
-        squares,
-        f64::from(u16::try_from(width).map_err(|_| SignalError::InvalidFeature)?),
-    );
+    let mean = squares / f64::from(u16::try_from(width).map_err(|_| SignalError::InvalidFeature)?);
     let vol = sqrt(mean);
     if !vol.is_finite() {
         return Err(SignalError::InvalidFeature);

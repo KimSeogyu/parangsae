@@ -65,12 +65,10 @@ impl Report {
     }
 }
 
-pub(crate) fn daily_equity(
-    curve: &[(UtcMicros, Cash)],
-) -> Result<Vec<(UtcDate, Cash)>, crate::date::DateError> {
+pub(crate) fn daily_equity(curve: &[(UtcMicros, Cash)]) -> Vec<(UtcDate, Cash)> {
     let mut out = Vec::new();
     for (ts, cash) in curve {
-        let day = UtcDate::from_micros(*ts)?;
+        let day = UtcDate::from_micros(*ts);
         if let Some((last_day, last_cash)) = out.last_mut() {
             if *last_day == day {
                 *last_cash = *cash;
@@ -79,7 +77,7 @@ pub(crate) fn daily_equity(
         }
         out.push((day, *cash));
     }
-    Ok(out)
+    out
 }
 
 fn equity_csv(curve: &[(UtcMicros, Cash)]) -> String {
