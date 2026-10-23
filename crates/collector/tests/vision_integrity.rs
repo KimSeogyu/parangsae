@@ -271,10 +271,15 @@ fn slot_funding(world: &mut VisionWorld, micros: i64) {
         rows[0].event_ts.micros().micros(),
         rows[0].raw_calc_time.micros()
     );
-    assert_eq!(
-        rows[0].available_ts.micros().micros(),
-        rows[0].funding_time.micros()
-    );
+}
+
+#[then(regex = r"^the first funding available time is (\d+) microseconds$")]
+fn available_funding(world: &mut VisionWorld, micros: i64) {
+    let Loaded::Funding(rows) = &world.loaded else {
+        panic!("funding")
+    };
+    assert_eq!(rows[0].available_ts.micros().micros(), micros);
+    assert!(rows[0].available_ts.micros().micros() >= rows[0].event_ts.micros().micros());
 }
 
 #[when("the September 2026 funding slots are checked")]

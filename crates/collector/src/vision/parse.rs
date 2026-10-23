@@ -205,6 +205,14 @@ pub fn parse_funding(
                 format!("line {line_no} calc_time {} {err}", raw_calc.micros()),
             )
         })?;
+        let available = funding_time
+            .checked_add_micros(ONE_MINUTE_US)
+            .ok_or_else(|| {
+                Error::check(
+                    "available_ts",
+                    format!("line {line_no} funding visibility overflow"),
+                )
+            })?;
         rows.push(FundingFact {
             symbol: symbol.clone(),
             raw_calc_time: raw_calc,
@@ -212,7 +220,7 @@ pub fn parse_funding(
             interval_hours,
             rate,
             event_ts: EventTs::from_micros(raw_calc),
-            available_ts: AvailableTs::from_micros(funding_time),
+            available_ts: AvailableTs::from_micros(available),
             received_ts: received,
             schema_version: SCHEMA_FUNDING,
         });
@@ -457,7 +465,7 @@ mod tests {
         assert_eq!(parsed.rows[0].funding_time.micros(), 1_788_220_800_000_000);
         assert_eq!(
             parsed.rows[0].available_ts.micros().micros(),
-            1_788_220_800_000_000
+            1_788_220_860_000_000
         );
         assert_eq!(
             parsed.rows[0].event_ts.micros().micros(),
@@ -466,6 +474,43 @@ mod tests {
         let err =
             parse_funding(&fixture("funding_off_slot.csv"), &symbol(), received()).unwrap_err();
         assert_eq!(err.check_name(), Some("funding_snap"));
+    }
+
+    #[test]
+    fn funding_visibility_is_persisted_without_overwriting_legacy_rows() {
+        let csv = "calc_time,funding_interval_hours,last_funding_rate\n1622505600005,8,0.0001\n";
+        let row = parse_funding(csv, &symbol(), received())
+            .unwrap()
+            .rows
+            .remove(0);
+        let day = CivilDay::new(2021, 6, 1).unwrap();
+        let fresh = tempfile::tempdir().unwrap();
+        let first =
+            crate::store::upsert_funding(fresh.path(), "funding-rate", vec![row.clone()]).unwrap();
+        assert_eq!(first.inserted, 1);
+        let stored =
+            crate::store::load_funding(fresh.path(), "funding-rate", "BTCUSDT", day).unwrap();
+        assert_eq!(stored, vec![row.clone()]);
+        assert_eq!(
+            stored[0].available_ts.micros().micros(),
+            1_622_505_660_000_000
+        );
+        let again =
+            crate::store::upsert_funding(fresh.path(), "funding-rate", vec![row.clone()]).unwrap();
+        assert_eq!(again.inserted, 0);
+        assert_eq!(again.unchanged, 1);
+
+        let legacy_dir = tempfile::tempdir().unwrap();
+        let mut legacy = row.clone();
+        legacy.available_ts = AvailableTs::from_micros(legacy.funding_time);
+        crate::store::upsert_funding(legacy_dir.path(), "funding-rate", vec![legacy.clone()])
+            .unwrap();
+        let conflict =
+            crate::store::upsert_funding(legacy_dir.path(), "funding-rate", vec![row]).unwrap();
+        assert_eq!(conflict.conflicts, 1);
+        let kept =
+            crate::store::load_funding(legacy_dir.path(), "funding-rate", "BTCUSDT", day).unwrap();
+        assert_eq!(kept, vec![legacy]);
     }
 
     #[test]
@@ -484,6 +529,20 @@ mod tests {
     }
 
     proptest! {
+        #[test]
+        fn funding_availability_is_one_minute_after_the_slot(offset_ms in -1_000i64..=1_000) {
+            let slot_ms = 1_622_505_600_000i64;
+            let raw_ms = slot_ms + offset_ms;
+            let csv = format!("calc_time,funding_interval_hours,last_funding_rate\n{raw_ms},8,0.0001\n");
+            let parsed = parse_funding(&csv, &symbol(), received()).unwrap();
+            let row = &parsed.rows[0];
+            prop_assert_eq!(row.raw_calc_time.micros(), raw_ms * 1_000);
+            prop_assert_eq!(row.event_ts.micros().micros(), raw_ms * 1_000);
+            prop_assert_eq!(row.funding_time.micros(), slot_ms * 1_000);
+            prop_assert_eq!(row.available_ts.micros().micros(), slot_ms * 1_000 + 60_000_000);
+            prop_assert!(row.available_ts.micros().micros() >= row.event_ts.micros().micros());
+        }
+
         #[test]
         fn kline_parser_round_trip(minute in 0i64..500, price in 1i64..50_000_000_000i64, volume in 0i64..1_000_000_000i64) {
             let open_ms = 1_622_505_600_000 + minute * 60_000;

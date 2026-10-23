@@ -74,6 +74,7 @@ Feature: Vision archive integrity
     Given the funding fixture "funding_2026-09-01.csv"
     Then the first funding raw time is 1788220800005000 microseconds
     And the first funding slot is 1788220800000000 microseconds
+    And the first funding available time is 1788220860000000 microseconds
 
   Scenario: a funding calc_time an hour off the slot fails
     Given the funding fixture "funding_off_slot.csv"
