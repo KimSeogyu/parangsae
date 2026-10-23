@@ -2,8 +2,8 @@ mod support;
 
 use parangsae_core::Qty;
 use parangsae_execution::{
-    transition, Attempt, BookError, ClientOrderId, HaltCause, IntentId, MaxAttempts, OrderBook,
-    OrderProgress, OrderState, ProgressError, ProgressRestore, TransitionError, ValidatedEvent,
+    transition, Attempt, BookError, Checkpoint, ClientOrderId, HaltCause, IntentId, MaxAttempts,
+    OrderBook, OrderProgress, OrderState, ProgressError, TransitionError, ValidatedEvent,
 };
 use proptest::prelude::*;
 use proptest::test_runner::FileFailurePersistence;
@@ -39,7 +39,7 @@ fn type_ok() {
 
     let wide = MaxAttempts::new(16).expect("wide");
     let narrow = MaxAttempts::new(2).expect("narrow");
-    let rejected = OrderProgress::restore(ProgressRestore {
+    let rejected = OrderProgress::from_checkpoint(Checkpoint {
         state: OrderState::PendingNew,
         qty: Qty::from_ticks(2).expect("qty"),
         cum: Qty::from_ticks(0).expect("cum"),
@@ -48,6 +48,7 @@ fn type_ok() {
         sent: false,
         acked: false,
         last_sent_at: None,
+        fill_ids: Vec::new(),
     });
     assert_eq!(rejected, Err(ProgressError::AttemptOutOfRange));
 }
@@ -139,7 +140,7 @@ fn filled_qty_never_exceeds_order_qty() {
     assert!(filled.cum().ticks() <= filled.qty().ticks());
 
     let huge = Qty::from_ticks(i64::MAX).expect("max qty");
-    let near = OrderProgress::restore(ProgressRestore {
+    let near = OrderProgress::from_checkpoint(Checkpoint {
         state: OrderState::Acked,
         qty: huge,
         cum: Qty::from_ticks(i64::MAX - 1).expect("cum"),
@@ -148,8 +149,9 @@ fn filled_qty_never_exceeds_order_qty() {
         sent: true,
         acked: true,
         last_sent_at: Some(world.sent_at(1)),
+        fill_ids: Vec::new(),
     })
-    .expect("restore");
+    .expect("checkpoint");
     let overflow = ValidatedEvent::Fill {
         qty: Qty::from_ticks(2).expect("fill"),
         fill_id: 9,
@@ -186,6 +188,65 @@ fn duplicate_fill_is_report_conflict() {
         transition(&once, &fill, &world.context()),
         Err(TransitionError::ReportConflict)
     );
+}
+
+#[test]
+fn checkpoint_rejects_ghost_acked() {
+    let world = World::qty2();
+    let ghost = OrderProgress::from_checkpoint(Checkpoint {
+        state: OrderState::Acked,
+        qty: world.qty,
+        cum: Qty::from_ticks(0).expect("cum"),
+        attempt: Attempt::FIRST,
+        max_attempts: world.max_attempts,
+        sent: true,
+        acked: false,
+        last_sent_at: Some(world.sent_at(1)),
+        fill_ids: Vec::new(),
+    });
+    assert_eq!(ghost, Err(ProgressError::InconsistentState));
+}
+
+#[test]
+fn restored_fill_id_is_not_replayed() {
+    let world = World::qty2();
+    let progress = OrderProgress::from_checkpoint(Checkpoint {
+        state: OrderState::PartiallyFilled,
+        qty: world.qty,
+        cum: Qty::from_ticks(1).expect("cum"),
+        attempt: Attempt::FIRST,
+        max_attempts: world.max_attempts,
+        sent: true,
+        acked: false,
+        last_sent_at: Some(world.sent_at(1)),
+        fill_ids: vec![11],
+    })
+    .expect("checkpoint");
+    let replay = ValidatedEvent::Fill {
+        qty: Qty::from_ticks(1).expect("fill"),
+        fill_id: 11,
+    };
+    assert_eq!(
+        transition(&progress, &replay, &world.context()),
+        Err(TransitionError::ReportConflict)
+    );
+    assert_eq!(progress.cum().ticks(), 1);
+}
+
+#[test]
+fn query_cum_cannot_decrease() {
+    let world = World::qty2();
+    let progress = world.order(OrderState::Unknown, 1, true, true, 0, 1);
+    let event = ValidatedEvent::QueryExpired {
+        cum: Qty::from_ticks(0).expect("reported"),
+        evidence: 1,
+    };
+    assert_eq!(
+        transition(&progress, &event, &world.context()),
+        Err(TransitionError::InconsistentQuery)
+    );
+    assert_eq!(progress.cum().ticks(), 1);
+    assert_eq!(progress.state(), OrderState::Unknown);
 }
 
 #[test]
@@ -257,6 +318,16 @@ proptest! {
 }
 
 #[test]
+fn attempt_fifteen_id_differs_from_attempt_zero() {
+    let max = MaxAttempts::new(16).expect("max");
+    let intent = IntentId::from_raw(0);
+    let first = ClientOrderId::from_parts(intent, Attempt::FIRST);
+    let last = ClientOrderId::from_parts(intent, max.last_attempt());
+    assert_eq!(last.attempt().index(), 15);
+    assert_ne!(first.as_str(), last.as_str());
+}
+
+#[test]
 fn client_id_vectors() {
     let max = MaxAttempts::new(16).expect("max");
     let vectors = [
@@ -286,7 +357,7 @@ fn not_found_backwards_clock_is_inconsistent_query() {
     let world = World::qty2();
     let mut progress = world.order(OrderState::Unknown, 0, true, false, 0, 1);
     let future = world.now.micros() + 5;
-    progress = OrderProgress::restore(ProgressRestore {
+    progress = OrderProgress::from_checkpoint(Checkpoint {
         state: progress.state(),
         qty: progress.qty(),
         cum: progress.cum(),
@@ -295,8 +366,9 @@ fn not_found_backwards_clock_is_inconsistent_query() {
         sent: true,
         acked: false,
         last_sent_at: Some(parangsae_execution::Mono::from_micros(future)),
+        fill_ids: Vec::new(),
     })
-    .expect("restore");
+    .expect("checkpoint");
     let event = ValidatedEvent::QueryNotFound {
         elapsed_since_last_send: parangsae_execution::Elapsed::from_micros(1),
     };

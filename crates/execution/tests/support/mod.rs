@@ -11,8 +11,8 @@ use std::path::PathBuf;
 
 use parangsae_core::Qty;
 use parangsae_execution::{
-    transition, Attempt, BookError, CellContext, Elapsed, Event, HaltCause, HaltEpoch, HaltSink,
-    MaxAttempts, Mono, NotFoundAuthority, OrderBook, OrderProgress, OrderState, ProgressRestore,
+    transition, Attempt, BookError, CellContext, Checkpoint, Elapsed, Event, HaltCause, HaltEpoch,
+    HaltSink, MaxAttempts, Mono, NotFoundAuthority, OrderBook, OrderProgress, OrderState,
     TransitionError, ValidatedEvent,
 };
 use sha2::{Digest, Sha256};
@@ -121,17 +121,18 @@ impl World {
     ) -> OrderProgress {
         let attempt = Attempt::from_index(attempt_index, self.max_attempts)
             .unwrap_or_else(|| panic!("attempt {attempt_index}"));
-        OrderProgress::restore(ProgressRestore {
+        OrderProgress::from_checkpoint(Checkpoint {
             state,
             qty: self.qty,
             cum: Qty::from_ticks(cum).expect("cum"),
             attempt,
             max_attempts: self.max_attempts,
             sent,
-            acked,
+            acked: acked_flag(state, acked),
             last_sent_at: Some(self.sent_at(elapsed_us)),
+            fill_ids: Vec::new(),
         })
-        .expect("restore")
+        .expect("checkpoint")
     }
 }
 
@@ -211,17 +212,98 @@ pub fn event_at(event: Event, point: &GridPoint) -> ValidatedEvent {
 }
 
 pub fn state_by_name(name: &str) -> OrderState {
-    OrderState::ALL
+    each_order_state()
         .into_iter()
         .find(|state| state.name() == name)
         .unwrap_or_else(|| panic!("unknown state {name}"))
 }
 
 pub fn event_by_name(name: &str) -> Event {
-    Event::ALL
+    each_event()
         .into_iter()
         .find(|event| event.name() == name)
         .unwrap_or_else(|| panic!("unknown event {name}"))
+}
+
+/// Every `OrderState`. The match is exhaustive, so a new variant fails to compile.
+pub fn each_order_state() -> [OrderState; 9] {
+    let states = [
+        OrderState::PendingNew,
+        OrderState::Acked,
+        OrderState::PartiallyFilled,
+        OrderState::Filled,
+        OrderState::PendingCancel,
+        OrderState::Canceled,
+        OrderState::Rejected,
+        OrderState::Expired,
+        OrderState::Unknown,
+    ];
+    for state in states {
+        let _ = match state {
+            OrderState::PendingNew => 0,
+            OrderState::Acked => 1,
+            OrderState::PartiallyFilled => 2,
+            OrderState::Filled => 3,
+            OrderState::PendingCancel => 4,
+            OrderState::Canceled => 5,
+            OrderState::Rejected => 6,
+            OrderState::Expired => 7,
+            OrderState::Unknown => 8,
+        };
+    }
+    states
+}
+
+/// Every `Event`. The match is exhaustive, so a new variant fails to compile.
+pub fn each_event() -> [Event; 13] {
+    let events = [
+        Event::Ack,
+        Event::Fill,
+        Event::CancelRequested,
+        Event::CancelDenied,
+        Event::CancelConfirmed,
+        Event::Reject,
+        Event::Expire,
+        Event::Timeout,
+        Event::QueryFilled,
+        Event::QueryCanceled,
+        Event::QueryExpired,
+        Event::QueryNotFound,
+        Event::RaceFill,
+    ];
+    for event in events {
+        let _ = match event {
+            Event::Ack => 0,
+            Event::Fill => 1,
+            Event::CancelRequested => 2,
+            Event::CancelDenied => 3,
+            Event::CancelConfirmed => 4,
+            Event::Reject => 5,
+            Event::Expire => 6,
+            Event::Timeout => 7,
+            Event::QueryFilled => 8,
+            Event::QueryCanceled => 9,
+            Event::QueryExpired => 10,
+            Event::QueryNotFound => 11,
+            Event::RaceFill => 12,
+        };
+    }
+    events
+}
+
+/// `Acked` without the ack flag is not a checkpoint. Other states keep the flag.
+fn acked_flag(state: OrderState, acked: bool) -> bool {
+    match state {
+        OrderState::Acked => true,
+        OrderState::PendingNew
+        | OrderState::PartiallyFilled
+        | OrderState::Filled
+        | OrderState::PendingCancel
+        | OrderState::Canceled
+        | OrderState::Rejected
+        | OrderState::Expired
+        | OrderState::Unknown => acked,
+    }
 }
 
 pub struct ReplayCounts {

@@ -1,7 +1,7 @@
 //! Order lifecycle. The only state change is [`transition`].
 //!
-//! Fields of [`OrderProgress`] stay private. Checkpoint restore validates the
-//! numbers and rejects a bad snapshot. It does not clamp.
+//! Fields of [`OrderProgress`] stay private. A checkpoint validates the
+//! numbers, rejects `Acked` without an ack, and keeps fill ids. It does not clamp.
 
 use std::fmt;
 
@@ -27,18 +27,6 @@ pub enum OrderState {
 }
 
 impl OrderState {
-    pub const ALL: [OrderState; 9] = [
-        Self::PendingNew,
-        Self::Acked,
-        Self::PartiallyFilled,
-        Self::Filled,
-        Self::PendingCancel,
-        Self::Canceled,
-        Self::Rejected,
-        Self::Expired,
-        Self::Unknown,
-    ];
-
     pub const fn name(self) -> &'static str {
         match self {
             Self::PendingNew => "PendingNew",
@@ -78,22 +66,6 @@ pub enum Event {
 }
 
 impl Event {
-    pub const ALL: [Event; 13] = [
-        Self::Ack,
-        Self::Fill,
-        Self::CancelRequested,
-        Self::CancelDenied,
-        Self::CancelConfirmed,
-        Self::Reject,
-        Self::Expire,
-        Self::Timeout,
-        Self::QueryFilled,
-        Self::QueryCanceled,
-        Self::QueryExpired,
-        Self::QueryNotFound,
-        Self::RaceFill,
-    ];
-
     pub const fn name(self) -> &'static str {
         match self {
             Self::Ack => "Ack",
@@ -120,7 +92,7 @@ impl fmt::Display for Event {
 }
 
 /// One order. Construct it with [`OrderProgress::new_pending`] or
-/// [`OrderProgress::restore`]. There is no setter and no `Default`.
+/// [`OrderProgress::from_checkpoint`]. There is no setter and no `Default`.
 ///
 /// External code cannot write a field:
 ///
@@ -132,12 +104,22 @@ impl fmt::Display for Event {
 /// progress.state = OrderState::Filled;
 /// ```
 ///
-/// External code cannot build the struct by literal:
+/// External code cannot build the struct by literal. Every field is named,
+/// so this fails because the fields are private:
 ///
 /// ```compile_fail
-/// use parangsae_execution::{OrderProgress, OrderState};
+/// use parangsae_core::Qty;
+/// use parangsae_execution::{Attempt, OrderProgress, OrderState};
 /// let _progress = OrderProgress {
 ///     state: OrderState::PendingNew,
+///     qty: Qty::from_ticks(1).unwrap(),
+///     cum: Qty::from_ticks(0).unwrap(),
+///     attempt: Attempt::FIRST,
+///     sent: false,
+///     acked: false,
+///     last_sent_at: None,
+///     fill_ids: Vec::<u64>::new(),
+///     frozen_cum: None,
 /// };
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -153,9 +135,11 @@ pub struct OrderProgress {
     frozen_cum: Option<Qty>,
 }
 
-/// Numbers for a checkpoint. [`OrderProgress::restore`] checks them.
+/// Numbers for a checkpoint outside this crate.
+/// [`OrderProgress::from_checkpoint`] rejects an `Acked` order that was never
+/// acked and keeps the fill ids on the order.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ProgressRestore {
+pub struct Checkpoint {
     pub state: OrderState,
     pub qty: Qty,
     pub cum: Qty,
@@ -164,6 +148,22 @@ pub struct ProgressRestore {
     pub sent: bool,
     pub acked: bool,
     pub last_sent_at: Option<Mono>,
+    pub fill_ids: Vec<u64>,
+}
+
+/// In-crate checkpoint. Not a public constructor: external callers use
+/// [`Checkpoint`] and [`OrderProgress::from_checkpoint`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ProgressRestore {
+    pub(crate) state: OrderState,
+    pub(crate) qty: Qty,
+    pub(crate) cum: Qty,
+    pub(crate) attempt: Attempt,
+    pub(crate) max_attempts: MaxAttempts,
+    pub(crate) sent: bool,
+    pub(crate) acked: bool,
+    pub(crate) last_sent_at: Option<Mono>,
+    pub(crate) fill_ids: Vec<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -171,6 +171,7 @@ pub enum ProgressError {
     InvalidQuantity,
     Overfill,
     AttemptOutOfRange,
+    InconsistentState,
 }
 
 impl fmt::Display for ProgressError {
@@ -179,6 +180,9 @@ impl fmt::Display for ProgressError {
             Self::InvalidQuantity => write!(f, "order quantity is not positive"),
             Self::Overfill => write!(f, "cumulative fill exceeds order quantity"),
             Self::AttemptOutOfRange => write!(f, "attempt is outside the configured budget"),
+            Self::InconsistentState => {
+                write!(f, "acked state requires the order to have been acked")
+            }
         }
     }
 }
@@ -205,7 +209,21 @@ impl OrderProgress {
         })
     }
 
-    pub fn restore(parts: ProgressRestore) -> Result<Self, ProgressError> {
+    pub fn from_checkpoint(parts: Checkpoint) -> Result<Self, ProgressError> {
+        Self::restore(ProgressRestore {
+            state: parts.state,
+            qty: parts.qty,
+            cum: parts.cum,
+            attempt: parts.attempt,
+            max_attempts: parts.max_attempts,
+            sent: parts.sent,
+            acked: parts.acked,
+            last_sent_at: parts.last_sent_at,
+            fill_ids: parts.fill_ids,
+        })
+    }
+
+    pub(crate) fn restore(parts: ProgressRestore) -> Result<Self, ProgressError> {
         if parts.qty.ticks() <= 0 {
             return Err(ProgressError::InvalidQuantity);
         }
@@ -214,6 +232,9 @@ impl OrderProgress {
         }
         if parts.attempt.index() >= parts.max_attempts.get() {
             return Err(ProgressError::AttemptOutOfRange);
+        }
+        if parts.state == OrderState::Acked && !parts.acked {
+            return Err(ProgressError::InconsistentState);
         }
         let frozen_cum = if terminal(parts.state) {
             Some(parts.cum)
@@ -228,7 +249,7 @@ impl OrderProgress {
             sent: parts.sent,
             acked: parts.acked,
             last_sent_at: parts.last_sent_at,
-            fill_ids: Vec::new(),
+            fill_ids: parts.fill_ids,
             frozen_cum,
         })
     }

@@ -4,8 +4,8 @@ use std::collections::BTreeSet;
 
 use parangsae_execution::{Event, OrderState};
 use support::{
-    assert_every_cell_matches, assert_illegal_cells_halt, event_index, load_fixture, state_index,
-    FIXTURE_SHA256,
+    assert_every_cell_matches, assert_illegal_cells_halt, each_event, each_order_state,
+    event_index, load_fixture, state_index, FIXTURE_SHA256,
 };
 
 #[test]
@@ -20,7 +20,7 @@ fn fixture_has_117_cells() {
     assert_eq!(fixture.cells.len(), 117);
     assert_eq!(
         fixture.cells.len(),
-        OrderState::ALL.len() * Event::ALL.len()
+        each_order_state().len() * each_event().len()
     );
     let pairs: BTreeSet<_> = fixture
         .cells
@@ -43,21 +43,22 @@ fn fixture_and_enums_agree_both_ways() {
         .iter()
         .map(|cell| cell.event.as_str())
         .collect();
-    let rust_states: BTreeSet<_> = OrderState::ALL.into_iter().map(OrderState::name).collect();
-    let rust_events: BTreeSet<_> = Event::ALL.into_iter().map(Event::name).collect();
+    let rust_states: BTreeSet<_> = each_order_state()
+        .into_iter()
+        .map(OrderState::name)
+        .collect();
+    let rust_events: BTreeSet<_> = each_event().into_iter().map(Event::name).collect();
     assert_eq!(json_states, rust_states);
     assert_eq!(json_events, rust_events);
 }
 
 #[test]
 fn all_is_exhaustive() {
-    for (index, state) in OrderState::ALL.into_iter().enumerate() {
+    for (index, state) in each_order_state().into_iter().enumerate() {
         assert_eq!(state_index(state), index);
-        assert_eq!(OrderState::ALL[index], state);
     }
-    for (index, event) in Event::ALL.into_iter().enumerate() {
+    for (index, event) in each_event().into_iter().enumerate() {
         assert_eq!(event_index(event), index);
-        assert_eq!(Event::ALL[index], event);
     }
 }
 

@@ -81,6 +81,42 @@ impl Attempt {
 
 const BASE32: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const CID_LEN: usize = 36;
+/// Bits of the attempt index stored in the client order id.
+/// The width addresses every index the id can carry (`0..=15`).
+const ATTEMPT_ENCODING_BITS: u32 = 8;
+
+/// Low bits kept from the attempt index. Compilation fails when this width
+/// cannot address every attempt the id is allowed to carry, or when it does
+/// not fit in the one byte written as hex.
+const ATTEMPT_MASK: u32 = {
+    if ATTEMPT_ENCODING_BITS > 8 {
+        panic!("attempt encoding must fit in one byte");
+    }
+    if !attempt_width_covers_domain(ATTEMPT_ENCODING_BITS, MaxAttempts::ENCODED_DOMAIN.get()) {
+        panic!("attempt encoding width does not cover the attempt domain");
+    }
+    (1u32 << ATTEMPT_ENCODING_BITS) - 1
+};
+
+/// `bits` can address every attempt index in `0..domain`.
+const fn attempt_width_covers_domain(bits: u32, domain: u8) -> bool {
+    let mut addressable = 1u32;
+    let mut remaining = bits;
+    while remaining > 0 {
+        addressable = match addressable.checked_mul(2) {
+            Some(next) => next,
+            None => return true,
+        };
+        remaining -= 1;
+    }
+    let mut required = 0u32;
+    let mut left = domain;
+    while left > 0 {
+        required += 1;
+        left -= 1;
+    }
+    addressable >= required
+}
 
 /// Deterministic client order id. The same pair always encodes the same text,
 /// and distinct pairs encode distinct text.
@@ -166,9 +202,11 @@ impl fmt::Display for IdError {
 
 impl std::error::Error for IdError {}
 
-/// Full attempt index, written as 8 lowercase hex digits.
+/// Attempt index, masked to [`ATTEMPT_ENCODING_BITS`] and written as 8 lowercase hex digits.
 fn attempt_bits(attempt: Attempt) -> u8 {
-    attempt.index()
+    let index = u32::from(attempt.index());
+    let masked = index & ATTEMPT_MASK;
+    masked.to_le_bytes()[0]
 }
 
 /// 26 base32 symbols. 26 × 5 = 130 bits, so two zero pad bits sit above the u128.

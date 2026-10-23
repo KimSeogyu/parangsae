@@ -21,7 +21,7 @@ pub use config::{ApprovalTiming, ExecutionConfig, PositiveMicros};
 pub use error::ConfigError;
 pub use ids::{Attempt, ClientOrderId, IdError, IntentId, MaxAttempts};
 pub use lifecycle::{
-    transition, CellContext, Event, OrderProgress, OrderState, ProgressError, ProgressRestore,
+    transition, CellContext, Checkpoint, Event, OrderProgress, OrderState, ProgressError,
     TransitionError, ValidatedEvent,
 };
 pub use paper::{
