@@ -9,7 +9,8 @@ pub struct FundingPrint {
     pub rate_ticks: i64,
 }
 
-/// One premium-index minute. `close_ticks` may be negative. `0` is a filler.
+/// One premium-index minute. `close_ticks` may be negative. `count == 0` is not
+/// a sample. A close of 0 with `count > 0` is a premium of 0.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PremiumMinute {
     pub open_us: i64,

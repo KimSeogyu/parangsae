@@ -1,7 +1,9 @@
 //! H5 premium reversal.
 //!
 //! `P_d` is the mean of 1m premium closes, in unit premium, over minutes with
-//! `count > 0`, when that count is at least 1,380. A close of 0 is a premium of 0.
+//! `count > 0` only, when that count is at least 1,380. A bar with `count > 0`
+//! and a close of 0 is a premium of 0 and stays in the mean. A `count == 0`
+//! bar does not. The day's value is used at the next 00:00 UTC.
 //! `z_d` uses the previous `lookback_d` calendar days' non-missing values and
 //! needs at least 80 of them. A high z is short. Holds do not flip or extend.
 
