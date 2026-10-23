@@ -23,3 +23,17 @@ Feature: Collector verify scope
     When the stored um-kline partition on 2021-06-01 is deleted
     And verify is limited to dataset "um-kline" from "2021-06-01" to "2021-06-01"
     Then verify reports missing parquet rows
+
+  Scenario: default verify distinguishes a partial-month ingest from deletion
+    Given a monthly June 2021 um-kline archive ingested only on 2021-06-01
+    When verify has no filters
+    Then verify reports no faults
+    When the stored um-kline partition on 2021-06-01 is deleted
+    And verify has no filters
+    Then verify reports missing parquet rows
+
+  Scenario: default verify still detects corruption after a partial-month ingest
+    Given a monthly June 2021 um-kline archive ingested only on 2021-06-01
+    And the stored um-kline open on 2021-06-01 differs from the archive
+    When verify has no filters
+    Then verify reports a conflict fault

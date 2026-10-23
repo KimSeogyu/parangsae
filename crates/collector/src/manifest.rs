@@ -5,13 +5,15 @@
 //! value in place. `received_ts` is not part of the payload, so a second ingest
 //! does not look like a new value. The model does not include checksum bytes.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use parangsae_core::{ReceivedTs, UtcMicros};
 use serde::{Deserialize, Serialize};
+
+use crate::civil::{parse_day, CivilDay};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ObjectManifest {
@@ -24,6 +26,9 @@ pub struct ObjectManifest {
     pub symbol: String,
     pub row_count: u64,
     pub fetched_at: ReceivedTs,
+    /// UTC days whose windowed archive rows must exist in Parquet, even after
+    /// a failed write. Legacy records without this field check the full archive.
+    pub materialized_days: Option<BTreeSet<CivilDay>>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -175,6 +180,8 @@ struct ManifestLine {
     fetched_at_us: i64,
     event: String,
     previous_sha256: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    materialized_days: Option<Vec<String>>,
 }
 
 pub struct ManifestLog {
@@ -203,7 +210,7 @@ impl ManifestLog {
 
     pub fn record_stored(
         &mut self,
-        object: ObjectManifest,
+        mut object: ObjectManifest,
         previous: Option<[u8; 32]>,
     ) -> Result<(), super::Error> {
         if let Some(current) = self.get(&object.path) {
@@ -211,8 +218,16 @@ impl ManifestLog {
                 && current.schema_version == object.schema_version
                 && current.row_count == object.row_count
                 && current.dataset == object.dataset
+                && current.symbol == object.symbol
+                && current.size_bytes == object.size_bytes
             {
-                return Ok(());
+                match (&current.materialized_days, &mut object.materialized_days) {
+                    (Some(stored), Some(incoming)) => incoming.extend(stored),
+                    _ => object.materialized_days = None,
+                }
+                if current.materialized_days == object.materialized_days {
+                    return Ok(());
+                }
             }
             if current.sha256 == object.sha256 && current.row_count != object.row_count {
                 return Err(super::Error::check(
@@ -265,6 +280,10 @@ impl ManifestLog {
             fetched_at_us: object.fetched_at.micros().micros(),
             event: event.to_owned(),
             previous_sha256: previous.map(hex::encode),
+            materialized_days: object
+                .materialized_days
+                .as_ref()
+                .map(|days| days.iter().map(ToString::to_string).collect()),
         };
         let encoded = serde_json::to_string(&line)
             .map_err(|err| super::Error::check("manifest", err.to_string()))?;
@@ -324,6 +343,17 @@ fn load_active(path: &Path) -> Result<Vec<ObjectManifest>, super::Error> {
             symbol: parsed.symbol,
             row_count: parsed.row_count,
             fetched_at: ReceivedTs::from_micros(UtcMicros::from_micros(parsed.fetched_at_us)),
+            materialized_days: parsed
+                .materialized_days
+                .map(|days| {
+                    days.into_iter()
+                        .map(|day| {
+                            parse_day(&day)
+                                .map_err(|err| super::Error::check("manifest", err.to_string()))
+                        })
+                        .collect()
+                })
+                .transpose()?,
         };
         if let Some(pos) = active.iter().position(|row| row.path == object.path) {
             active[pos] = object;
@@ -341,6 +371,50 @@ mod tests {
 
     fn at(micros: i64) -> ReceivedTs {
         ReceivedTs::from_micros(UtcMicros::from_micros(micros))
+    }
+
+    #[test]
+    fn coverage_is_idempotent_and_belongs_to_one_archive_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        let june1 = CivilDay::new(2021, 6, 1).unwrap();
+        let june2 = CivilDay::new(2021, 6, 2).unwrap();
+        let june3 = CivilDay::new(2021, 6, 3).unwrap();
+        let object = |sha, days| ObjectManifest {
+            url: "https://example.invalid/month.zip".to_owned(),
+            sha256: [sha; 32],
+            size_bytes: 123,
+            schema_version: 1,
+            path: "month.zip".to_owned(),
+            dataset: "um-kline".to_owned(),
+            symbol: "BTCUSDT".to_owned(),
+            row_count: 3,
+            fetched_at: at(1),
+            materialized_days: Some(days),
+        };
+        let mut log = ManifestLog::open(dir.path()).unwrap();
+        log.record_stored(object(1, BTreeSet::from([june1])), None)
+            .unwrap();
+        log.record_stored(object(1, BTreeSet::from([june3])), None)
+            .unwrap();
+        let mut reopened = ManifestLog::open(dir.path()).unwrap();
+        assert_eq!(
+            reopened.get("month.zip").unwrap().materialized_days,
+            Some(BTreeSet::from([june1, june3]))
+        );
+        reopened
+            .record_stored(object(1, BTreeSet::from([june1, june3])), None)
+            .unwrap();
+        let path = dir.path().join("manifest/objects.jsonl");
+        assert_eq!(fs::read_to_string(&path).unwrap().lines().count(), 2);
+
+        reopened
+            .record_stored(object(2, BTreeSet::from([june2])), Some([1; 32]))
+            .unwrap();
+        let replaced = ManifestLog::open(dir.path()).unwrap();
+        assert_eq!(
+            replaced.get("month.zip").unwrap().materialized_days,
+            Some(BTreeSet::from([june2]))
+        );
     }
 
     #[test]

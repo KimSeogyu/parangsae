@@ -377,6 +377,196 @@ fn date_filter_compares_only_that_days_rows_and_still_fails_inside_the_range(
 }
 
 #[test]
+fn partial_month_verify_checks_only_materialized_days_and_still_detects_deletion(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let june1 = day(2021, 6, 1)?;
+    let june2 = day(2021, 6, 2)?;
+    let files = [ArchiveFile {
+        prefix: prefix(VisionDataset::UmKline, Cadence::Monthly)?,
+        file_name: "BTCUSDT-1m-2021-06.zip".to_owned(),
+        csv: format!("{}{}", day_csv(june1, 1), day_csv(june2, 1)),
+    }];
+    ingest(dir.path(), VisionDataset::UmKline, june1, june1, &files)?;
+
+    let scoped = VerifyFilter::parse(&["um-kline"], Some("2021-06-01"), Some("2021-06-01"))?;
+    let control = run::verify(dir.path(), &scoped)?;
+    assert!(control.ok(), "{control}");
+    let full = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert!(
+        full.ok(),
+        "never-ingested June 2 is not deleted data: {full}"
+    );
+    assert_eq!(full.partition_loads, ["um-kline/BTCUSDT/2021-06-01"]);
+
+    std::fs::remove_file(store::fact_path(dir.path(), "um-kline", "BTCUSDT", june1))?;
+    for filter in [&scoped, &VerifyFilter::all()] {
+        let deleted = run::verify(dir.path(), filter)?;
+        assert!(!deleted.ok(), "{deleted}");
+        assert_eq!(
+            deleted.fault_lines,
+            [format!("missing parquet row {}", june1.start_us().micros())]
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn partial_month_repeated_and_overlapping_ingests_preserve_coverage(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let june1 = day(2021, 6, 1)?;
+    let june2 = day(2021, 6, 2)?;
+    let june3 = day(2021, 6, 3)?;
+    let june4 = day(2021, 6, 4)?;
+    let files = [ArchiveFile {
+        prefix: prefix(VisionDataset::UmKline, Cadence::Monthly)?,
+        file_name: "BTCUSDT-1m-2021-06.zip".to_owned(),
+        csv: [june1, june2, june3, june4]
+            .into_iter()
+            .map(|day| day_csv(day, 1))
+            .collect(),
+    }];
+    for (from, to) in [(june1, june1), (june3, june4), (june3, june4)] {
+        ingest(dir.path(), VisionDataset::UmKline, from, to, &files)?;
+    }
+    let disjoint = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert!(disjoint.ok(), "{disjoint}");
+    assert_eq!(
+        disjoint.partition_loads,
+        [
+            "um-kline/BTCUSDT/2021-06-01",
+            "um-kline/BTCUSDT/2021-06-03",
+            "um-kline/BTCUSDT/2021-06-04",
+        ]
+    );
+
+    ingest(dir.path(), VisionDataset::UmKline, june2, june3, &files)?;
+    let overlapping = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert!(overlapping.ok(), "{overlapping}");
+    assert_eq!(overlapping.partition_loads.len(), 4);
+
+    corrupt_open(dir.path(), "um-kline", june1, june1.start_us().micros())?;
+    std::fs::remove_file(store::fact_path(dir.path(), "um-kline", "BTCUSDT", june3))?;
+    let damaged = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert_eq!(
+        damaged.fault_lines,
+        [
+            conflict(june1.start_us().micros()),
+            format!("missing parquet row {}", june3.start_us().micros()),
+        ]
+    );
+    assert!(!damaged.ok());
+    Ok(())
+}
+
+#[test]
+fn partial_month_conflicting_ingest_does_not_hide_its_failed_partition(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let june1 = day(2021, 6, 1)?;
+    let june2 = day(2021, 6, 2)?;
+    ingest(
+        dir.path(),
+        VisionDataset::UmKline,
+        june2,
+        june2,
+        &[ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Daily)?,
+            file_name: "BTCUSDT-1m-2021-06-02.zip".to_owned(),
+            csv: day_csv(june2, 1).replace(",10,10,10,10,", ",20,20,20,20,"),
+        }],
+    )?;
+    let failed = ingest(
+        dir.path(),
+        VisionDataset::UmKline,
+        june1,
+        june2,
+        &[ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Monthly)?,
+            file_name: "BTCUSDT-1m-2021-06.zip".to_owned(),
+            csv: format!("{}{}", day_csv(june1, 1), day_csv(june2, 1)),
+        }],
+    );
+    assert!(failed.unwrap_err().to_string().contains("conflicts=1"));
+    let verified = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert_eq!(verified.fault_lines, [conflict(june2.start_us().micros())]);
+    assert!(!verified.ok());
+    Ok(())
+}
+
+#[test]
+fn partial_month_interrupted_write_remains_in_the_verification_scope(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let june1 = day(2021, 6, 1)?;
+    let june2 = day(2021, 6, 2)?;
+    let blocked = store::fact_path(dir.path(), "um-kline", "BTCUSDT", june2);
+    std::fs::create_dir_all(&blocked)?;
+    let failed = ingest(
+        dir.path(),
+        VisionDataset::UmKline,
+        june1,
+        june2,
+        &[ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Monthly)?,
+            file_name: "BTCUSDT-1m-2021-06.zip".to_owned(),
+            csv: format!("{}{}", day_csv(june1, 1), day_csv(june2, 1)),
+        }],
+    );
+    assert!(failed.is_err());
+    std::fs::remove_dir_all(blocked)?;
+    let verified = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert_eq!(
+        verified.fault_lines,
+        [format!("missing parquet row {}", june2.start_us().micros())]
+    );
+    assert!(!verified.ok());
+    Ok(())
+}
+
+#[test]
+fn partial_month_legacy_manifest_does_not_infer_coverage_from_remaining_files(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let june1 = day(2021, 6, 1)?;
+    let june2 = day(2021, 6, 2)?;
+    let files = [ArchiveFile {
+        prefix: prefix(VisionDataset::UmKline, Cadence::Monthly)?,
+        file_name: "BTCUSDT-1m-2021-06.zip".to_owned(),
+        csv: format!("{}{}", day_csv(june1, 1), day_csv(june2, 1)),
+    }];
+    ingest(dir.path(), VisionDataset::UmKline, june1, june1, &files)?;
+    let path = dir.path().join("manifest/objects.jsonl");
+    let legacy = std::fs::read_to_string(&path)?
+        .lines()
+        .map(|line| -> Result<String, serde_json::Error> {
+            let mut object: serde_json::Value = serde_json::from_str(line)?;
+            object.as_object_mut().unwrap().remove("materialized_days");
+            serde_json::to_string(&object)
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .join("\n");
+    std::fs::write(&path, format!("{legacy}\n"))?;
+    std::fs::remove_file(store::fact_path(dir.path(), "um-kline", "BTCUSDT", june1))?;
+    let deleted = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert_eq!(deleted.fault_lines.len(), 2);
+    assert!(deleted.fault_lines.contains(&format!(
+        "missing parquet row {}",
+        june1.start_us().micros()
+    )));
+
+    ingest(dir.path(), VisionDataset::UmKline, june1, june1, &files)?;
+    let legacy = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert_eq!(
+        legacy.fault_lines,
+        [format!("missing parquet row {}", june2.start_us().micros())]
+    );
+    assert!(!legacy.ok());
+    Ok(())
+}
+
+#[test]
 fn missing_in_scope_kline_partition_fails_verify() -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
     let june1 = day(2021, 6, 1)?;

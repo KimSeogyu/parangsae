@@ -688,6 +688,34 @@ fn corrupt_stored_um(world: &mut VisionWorld) {
     store::upsert_klines(dir, "um-kline", rows).expect("rewrite");
 }
 
+#[given("a monthly June 2021 um-kline archive ingested only on 2021-06-01")]
+fn given_partial_month_store(world: &mut VisionWorld) {
+    let dir = tempfile::tempdir().expect("temp");
+    let june1 = CivilDay::new(2021, 6, 1).expect("june");
+    let june2_ms = CivilDay::new(2021, 6, 2).expect("june").start_us().micros() / 1_000;
+    let csv = format!(
+        "{}{june2_ms},10,10,10,10,0,{},0,0,0,0,0\n",
+        fixture("um_kline_2021-06-01_headerless.csv"),
+        june2_ms + 59_999,
+    );
+    verify_ingest(
+        dir.path(),
+        VisionDataset::UmKline,
+        june1,
+        june1,
+        &verify_prefix(VisionDataset::UmKline, Cadence::Monthly).expect("prefix"),
+        "BTCUSDT-1m-2021-06.zip",
+        &csv,
+    )
+    .expect("partial month ingest");
+    world.verify_dir = Some(dir);
+}
+
+#[when("verify has no filters")]
+fn when_verify_all(world: &mut VisionWorld) {
+    run_verify(world, Ok(VerifyFilter::all()));
+}
+
 #[when("the stored um-kline partition on 2021-06-01 is deleted")]
 fn delete_stored_um_partition(world: &mut VisionWorld) {
     let dir = world.verify_dir.as_ref().expect("store").path();
