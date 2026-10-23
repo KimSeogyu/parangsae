@@ -2,30 +2,46 @@
 //!
 //! [`fold_schedule`] is a pure date function. [`run_walk_forward`] calls the
 //! strategy closure once per config per fold, on the train window and again on
-//! the test window. It does not run a full-sample window.
+//! the test window, then replays the selected test windows on the fee grid.
+//! It does not run a full-sample window.
 //!
-//! Train selection uses only that fold's train [`WindowResult::net_result_ticks`]
-//! at the costs from [`selection_costs`] (5 bps fee, 2 bps slippage). The
-//! closure settles funding. Ties keep the earlier grid point. Each train end
-//! and each test end is a forced-flat instant ([`forced_flat_at`]); the closure
-//! closes the position there and pays `costs`.
+//! The closure is `FnMut(&Config, warmup_start_us, start_us, end_us, &Costs)`.
+//! Bars from `warmup_start_us` are fed to the signal. There is no decision,
+//! fill, funding settlement, or equity point before `start_us`.
+//!
+//! Forced flat fills at the last scored minute's open, not at that minute's
+//! mark close. [`forced_flat_at`] is `[end - 1 minute, end)`. The engine
+//! flattens on the first non-filler open in that minute and pays `costs`.
+//!
+//! Train selection uses only that fold's train annual Sharpe from
+//! [`sharpe_ticks`] at the costs from [`selection_costs`] (5 bps fee, 2 bps
+//! slippage). The closure settles funding. Ties, including two undefined
+//! Sharpes, keep the earlier grid point.
+//!
+//! `config_id` is [`canonical_config_id`] of the grid point: family, params,
+//! initial cash, and the family's outer window (first warmup start through the
+//! last test end). The fold and the segment are fields on `RunStarted`, so one
+//! config is one trial across every fold. S01's 12 configs stay 12 trials.
 //!
 //! Stitched OOS is the selected config's test equity, concatenated. Each fold
 //! starts from its own opening equity. Daily returns are
-//! `trunc((next - prev) * 1e8 / prev)`.
+//! `trunc((next - prev) * 1e8 / prev)`. The fee grid reruns that stitched test
+//! path at 2/4/5/6 bps with 2 bps slippage, plus a 5 bps fee and 5 bps
+//! slippage stress row. Those reruns are not trials.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::panic::{self, AssertUnwindSafe};
 use std::path::Path;
 
-use parangsae_core::{Interval, UtcMicros, SCALE};
+use parangsae_core::{Interval, Ratio, UtcMicros, SCALE};
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
 
 use crate::bar::ONE_MINUTE_US;
 use crate::batch::{canonical_config_id, SweepPins, TrialSpec};
 use crate::canon::sha256_hex;
 use crate::date::UtcDate;
-use crate::engine::{RunConfig, UtcRange};
+use crate::engine::{RunConfig, UtcRange, FEE_GRID_BPS};
+use crate::metrics::{sharpe_of_return_ticks, sharpe_ticks};
 use crate::report::Report;
 use crate::trial_log::{trial_id, StartRecord, TrialError, TrialLog};
 
@@ -48,6 +64,8 @@ pub const SESSION_WARMUP_DAYS: i64 = 365;
 pub const SELECTION_FEE_BPS: u32 = 5;
 /// Slippage, in bps, on every selection fill.
 pub const SELECTION_SLIPPAGE_BPS: u32 = 2;
+/// Slippage, in bps, on the stress replay of the selected path. Not a trial.
+pub const STRESS_SLIPPAGE_BPS: u32 = 5;
 
 const DAY_US: i64 = 86_400_000_000;
 
@@ -165,8 +183,9 @@ impl Fold {
     }
 }
 
-/// Last minute of a scored window. The engine flattens on the first non-filler
-/// open at or after `start`, which is that minute when the tape is a 1m grid.
+/// Last minute of a scored window. The fill is that minute's open, not its
+/// mark close. The engine flattens on the first non-filler open at or after
+/// `start`, which is that minute when the tape is a 1m grid.
 pub fn forced_flat_at(end: UtcMicros) -> Result<UtcRange, ScheduleError> {
     let start = end
         .micros()
@@ -499,6 +518,25 @@ pub struct SegmentRun {
     pub equity_ticks: Vec<i64>,
     pub net_result_ticks: i64,
     pub round_trips: u64,
+    /// Annual Sharpe of this segment's equity, from [`sharpe_ticks`].
+    pub sharpe_annual_ticks: Option<i64>,
+}
+
+/// One fee-grid or stress replay of a family's stitched test path.
+///
+/// `daily_returns` concatenates the selected config's test windows. Each fold
+/// still starts from its own opening equity, so `equity_ticks` restarts and
+/// `net_result_ticks` is the sum of the fold nets. `sharpe_annual_ticks` is
+/// the Sharpe of the concatenated daily returns.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FeeReplay {
+    pub fee_bps: u32,
+    pub slippage_bps: u32,
+    pub daily_returns: Vec<i64>,
+    pub equity_ticks: Vec<i64>,
+    pub net_result_ticks: i64,
+    pub round_trips: u64,
+    pub sharpe_annual_ticks: Option<i64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -517,11 +555,17 @@ pub struct FamilyOutput {
     pub stitched_oos_daily_returns: Vec<i64>,
     pub stitched_oos_equity: Vec<i64>,
     pub oos_round_trips: u64,
+    /// Distinct `trial_id` values begun for this family. Folds do not multiply it.
+    pub n_trials: u64,
+    /// 2/4/5/6 bps at 2 bps slippage, then 5 bps fee at 5 bps slippage.
+    pub fee_replays: Vec<FeeReplay>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WalkForward {
     pub families: Vec<FamilyOutput>,
+    /// Sum of each family's [`FamilyOutput::n_trials`].
+    pub n_trials: u64,
 }
 
 #[derive(Debug)]
@@ -582,15 +626,22 @@ impl<E: std::fmt::Debug + std::fmt::Display> std::error::Error for WalkError<E> 
 
 /// Run every fold of every family.
 ///
-/// `run` is `FnMut(&Config, start_us, end_us, &Costs) -> Result<WindowResult, E>`.
-/// `start_us` is inclusive and `end_us` is exclusive, both UTC midnight
-/// microseconds of one scored segment. The closure flattens at `end_us`.
-/// Selection reads the train result only. The test result is stored and, for
-/// the selected config, appended to that family's OOS series.
+/// `run` is
+/// `FnMut(&Config, warmup_start_us, start_us, end_us, &Costs) -> Result<WindowResult, E>`.
+/// `warmup_start_us` and `start_us` are inclusive. `end_us` is exclusive. All
+/// three are UTC midnight microseconds. The signal reads bars from
+/// `warmup_start_us`. Fills, funding, and scoring start at `start_us`. The
+/// closure flattens at `end_us`, at that minute's open.
 ///
-/// Every call is one trial: `RunStarted` is fsynced before `run`. A holdout
-/// window (`start >= holdout` or `end > holdout`) is aborted and `run` is not
-/// called. `end == holdout` stays in sample.
+/// Selection reads the train annual Sharpe only. The test result is stored
+/// and, for the selected config, appended to that family's OOS series. The
+/// selected test path is then replayed at 2/4/5/6 bps and at the 5+5 stress
+/// row. Replays are not trials.
+///
+/// Every scored call is one `RunStarted`, fsynced before `run`. `config_id`
+/// does not include the fold. `fold` and `segment` do. A holdout window
+/// (`warmup_start >= holdout`, `start >= holdout`, or `end > holdout`) is
+/// aborted and `run` is not called. `end == holdout` stays in sample.
 pub fn run_walk_forward<C, F, E>(
     families: &[FamilyGrid<C>],
     ctx: &WalkContext<'_>,
@@ -598,7 +649,7 @@ pub fn run_walk_forward<C, F, E>(
     mut run: F,
 ) -> Result<WalkForward, WalkError<E>>
 where
-    F: FnMut(&C, i64, i64, &Costs) -> Result<WindowResult, E>,
+    F: FnMut(&C, i64, i64, i64, &Costs) -> Result<WindowResult, E>,
     E: std::fmt::Display,
 {
     if costs.taker_fee.0 != SELECTION_FEE_BPS || costs.slippage.0 != SELECTION_SLIPPAGE_BPS {
@@ -627,7 +678,13 @@ where
         };
         out.push(drive.family(family)?);
     }
-    Ok(WalkForward { families: out })
+    let n_trials = out.iter().try_fold(0u64, |sum, family| {
+        sum.checked_add(family.n_trials).ok_or(WalkError::Overflow)
+    })?;
+    Ok(WalkForward {
+        families: out,
+        n_trials,
+    })
 }
 
 struct Drive<'a, F> {
@@ -640,22 +697,50 @@ struct Drive<'a, F> {
 impl<F> Drive<'_, F> {
     fn family<C, E>(&mut self, family: &FamilyGrid<C>) -> Result<FamilyOutput, WalkError<E>>
     where
-        F: FnMut(&C, i64, i64, &Costs) -> Result<WindowResult, E>,
+        F: FnMut(&C, i64, i64, i64, &Costs) -> Result<WindowResult, E>,
         E: std::fmt::Display,
     {
+        let bounds = config_bounds(&family.folds);
+        let mut identities = Vec::with_capacity(family.points.len());
+        for point in &family.points {
+            identities.push(config_identity(family, self.ctx, point, bounds));
+        }
         let mut folds = Vec::with_capacity(family.folds.len());
         let mut stitched_oos_daily_returns = Vec::new();
         let mut stitched_oos_equity = Vec::new();
         let mut oos_round_trips = 0u64;
+        let mut trial_ids = BTreeSet::new();
         for fold in &family.folds {
             let mut train = Vec::with_capacity(family.points.len());
             for (grid_index, point) in family.points.iter().enumerate() {
-                train.push(self.segment(family, fold, point, grid_index, Segment::Train)?);
+                let row = self.segment(SegmentCall {
+                    family,
+                    fold,
+                    point,
+                    identity: &identities[grid_index],
+                    grid_index,
+                    segment: Segment::Train,
+                    costs: self.costs,
+                    trial: true,
+                })?;
+                trial_ids.insert(row.trial_id.clone());
+                train.push(row);
             }
             let selected_index = Self::select_train(&train);
             let mut test = Vec::with_capacity(family.points.len());
             for (grid_index, point) in family.points.iter().enumerate() {
-                test.push(self.segment(family, fold, point, grid_index, Segment::Test)?);
+                let row = self.segment(SegmentCall {
+                    family,
+                    fold,
+                    point,
+                    identity: &identities[grid_index],
+                    grid_index,
+                    segment: Segment::Test,
+                    costs: self.costs,
+                    trial: true,
+                })?;
+                trial_ids.insert(row.trial_id.clone());
+                test.push(row);
             }
             let chosen = &test[selected_index];
             stitched_oos_daily_returns.extend_from_slice(&chosen.daily_returns);
@@ -671,138 +756,309 @@ impl<F> Drive<'_, F> {
                 test,
             });
         }
+        let fee_replays = self.fee_replays(family, &identities, &folds)?;
+        let n_trials = u64::try_from(trial_ids.len()).map_err(|_| WalkError::Overflow)?;
         Ok(FamilyOutput {
             family: family.family.clone(),
             folds,
             stitched_oos_daily_returns,
             stitched_oos_equity,
             oos_round_trips,
+            n_trials,
+            fee_replays,
         })
     }
 
-    /// Highest train net. An equal net keeps the earlier grid index.
+    /// Highest train annual Sharpe. An equal Sharpe keeps the earlier grid index.
+    /// An undefined Sharpe loses to a defined one and ties with another undefined one.
     fn select_train(train: &[SegmentRun]) -> usize {
         let mut best = 0usize;
         for (index, row) in train.iter().enumerate().skip(1) {
-            if row.net_result_ticks > train[best].net_result_ticks {
+            if sharpe_beats(row.sharpe_annual_ticks, train[best].sharpe_annual_ticks) {
                 best = index;
             }
         }
         best
     }
 
-    fn segment<C, E>(
+    fn fee_replays<C, E>(
         &mut self,
         family: &FamilyGrid<C>,
-        fold: &Fold,
-        point: &GridPoint<C>,
-        grid_index: usize,
-        segment: Segment,
-    ) -> Result<SegmentRun, WalkError<E>>
+        identities: &[Identity],
+        folds: &[FoldOutcome],
+    ) -> Result<Vec<FeeReplay>, WalkError<E>>
     where
-        F: FnMut(&C, i64, i64, &Costs) -> Result<WindowResult, E>,
+        F: FnMut(&C, i64, i64, i64, &Costs) -> Result<WindowResult, E>,
         E: std::fmt::Display,
     {
+        let mut out = Vec::with_capacity(FEE_GRID_BPS.len() + 1);
+        for (fee_bps, slippage_bps) in replay_grid() {
+            if fee_bps == SELECTION_FEE_BPS && slippage_bps == SELECTION_SLIPPAGE_BPS {
+                out.push(replay_from_selection(fee_bps, slippage_bps, folds)?);
+                continue;
+            }
+            let costs = Costs {
+                taker_fee: FeeBps(fee_bps),
+                slippage: SlippageBps(slippage_bps),
+            };
+            let mut daily_returns = Vec::new();
+            let mut equity_ticks = Vec::new();
+            let mut net_result_ticks = 0i64;
+            let mut round_trips = 0u64;
+            for (fold, outcome) in family.folds.iter().zip(folds) {
+                let index = outcome.selected_index;
+                let row = self.segment(SegmentCall {
+                    family,
+                    fold,
+                    point: &family.points[index],
+                    identity: &identities[index],
+                    grid_index: index,
+                    segment: Segment::Test,
+                    costs: &costs,
+                    trial: false,
+                })?;
+                daily_returns.extend_from_slice(&row.daily_returns);
+                equity_ticks.extend_from_slice(&row.equity_ticks);
+                net_result_ticks = net_result_ticks
+                    .checked_add(row.net_result_ticks)
+                    .ok_or(WalkError::Overflow)?;
+                round_trips = round_trips
+                    .checked_add(row.round_trips)
+                    .ok_or(WalkError::Overflow)?;
+            }
+            out.push(FeeReplay {
+                fee_bps,
+                slippage_bps,
+                sharpe_annual_ticks: annual_sharpe(&daily_returns)?,
+                daily_returns,
+                equity_ticks,
+                net_result_ticks,
+                round_trips,
+            });
+        }
+        Ok(out)
+    }
+
+    fn segment<C, E>(&mut self, call: SegmentCall<'_, C>) -> Result<SegmentRun, WalkError<E>>
+    where
+        F: FnMut(&C, i64, i64, i64, &Costs) -> Result<WindowResult, E>,
+        E: std::fmt::Display,
+    {
+        let SegmentCall {
+            family,
+            fold,
+            point,
+            identity,
+            grid_index,
+            segment,
+            costs,
+            trial,
+        } = call;
         let scored = fold.scored(segment);
+        let warmup = fold.warmup(segment).start.micros();
         let start = scored.start.micros();
         let end = scored.end.micros();
-        let spec = trial_spec(family, self.ctx, point, fold, grid_index, segment, scored);
-        let run_id = spec.run_id.clone();
-        let id = trial_id(&spec.config_id, self.ctx.pins.pinned_root(), point.attempt);
-        self.log
-            .begin(StartRecord {
-                run_id: &spec.run_id,
-                trial_id: &id,
-                config_id: &spec.config_id,
-                pinned_root: self.ctx.pins.pinned_root(),
-                attempt: point.attempt,
-                family: &family.family,
-                ts: start,
-            })
-            .map_err(map_trial)?;
-        if let Some(reason) = gate(start, end, self.ctx.holdout_start.micros()) {
-            self.log.abort(&run_id, reason).map_err(map_trial)?;
+        let run_id = format!(
+            "{}-f{:02}-{}-c{}",
+            family.family,
+            fold.index,
+            segment.as_str(),
+            grid_index
+        );
+        if trial {
+            self.log
+                .begin(StartRecord {
+                    run_id: &run_id,
+                    trial_id: &identity.trial_id,
+                    config_id: &identity.config_id,
+                    pinned_root: self.ctx.pins.pinned_root(),
+                    attempt: point.attempt,
+                    family: &family.family,
+                    ts: start,
+                    fold: Some(fold.index),
+                    segment: Some(segment.as_str()),
+                })
+                .map_err(map_trial)?;
+        }
+        if let Some(reason) = gate(warmup, start, end, self.ctx.holdout_start.micros()) {
+            if trial {
+                self.log.abort(&run_id, reason).map_err(map_trial)?;
+            }
             return Err(gate_error(reason, &run_id, start, end));
         }
         let computed = panic::catch_unwind(AssertUnwindSafe(|| {
-            (self.run)(&point.config, start, end, self.costs)
+            (self.run)(&point.config, warmup, start, end, costs)
         }));
         match computed {
             Ok(Ok(result)) => {
                 let days = window_days(&run_id, start, end)?;
                 if let Err(detail) = check_window_result(self.ctx.initial_cash.0, days, &result) {
                     let message = detail.to_string();
-                    self.log.abort(&run_id, &message).map_err(map_trial)?;
+                    if trial {
+                        self.log.abort(&run_id, &message).map_err(map_trial)?;
+                    }
                     return Err(WalkError::Window { run_id, detail });
                 }
-                let digest = window_digest(&result);
-                self.log.finish(&run_id, &digest).map_err(map_trial)?;
+                let sharpe_annual_ticks = match sharpe_ticks(&result.equity_ticks) {
+                    Ok((_, annual)) => annual.map(Ratio::ticks),
+                    Err(err) => {
+                        if trial {
+                            let message = err.to_string();
+                            self.log.abort(&run_id, &message).map_err(map_trial)?;
+                        }
+                        return Err(WalkError::Overflow);
+                    }
+                };
+                if trial {
+                    let digest = window_digest(&result);
+                    self.log.finish(&run_id, &digest).map_err(map_trial)?;
+                }
                 Ok(SegmentRun {
                     grid_index,
                     run_id,
-                    trial_id: id,
-                    config_id: spec.config_id,
+                    trial_id: identity.trial_id.clone(),
+                    config_id: identity.config_id.clone(),
                     daily_returns: result.daily_returns,
                     equity_ticks: result.equity_ticks,
                     net_result_ticks: result.net_result_ticks,
                     round_trips: result.round_trips,
+                    sharpe_annual_ticks,
                 })
             }
             Ok(Err(source)) => {
                 let message = source.to_string();
-                self.log.abort(&run_id, &message).map_err(map_trial)?;
+                if trial {
+                    self.log.abort(&run_id, &message).map_err(map_trial)?;
+                }
                 Err(WalkError::Run { run_id, source })
             }
             Err(payload) => {
-                let _ = self.log.abort(&run_id, "panic");
+                if trial {
+                    let _ = self.log.abort(&run_id, "panic");
+                }
                 panic::resume_unwind(payload);
             }
         }
     }
 }
 
-fn trial_spec<C>(
+struct Identity {
+    config_id: String,
+    trial_id: String,
+}
+
+struct SegmentCall<'a, C> {
+    family: &'a FamilyGrid<C>,
+    fold: &'a Fold,
+    point: &'a GridPoint<C>,
+    identity: &'a Identity,
+    grid_index: usize,
+    segment: Segment,
+    costs: &'a Costs,
+    trial: bool,
+}
+
+fn config_bounds(folds: &[Fold]) -> UtcRange {
+    UtcRange {
+        start: folds[0].train_warmup.start,
+        end: folds[folds.len() - 1].test.end,
+    }
+}
+
+fn config_identity<C>(
     family: &FamilyGrid<C>,
     ctx: &WalkContext<'_>,
     point: &GridPoint<C>,
-    fold: &Fold,
-    grid_index: usize,
-    segment: Segment,
-    scored: UtcRange,
-) -> TrialSpec {
-    let mut spec = TrialSpec {
-        run_id: format!(
-            "{}-f{:02}-{}-c{}",
-            family.family,
-            fold.index,
-            segment.as_str(),
-            grid_index
-        ),
+    bounds: UtcRange,
+) -> Identity {
+    let spec = TrialSpec {
+        run_id: String::new(),
         config_id: String::new(),
         family: family.family.clone(),
         params: point.params.clone(),
         attempt: point.attempt,
-        ts: scored.start,
+        ts: bounds.start,
         run: RunConfig {
             initial_cash: ctx.initial_cash,
-            start: scored.start,
-            end: scored.end,
+            warmup_start: bounds.start,
+            start: bounds.start,
+            end: bounds.end,
             holdout_start: ctx.holdout_start,
-            forced_flat: vec![fold.forced_flat(segment)],
+            forced_flat: Vec::new(),
             mark_gaps: Vec::new(),
             interval: Interval::ONE_HOUR,
             lot_ticks: 100_000,
         },
     };
-    spec.config_id = canonical_config_id(&spec);
-    spec
+    let config_id = canonical_config_id(&spec);
+    let trial_id = trial_id(&config_id, ctx.pins.pinned_root(), point.attempt);
+    Identity {
+        config_id,
+        trial_id,
+    }
 }
 
-fn gate(start: i64, end: i64, holdout: i64) -> Option<&'static str> {
-    if start >= holdout || end > holdout {
+fn replay_grid() -> [(u32, u32); 5] {
+    [
+        (FEE_GRID_BPS[0], SELECTION_SLIPPAGE_BPS),
+        (FEE_GRID_BPS[1], SELECTION_SLIPPAGE_BPS),
+        (FEE_GRID_BPS[2], SELECTION_SLIPPAGE_BPS),
+        (FEE_GRID_BPS[3], SELECTION_SLIPPAGE_BPS),
+        (SELECTION_FEE_BPS, STRESS_SLIPPAGE_BPS),
+    ]
+}
+
+fn replay_from_selection<E>(
+    fee_bps: u32,
+    slippage_bps: u32,
+    folds: &[FoldOutcome],
+) -> Result<FeeReplay, WalkError<E>> {
+    let mut daily_returns = Vec::new();
+    let mut equity_ticks = Vec::new();
+    let mut net_result_ticks = 0i64;
+    let mut round_trips = 0u64;
+    for fold in folds {
+        let chosen = &fold.test[fold.selected_index];
+        daily_returns.extend_from_slice(&chosen.daily_returns);
+        equity_ticks.extend_from_slice(&chosen.equity_ticks);
+        net_result_ticks = net_result_ticks
+            .checked_add(chosen.net_result_ticks)
+            .ok_or(WalkError::Overflow)?;
+        round_trips = round_trips
+            .checked_add(chosen.round_trips)
+            .ok_or(WalkError::Overflow)?;
+    }
+    Ok(FeeReplay {
+        fee_bps,
+        slippage_bps,
+        sharpe_annual_ticks: annual_sharpe(&daily_returns)?,
+        daily_returns,
+        equity_ticks,
+        net_result_ticks,
+        round_trips,
+    })
+}
+
+fn annual_sharpe<E>(returns: &[i64]) -> Result<Option<i64>, WalkError<E>> {
+    match sharpe_of_return_ticks(returns) {
+        Ok((_, annual)) => Ok(annual.map(Ratio::ticks)),
+        Err(_) => Err(WalkError::Overflow),
+    }
+}
+
+fn sharpe_beats(candidate: Option<i64>, incumbent: Option<i64>) -> bool {
+    match (candidate, incumbent) {
+        (Some(left), Some(right)) => left > right,
+        (Some(_), None) => true,
+        (None, _) => false,
+    }
+}
+
+fn gate(warmup: i64, start: i64, end: i64, holdout: i64) -> Option<&'static str> {
+    if warmup >= holdout || start >= holdout || end > holdout {
         return Some("holdout");
     }
-    if end < start {
+    if warmup > start || end < start {
         return Some("bad window");
     }
     None
@@ -1151,6 +1407,19 @@ mod tests {
                     prop_assert_eq!(fold.test.start, prev.test.end);
                 }
                 previous = Some(*fold);
+            }
+        }
+
+        #[test]
+        fn btcusdt_purge_is_two_days(warmup in 0i64..80) {
+            let folds = btcusdt_schedule(warmup).unwrap();
+            prop_assert!(!folds.is_empty());
+            for fold in &folds {
+                prop_assert_eq!(span_days(fold.purge), PURGE_DAYS);
+                prop_assert_eq!(
+                    fold.purge.end.micros() - fold.purge.start.micros(),
+                    PURGE_DAYS * DAY_US
+                );
             }
         }
     }

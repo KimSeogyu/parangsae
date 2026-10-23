@@ -181,6 +181,7 @@ fn run_config(interval: BarInterval) -> RunConfig {
     let minute = 60_000_000;
     RunConfig {
         initial_cash: Cash(1_000_000 * SCALE),
+        warmup_start: date("2020-12-18").expect("sample start").start_us(),
         start: date("2020-12-18").expect("sample start").start_us(),
         end: date("2025-09-30").expect("sample end").next().start_us(),
         holdout_start: date("2025-10-01").expect("holdout").start_us(),

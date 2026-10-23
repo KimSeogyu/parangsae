@@ -1,22 +1,22 @@
 //! Walk-forward selection on a synthetic tape, plus the ledger and holdout gate.
 //!
-//! The tape is five UTC days from 2021-03-01. Warmup is flat, the train day
-//! rises, the two purge days crash, and the test day keeps falling. The long
-//! config is the known train winner. A window that includes the purge crash
-//! would pick the short config instead.
+//! The tape is six UTC days from 2021-03-01. Warmup is flat, the two train days
+//! rise, the two purge days crash, and the test day keeps falling. The long
+//! config is the known train winner on annual Sharpe. A window that includes
+//! the purge crash would pick the short config instead.
 
 mod support;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
 use parangsae_backtest::{
     btcusdt_schedule, canonical_config_id, check_window_result, daily_return_tick, fold_schedule,
-    forced_flat_at, run_targets, run_walk_forward, selection_costs, trial_id, window_result,
-    Decision, EngineError, FamilyGrid, Fold, GridPoint, RunConfig, ScheduleSpec, SignalOutput,
-    SweepPins, Target, TargetSignal, TrialSpec, UtcDate, UtcRange, WalkContext, WalkError,
-    WalkForward, WindowResult, HOLDOUT_START_US,
+    forced_flat_at, run_targets, run_walk_forward, selection_costs, sharpe_ticks, trial_id,
+    window_result, Decision, EngineError, FamilyGrid, Fold, GridPoint, RunConfig, ScheduleSpec,
+    SignalOutput, SweepPins, Target, TargetSignal, TrialSpec, UtcDate, UtcRange, WalkContext,
+    WalkError, WalkForward, WindowResult, FEE_GRID_BPS, HOLDOUT_START_US, STRESS_SLIPPAGE_BPS,
 };
 use parangsae_core::{Causal, DecisionTime, Interval, Side, UtcMicros};
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
@@ -63,6 +63,28 @@ fn ctx<'a>(trials_path: &'a Path, pins: &'a SweepPins, initial: Cash) -> WalkCon
     }
 }
 
+fn scaled_path(initial: i64, template: &[i64]) -> Vec<i64> {
+    let base = template[0];
+    template
+        .iter()
+        .map(|value| initial / base * value)
+        .collect()
+}
+
+fn from_levels(levels: Vec<i64>, round_trips: u64) -> WindowResult {
+    let daily_returns = levels
+        .windows(2)
+        .map(|pair| daily_return_tick(pair[0], pair[1]).unwrap())
+        .collect();
+    let net_result_ticks = levels.last().copied().unwrap() - levels[0];
+    WindowResult {
+        daily_returns,
+        equity_ticks: levels,
+        net_result_ticks,
+        round_trips,
+    }
+}
+
 fn shaped(initial: i64, days: usize, extra: i64, round_trips: u64) -> WindowResult {
     let mut equity_ticks = vec![initial; days + 1];
     let last = equity_ticks.last_mut().expect("opening equity");
@@ -101,7 +123,10 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
     })
     .unwrap();
     let train_end = folds[0].train.end.micros();
-    let train = folds[0].train;
+    let identity = UtcRange {
+        start: folds[0].train_warmup.start,
+        end: folds[0].test.end,
+    };
     let family = FamilyGrid {
         family: "tie".to_owned(),
         folds,
@@ -111,7 +136,7 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
         &[family],
         &ctx(&trials, &pins, initial),
         &selection_costs(),
-        |config, start, end, _| {
+        |config, _warmup, start, end, _| {
             let days = usize::try_from((end - start) / DAY_US).unwrap();
             let is_train = end == train_end;
             let (extra, trips) = if is_train {
@@ -130,6 +155,15 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
     );
     assert!(fold.test[1].net_result_ticks > fold.test[0].net_result_ticks);
     assert_eq!(fold.selected_index, 0);
+    assert_eq!(fold.train[0].config_id, fold.test[0].config_id);
+    assert_ne!(fold.train[0].config_id, fold.train[1].config_id);
+    assert_eq!(output.n_trials, 2);
+    assert_eq!(output.families[0].n_trials, 2);
+    assert_eq!(output.families[0].fee_replays.len(), 5);
+    assert_eq!(
+        output.families[0].fee_replays[2].daily_returns,
+        output.families[0].stitched_oos_daily_returns
+    );
     assert_eq!(output.families[0].oos_round_trips, 1);
     assert_eq!(
         output.families[0].stitched_oos_daily_returns,
@@ -142,13 +176,14 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
         family: "tie".to_owned(),
         params: point(1, 3).params,
         attempt: 3,
-        ts: train.start,
+        ts: identity.start,
         run: RunConfig {
             initial_cash: initial,
-            start: train.start,
-            end: train.end,
+            warmup_start: identity.start,
+            start: identity.start,
+            end: identity.end,
             holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
-            forced_flat: vec![forced_flat_at(train.end).unwrap()],
+            forced_flat: Vec::new(),
             mark_gaps: Vec::new(),
             interval: Interval::ONE_HOUR,
             lot_ticks: 100_000,
@@ -174,19 +209,39 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
         4
     );
     assert!(text.contains(&fold.train[0].trial_id));
+    let started: Vec<Value> = text
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .filter(|row: &Value| row["kind"] == "RunStarted")
+        .collect();
+    assert_eq!(started.len(), 4);
+    assert!(started.iter().all(|row| row["fold"] == 1));
+    assert!(started.iter().any(|row| row["segment"] == "train"));
+    assert!(started.iter().any(|row| row["segment"] == "test"));
+    let ids: BTreeSet<_> = started
+        .iter()
+        .map(|row| row["config_id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids.len(), 2);
 }
 
 #[test]
-fn a_later_config_wins_when_its_train_net_is_higher_and_oos_restarts() {
+fn a_later_config_wins_on_train_sharpe_and_oos_restarts() {
     let dir = tempfile::tempdir().unwrap();
     let pins = pins(dir.path());
     let trials = dir.path().join("trials.jsonl");
     let initial = usd(1_000);
+    let wild = scaled_path(initial.0, &[1_000, 8_000, 3_000]);
+    let mild = scaled_path(initial.0, &[1_000, 1_050, 1_100]);
+    let wild_sharpe = sharpe_ticks(&wild).unwrap().1.unwrap().ticks();
+    let mild_sharpe = sharpe_ticks(&mild).unwrap().1.unwrap().ticks();
+    assert!(mild_sharpe > wild_sharpe);
+    assert!(wild.last().unwrap() - wild[0] > mild.last().unwrap() - mild[0]);
     let folds = fold_schedule(&ScheduleSpec {
         sample_start: date("2021-01-01"),
-        holdout_start: date("2021-05-18"),
+        holdout_start: date("2021-07-03"),
         warmup_days: 0,
-        train_days: 1,
+        train_days: 2,
         purge_days: 1,
         test_days: 90,
         step_days: 90,
@@ -207,26 +262,38 @@ fn a_later_config_wins_when_its_train_net_is_higher_and_oos_restarts() {
         &[family],
         &ctx(&trials, &pins, initial),
         &selection_costs(),
-        |config, start, end, _| {
+        |config, _warmup, start, end, _| {
             let days = usize::try_from((end - start) / DAY_US).unwrap();
             let is_train = trains.contains(&(start, end));
-            let extra = if is_train {
-                *config * 10_000
-            } else {
-                *config * 1_000
-            };
-            let trips = if is_train {
-                0
-            } else {
-                u64::try_from(*config).unwrap()
-            };
-            Ok::<WindowResult, String>(shaped(initial.0, days, extra, trips))
+            if is_train {
+                assert_eq!(days, 2);
+                let levels = if *config == 1 {
+                    wild.clone()
+                } else {
+                    mild.clone()
+                };
+                return Ok::<WindowResult, String>(from_levels(levels, 0));
+            }
+            Ok::<WindowResult, String>(shaped(
+                initial.0,
+                days,
+                *config * 1_000,
+                u64::try_from(*config).unwrap(),
+            ))
         },
     )
     .unwrap();
     let family = &output.families[0];
+    assert!(family.folds[0].train[0].net_result_ticks > family.folds[0].train[1].net_result_ticks);
+    assert!(
+        family.folds[0].train[1].sharpe_annual_ticks > family.folds[0].train[0].sharpe_annual_ticks
+    );
     assert_eq!(family.folds[0].selected_index, 1);
     assert_eq!(family.folds[1].selected_index, 1);
+    assert_eq!(
+        family.fee_replays[2].daily_returns,
+        family.stitched_oos_daily_returns
+    );
     assert_eq!(family.oos_round_trips, 4);
     let equity = &family.stitched_oos_equity;
     let first_days = family.folds[0].test[1].equity_ticks.len();
@@ -259,6 +326,171 @@ fn a_later_config_wins_when_its_train_net_is_higher_and_oos_restarts() {
 }
 
 #[test]
+fn an_equal_train_sharpe_keeps_the_earlier_config() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = pins(dir.path());
+    let trials = dir.path().join("trials.jsonl");
+    let initial = usd(1_000);
+    let small = scaled_path(initial.0, &[1_000, 1_000, 1_100]);
+    let big = scaled_path(initial.0, &[1_000, 1_000, 2_000]);
+    assert_eq!(
+        sharpe_ticks(&small).unwrap().1.unwrap().ticks(),
+        sharpe_ticks(&big).unwrap().1.unwrap().ticks()
+    );
+    assert!(big.last().unwrap() - big[0] > small.last().unwrap() - small[0]);
+    let folds = fold_schedule(&ScheduleSpec {
+        sample_start: date("2021-01-01"),
+        holdout_start: date("2021-01-06"),
+        warmup_days: 0,
+        train_days: 2,
+        purge_days: 1,
+        test_days: 2,
+        step_days: 2,
+        remainder_own_fold_days: 45,
+    })
+    .unwrap();
+    assert_eq!(folds.len(), 1);
+    let train_end = folds[0].train.end.micros();
+    let family = FamilyGrid {
+        family: "tie-sharpe".to_owned(),
+        folds,
+        points: vec![point(1, 0), point(2, 0)],
+    };
+    let output = run_walk_forward(
+        &[family],
+        &ctx(&trials, &pins, initial),
+        &selection_costs(),
+        |config, _warmup, start, end, _| {
+            let days = usize::try_from((end - start) / DAY_US).unwrap();
+            if end == train_end {
+                let levels = if *config == 1 {
+                    small.clone()
+                } else {
+                    big.clone()
+                };
+                return Ok::<WindowResult, String>(from_levels(levels, 0));
+            }
+            Ok::<WindowResult, String>(shaped(initial.0, days, 1, 1))
+        },
+    )
+    .unwrap();
+    let fold = &output.families[0].folds[0];
+    assert!(fold.train[1].net_result_ticks > fold.train[0].net_result_ticks);
+    assert_eq!(
+        fold.train[0].sharpe_annual_ticks,
+        fold.train[1].sharpe_annual_ticks
+    );
+    assert_eq!(fold.selected_index, 0);
+    assert_eq!(
+        output.families[0].fee_replays[2].sharpe_annual_ticks,
+        fold.test[0].sharpe_annual_ticks
+    );
+    assert_eq!(
+        output.families[0]
+            .fee_replays
+            .iter()
+            .map(|row| (row.fee_bps, row.slippage_bps))
+            .collect::<Vec<_>>(),
+        vec![
+            (FEE_GRID_BPS[0], 2),
+            (FEE_GRID_BPS[1], 2),
+            (FEE_GRID_BPS[2], 2),
+            (FEE_GRID_BPS[3], 2),
+            (5, STRESS_SLIPPAGE_BPS),
+        ]
+    );
+}
+
+#[test]
+fn s01_logs_twelve_config_trials_not_one_per_fold() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = pins(dir.path());
+    let trials = dir.path().join("trials.jsonl");
+    let initial = usd(1_000);
+    let folds = btcusdt_schedule(30).unwrap();
+    assert_eq!(folds.len(), 15);
+    let bounds = UtcRange {
+        start: folds[0].train_warmup.start,
+        end: folds.last().unwrap().test.end,
+    };
+    let points: Vec<_> = (0..12).map(|side| point(side, 0)).collect();
+    let family = FamilyGrid {
+        family: "S01".to_owned(),
+        folds,
+        points,
+    };
+    let output = run_walk_forward(
+        &[family],
+        &ctx(&trials, &pins, initial),
+        &selection_costs(),
+        |_config, _warmup, start, end, _| {
+            let days = usize::try_from((end - start) / DAY_US).unwrap();
+            Ok::<WindowResult, String>(shaped(initial.0, days, 1, 0))
+        },
+    )
+    .unwrap();
+    assert_eq!(output.n_trials, 12);
+    assert_eq!(output.families[0].n_trials, 12);
+    let runs = output.families[0]
+        .folds
+        .iter()
+        .map(|fold| fold.train.len() + fold.test.len())
+        .sum::<usize>();
+    assert_eq!(runs, 12 * 15 * 2);
+    let config_id = output.families[0].folds[0].train[0].config_id.clone();
+    assert!(output.families[0].folds.iter().all(|fold| {
+        fold.train[0].config_id == config_id
+            && fold.test[0].config_id == config_id
+            && fold.train[0].trial_id == fold.test[0].trial_id
+            && fold.train[0].run_id != fold.test[0].run_id
+    }));
+    let mut spec = TrialSpec {
+        run_id: String::new(),
+        config_id: String::new(),
+        family: "S01".to_owned(),
+        params: point(0, 0).params,
+        attempt: 0,
+        ts: bounds.start,
+        run: RunConfig {
+            initial_cash: initial,
+            warmup_start: bounds.start,
+            start: bounds.start,
+            end: bounds.end,
+            holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
+            forced_flat: Vec::new(),
+            mark_gaps: Vec::new(),
+            interval: Interval::ONE_HOUR,
+            lot_ticks: 100_000,
+        },
+    };
+    spec.config_id = canonical_config_id(&spec);
+    assert_eq!(config_id, spec.config_id);
+    let text = log_text(dir.path());
+    assert_eq!(text.matches("RunStarted").count(), 360);
+    assert_eq!(text.matches("RunFinished").count(), 360);
+    let started: Vec<Value> = text
+        .lines()
+        .map(|line| serde_json::from_str::<Value>(line).unwrap())
+        .filter(|row| row["kind"] == "RunStarted")
+        .collect();
+    let ids: BTreeSet<_> = started
+        .iter()
+        .map(|row| row["config_id"].as_str().unwrap())
+        .collect();
+    assert_eq!(ids.len(), 12);
+    let fold_ids: BTreeSet<_> = started
+        .iter()
+        .map(|row| row["fold"].as_u64().unwrap())
+        .collect();
+    assert_eq!(fold_ids.len(), 15);
+    let segments: BTreeSet<_> = started
+        .iter()
+        .map(|row| row["segment"].as_str().unwrap())
+        .collect();
+    assert_eq!(segments, BTreeSet::from(["train", "test"]));
+}
+
+#[test]
 fn selection_refuses_a_fee_other_than_five_bps_and_writes_no_trial() {
     let dir = tempfile::tempdir().unwrap();
     let pins = pins(dir.path());
@@ -278,7 +510,7 @@ fn selection_refuses_a_fee_other_than_five_bps_and_writes_no_trial() {
         &[family],
         &ctx(&trials, &pins, usd(1)),
         &costs,
-        |_, _, _, _| {
+        |_, _, _, _, _| {
             called = true;
             Err::<WindowResult, String>("ran".to_owned())
         },
@@ -332,7 +564,7 @@ fn holdout_window_is_refused_and_the_closure_is_not_called() {
         &[family],
         &ctx(&trials, &pins, usd(1_000)),
         &selection_costs(),
-        |_, _, _, _| {
+        |_, _, _, _, _| {
             called = true;
             Err::<WindowResult, String>("ran".to_owned())
         },
@@ -351,6 +583,8 @@ fn holdout_window_is_refused_and_the_closure_is_not_called() {
         .collect();
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0]["run_id"], rows[1]["run_id"]);
+    assert_eq!(rows[0]["fold"], 1);
+    assert_eq!(rows[0]["segment"], "train");
 }
 
 struct Seen {
@@ -369,9 +603,10 @@ fn price_at(minute: i64) -> i64 {
     let (open, close) = match day {
         0 => (100, 100),
         1 => (100, 130),
-        2 => (130, 80),
-        3 => (80, 40),
-        4 => (40, 30),
+        2 => (130, 160),
+        3 => (160, 80),
+        4 => (80, 40),
+        5 => (40, 30),
         _ => (30, 30),
     };
     open + (close - open) * into / 1_439
@@ -379,7 +614,7 @@ fn price_at(minute: i64) -> i64 {
 
 fn toy_tape() -> parangsae_backtest::Tape {
     let start = date("2021-03-01").start_us().micros();
-    let minutes = 5 * 1_440;
+    let minutes = 6 * 1_440;
     let bars: Vec<_> = (0..minutes)
         .map(|minute| {
             let price = px(price_at(minute));
@@ -400,9 +635,9 @@ fn toy_tape() -> parangsae_backtest::Tape {
 fn toy_schedule() -> Vec<Fold> {
     fold_schedule(&ScheduleSpec {
         sample_start: date("2021-03-01"),
-        holdout_start: date("2021-03-06"),
+        holdout_start: date("2021-03-07"),
         warmup_days: 1,
-        train_days: 1,
+        train_days: 2,
         purge_days: 2,
         test_days: 1,
         step_days: 1,
@@ -448,10 +683,10 @@ fn run_toy(dir: &Path) -> (WalkForward, Vec<Seen>, String) {
         &[family],
         &ctx(&trials, &pins, initial),
         &selection_costs(),
-        |side, start, end, costs| {
-            assert_eq!(costs.taker_fee, FeeBps(5));
-            assert_eq!(costs.slippage, SlippageBps(2));
+        |side, warmup, start, end, costs| {
+            assert!(warmup < start);
             let mut config = cfg(&tape.bars, 10_000);
+            config.warmup_start = UtcMicros::from_micros(warmup);
             config.start = UtcMicros::from_micros(start);
             config.end = UtcMicros::from_micros(end);
             config.initial_cash = initial;
@@ -521,7 +756,17 @@ fn synthetic_tape_selects_the_long_train_and_flattens_with_costs() {
     assert!(scored.train[1].net_result_ticks > scored.train[0].net_result_ticks);
     assert!(scored.train[1].net_result_ticks > 0);
     assert!(scored.train[0].net_result_ticks < 0);
+    assert!(scored.train[1].sharpe_annual_ticks > scored.train[0].sharpe_annual_ticks);
+    assert_eq!(scored.train[1].config_id, scored.test[1].config_id);
+    assert_eq!(output.n_trials, 2);
     assert_eq!(scored.selected_index, 1);
+    let replays = &output.families[0].fee_replays;
+    assert_eq!(replays.len(), 5);
+    assert_eq!(
+        replays[2].daily_returns,
+        output.families[0].stitched_oos_daily_returns
+    );
+    assert!(replays[4].net_result_ticks < replays[2].net_result_ticks);
     assert_eq!(
         output.families[0].oos_round_trips,
         scored.test[1].round_trips
@@ -532,7 +777,7 @@ fn synthetic_tape_selects_the_long_train_and_flattens_with_costs() {
         scored.test[1].daily_returns
     );
     assert_eq!(output.families[0].stitched_oos_equity[0], usd(10_000).0);
-    let full = 5 * DAY_US;
+    let full = 6 * DAY_US;
     assert!(seen.iter().all(|call| call.end - call.start != full));
     assert!(seen
         .iter()
@@ -584,8 +829,7 @@ fn purge_bars_are_not_used_for_selection() {
     let purge_close = tape
         .bars
         .iter()
-        .filter(|bar| bar.open_time.micros() >= train_end && bar.open_time.micros() < test_start)
-        .next_back()
+        .rfind(|bar| bar.open_time.micros() >= train_end && bar.open_time.micros() < test_start)
         .expect("purge bar");
     assert!(purge_close.close.ticks() < px(50).ticks());
     assert!(train_calls
@@ -606,6 +850,7 @@ fn window_net(
 ) -> i64 {
     let mut config = cfg(tape.bars.as_slice(), 10_000);
     config.start = UtcMicros::from_micros(start);
+    config.warmup_start = config.start;
     config.end = UtcMicros::from_micros(end);
     config.initial_cash = initial;
     config.forced_flat = vec![forced_flat_at(config.end).unwrap()];
@@ -615,6 +860,146 @@ fn window_net(
     };
     let report = run_targets(tape, &mut signal, &selection_costs(), &config).unwrap();
     report.equity_end().unwrap().0 - initial.0
+}
+
+#[test]
+fn warmup_changes_the_first_decision_and_is_not_scored() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = pins(dir.path());
+    let trials = dir.path().join("trials.jsonl");
+    let initial = usd(10_000);
+    let start_us = date("2021-03-01").start_us().micros();
+    let minutes = 5 * 1_440;
+    let bars: Vec<_> = (0..minutes)
+        .map(|minute| {
+            let day = minute / 1_440;
+            let price = px(if day == 0 { 500 } else { 100 });
+            bar_at(start_us + minute * MINUTE_US, price, price)
+        })
+        .collect();
+    let last_open = bars.last().unwrap().open_time.micros();
+    let mut funding = Vec::new();
+    let mut ts = start_us;
+    let step = 8 * 3_600_000_000;
+    while ts <= last_open {
+        funding.push(stamp(ts, 100_000));
+        ts += step;
+    }
+    let tape = tape_marked(bars.clone(), bars, funding);
+    let folds = fold_schedule(&ScheduleSpec {
+        sample_start: date("2021-03-01"),
+        holdout_start: date("2021-03-06"),
+        warmup_days: 1,
+        train_days: 1,
+        purge_days: 2,
+        test_days: 1,
+        step_days: 1,
+        remainder_own_fold_days: 45,
+    })
+    .unwrap();
+    let train_start = folds[0].train.start.micros();
+    let train_warmup = folds[0].train_warmup.start.micros();
+    assert!(train_warmup < train_start);
+    let mut warmed = None;
+    let family = FamilyGrid {
+        family: "warm".to_owned(),
+        folds,
+        points: vec![point(1, 0)],
+    };
+    run_walk_forward(
+        &[family],
+        &ctx(&trials, &pins, initial),
+        &selection_costs(),
+        |_, warmup, start, end, costs| {
+            assert!(warmup < start);
+            let mut config = cfg(&tape.bars, 10_000);
+            config.warmup_start = UtcMicros::from_micros(warmup);
+            config.start = UtcMicros::from_micros(start);
+            config.end = UtcMicros::from_micros(end);
+            config.initial_cash = initial;
+            config.forced_flat = vec![forced_flat_at(config.end).unwrap()];
+            let mut signal = Spike;
+            let report = run_targets(&tape, &mut signal, costs, &config)?;
+            if start == train_start && costs.taker_fee.0 == 5 && costs.slippage.0 == 2 {
+                assert_eq!(warmup, train_warmup);
+                let first = report.signal_outputs.first().expect("decision").decision;
+                warmed = Some(first.target_ticks());
+                assert!(report
+                    .signal_outputs
+                    .iter()
+                    .all(|output| output.bar_close_time_us.micros() >= start));
+                assert!(report.fills.iter().all(|fill| fill.ts.micros() >= start));
+                assert!(report
+                    .equity_curve
+                    .iter()
+                    .all(|(ts, _)| ts.micros() >= start));
+                assert!(report
+                    .funding
+                    .iter()
+                    .all(|event| event.ts.micros() >= start));
+                assert!(report
+                    .daily_equity
+                    .iter()
+                    .all(|(day, _)| day.start_us().micros() >= start));
+                let first_fill = report
+                    .fills
+                    .iter()
+                    .map(|fill| fill.ts.micros())
+                    .min()
+                    .expect("fill");
+                assert!(report
+                    .equity_curve
+                    .iter()
+                    .filter(|(ts, _)| ts.micros() < first_fill)
+                    .all(|(_, cash)| cash.0 == initial.0));
+            }
+            let result = window_result(initial, &report).expect("daily equity");
+            Ok::<WindowResult, EngineError>(result)
+        },
+    )
+    .unwrap();
+    let warmed_ticks = warmed.expect("train decision");
+    assert!(warmed_ticks > 0);
+
+    let mut cold = cfg(&tape.bars, 10_000);
+    cold.warmup_start = UtcMicros::from_micros(train_start);
+    cold.start = cold.warmup_start;
+    cold.end = UtcMicros::from_micros(train_start + DAY_US);
+    cold.initial_cash = initial;
+    cold.forced_flat = vec![forced_flat_at(cold.end).unwrap()];
+    let cold_report = run_targets(&tape, &mut Spike, &selection_costs(), &cold).unwrap();
+    let cold_ticks = cold_report
+        .signal_outputs
+        .first()
+        .expect("cold decision")
+        .decision
+        .target_ticks();
+    assert!(cold_ticks < 0);
+    assert_ne!(warmed_ticks, cold_ticks);
+}
+
+struct Spike;
+
+impl TargetSignal for Spike {
+    fn on_bar(
+        &mut self,
+        view: Causal<'_, &[parangsae_core::ResampledBar]>,
+        _funding: Causal<'_, &[parangsae_backtest::FundingObs]>,
+    ) -> Option<SignalOutput> {
+        let hour = view.value().last()?;
+        let decision_ts = hour.close_time().checked_add_micros(1_000)?;
+        let hot = view
+            .value()
+            .iter()
+            .any(|bar| bar.close().ticks() >= px(500).ticks());
+        let target = Target::from_f64(if hot { 1.0 } else { -1.0 }).unwrap();
+        Some(SignalOutput {
+            decision_ts: DecisionTime::from_micros(decision_ts),
+            bar_close_time_us: hour.close_time(),
+            interval: hour.interval(),
+            decision: Decision::Target(target),
+        })
+    }
 }
 
 #[test]

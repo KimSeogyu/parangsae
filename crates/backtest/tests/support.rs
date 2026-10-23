@@ -98,6 +98,7 @@ pub fn tape_marked(bars: Vec<Bar>, marks: Vec<Bar>, funding: Vec<FundingStamp>) 
 pub fn cfg(bars: &[Bar], initial_usdt: i64) -> RunConfig {
     RunConfig {
         initial_cash: usd(initial_usdt),
+        warmup_start: bars[0].open_time,
         start: bars[0].open_time,
         end: UtcMicros::from_micros(bars.last().unwrap().open_time.micros() + 60_000_000),
         holdout_start: UtcDate::parse("2025-10-01").unwrap().start_us(),

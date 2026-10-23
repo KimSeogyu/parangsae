@@ -68,6 +68,7 @@ fn assert_three_bars(tape: &Tape) {
         &costs(),
         &RunConfig {
             initial_cash: Cash(1_000 * 100_000_000),
+            warmup_start: tape.bars[0].open_time,
             start: tape.bars[0].open_time,
             end: UtcDate::parse(DAY).unwrap().next().start_us(),
             holdout_start: UtcDate::parse("2025-10-01").unwrap().start_us(),

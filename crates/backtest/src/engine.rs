@@ -34,7 +34,7 @@ pub fn run<S: Strategy>(
     }
     refuse_holdout(tape, cfg)?;
     validate(tape)?;
-    let window = time_window(&tape.bars, cfg.start, cfg.end);
+    let window = feed_window(&tape.bars, cfg)?;
     let step = funding_step(&tape.funding)?;
     require_coverage(tape, window, step, cfg)?;
 
@@ -49,7 +49,11 @@ pub fn run<S: Strategy>(
     let mut frozen: Option<Cash> = None;
     let mut dropped_orders = 0u64;
 
+    let scored_bars = scored_len(window, cfg.start);
     for (index, bar) in window.iter().enumerate() {
+        if bar.open_time < cfg.start {
+            continue;
+        }
         if ruined.is_none() {
             funding_i = settle_funding(
                 &FundingPass {
@@ -120,7 +124,7 @@ pub fn run<S: Strategy>(
         cfg,
         tape,
         costs,
-        window.len(),
+        scored_bars,
         Accum {
             ledger,
             book,
@@ -164,6 +168,9 @@ where
 
 /// One signal's per-bar targets. Fills land on the first non-filler 1m open at
 /// or after the resampled bar's available timestamp.
+///
+/// Bars from `cfg.warmup_start` through `cfg.start` are in the signal's causal
+/// prefix. That span has no decision, fill, funding settlement, or equity point.
 pub fn run_targets<S: TargetSignal>(
     tape: &Tape,
     signal: &mut S,
@@ -175,7 +182,7 @@ pub fn run_targets<S: TargetSignal>(
     }
     refuse_holdout(tape, cfg)?;
     validate(tape)?;
-    let window = time_window(&tape.bars, cfg.start, cfg.end);
+    let window = feed_window(&tape.bars, cfg)?;
     if let Some(bar) = window.iter().find(|bar| bar.open_time < sample_start()) {
         return Err(EngineError::BeforeSample(bar.open_time));
     }
@@ -221,7 +228,11 @@ pub fn run_targets<S: TargetSignal>(
     let mut flat_funding_slot_missing = 0u64;
     let mut signal_outputs = Vec::new();
 
+    let scored_bars = scored_len(window, cfg.start);
     for (index, bar) in window.iter().enumerate() {
+        if bar.open_time < cfg.start {
+            continue;
+        }
         if ruined.is_none() {
             funding_i = settle_funding(
                 &FundingPass {
@@ -362,7 +373,7 @@ pub fn run_targets<S: TargetSignal>(
         cfg,
         tape,
         costs,
-        window.len(),
+        scored_bars,
         Accum {
             ledger,
             book,
@@ -422,6 +433,8 @@ pub struct MarkAbsence {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RunConfig {
     pub initial_cash: Cash,
+    /// Lookback fed to the signal. Fills, funding, and equity begin at [`Self::start`].
+    pub warmup_start: UtcMicros,
     pub start: UtcMicros,
     pub end: UtcMicros,
     pub holdout_start: UtcMicros,
@@ -485,6 +498,20 @@ fn funding_step(funding: &[FundingStamp]) -> Result<i64, EngineError> {
     hours
         .checked_mul(3_600_000_000)
         .ok_or(EngineError::Sim(SimError::Overflow))
+}
+
+fn feed_window<'a>(bars: &'a [Bar], cfg: &RunConfig) -> Result<&'a [Bar], EngineError> {
+    if cfg.warmup_start > cfg.start {
+        return Err(EngineError::Warmup(cfg.warmup_start));
+    }
+    if cfg.warmup_start >= cfg.holdout_start {
+        return Err(EngineError::HoldoutBar(cfg.warmup_start));
+    }
+    Ok(time_window(bars, cfg.warmup_start, cfg.end))
+}
+
+fn scored_len(window: &[Bar], start: UtcMicros) -> usize {
+    window.iter().filter(|bar| bar.open_time >= start).count()
 }
 
 fn time_window(bars: &[Bar], start: UtcMicros, end: UtcMicros) -> &[Bar] {

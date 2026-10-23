@@ -50,6 +50,10 @@ enum Line {
         attempt: u64,
         family: String,
         ts: i64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fold: Option<u32>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        segment: Option<String>,
     },
     #[serde(rename = "RunFinished")]
     Finished {
@@ -68,6 +72,8 @@ pub(crate) struct StartRecord<'a> {
     pub attempt: u64,
     pub family: &'a str,
     pub ts: i64,
+    pub fold: Option<u32>,
+    pub segment: Option<&'a str>,
 }
 
 /// `sha256` of the JCS object `{attempt, config_id, pinned_root}`.
@@ -115,6 +121,8 @@ impl TrialLog {
                 attempt: start.attempt,
                 family: start.family.to_owned(),
                 ts: start.ts,
+                fold: start.fold,
+                segment: start.segment.map(str::to_owned),
             },
         )
     }
@@ -261,6 +269,8 @@ mod tests {
                 attempt: 1,
                 family: "S01",
                 ts: 0,
+                fold: None,
+                segment: None,
             })
             .unwrap_err();
         assert_eq!(err, TrialError::Corrupt { line: 1 });

@@ -564,6 +564,8 @@ fn drive<R: TargetRunner>(
         attempt: spec.attempt,
         family: &spec.family,
         ts: spec.ts.micros(),
+        fold: None,
+        segment: None,
     })
     .map_err(map_trial)?;
     if let Some(reason) = gate(spec) {
@@ -766,6 +768,7 @@ mod tests {
             ts: UtcMicros::from_micros(1),
             run: RunConfig {
                 initial_cash: Cash(100),
+                warmup_start: UtcMicros::from_micros(1),
                 start: UtcMicros::from_micros(1),
                 end: UtcMicros::from_micros(2),
                 holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
