@@ -22,7 +22,7 @@ The execution manifest and Cargo.lock changes are required and need review:
 | `serde` 1.0.229, derive | Added to runtime dependencies | Typed wire DTOs; rejects missing, wrongly typed, and duplicate known fields |
 | `serde_json` 1.0.154 | Promoted from dev to runtime | Offline response decoding |
 | `sha2` 0.11.1 | Promoted from dev to runtime | SHA-256 for RFC 2104 HMAC composition |
-| `cucumber` 0.22.1 | Added to dev dependencies | Executes the eight Gherkin behavior scenarios |
+| `cucumber` 0.22.1 | Added to dev dependencies | Executes the nine Gherkin behavior scenarios |
 | `futures` 0.3.34 | Added to dev dependencies | Runs the Gherkin future without a network runtime |
 
 Every package/version was already in the workspace lockfile. The lockfile adds

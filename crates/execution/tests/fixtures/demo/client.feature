@@ -16,3 +16,8 @@ Feature: Offline demo response boundary
       | timeout        | 503    | unknown     |
       | timeout        | 429    | rate-limited|
       | timeout        | 418    | banned      |
+
+  Scenario: A successful cancellation does not invent a fill price
+    Given a canceled snapshot without an average price
+    When it is parsed with HTTP status 200
+    Then the canceled snapshot retains cumulative quantity without a fill price

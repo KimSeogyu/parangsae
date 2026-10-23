@@ -8,6 +8,7 @@ use parangsae_execution::{Attempt, ClientOrderId, IntentId, NotFoundAuthority, O
 #[derive(Debug, Default, cucumber::World)]
 struct DemoWorld {
     fixture: String,
+    cancel: bool,
     result: Option<Result<Reply, DemoError>>,
 }
 
@@ -18,19 +19,36 @@ fn recorded(world: &mut DemoWorld, name: String) {
     world.fixture = fixtures[&name].to_string();
 }
 
+#[given("a canceled snapshot without an average price")]
+fn canceled_without_average_price(world: &mut DemoWorld) {
+    let fixtures: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/demo/responses.json")).unwrap();
+    let mut order = fixtures["order"].clone();
+    order["type"] = serde_json::json!("LIMIT");
+    order["status"] = serde_json::json!("CANCELED");
+    order["price"] = serde_json::json!("30000");
+    order["executedQty"] = serde_json::json!("0.0005");
+    order.as_object_mut().unwrap().remove("avgPrice");
+    world.fixture = order.to_string();
+    world.cancel = true;
+}
+
 #[when(regex = r"^it is parsed with HTTP status (\d+)$")]
 fn parse(world: &mut DemoWorld, status: u16) {
     let credentials = Credentials::new("fixture", b"fixture").unwrap();
-    let request = DemoClient::new().query_order(
-        &Symbol::new("BTCUSDT").unwrap(),
-        &ClientOrderId::from_parts(IntentId::from_raw(1), Attempt::FIRST),
-        RequestTiming::new(
-            UtcMicros::from_micros(1_700_000_000_000_000),
-            NotFoundAuthority::new(5000, 100).unwrap(),
-        )
-        .unwrap(),
-        &credentials,
-    );
+    let symbol = Symbol::new("BTCUSDT").unwrap();
+    let id = ClientOrderId::from_parts(IntentId::from_raw(1), Attempt::FIRST);
+    let timing = RequestTiming::new(
+        UtcMicros::from_micros(1_700_000_000_000_000),
+        NotFoundAuthority::new(5000, 100).unwrap(),
+    )
+    .unwrap();
+    let client = DemoClient::new();
+    let request = if world.cancel {
+        client.cancel_order(&symbol, &id, timing, &credentials)
+    } else {
+        client.query_order(&symbol, &id, timing, &credentials)
+    };
     world.result = Some(request.parse_response(status, &world.fixture));
 }
 
@@ -54,6 +72,16 @@ fn reply(world: &mut DemoWorld, expected: String) {
         Reply::Banned => "banned",
     };
     assert_eq!(actual, expected);
+}
+
+#[then("the canceled snapshot retains cumulative quantity without a fill price")]
+fn canceled_snapshot(world: &mut DemoWorld) {
+    let Some(Ok(Reply::Order(report))) = &world.result else {
+        panic!("expected canceled snapshot");
+    };
+    assert_eq!(report.state, OrderState::Canceled);
+    assert_eq!(report.cumulative.ticks(), 50_000);
+    assert_eq!(report.average_price, None);
 }
 
 #[test]

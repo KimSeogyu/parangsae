@@ -69,7 +69,10 @@ fn parses_fixed_point_report_and_binds_it_to_the_request() {
     assert_eq!(report.state, OrderState::Filled);
     assert_eq!(report.qty.ticks(), 100_000);
     assert_eq!(report.cumulative.ticks(), 100_000);
-    assert_eq!(report.average_price.ticks(), 3_000_012_345_678);
+    assert_eq!(
+        report.average_price.map(|price| price.ticks()),
+        Some(3_000_012_345_678)
+    );
     assert_eq!(report.updated_at.micros().micros(), 1_700_000_000_123_000);
 
     for (field, value) in [
@@ -214,6 +217,46 @@ fn ambiguous_failures_and_absence_are_never_success_or_retry() {
         query.parse_response(400, &f["rejected"].to_string()),
         Ok(Reply::Refused { code: -1021 })
     );
+}
+
+#[test]
+fn cancel_success_without_average_price_preserves_snapshot() {
+    let f = fixture();
+    let credentials = Credentials::new("fixture", b"fixture").unwrap();
+    let symbol = Symbol::new("BTCUSDT").unwrap();
+    let id = ClientOrderId::from_parts(IntentId::from_raw(1), Attempt::FIRST);
+    let client = DemoClient::new();
+    let cancel = client.cancel_order(&symbol, &id, timing(), &credentials);
+    let query = client.query_order(&symbol, &id, timing(), &credentials);
+    for executed in ["0", "0.0005"] {
+        let mut wire = f["order"].clone();
+        wire["type"] = json!("LIMIT");
+        wire["status"] = json!("CANCELED");
+        wire["price"] = json!("30000");
+        wire["executedQty"] = json!(executed);
+        wire.as_object_mut().unwrap().remove("avgPrice");
+        let body = wire.to_string();
+        assert_eq!(
+            query.parse_response(200, &body),
+            Err(DemoError::InvalidResponse)
+        );
+        let Reply::Order(report) = cancel.parse_response(200, &body).unwrap() else {
+            panic!("expected canceled snapshot");
+        };
+        assert_eq!(report.state, OrderState::Canceled);
+        assert_eq!(report.average_price, None);
+        assert_eq!(
+            report.cumulative.ticks(),
+            if executed == "0" { 0 } else { 50_000 }
+        );
+        for average_price in [serde_json::Value::Null, json!(30000)] {
+            wire["avgPrice"] = average_price;
+            assert_eq!(
+                cancel.parse_response(200, &wire.to_string()),
+                Err(DemoError::InvalidResponse)
+            );
+        }
+    }
 }
 
 #[test]

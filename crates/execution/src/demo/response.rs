@@ -1,6 +1,6 @@
 use parangsae_core::instrument_spec::Decimal;
 use parangsae_core::{require_declared_unit, EventTs, Price, Qty, Side, Symbol, TimeUnit};
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use super::{DemoError, Method, SignedRequest};
 use crate::{ClientOrderId, OrderState};
@@ -17,7 +17,8 @@ pub struct OrderReport {
     pub qty: Qty,
     pub cumulative: Qty,
     pub price: Price,
-    pub average_price: Price,
+    /// Cancel snapshots may omit this value; no fill price is inferred.
+    pub average_price: Option<Price>,
     pub reduce_only: bool,
     pub updated_at: EventTs,
 }
@@ -50,10 +51,17 @@ struct WireOrder {
     orig_qty: String,
     executed_qty: String,
     price: String,
-    avg_price: String,
+    #[serde(default, deserialize_with = "deserialize_average_price")]
+    avg_price: Option<String>,
     reduce_only: bool,
     position_side: String,
     update_time: u64,
+}
+
+fn deserialize_average_price<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error> {
+    String::deserialize(deserializer).map(Some)
 }
 
 #[derive(Deserialize)]
@@ -90,7 +98,7 @@ impl SignedRequest {
             });
         }
         let wire: WireOrder = serde_json::from_str(body).map_err(|_| DemoError::InvalidResponse)?;
-        let report = wire.validate()?;
+        let report = wire.validate(self.method)?;
         if report.symbol != self.symbol || report.client_order_id != self.client_order_id {
             return Err(DemoError::IdentityMismatch);
         }
@@ -99,21 +107,25 @@ impl SignedRequest {
 }
 
 impl WireOrder {
-    fn validate(self) -> Result<OrderReport, DemoError> {
+    fn validate(self, method: Method) -> Result<OrderReport, DemoError> {
         let invalid = DemoError::InvalidResponse;
         let symbol = Symbol::new(&self.symbol).map_err(|_| invalid)?;
         let client_order_id = ClientOrderId::parse(&self.client_order_id).map_err(|_| invalid)?;
         let qty = decimal(&self.orig_qty)?.as_qty().map_err(|_| invalid)?;
         let cumulative = decimal(&self.executed_qty)?.as_qty().map_err(|_| invalid)?;
         let price = decimal(&self.price)?.as_price().map_err(|_| invalid)?;
-        let average_price = decimal(&self.avg_price)?.as_price().map_err(|_| invalid)?;
+        let average_price = match self.avg_price {
+            Some(raw) => Some(decimal(&raw)?.as_price().map_err(|_| invalid)?),
+            None if method == Method::Delete => None,
+            None => return Err(invalid),
+        };
         if self.order_id == 0
             || self.position_side != "BOTH"
             || !matches!(self.kind.as_str(), "MARKET" | "LIMIT")
             || (self.kind == "LIMIT" && price.ticks() == 0)
             || qty.ticks() == 0
             || cumulative > qty
-            || (cumulative.ticks() > 0 && average_price.ticks() == 0)
+            || (cumulative.ticks() > 0 && average_price.is_some_and(|price| price.ticks() == 0))
         {
             return Err(invalid);
         }
