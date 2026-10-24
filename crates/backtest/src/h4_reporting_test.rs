@@ -139,7 +139,7 @@ fn native_window(fee: u32, slip: u32) -> WindowResult {
     use crate::bar::{Bar, FundingStamp, Tape};
     let event = crate::date::UtcDate::parse("2022-01-03")
         .unwrap()
-        .midnight()
+        .start_us()
         .micros();
     let warmup = event - 2 * DAY;
     let end = event + 5 * DAY;
