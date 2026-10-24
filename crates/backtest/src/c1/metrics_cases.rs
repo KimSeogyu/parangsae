@@ -259,8 +259,59 @@ fn only_completed_normal_pairs_contribute_activity() {
 fn a_pair_cannot_cross_a_declared_test_terminal_boundary() {
     let mut value = report(&[C0; 1], &[ExitReason::MaxHold]);
     value.pairs[0].opened_decision = OOS_START + 90 * DAY - 60_000_000;
-    value.pairs[0].closed_observed_at = Some(OOS_START + 90 * DAY);
+    value.pairs[0].closed_observed_at = Some(OOS_START + 90 * DAY + MS);
     assert_eq!(active_test_folds(&value), Err(MetricError::Pair));
+    value.pairs[0].closed_observed_at = Some(OOS_START + 90 * DAY);
+    assert_eq!(active_test_folds(&value), Ok(1));
+}
+
+fn closed_at_end_report() -> ReplayResult {
+    let mut value = report(&[C0; 1], &[ExitReason::Terminal]);
+    let end = START + DAY;
+    value.pairs[0].closed_observed_at = Some(end);
+    value.pairs[0].closing_deadline = Some(end);
+    value.pairs[0].exit_decision = Some(end - 600_000_000);
+    if let ActorRecord::PairClosed { at, .. } = &mut value.records[0] {
+        *at = end;
+    }
+    value
+}
+
+#[test]
+fn closed_knowledge_at_the_exact_end_is_allowed_without_extending_economic_time() {
+    let mut value = closed_at_end_report();
+    let end = START + DAY;
+    let out = series_metrics(Ok(&value), range(1)).unwrap();
+    assert_eq!(out.terminal_pairs, 1);
+    assert_eq!(out.total_return_ticks, 0);
+    let mut provenance = source();
+    provenance.original_event_us = end - 60_000_000;
+    provenance.original_available_us = end;
+    value.records.push(ActorRecord::Fill {
+        at: end + MS,
+        physical: end - 60_000_000,
+        pair: "synthetic-pair-0".into(),
+        stage: "spot_exit",
+        qty: UNIT,
+        raw_reference: UNIT,
+        executed: UNIT,
+        fee_asset: "USDT",
+        fee_ticks: 0,
+        source: provenance,
+        account: account(C0),
+    });
+    assert_eq!(
+        series_metrics(Ok(&value), range(1)),
+        Err(MetricError::Window)
+    );
+    if let ActorRecord::Fill { at, physical, .. } = value.records.last_mut().unwrap() {
+        *at = end;
+        *physical = end;
+    }
+    assert_eq!(
+        series_metrics(Ok(&value), range(1)),
+        Err(MetricError::Window)
+    );
 }
 
 fn train_folds() -> Vec<Vec<(i64, Vec<i64>)>> {
@@ -273,6 +324,17 @@ fn train_folds() -> Vec<Vec<(i64, Vec<i64>)>> {
             ]
         })
         .collect()
+}
+
+fn flat_oos_report() -> ReplayResult {
+    let mut flat = report(&vec![C0; OOS_DAYS], &[]);
+    let offset = OOS_START - START;
+    for day in &mut flat.daily {
+        day.day_start += offset;
+        day.economic_end_exclusive += offset;
+        day.known_at += offset;
+    }
+    flat
 }
 
 #[test]
@@ -319,15 +381,11 @@ fn actual_selection_statistics_uses_sixteen_boundary_rows_not_the_legacy_one() {
             ]
         })
         .collect();
-    let mut flat = report(&vec![C0; OOS_DAYS], &[]);
-    let offset = OOS_START - START;
-    for day in &mut flat.daily {
-        day.day_start += offset;
-        day.economic_end_exclusive += offset;
-        day.known_at += offset;
-    }
+    let flat = flat_oos_report();
     let out = selection_statistics(&folds, Ok(&flat), Ok(&flat), 202).unwrap();
     assert_eq!(out.pbo_probability_ticks, Some(96_829_836));
+    assert_eq!(out.defined_full_is_sharpe_columns, 2);
+    assert_eq!(out.gates.pbo_at_most_20, StatisticGate::Fail);
     assert_eq!(
         stats::pbo_ticks(&out.is_return_columns, 1).unwrap(),
         Some(0)
@@ -342,19 +400,68 @@ fn actual_selection_statistics_uses_sixteen_boundary_rows_not_the_legacy_one() {
 }
 
 #[test]
+fn undefined_flat_statistics_without_valid_numeric_failure_are_inconclusive() {
+    let flat = flat_oos_report();
+    let out = selection_statistics(&train_folds(), Ok(&flat), Ok(&flat), 202).unwrap();
+    assert_eq!(out.pbo_probability_ticks, Some(0));
+    assert_eq!(out.dsr_probability_ticks, None);
+    assert_eq!(out.headline.normal_round_trips, 0);
+    assert_eq!(out.headline.annual_sharpe_ticks, None);
+    assert_eq!(out.gates.headline_positive_return, StatisticGate::Undefined);
+    assert_eq!(out.gates.dsr_at_least_95, StatisticGate::Undefined);
+    assert_eq!(out.gates.pbo_at_most_20, StatisticGate::Pass);
+    assert_eq!(out.verdict, Verdict::InconclusiveSparseNoPromotion);
+}
+
+#[test]
+fn all_zero_training_keeps_raw_pbo_without_inventing_rank_evidence() {
+    let flat = flat_oos_report();
+    let mut folds = train_folds();
+    for fold in &mut folds {
+        for (_, returns) in fold {
+            returns.fill(0);
+        }
+    }
+    let out = selection_statistics(&folds, Ok(&flat), Ok(&flat), 202).unwrap();
+    assert_eq!(out.pbo_probability_ticks, Some(100_000_000));
+    assert_eq!(out.defined_full_is_sharpe_columns, 0);
+    assert_eq!(out.gates.pbo_at_most_20, StatisticGate::Undefined);
+    assert_eq!(out.verdict, Verdict::InconclusiveSparseNoPromotion);
+}
+
+#[test]
+fn finite_equal_candidates_retain_the_declared_pbo_failure() {
+    let flat = flat_oos_report();
+    let mut folds = train_folds();
+    for fold in &mut folds {
+        fold[1].1 = fold[0].1.clone();
+    }
+    let out = selection_statistics(&folds, Ok(&flat), Ok(&flat), 202).unwrap();
+    assert_eq!(out.defined_full_is_sharpe_columns, 2);
+    assert_eq!(out.pbo_probability_ticks, Some(100_000_000));
+    assert_eq!(out.gates.pbo_at_most_20, StatisticGate::Fail);
+    assert_eq!(out.verdict, Verdict::RejectOnDeclaredModelSnapshot);
+}
+
+#[test]
 fn verdict_precedence_never_promotes_favorable_results_or_hides_numeric_failure() {
     let mut gates = Gates {
-        headline_positive_return: true,
-        headline_positive_sharpe: true,
-        higher_fee_positive_sharpe: true,
-        dsr_at_least_95: true,
-        pbo_at_most_20: true,
+        headline_positive_return: StatisticGate::Pass,
+        headline_positive_sharpe: StatisticGate::Pass,
+        higher_fee_positive_sharpe: StatisticGate::Pass,
+        dsr_at_least_95: StatisticGate::Pass,
+        pbo_at_most_20: StatisticGate::Pass,
         coverage_50_pairs_10_folds: true,
     };
     assert_eq!(gates.verdict(), Verdict::InconclusiveHistory);
     gates.coverage_50_pairs_10_folds = false;
     assert_eq!(gates.verdict(), Verdict::InconclusiveSparseNoPromotion);
-    gates.headline_positive_return = false;
+    gates.headline_positive_sharpe = StatisticGate::Undefined;
+    assert_eq!(gates.verdict(), Verdict::InconclusiveSparseNoPromotion);
+    gates.pbo_at_most_20 = StatisticGate::Fail;
+    assert_eq!(gates.verdict(), Verdict::RejectOnDeclaredModelSnapshot);
+    gates.pbo_at_most_20 = StatisticGate::Pass;
+    gates.headline_positive_return = StatisticGate::Fail;
     assert_eq!(gates.verdict(), Verdict::RejectOnDeclaredModelSnapshot);
 }
 
@@ -371,9 +478,24 @@ fn named_fixture(world: &mut MetricWorld, name: String) {
 
 #[when("the metrics result is serialized")]
 fn serialize_result(world: &mut MetricWorld) {
+    if matches!(world.case.as_str(), "undefined" | "allzero") {
+        let flat = flat_oos_report();
+        let mut folds = train_folds();
+        if world.case == "allzero" {
+            for fold in &mut folds {
+                for (_, returns) in fold {
+                    returns.fill(0);
+                }
+            }
+        }
+        let out = selection_statistics(&folds, Ok(&flat), Ok(&flat), 202);
+        world.json = Some(serde_json::to_value(out).unwrap());
+        return;
+    }
     let out = match world.case.as_str() {
         "continuous" => series_metrics(Ok(&moving_report()), range(3)),
         "flat" => series_metrics(Ok(&report(&[C0; 4], &[])), range(4)),
+        "deadline" => series_metrics(Ok(&closed_at_end_report()), range(1)),
         "missing" => {
             let mut value = report(&[C0; 4], &[]);
             value.daily.remove(1);
@@ -406,6 +528,19 @@ fn undefined(world: &mut MetricWorld) {
 fn refusal(world: &mut MetricWorld, expected: String) {
     assert_eq!(world.json.as_ref().unwrap()["Err"], expected);
     assert!(world.json.as_ref().unwrap().get("Ok").is_none());
+}
+
+#[then(expr = "the final verdict is {word}")]
+fn final_verdict(world: &mut MetricWorld, expected: String) {
+    assert_eq!(world.json.as_ref().unwrap()["Ok"]["verdict"], expected);
+}
+
+#[then(expr = "the PBO evidence is {word}")]
+fn pbo_evidence(world: &mut MetricWorld, expected: String) {
+    assert_eq!(
+        world.json.as_ref().unwrap()["Ok"]["gates"]["pbo_at_most_20"],
+        expected
+    );
 }
 
 #[tokio::test]
