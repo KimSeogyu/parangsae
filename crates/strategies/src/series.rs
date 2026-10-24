@@ -16,8 +16,20 @@ pub const EARLIEST_US: i64 = 1_608_249_600_000_000;
 /// 2021-01-17 00:00:00 UTC. S01, S02, S03, and S05 emit nothing earlier.
 pub const WARMUP_30D_US: i64 = EARLIEST_US + 30 * 86_400_000_000;
 
+/// 2021-02-16 00:00:00 UTC. H1 emits nothing earlier.
+pub const WARMUP_60D_US: i64 = EARLIEST_US + 60 * 86_400_000_000;
+
+/// 2021-03-19 00:00:00 UTC. H5 emits nothing earlier.
+pub const WARMUP_91D_US: i64 = EARLIEST_US + 91 * 86_400_000_000;
+
 /// 2021-12-18 00:00:00 UTC. S06 emits nothing earlier.
 pub const WARMUP_365D_US: i64 = EARLIEST_US + 365 * 86_400_000_000;
+
+/// 2021-12-19 00:00:00 UTC. H4 emits nothing earlier.
+pub const WARMUP_366D_US: i64 = EARLIEST_US + 366 * 86_400_000_000;
+
+/// 2021-12-26 00:00:00 UTC. H3 emits nothing earlier.
+pub const WARMUP_373D_US: i64 = EARLIEST_US + 373 * 86_400_000_000;
 
 /// Open of 2025-09-30 23:59 UTC. A hold that ends after this is not opened.
 pub const LAST_TRADABLE_OPEN_US: i64 = 1_759_276_800_000_000 - 60_000_000;
@@ -28,7 +40,7 @@ const HOUR_US: i64 = 3_600_000_000;
 /// Equity and position at one decision. `mark_ticks` is the decision close.
 ///
 /// Signed weight is `position_lots * mark_ticks / equity_ticks`, toward zero.
-/// That close stands in for the next 1m open, which is the fill price.
+/// The close marks the decision book; order quantity uses the actual fill price.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DecisionBook {
     pub equity_ticks: i64,
@@ -66,6 +78,10 @@ impl Hold {
     /// Holds `arm` refused because they would end after 2025-09-30 23:59 UTC.
     pub fn dropped(&self) -> u64 {
         self.dropped
+    }
+
+    pub(crate) fn side(&self) -> i8 {
+        self.side
     }
 
     /// `signal_side` is the entry direction on this bar, or 0 when there is no event.
@@ -299,4 +315,23 @@ pub fn ticks_to_unit(ticks: i64) -> Result<f64, StrategyError> {
         return Err(StrategyError::Param("scale"));
     }
     Ok((ticks as f64) / 100_000_000.0)
+}
+
+/// UTC hour of an epoch-aligned decision instant.
+pub(crate) fn utc_hour(decision_us: i64) -> Result<i64, StrategyError> {
+    if decision_us < 0 {
+        return Err(StrategyError::Clock);
+    }
+    Ok((decision_us % (24 * HOUR_US)) / HOUR_US)
+}
+
+/// Signed ticks whose magnitude is an exact f64.
+pub(crate) fn signed_unit(ticks: i64) -> Result<f64, StrategyError> {
+    let negative = ticks < 0;
+    let magnitude = ticks.unsigned_abs();
+    if magnitude > (1_u64 << 53) {
+        return Err(StrategyError::Price);
+    }
+    let unit = magnitude as f64;
+    Ok(if negative { -unit } else { unit })
 }

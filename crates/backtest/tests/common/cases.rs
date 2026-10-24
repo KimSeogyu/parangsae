@@ -576,3 +576,35 @@ pub fn delayed_funding_prefix(rate: i64) -> Script {
     .expect("delayed funding keeps a causal prefix")
     .1
 }
+
+pub fn delayed_target_report() -> Report {
+    use parangsae_backtest::{run_targets, BookState, FundingObs, SignalOutput, TargetSignal};
+    use parangsae_core::{Causal, ResampledBar};
+    struct Delayed(Script);
+    impl TargetSignal for Delayed {
+        fn decision_delay_us(&self) -> i64 {
+            1_000
+        }
+        fn on_bar(
+            &mut self,
+            b: Causal<'_, &[ResampledBar]>,
+            f: Causal<'_, &[FundingObs]>,
+            s: BookState,
+        ) -> Option<SignalOutput> {
+            let mut out = self.0.on_bar(b, f, s)?;
+            out.decision_ts = parangsae_core::DecisionTime::from_micros(
+                out.decision_ts.micros().checked_add_micros(1_000).unwrap(),
+            );
+            Some(out)
+        }
+    }
+    let bars = hours(at(12, 0), 3, 100);
+    let mut signal = Delayed(Script::new(vec![Some(tgt(1.0)); 3]));
+    run_targets(
+        &crate::support::tape_of(bars.clone()),
+        &mut signal,
+        &crate::support::costs(0, 0),
+        &crate::support::cfg(&bars, 10_000),
+    )
+    .unwrap()
+}

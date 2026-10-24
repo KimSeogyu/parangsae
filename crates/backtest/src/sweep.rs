@@ -138,7 +138,7 @@ impl<'a> FoldRunner<'a> {
         end_us: i64,
         costs: &Costs,
     ) -> Result<(Report, u64), String> {
-        let mut signal = FamilySignal::new(&config.family, &config.params)?;
+        let mut signal = FamilySignal::new(&config.family, &config.params, &self.tape.premium)?;
         let cfg = research_config(
             config.initial_cash,
             start_us,
@@ -168,7 +168,7 @@ impl<'a> FoldRunner<'a> {
         end_us: i64,
         costs: &Costs,
     ) -> Result<crate::walkforward::WindowResult, String> {
-        let mut signal = FamilySignal::new(&config.family, &config.params)?;
+        let mut signal = FamilySignal::new(&config.family, &config.params, &self.tape.premium)?;
         let cfg = research_config(
             config.initial_cash,
             warmup_us,
@@ -185,8 +185,10 @@ impl<'a> FoldRunner<'a> {
             Ok(result) => result.map_err(|err| err.to_string())?,
             Err(payload) => return Err(panic_message(&payload)),
         };
-        crate::walkforward::window_result(Cash(config.initial_cash), &report)
-            .map_err(|err| err.to_string())
+        let mut result = crate::walkforward::window_result(Cash(config.initial_cash), &report)
+            .map_err(|err| err.to_string())?;
+        result.accounting.n_dropped_entries = signal.dropped_entries();
+        Ok(result)
     }
 }
 
@@ -206,11 +208,21 @@ struct SweepFile {
 pub(crate) struct ConfigRow {
     pub(crate) config_id: String,
     pub(crate) family: String,
+    /// Table filename stem. Empty falls back to [`Self::family`].
+    #[serde(default)]
+    pub(crate) slug: String,
     pub(crate) grid_index: u32,
     pub(crate) params: BTreeMap<String, i64>,
     pub(crate) start_us: i64,
     pub(crate) end_us: i64,
     pub(crate) initial_cash: i64,
+    /// Repo-root-relative prereg path. Hashed at load, before any trial starts.
+    #[serde(default)]
+    pub(crate) prereg: String,
+    /// After [`load_configs`], the sha256 of the prereg file. The JSON value is
+    /// the expected sha; a mismatch refuses the run.
+    #[serde(default)]
+    pub(crate) prereg_sha256: String,
 }
 
 struct ConfigRunner<'a> {
@@ -261,7 +273,7 @@ pub fn run_sweep(request: &SweepRequest) -> Result<Vec<ResultRow>, String> {
         return Err("configs do not share one window".to_owned());
     }
     let pins = SweepPins::load(&request.inputs).map_err(|err| err.to_string())?;
-    let tape = load_pinned_tape(&request.data_root, &pins, start_us, end_us)?;
+    let tape = load_pinned_tape(&request.data_root, &pins, start_us, end_us, false)?;
     let fold = FoldRunner::new(&tape);
     let ts = UtcMicros::from_micros(now_us()?);
     fs::create_dir_all(&request.out_dir)
@@ -314,10 +326,87 @@ pub(crate) fn load_configs(path: &Path) -> Result<Loaded, String> {
             file.schema
         ));
     }
+    let mut configs = file.configs;
+    for row in &mut configs {
+        bind_prereg(path, row)?;
+    }
+    let mut family_sha: BTreeMap<String, String> = BTreeMap::new();
+    for row in &configs {
+        if row.prereg_sha256.is_empty() {
+            continue;
+        }
+        if let Some(prev) = family_sha.get(&row.family) {
+            if prev != &row.prereg_sha256 {
+                return Err(format!("{} prereg sha256 is not one hash", row.family));
+            }
+        } else {
+            family_sha.insert(row.family.clone(), row.prereg_sha256.clone());
+        }
+    }
     Ok(Loaded {
         slippage_bps: file.slippage_bps,
-        configs: file.configs,
+        configs,
     })
+}
+
+fn bind_prereg(inputs: &Path, row: &mut ConfigRow) -> Result<(), String> {
+    let rel = row.prereg.trim();
+    let expected = row.prereg_sha256.trim().to_owned();
+    if rel.is_empty() && expected.is_empty() {
+        row.prereg_sha256.clear();
+        return Ok(());
+    }
+    if rel.is_empty() {
+        return Err(format!(
+            "{} {} has prereg_sha256 without a prereg path",
+            row.family, row.grid_index
+        ));
+    }
+    if !expected.is_empty() && !is_lower_hex64(&expected) {
+        return Err(format!(
+            "{} {} prereg_sha256 is not 64 lowercase hex digits",
+            row.family, row.grid_index
+        ));
+    }
+    let full = resolve_prereg(inputs, rel)?;
+    let got = crate::canon::sha256_file(&full)
+        .map_err(|err| format!("prereg {}: {err}", full.display()))?;
+    if !expected.is_empty() && got != expected {
+        return Err(format!(
+            "prereg sha256 mismatch for {rel}: {got} != {expected}"
+        ));
+    }
+    row.prereg_sha256 = got;
+    Ok(())
+}
+
+fn resolve_prereg(inputs: &Path, rel: &str) -> Result<PathBuf, String> {
+    let path = Path::new(rel);
+    if path.is_absolute() {
+        if path.is_file() {
+            return Ok(path.to_path_buf());
+        }
+        return Err(format!("prereg {rel} was not found"));
+    }
+    let mut dir = inputs.parent();
+    while let Some(current) = dir {
+        let candidate = current.join(rel);
+        if candidate.is_file() {
+            return Ok(candidate);
+        }
+        dir = current.parent();
+    }
+    Err(format!(
+        "prereg {rel} was not found from {}",
+        inputs.display()
+    ))
+}
+
+fn is_lower_hex64(text: &str) -> bool {
+    text.len() == 64
+        && text
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn trial_spec(row: &ConfigRow, ts: UtcMicros, attempt: u64) -> Result<TrialSpec, String> {
@@ -327,6 +416,7 @@ fn trial_spec(row: &ConfigRow, ts: UtcMicros, attempt: u64) -> Result<TrialSpec,
         run_id: format!("{}-{:02}-a{attempt}", row.family, row.grid_index),
         config_id: row.config_id.clone(),
         family: row.family.clone(),
+        prereg_sha256: row.prereg_sha256.clone(),
         params: row.params.clone(),
         attempt,
         ts,
@@ -354,10 +444,11 @@ pub(crate) fn load_pinned_tape(
     pins: &SweepPins,
     start_us: i64,
     end_us: i64,
+    include_premium: bool,
 ) -> Result<Tape, String> {
     let (start, end) = inclusive_days(start_us, end_us)?;
     let symbol = Symbol::new("BTCUSDT").map_err(|err| err.to_string())?;
-    let cfg = tape_config(root, pins)?;
+    let cfg = tape_config(root, pins, include_premium)?;
     let paths = planned_paths(root, &symbol, start, end, &cfg).map_err(|err| err.to_string())?;
     for path in &paths {
         if !pins.allows(path) {
@@ -369,7 +460,7 @@ pub(crate) fn load_pinned_tape(
     Ok(tape)
 }
 
-fn tape_config(root: &Path, pins: &SweepPins) -> Result<TapeConfig, String> {
+fn tape_config(root: &Path, pins: &SweepPins, include_premium: bool) -> Result<TapeConfig, String> {
     let overlay_path = root.join(OVERLAY_REL);
     let sha_hex = pins
         .sha256(&overlay_path)
@@ -382,6 +473,7 @@ fn tape_config(root: &Path, pins: &SweepPins) -> Result<TapeConfig, String> {
             sha256: parse_sha(sha_hex)?,
         }],
         funding_root: root.join(FUNDING_REL),
+        include_premium,
     })
 }
 
@@ -417,6 +509,14 @@ fn assert_inside(tape: &Tape, start_us: i64, end_us: i64) -> Result<(), String> 
         let ts = stamp.funding_time.micros();
         if !(EARLIEST_US..HOLDOUT_START_US).contains(&ts) {
             return Err(format!("funding {ts} is outside the research window"));
+        }
+    }
+    for row in &tape.premium {
+        let open = row.open_time.micros();
+        if !(EARLIEST_US..HOLDOUT_START_US).contains(&open) || !(start_us..end_us).contains(&open) {
+            return Err(format!(
+                "premium open {open} is outside the research window"
+            ));
         }
     }
     Ok(())
@@ -554,16 +654,23 @@ fn now_us() -> Result<i64, String> {
     i64::try_from(elapsed.as_micros()).map_err(|_| "clock does not fit in i64".to_owned())
 }
 
-struct FamilySignal {
+struct FamilySignal<'a> {
     strategy: parangsae_strategies::Strategy,
     family: String,
     params: BTreeMap<String, i64>,
     interval: BarInterval,
     seen: Vec<Observation<ResampledBar>>,
+    premium: &'a [crate::bar::PremiumMinute],
+    premium_i: usize,
+    funding_through: i64,
 }
 
-impl FamilySignal {
-    fn new(family: &str, params: &BTreeMap<String, i64>) -> Result<Self, String> {
+impl<'a> FamilySignal<'a> {
+    fn new(
+        family: &str,
+        params: &BTreeMap<String, i64>,
+        premium: &'a [crate::bar::PremiumMinute],
+    ) -> Result<Self, String> {
         let strategy = parangsae_strategies::Strategy::from_params(family, params)
             .map_err(|err| err.to_string())?;
         let interval = strategy.interval();
@@ -573,6 +680,9 @@ impl FamilySignal {
             params: params.clone(),
             interval,
             seen: Vec::new(),
+            premium,
+            premium_i: 0,
+            funding_through: i64::MIN,
         })
     }
 
@@ -588,11 +698,14 @@ impl FamilySignal {
         rows: &[ResampledBar],
         decide_last: bool,
         book: Option<parangsae_strategies::DecisionBook>,
+        funding: &[FundingObs],
     ) -> Option<SignalOutput> {
         let fresh = self.fresh_rows(rows);
         let last = fresh.len().saturating_sub(1);
         let mut output = None;
         for (index, row) in fresh.into_iter().enumerate() {
+            let decision_us = row.timestamps().available_ts.micros().micros();
+            self.feed_aux(decision_us, funding);
             if decide_last && index == last {
                 let Some(marked) = book else {
                     panic::panic_any("scored bar has no book");
@@ -616,12 +729,55 @@ impl FamilySignal {
                 Err(err) => panic::panic_any(err.to_string()),
             }
             self.seen.clear();
+            self.premium_i = 0;
+            self.funding_through = i64::MIN;
         }
         rows[self.seen.len()..]
             .iter()
             .copied()
             .map(bar_observation)
             .collect()
+    }
+
+    fn feed_aux(&mut self, decision_us: i64, funding: &[FundingObs]) {
+        let mut prints = Vec::new();
+        let mut through = self.funding_through;
+        for row in funding {
+            let time = row.funding_time.micros();
+            if time <= through || row.available.micros() > decision_us {
+                continue;
+            }
+            through = through.max(time);
+            prints.push(parangsae_strategies::FundingPrint {
+                funding_time_us: time,
+                available_us: row.available.micros(),
+                rate_ticks: row.rate.ticks(),
+            });
+        }
+        self.funding_through = through;
+        if !prints.is_empty() {
+            if let Err(err) = self.strategy.ingest_funding(&prints) {
+                panic::panic_any(err.to_string());
+            }
+        }
+        let mut premium = Vec::new();
+        while self.premium_i < self.premium.len()
+            && self.premium[self.premium_i].available.micros() <= decision_us
+        {
+            let row = &self.premium[self.premium_i];
+            premium.push(parangsae_strategies::PremiumMinute {
+                open_us: row.open_time.micros(),
+                close_ticks: row.close_ticks,
+                count: row.count,
+                available_us: row.available.micros(),
+            });
+            self.premium_i += 1;
+        }
+        if !premium.is_empty() {
+            if let Err(err) = self.strategy.ingest_premium(&premium) {
+                panic::panic_any(err.to_string());
+            }
+        }
     }
 
     fn prefix_holds(&self, rows: &[ResampledBar]) -> bool {
@@ -634,19 +790,26 @@ impl FamilySignal {
     }
 }
 
-impl TargetSignal for FamilySignal {
+impl TargetSignal for FamilySignal<'_> {
+    fn decision_delay_us(&self) -> i64 {
+        if matches!(self.family.as_str(), "H4" | "H5") {
+            1_000
+        } else {
+            0
+        }
+    }
     fn on_warmup_bar(
         &mut self,
         bars: Causal<'_, &[ResampledBar]>,
-        _funding: Causal<'_, &[FundingObs]>,
+        funding: Causal<'_, &[FundingObs]>,
     ) {
-        self.absorb(bars.value(), false, None);
+        self.absorb(bars.value(), false, None, funding.value());
     }
 
     fn on_bar(
         &mut self,
         bars: Causal<'_, &[ResampledBar]>,
-        _funding: Causal<'_, &[FundingObs]>,
+        funding: Causal<'_, &[FundingObs]>,
         book: BookState,
     ) -> Option<SignalOutput> {
         let marked = parangsae_strategies::DecisionBook {
@@ -654,7 +817,7 @@ impl TargetSignal for FamilySignal {
             position_lots: book.position_lots,
             mark_ticks: book.mark_ticks,
         };
-        self.absorb(bars.value(), true, Some(marked))
+        self.absorb(bars.value(), true, Some(marked), funding.value())
     }
 }
 
@@ -678,7 +841,10 @@ mod tests {
     use super::*;
     use crate::batch::run_batch;
     use crate::report::Report;
-    use crate::{canonical_config_id, run_targets, selection_costs, Bar, FundingStamp, RunConfig};
+    use crate::{
+        canonical_config_id, run_targets, selection_costs, Bar, FundingStamp, PremiumMinute,
+        RunConfig,
+    };
     use parangsae_core::{Price, Qty, Ratio, UtcMicros};
     use parangsae_sim::{Cash, FeeBps, SlippageBps};
 
@@ -700,12 +866,134 @@ mod tests {
             assert_eq!(spec.run.start.micros(), EARLIEST_US);
             assert_eq!(spec.attempt, 0);
             assert!(spec.run_id.ends_with("-a0"));
+            assert_eq!(spec.prereg_sha256.len(), 64);
+            assert!(!row.slug.is_empty());
         }
         assert_eq!(families.get("S01").copied(), Some(12));
         assert_eq!(families.get("S02").copied(), Some(9));
         assert_eq!(families.get("S03").copied(), Some(8));
         assert_eq!(families.get("S05").copied(), Some(8));
         assert_eq!(families.get("S06").copied(), Some(6));
+    }
+
+    fn prereg_inputs(dir: &Path, prereg: &str, expected: Option<&str>) -> PathBuf {
+        let inputs = dir.join("inputs.json");
+        let mut config = serde_json::json!({
+            "config_id": "abc",
+            "family": "S01",
+            "slug": "tsmom-slow",
+            "grid_index": 0,
+            "params": {"n": 1},
+            "start_us": 1,
+            "end_us": 2,
+            "initial_cash": 1,
+            "prereg": prereg,
+        });
+        if let Some(expected) = expected {
+            config["prereg_sha256"] = serde_json::Value::String(expected.to_owned());
+        }
+        let body = serde_json::json!({
+            "schema": "sweep-runner-inputs-v2",
+            "slippage_bps": 2,
+            "configs": [config],
+        });
+        fs::write(&inputs, body.to_string()).unwrap();
+        inputs
+    }
+
+    #[test]
+    fn a_prereg_sha_mismatch_refuses_before_a_ledger_exists() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("note.md"), b"frozen\n").unwrap();
+        let inputs = prereg_inputs(dir.path(), "note.md", Some(&"0".repeat(64)));
+        let ledger = dir.path().join("trials.jsonl");
+        let err = run_sweep(&SweepRequest {
+            inputs,
+            data_root: dir.path().join("data"),
+            out_dir: dir.path().join("out"),
+            ledger: ledger.clone(),
+            slippage_bps: 2,
+        })
+        .unwrap_err();
+        assert!(err.contains("prereg sha256 mismatch"), "{err}");
+        assert!(!ledger.exists());
+        assert!(!dir.path().join("out").exists());
+    }
+
+    #[test]
+    fn an_omitted_expected_sha_still_records_the_file_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let note = dir.path().join("research").join("prereg").join("note.md");
+        fs::create_dir_all(note.parent().unwrap()).unwrap();
+        fs::write(&note, b"frozen\n").unwrap();
+        let inputs = dir.path().join("research").join("inputs.json");
+        let body = serde_json::json!({
+            "schema": "sweep-runner-inputs-v2",
+            "slippage_bps": 2,
+            "configs": [{
+                "config_id": "abc",
+                "family": "S01",
+                "slug": "tsmom-slow",
+                "grid_index": 0,
+                "params": {"n": 1},
+                "start_us": 1,
+                "end_us": 2,
+                "initial_cash": 1,
+                "prereg": "research/prereg/note.md"
+            }]
+        });
+        fs::write(&inputs, body.to_string()).unwrap();
+        let loaded = load_configs(&inputs).unwrap();
+        assert_eq!(
+            loaded.configs[0].prereg_sha256,
+            crate::canon::sha256_file(&note).unwrap()
+        );
+    }
+
+    #[test]
+    fn a_family_with_two_prereg_hashes_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a.md"), b"one\n").unwrap();
+        fs::write(dir.path().join("b.md"), b"two\n").unwrap();
+        let sha_a = crate::canon::sha256_file(&dir.path().join("a.md")).unwrap();
+        let sha_b = crate::canon::sha256_file(&dir.path().join("b.md")).unwrap();
+        let inputs = dir.path().join("inputs.json");
+        let body = serde_json::json!({
+            "schema": "sweep-runner-inputs-v2",
+            "slippage_bps": 2,
+            "configs": [
+                {
+                    "config_id": "a",
+                    "family": "S01",
+                    "slug": "tsmom-slow",
+                    "grid_index": 0,
+                    "params": {"n": 1},
+                    "start_us": 1,
+                    "end_us": 2,
+                    "initial_cash": 1,
+                    "prereg": "a.md",
+                    "prereg_sha256": sha_a,
+                },
+                {
+                    "config_id": "b",
+                    "family": "S01",
+                    "slug": "tsmom-slow",
+                    "grid_index": 1,
+                    "params": {"n": 2},
+                    "start_us": 1,
+                    "end_us": 2,
+                    "initial_cash": 1,
+                    "prereg": "b.md",
+                    "prereg_sha256": sha_b,
+                }
+            ]
+        });
+        fs::write(&inputs, body.to_string()).unwrap();
+        let err = match load_configs(&inputs) {
+            Err(err) => err,
+            Ok(_) => panic!("two prereg hashes in one family were accepted"),
+        };
+        assert!(err.contains("prereg sha256 is not one hash"), "{err}");
     }
 
     #[test]
@@ -734,7 +1022,7 @@ mod tests {
         let pins = SweepPins::load(&pin_path).unwrap();
         let start = UtcDate::parse("2024-01-01").unwrap().start_us().micros();
         let end = UtcDate::parse("2024-01-02").unwrap().start_us().micros();
-        let err = load_pinned_tape(&root, &pins, start, end).unwrap_err();
+        let err = load_pinned_tape(&root, &pins, start, end, false).unwrap_err();
         assert!(err.contains("not in the pinned"), "{err}");
         assert!(!err.contains("missing parquet"), "{err}");
         assert!(!err.contains("notes.md"), "{err}");
@@ -759,6 +1047,7 @@ mod tests {
                 sha256: parse_sha(ALPHA_SHA).unwrap(),
             }],
             funding_root: root.join(FUNDING_REL),
+            include_premium: false,
         };
         let planned = planned_paths(&root, &symbol, start_day, start_day, &cfg).unwrap();
         let mut objects = Vec::new();
@@ -787,7 +1076,7 @@ mod tests {
         )
         .unwrap();
         let pins = SweepPins::load(&pin_path).unwrap();
-        let err = load_pinned_tape(&root, &pins, start, end).unwrap_err();
+        let err = load_pinned_tape(&root, &pins, start, end, false).unwrap_err();
         assert!(!err.contains("not in the pinned"), "{err}");
         assert!(!err.contains("notes.md"), "{err}");
     }
@@ -850,16 +1139,20 @@ mod tests {
         let row = ConfigRow {
             config_id: String::new(),
             family: "S02".to_owned(),
+            slug: String::new(),
             grid_index: 0,
             params: params.clone(),
             start_us: start,
             end_us: start + 180 * minute,
             initial_cash: 100_000_000_000_000,
+            prereg: String::new(),
+            prereg_sha256: String::new(),
         };
         let mut spec = TrialSpec {
             run_id: "pending".to_owned(),
             config_id: String::new(),
             family: row.family.clone(),
+            prereg_sha256: String::new(),
             params: row.params.clone(),
             attempt: 0,
             ts: UtcMicros::from_micros(start),
@@ -965,6 +1258,7 @@ mod tests {
             run_id: "S02-00-a0".to_owned(),
             config_id: String::new(),
             family: "S02".to_owned(),
+            prereg_sha256: String::new(),
             params: params.clone(),
             attempt: 0,
             ts: UtcMicros::from_micros(start),
@@ -1059,6 +1353,7 @@ mod tests {
             run_id: "pending".to_owned(),
             config_id: String::new(),
             family: "S02".to_owned(),
+            prereg_sha256: String::new(),
             params: params.clone(),
             attempt: 0,
             ts: UtcMicros::from_micros(start),
@@ -1200,6 +1495,10 @@ mod tests {
         assert_eq!(sell.price.ticks(), 80 * 100_000_000);
         assert_eq!(buy.price.ticks(), 90 * 100_000_000);
         assert!(buy.ts.micros() > sell.ts.micros());
+        assert_eq!(report.n_rebalances, 2);
+        assert_eq!(report.n_sign_changes, 0);
+        assert_eq!(report.n_forced_exits, 0);
+        assert_eq!(report.slippage_cost.0, 0);
     }
 
     #[test]
@@ -1430,6 +1729,227 @@ mod tests {
         assert_warmup_differs_and_stays_flat(&tape, "S05", &params, start, scored, end);
     }
 
+    #[test]
+    fn h1_decides_only_at_hour_zero_and_warmup_does_not_open() {
+        let start = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
+        let hour = 3_600_000_000i64;
+        let hours = 200i64;
+        let scored = start + 48 * 4 * hour;
+        let end = start + hours * hour;
+        let bars = hour_bars(start, hours, |hour_index| {
+            if hour_index / 4 >= 42 {
+                50_000
+            } else {
+                40_000
+            }
+        });
+        let tape = tape_with_funding(bars);
+        let mut params = BTreeMap::new();
+        params.insert("c".to_owned(), 100_000_000);
+        params.insert("interval".to_owned(), 240);
+        params.insert("n".to_owned(), 42);
+        params.insert("deadband".to_owned(), 1);
+        params.insert("decision_hour_utc".to_owned(), 0);
+        let full = run_family(&tape, "H1", &params, start, start, end);
+        let mut previous = 0i64;
+        let mut changed = false;
+        for output in &full.signal_outputs {
+            let ticks = output.decision.target_ticks();
+            if ticks != previous {
+                assert_eq!(output.decision_ts.micros().micros() / hour % 24, 0);
+                previous = ticks;
+                changed = true;
+            }
+        }
+        assert!(changed && previous != 0);
+        let mut s01 = params.clone();
+        s01.remove("deadband");
+        s01.remove("decision_hour_utc");
+        let intraday = run_family(&tape, "S01", &s01, start, start, end);
+        assert!(intraday.signal_outputs.iter().any(|output| {
+            output.decision.target_ticks() != 0
+                && output.decision_ts.micros().micros() / hour % 24 != 0
+        }));
+        let warm_end = start + 53 * 4 * hour;
+        let warm = run_family(&tape, "H1", &params, start, scored, warm_end);
+        assert!(warm.fills.is_empty(), "{:?}", warm.fills);
+        assert!(warm
+            .signal_outputs
+            .iter()
+            .all(|output| output.decision.target_ticks() == 0));
+    }
+
+    #[test]
+    fn h2_blend_needs_the_warmup_ring() {
+        let start = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
+        let hour = 3_600_000_000i64;
+        let hours = 730i64;
+        let scored = start + 725 * hour;
+        let end = start + hours * hour;
+        let bars = hour_bars(start, hours, |hour_index| 40_000 + hour_index);
+        let tape = tape_with_funding(bars);
+        let mut params = BTreeMap::new();
+        params.insert("deadband".to_owned(), 1);
+        params.insert("n_members".to_owned(), 12);
+        let warm = run_family(&tape, "H2", &params, start, scored, end);
+        let cold = run_family(&tape, "H2", &params, scored, scored, end);
+        assert!(warm
+            .signal_outputs
+            .iter()
+            .any(|output| output.decision.target_ticks() > 0));
+        assert!(cold.signal_outputs.is_empty());
+        assert!(warm
+            .signal_outputs
+            .iter()
+            .all(|output| output.bar_close_time_us.micros() >= scored));
+    }
+
+    #[test]
+    fn h3_gate_stays_shut_through_the_adapter_while_s02_enters() {
+        let start = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
+        let hour = 3_600_000_000i64;
+        let bars = hour_bars(
+            start,
+            6,
+            |hour_index| if hour_index >= 3 { 140 } else { 100 },
+        );
+        let tape = tape_with_funding(bars);
+        let mut h3 = BTreeMap::new();
+        h3.insert("n".to_owned(), 2);
+        h3.insert("er_l".to_owned(), 2);
+        h3.insert("er_q".to_owned(), 50_000_000);
+        h3.insert("hold_h".to_owned(), 48);
+        let mut s02 = BTreeMap::new();
+        s02.insert("n".to_owned(), 2);
+        s02.insert("hold_h".to_owned(), 48);
+        let open = run_family(&tape, "S02", &s02, start, start, start + 6 * hour);
+        let shut = run_family(&tape, "H3", &h3, start, start, start + 6 * hour);
+        assert!(open
+            .signal_outputs
+            .iter()
+            .any(|output| output.decision.target_ticks() > 0));
+        assert!(shut
+            .signal_outputs
+            .iter()
+            .all(|output| output.decision.target_ticks() == 0));
+        let scored = start + 4 * hour;
+        let warm = run_family(&tape, "H3", &h3, start, scored, start + 6 * hour);
+        assert!(warm.fills.is_empty());
+    }
+
+    #[test]
+    fn h4_funding_on_the_tape_fades_after_confirmation() {
+        let ft = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
+        let hour = 3_600_000_000i64;
+        let day = 86_400_000_000i64;
+        let start = ft - hour;
+        let end = ft + 26 * hour;
+        let bars = hour_bars(
+            start,
+            27,
+            |hour_index| if hour_index >= 24 { 90 } else { 100 },
+        );
+        let mut funding = Vec::new();
+        let mut time = ft - 365 * day - 16 * hour;
+        let last = bars.last().unwrap().open_time.micros();
+        while time <= last {
+            let rate = if time == ft { 100_000_000 } else { 0 };
+            funding.push(FundingStamp {
+                funding_time: UtcMicros::from_micros(time),
+                available: UtcMicros::from_micros(time + 60_000_000),
+                rate: Ratio::from_ticks(rate),
+                interval_hours: 8,
+            });
+            time += 8 * hour;
+        }
+        let tape = Tape::from_parts(bars.clone(), bars, funding);
+        let mut params = BTreeMap::new();
+        params.insert("q".to_owned(), 10_000_000);
+        params.insert("sum_settlements".to_owned(), 3);
+        params.insert("confirm_h".to_owned(), 24);
+        params.insert("hold_h".to_owned(), 72);
+        let full = run_family(&tape, "H4", &params, start, start, end);
+        assert!(
+            full.signal_outputs
+                .iter()
+                .any(|output| output.decision.target_ticks() == -100_000_000),
+            "crowded funding should fade short"
+        );
+        let scored = ft + 24 * hour;
+        let warm = run_family(&tape, "H4", &params, start, scored, end);
+        assert_eq!(
+            warm.signal_outputs[0].decision_ts.micros().micros(),
+            scored + 1_000
+        );
+        assert_eq!(warm.signal_outputs[0].decision.target_ticks(), -100_000_000);
+        assert_eq!(warm.fills[0].ts.micros(), scored + 60_000_000);
+        let late = run_family(&tape, "H4", &params, start, scored + 60_000_000, end);
+        assert!(
+            late.fills.is_empty(),
+            "a decision inside warmup must not arm a hold"
+        );
+    }
+
+    #[test]
+    fn h5_premium_on_the_tape_shorts_a_rich_day() {
+        let origin = UtcDate::parse("2024-01-01").unwrap().start_us().micros();
+        let day = 86_400_000_000i64;
+        let hour = 3_600_000_000i64;
+        let minute = 60_000_000i64;
+        let decision_open = origin + 90 * day - hour;
+        let end = decision_open + 2 * hour;
+        let bars = hour_bars(decision_open, 2, |_| 40_000);
+        let funding_time = origin + 90 * day;
+        let funding = vec![FundingStamp {
+            funding_time: UtcMicros::from_micros(funding_time),
+            available: UtcMicros::from_micros(funding_time + 60_000_000),
+            rate: Ratio::from_ticks(0),
+            interval_hours: 8,
+        }];
+        let tape = Tape::from_parts(bars.clone(), bars, funding).with_premium({
+            let mut rows = Vec::new();
+            for day_index in 0..90 {
+                let last = day_index + 1 == 90;
+                let close = if last { 100_000_000 } else { 1_000 };
+                let day_open = origin + day_index * day;
+                for step in 0..1_380 {
+                    let open = day_open + step * minute;
+                    rows.push(PremiumMinute {
+                        open_time: UtcMicros::from_micros(open),
+                        close_ticks: close,
+                        count: 1,
+                        available: UtcMicros::from_micros(open + minute),
+                    });
+                }
+            }
+            rows
+        });
+        let mut params = BTreeMap::new();
+        params.insert("k".to_owned(), 200_000_000);
+        params.insert("hold_h".to_owned(), 72);
+        params.insert("lookback_d".to_owned(), 90);
+        let full = run_family(&tape, "H5", &params, decision_open, decision_open, end);
+        assert!(
+            full.signal_outputs
+                .iter()
+                .any(|output| output.decision.target_ticks() == -100_000_000),
+            "a rich premium day is short"
+        );
+        let scored = end - hour;
+        let warm = run_family(&tape, "H5", &params, decision_open, scored, end);
+        assert_eq!(
+            warm.signal_outputs[0].decision_ts.micros().micros(),
+            scored + 1_000
+        );
+        assert_eq!(warm.signal_outputs[0].decision.target_ticks(), -100_000_000);
+        assert_eq!(warm.fills[0].ts.micros(), scored + minute);
+        let late = run_family(&tape, "H5", &params, decision_open, scored + minute, end);
+        assert!(
+            late.fills.is_empty(),
+            "a decision inside warmup must not arm a hold"
+        );
+    }
+
     fn assert_warmup_differs_and_stays_flat(
         tape: &Tape,
         family: &str,
@@ -1491,7 +2011,7 @@ mod tests {
         start: i64,
         end: i64,
     ) -> Report {
-        let mut signal = FamilySignal::new(family, params).unwrap();
+        let mut signal = FamilySignal::new(family, params, &tape.premium).unwrap();
         let cfg = research_config(
             1_000_000 * 100_000_000,
             warmup,

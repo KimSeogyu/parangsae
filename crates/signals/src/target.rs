@@ -13,13 +13,21 @@ pub const TARGET_SCALE: i64 = 100_000_000;
 
 const TARGET_SCALE_F: f64 = 100_000_000.0;
 
-/// A position in `[-1, 1]`. The only constructors are [`Target::from_f64`] and
-/// [`Target::FLAT`]. There is no `From<f64>`.
+/// A position in `[-1, 1]`. The constructors are [`Target::from_f64`],
+/// [`Target::from_ticks`], and [`Target::FLAT`]. There is no `From<f64>`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Target(i64);
 
 impl Target {
     pub const FLAT: Self = Self(0);
+
+    /// An already-scaled position. Values outside `[-1, 1]` are refused.
+    pub fn from_ticks(ticks: i64) -> Result<Self, TargetError> {
+        if !(-TARGET_SCALE..=TARGET_SCALE).contains(&ticks) {
+            return Err(TargetError::NonFinite);
+        }
+        Ok(Self(ticks))
+    }
 
     pub fn from_f64(value: f64) -> Result<Self, TargetError> {
         if !value.is_finite() {

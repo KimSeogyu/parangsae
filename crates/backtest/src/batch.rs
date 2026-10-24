@@ -66,6 +66,9 @@ pub struct TrialSpec {
     pub run_id: String,
     pub config_id: String,
     pub family: String,
+    /// Sha256 of the family's prereg file, hashed at run start. Empty when the
+    /// caller has no prereg file.
+    pub prereg_sha256: String,
     pub params: BTreeMap<String, i64>,
     pub attempt: u64,
     pub ts: UtcMicros,
@@ -163,6 +166,14 @@ impl SweepPins {
 
     pub fn sha256(&self, path: &Path) -> Option<&str> {
         self.sha256.get(path).map(String::as_str)
+    }
+
+    /// Sha256 of the pinned object whose path ends in `suffix`.
+    pub fn sha_by_suffix(&self, suffix: &str) -> Option<&str> {
+        self.sha256
+            .iter()
+            .find(|(path, _)| path.ends_with(suffix))
+            .map(|(_, sha)| sha.as_str())
     }
 
     pub fn load(path: &Path) -> Result<Self, BatchError> {
@@ -634,6 +645,7 @@ fn drive<R: TargetRunner>(
         trial_id: &id,
         config_id: &spec.config_id,
         pinned_root: pins.pinned_root(),
+        prereg_sha256: &spec.prereg_sha256,
         attempt: spec.attempt,
         family: &spec.family,
         ts: spec.ts.micros(),
@@ -874,6 +886,7 @@ mod tests {
             run_id: "r".to_owned(),
             config_id: String::new(),
             family: "S01".to_owned(),
+            prereg_sha256: String::new(),
             params: BTreeMap::new(),
             attempt: 0,
             ts: UtcMicros::from_micros(1),

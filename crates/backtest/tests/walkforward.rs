@@ -84,6 +84,8 @@ fn from_levels(levels: Vec<i64>, round_trips: u64) -> WindowResult {
         net_result_ticks,
         round_trips,
         fill_notional_ticks: 0,
+        max_dd_ticks: 0,
+        accounting: parangsae_backtest::WindowAccounting::ZERO,
     }
 }
 
@@ -101,6 +103,8 @@ fn shaped(initial: i64, days: usize, extra: i64, round_trips: u64) -> WindowResu
         net_result_ticks: extra,
         round_trips,
         fill_notional_ticks: 0,
+        max_dd_ticks: 0,
+        accounting: parangsae_backtest::WindowAccounting::ZERO,
     }
 }
 
@@ -132,6 +136,8 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
     };
     let family = FamilyGrid {
         family: "tie".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 3), point(2, 4)],
     };
@@ -177,6 +183,7 @@ fn tie_keeps_grid_order_and_ignores_the_test_window() {
         run_id: fold.train[0].run_id.clone(),
         config_id: String::new(),
         family: "tie".to_owned(),
+        prereg_sha256: String::new(),
         params: point(1, 3).params,
         attempt: 3,
         ts: identity.start,
@@ -259,6 +266,8 @@ fn a_later_config_wins_on_train_sharpe_and_oos_restarts() {
         .collect();
     let family = FamilyGrid {
         family: "rank".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 0), point(2, 0)],
     };
@@ -357,6 +366,8 @@ fn an_equal_train_sharpe_keeps_the_earlier_config() {
     let train_end = folds[0].train.end.micros();
     let family = FamilyGrid {
         family: "tie-sharpe".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 0), point(2, 0)],
     };
@@ -420,6 +431,8 @@ fn s01_logs_twelve_config_trials_not_one_per_fold() {
     let points: Vec<_> = (0..12).map(|side| point(side, 0)).collect();
     let family = FamilyGrid {
         family: "S01".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points,
     };
@@ -452,6 +465,7 @@ fn s01_logs_twelve_config_trials_not_one_per_fold() {
         run_id: String::new(),
         config_id: String::new(),
         family: "S01".to_owned(),
+        prereg_sha256: String::new(),
         params: point(0, 0).params,
         attempt: 0,
         ts: bounds.start,
@@ -503,6 +517,8 @@ fn selection_refuses_a_fee_other_than_five_bps_and_writes_no_trial() {
     let folds = btcusdt_schedule(30).unwrap();
     let family = FamilyGrid {
         family: "S01".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 0)],
     };
@@ -561,6 +577,8 @@ fn holdout_window_is_refused_and_the_closure_is_not_called() {
     };
     let family = FamilyGrid {
         family: "hold".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds: vec![fold],
         points: vec![point(1, 1)],
     };
@@ -682,6 +700,8 @@ fn run_toy(dir: &Path) -> (WalkForward, Vec<Seen>, String) {
     let folds = toy_schedule();
     let family = FamilyGrid {
         family: "toy".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(-1, 1), point(1, 1)],
     };
@@ -761,6 +781,23 @@ fn synthetic_tape_selects_the_long_train_and_flattens_with_costs() {
     let fold = toy_schedule();
     let scored = &output.families[0].folds[0];
     assert_eq!(scored.train.len(), 2);
+    for grid_index in 0..2 {
+        for segment in [
+            parangsae_backtest::Segment::Train,
+            parangsae_backtest::Segment::Test,
+        ] {
+            let mut scenarios = vec![(5, 2)];
+            scenarios.extend(
+                scored
+                    .cost_replays
+                    .iter()
+                    .filter(|r| r.run.grid_index == grid_index && r.segment == segment)
+                    .map(|r| (r.fee_bps, r.slippage_bps)),
+            );
+            scenarios.sort();
+            assert_eq!(scenarios, vec![(2, 2), (4, 2), (5, 2), (5, 5), (6, 2)]);
+        }
+    }
     assert!(scored.train[1].net_result_ticks > scored.train[0].net_result_ticks);
     assert!(scored.train[1].net_result_ticks > 0);
     assert!(scored.train[0].net_result_ticks < 0);
@@ -827,7 +864,7 @@ fn purge_bars_are_not_used_for_selection() {
     let test_start = fold.test.start.micros();
     assert_eq!(test_start - train_end, 2 * DAY_US);
     let train_calls: Vec<_> = seen.iter().filter(|call| call.end == train_end).collect();
-    assert_eq!(train_calls.len(), 2);
+    assert_eq!(train_calls.len(), 2 * 5);
     assert!(train_calls
         .iter()
         .all(|call| call.start == fold.train.start.micros()));
@@ -912,6 +949,8 @@ fn warmup_changes_the_first_decision_and_is_not_scored() {
     let mut warmed = None;
     let family = FamilyGrid {
         family: "warm".to_owned(),
+        slug: String::new(),
+        prereg_sha256: String::new(),
         folds,
         points: vec![point(1, 0)],
     };
@@ -1183,4 +1222,131 @@ fn the_same_tape_run_is_deterministic() {
         assert_eq!(a.funding, b.funding);
         assert_eq!(a.fills, b.fills);
     }
+}
+
+fn one_fold(family: &str) -> (FamilyGrid<i64>, i64) {
+    let folds = fold_schedule(&ScheduleSpec {
+        sample_start: date("2021-01-01"),
+        holdout_start: date("2021-01-06"),
+        warmup_days: 0,
+        train_days: 2,
+        purge_days: 1,
+        test_days: 2,
+        step_days: 2,
+        remainder_own_fold_days: 45,
+    })
+    .unwrap();
+    let train_end = folds[0].train.end.micros();
+    (
+        FamilyGrid {
+            family: family.to_owned(),
+            slug: String::new(),
+            prereg_sha256: String::new(),
+            folds,
+            points: vec![point(1, 1), point(2, 1)],
+        },
+        train_end,
+    )
+}
+
+fn run_family_choice(
+    family: &str,
+    train_extra: i64,
+    test_extra: i64,
+) -> parangsae_backtest::FamilyOutput {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = pins(dir.path());
+    let trials = dir.path().join("trials.jsonl");
+    let initial = usd(1_000);
+    let (grid, train_end) = one_fold(family);
+    run_walk_forward(
+        &[grid],
+        &ctx(&trials, &pins, initial),
+        &selection_costs(),
+        |config, _warmup, _start, end, _| {
+            let extra = if end == train_end {
+                train_extra * *config
+            } else {
+                test_extra
+            };
+            Ok::<_, String>(shaped(initial.0, 2, extra, 1))
+        },
+    )
+    .unwrap()
+    .families
+    .into_iter()
+    .next()
+    .unwrap()
+}
+
+#[test]
+fn stay_flat_is_off_for_s01_and_on_when_every_h1_train_sharpe_is_non_positive() {
+    let kept = run_family_choice("S01", -1_000, 5_000);
+    assert!(!kept.folds[0].selected_flat);
+    assert_eq!(kept.folds[0].selected_index, 0);
+    assert!(kept.stitched_oos_daily_returns.iter().any(|ret| *ret != 0));
+
+    let flat = run_family_choice("H1", -1_000, 5_000);
+    assert!(flat.folds[0].selected_flat);
+    assert_eq!(flat.folds[0].selected_config_id, "FLAT");
+    assert!(flat.stitched_oos_daily_returns.iter().all(|ret| *ret == 0));
+    assert_eq!(flat.oos_round_trips, 0);
+    assert_eq!(flat.stitched_oos_daily_returns.len(), 2);
+
+    let dir = tempfile::tempdir().unwrap();
+    let pins = pins(dir.path());
+    let trials = dir.path().join("trials.jsonl");
+    let initial = usd(1_000);
+    let (grid, train_end) = one_fold("H1");
+    let picked = run_walk_forward(
+        &[grid],
+        &ctx(&trials, &pins, initial),
+        &selection_costs(),
+        |config, _warmup, _start, end, _| {
+            let extra = if end == train_end {
+                if *config == 1 {
+                    -5_000_000_000
+                } else {
+                    5_000_000_000
+                }
+            } else {
+                5_000
+            };
+            Ok::<_, String>(shaped(initial.0, 2, extra, 1))
+        },
+    )
+    .unwrap();
+    let picked = &picked.families[0];
+    assert!(!picked.folds[0].selected_flat);
+    assert_eq!(picked.folds[0].selected_index, 1);
+    assert!(picked.oos_round_trips > 0);
+}
+
+#[test]
+fn h2_reports_a_stay_flat_shadow_and_still_trades() {
+    let dir = tempfile::tempdir().unwrap();
+    let pins = pins(dir.path());
+    let trials = dir.path().join("trials.jsonl");
+    let initial = usd(1_000);
+    let (mut grid, train_end) = one_fold("H2");
+    grid.points.truncate(1);
+    let output = run_walk_forward(
+        &[grid],
+        &ctx(&trials, &pins, initial),
+        &selection_costs(),
+        |_config, _warmup, _start, end, _| {
+            let extra = if end == train_end { -1_000 } else { 5_000 };
+            Ok::<_, String>(shaped(initial.0, 2, extra, 1))
+        },
+    )
+    .unwrap();
+    let family = &output.families[0];
+    assert!(!family.folds[0].selected_flat);
+    assert!(family
+        .stitched_oos_daily_returns
+        .iter()
+        .any(|ret| *ret != 0));
+    let shadow = family.stay_flat_shadow.as_ref().expect("H2 shadow");
+    assert_eq!(shadow.fold_flat, vec![true]);
+    assert_eq!(shadow.daily_returns, vec![0, 0]);
 }

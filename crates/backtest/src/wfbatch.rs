@@ -25,13 +25,15 @@ use serde::Serialize;
 
 use crate::batch::{canonical_config_id, SweepPins, TrialSpec, HOLDOUT_START_US};
 use crate::engine::RunConfig;
-use crate::metrics::{max_drawdown, total_return};
+use crate::metrics::total_return;
 use crate::sweep::{load_configs, load_pinned_tape, ConfigRow};
 use crate::walkforward::{
     btcusdt_schedule, run_walk_forward, selection_costs, FamilyGrid, FamilyOutput, GridPoint,
-    SegmentRun, WalkContext, WalkForward, SESSION_WARMUP_DAYS, WARMUP_DAYS,
+    SegmentRun, WalkContext, WalkForward, WindowAccounting, H1_WARMUP_DAYS, H3_WARMUP_DAYS,
+    H4_WARMUP_DAYS, H5_WARMUP_DAYS, SESSION_WARMUP_DAYS, WARMUP_DAYS,
 };
 use crate::WindowConfig;
+use parangsae_strategies::{truncation_probe, EARLIEST_US};
 
 /// Parquet root used when `--data-root` is omitted.
 pub const DEFAULT_DATA_ROOT: &str = "/workspace/data/parangsae";
@@ -93,6 +95,15 @@ pub fn prepare_families(
             .ok_or_else(|| format!("{name} has no folds"))?
             .test
             .end;
+        let slug = rows
+            .first()
+            .map(|row| row.slug.clone())
+            .filter(|slug| !slug.is_empty())
+            .unwrap_or_else(|| name.clone());
+        let prereg_sha256 = rows
+            .first()
+            .map(|row| row.prereg_sha256.clone())
+            .unwrap_or_default();
         let mut points = Vec::with_capacity(rows.len());
         for row in rows {
             if row.start_us != start.micros() || row.end_us != end.micros() {
@@ -132,6 +143,8 @@ pub fn prepare_families(
         }
         families.push(FamilyGrid {
             family: name,
+            slug,
+            prereg_sha256,
             folds,
             points,
         });
@@ -162,7 +175,9 @@ pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
     let pins = SweepPins::load(&request.inputs).map_err(|err| err.to_string())?;
     let start_us = families[0].folds[0].train_warmup.start.micros();
     let end_us = families[0].folds.last().expect("folds").test.end.micros();
-    let tape = load_pinned_tape(&request.data_root, &pins, start_us, end_us)?;
+    let include_premium = families.iter().any(|family| family.family == "H5");
+    let tape = load_pinned_tape(&request.data_root, &pins, start_us, end_us, include_premium)?;
+    write_run_log(&request.out_dir, &families, &tape)?;
     let cash = families[0].points[0].config.initial_cash;
     fs::create_dir_all(&request.out_dir)
         .map_err(|err| format!("create {}: {err}", request.out_dir.display()))?;
@@ -179,42 +194,152 @@ pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
         initial_cash: Cash(cash),
         holdout_start: UtcMicros::from_micros(HOLDOUT_START_US),
     };
-    let result = run_walk_forward(
+    let mut result = run_walk_forward(
         &families,
         &ctx,
         &selection_costs(),
         |config, warmup, start, end, costs| fold.run_scored(config, warmup, start, end, costs),
     )
     .map_err(|err| err.to_string())?;
+    for (family, output) in families.iter().zip(&mut result.families) {
+        if family.family == "H2" {
+            output.h2_member_sharpes = h2_member_diagnostics(&family.folds, cash, |config, f| {
+                fold.run_scored(
+                    config,
+                    f.test_warmup.start.micros(),
+                    f.test.start.micros(),
+                    f.test.end.micros(),
+                    &selection_costs(),
+                )
+            })?;
+        }
+    }
     write_oos(
         &request.out_dir,
         &result,
-        &warmup_by_family(&families),
+        &warmup_by_family(&families)?,
         cash,
     )?;
     write_fold_daily_returns(&request.out_dir, &result)?;
+    crate::table::write_family_tables(
+        &request.out_dir,
+        &families,
+        &result,
+        &pins,
+        &request.ledger,
+    )?;
     Ok(())
 }
 
-fn warmup_by_family(families: &[FamilyGrid<WindowConfig>]) -> BTreeMap<String, i64> {
-    families
-        .iter()
-        .map(|family| {
-            let days = if family.family == "S06" {
-                SESSION_WARMUP_DAYS
-            } else {
-                WARMUP_DAYS
-            };
-            (family.family.clone(), days)
-        })
-        .collect()
+/// Fixed member diagnostics use the blend's folds and headline costs. They do
+/// not call the trial ledger and cannot enter selection.
+fn h2_member_diagnostics(
+    folds: &[crate::Fold],
+    cash: i64,
+    mut run: impl FnMut(&WindowConfig, &crate::Fold) -> Result<crate::WindowResult, String>,
+) -> Result<Vec<Option<i64>>, String> {
+    let mut sharpes = Vec::with_capacity(12);
+    for params in parangsae_strategies::h2_member_params() {
+        let config = WindowConfig {
+            family: "S01".into(),
+            params,
+            initial_cash: cash,
+        };
+        let mut daily = Vec::new();
+        for fold in folds {
+            daily.extend(run(&config, fold)?.daily_returns);
+        }
+        sharpes.push(
+            crate::metrics::sharpe_of_return_ticks(&daily)
+                .map_err(|e| e.to_string())?
+                .1
+                .map(|v| v.ticks()),
+        );
+    }
+    Ok(sharpes)
+}
+
+fn warmup_by_family(
+    families: &[FamilyGrid<WindowConfig>],
+) -> Result<BTreeMap<String, i64>, String> {
+    let mut out = BTreeMap::new();
+    for family in families {
+        out.insert(family.family.clone(), warmup_days(&family.family)?);
+    }
+    Ok(out)
 }
 
 fn warmup_days(family: &str) -> Result<i64, String> {
     match family {
-        "S01" | "S02" | "S03" | "S05" => Ok(WARMUP_DAYS),
+        "S01" | "S02" | "S03" | "S05" | "H2" => Ok(WARMUP_DAYS),
         "S06" => Ok(SESSION_WARMUP_DAYS),
+        "H1" => Ok(H1_WARMUP_DAYS),
+        "H3" => Ok(H3_WARMUP_DAYS),
+        "H4" => Ok(H4_WARMUP_DAYS),
+        "H5" => Ok(H5_WARMUP_DAYS),
         other => Err(format!("no walk-forward schedule for {other}")),
+    }
+}
+
+fn write_run_log(
+    dir: &Path,
+    families: &[FamilyGrid<WindowConfig>],
+    tape: &crate::Tape,
+) -> Result<(), String> {
+    fs::create_dir_all(dir).map_err(|err| format!("create {}: {err}", dir.display()))?;
+    let (min_us, max_us) = tape_bounds(tape);
+    let holdout_ok = min_us >= EARLIEST_US && max_us < HOLDOUT_START_US;
+    let mut lines = vec![
+        "holdout_guard partition_refusal=dates before 2020-12-18 and at or after 2025-10-01 are refused before open".to_owned(),
+        format!(
+            "holdout_guard max_key_us={max_us} min_key_us={min_us} holdout_start_us={HOLDOUT_START_US} sample_start_us={EARLIEST_US} passed={holdout_ok}"
+        ),
+    ];
+    let mut lookahead_ok = true;
+    for family in families {
+        for (index, point) in family.points.iter().enumerate() {
+            let passed = truncation_probe(&family.family, &point.params).is_ok();
+            if !passed {
+                lookahead_ok = false;
+            }
+            lines.push(format!(
+                "lookahead family={} grid_index={index} passed={passed}",
+                family.family
+            ));
+        }
+    }
+    let path = dir.join("run_log.txt");
+    fs::write(&path, lines.join("\n") + "\n")
+        .map_err(|err| format!("write {}: {err}", path.display()))?;
+    if !holdout_ok {
+        return Err(format!("holdout guard failed: min {min_us} max {max_us}"));
+    }
+    if !lookahead_ok {
+        return Err("lookahead probe failed".to_owned());
+    }
+    Ok(())
+}
+
+fn tape_bounds(tape: &crate::Tape) -> (i64, i64) {
+    let mut min_us = i64::MAX;
+    let mut max_us = i64::MIN;
+    let mut touch = |ts: i64| {
+        min_us = min_us.min(ts);
+        max_us = max_us.max(ts);
+    };
+    for bar in tape.bars.iter().chain(tape.marks.iter()) {
+        touch(bar.open_time.micros());
+    }
+    for stamp in &tape.funding {
+        touch(stamp.funding_time.micros());
+    }
+    for row in &tape.premium {
+        touch(row.open_time.micros());
+    }
+    if min_us == i64::MAX {
+        (0, HOLDOUT_START_US)
+    } else {
+        (min_us, max_us)
     }
 }
 
@@ -230,6 +355,7 @@ fn window_config_id(
         run_id: String::new(),
         config_id: String::new(),
         family: family.to_owned(),
+        prereg_sha256: String::new(),
         params: params.clone(),
         attempt,
         ts: start,
@@ -431,16 +557,23 @@ fn family_file(
             row.sharpe_annual_ticks,
             row.turnover_ticks,
         )?;
+        let costs = cost_file(&row.accounting, row.round_trips)?;
         replays.push(ReplayFile {
             fee_bps: row.fee_bps,
             slippage_bps: row.slippage_bps,
             total_return_ticks: metrics.total_return_ticks,
             sharpe_annual_ticks: metrics.sharpe_annual_ticks,
-            max_drawdown_ticks: metrics.max_drawdown_ticks,
+            max_drawdown_ticks: row.max_dd_ticks,
             turnover_ticks: metrics.turnover_ticks,
             net_result_ticks: row.net_result_ticks,
             round_trips: row.round_trips,
             daily_returns: row.daily_returns.clone(),
+            fees_paid_ticks: costs.fees_paid_ticks,
+            funding_net_ticks: costs.funding_net_ticks,
+            exposure_ticks: costs.exposure_ticks,
+            avg_hold_us: costs.avg_hold_us,
+            n_refused_fills: costs.n_refused_fills,
+            n_dropped_entries: costs.n_dropped_entries,
         });
     }
     let metrics = oos_metrics(
@@ -449,24 +582,99 @@ fn family_file(
         headline.sharpe_annual_ticks,
         headline.turnover_ticks,
     )?;
+    let costs = cost_file(&headline.accounting, headline.round_trips)?;
+    let mut folds = Vec::with_capacity(family.folds.len());
+    for fold in &family.folds {
+        let is_sharpe = if fold.selected_flat {
+            None
+        } else {
+            fold.train
+                .get(fold.selected_index)
+                .and_then(|row| row.sharpe_annual_ticks)
+        };
+        folds.push(FoldFile {
+            fold: fold.fold_index,
+            selected_config_id: fold.selected_config_id.clone(),
+            is_sharpe_annual_ticks: is_sharpe,
+            train_sharpe_annual_ticks: fold
+                .train
+                .iter()
+                .map(|row| row.sharpe_annual_ticks)
+                .collect(),
+        });
+    }
+    let stay_flat_shadow = family.stay_flat_shadow.as_ref().map(|shadow| ShadowFile {
+        daily_returns: shadow.daily_returns.clone(),
+        fold_flat: shadow.fold_flat.clone(),
+    });
     Ok(FamilyFile {
+        h2_member_sharpes: family.h2_member_sharpes.clone(),
         family: family.family.clone(),
         n_trials: family.n_trials,
         warmup_days,
         total_return_ticks: metrics.total_return_ticks,
         sharpe_annual_ticks: metrics.sharpe_annual_ticks,
-        max_drawdown_ticks: metrics.max_drawdown_ticks,
+        max_drawdown_ticks: headline.max_dd_ticks,
         turnover_ticks: metrics.turnover_ticks,
         round_trips: headline.round_trips,
         daily_returns: headline.daily_returns.clone(),
+        fees_paid_ticks: costs.fees_paid_ticks,
+        funding_net_ticks: costs.funding_net_ticks,
+        exposure_ticks: costs.exposure_ticks,
+        avg_hold_us: costs.avg_hold_us,
+        n_refused_fills: costs.n_refused_fills,
+        n_dropped_entries: costs.n_dropped_entries,
+        folds,
+        stay_flat_shadow,
         fee_replays: replays,
     })
+}
+
+struct CostFile {
+    fees_paid_ticks: i64,
+    funding_net_ticks: i64,
+    exposure_ticks: i64,
+    avg_hold_us: i64,
+    n_refused_fills: u64,
+    n_dropped_entries: u64,
+}
+
+fn cost_file(accounting: &WindowAccounting, round_trips: u64) -> Result<CostFile, String> {
+    Ok(CostFile {
+        fees_paid_ticks: accounting.fees_paid_ticks,
+        funding_net_ticks: accounting.funding_net_ticks,
+        exposure_ticks: ratio_ticks(accounting.position_us, accounting.window_us)?,
+        avg_hold_us: avg_hold_us(accounting.hold_us_sum, round_trips)?,
+        n_refused_fills: accounting.n_refused_fills,
+        n_dropped_entries: accounting.n_dropped_entries,
+    })
+}
+
+fn ratio_ticks(numerator: i64, denominator: i64) -> Result<i64, String> {
+    if denominator <= 0 {
+        return Ok(0);
+    }
+    let ticks = i128::from(numerator)
+        .checked_mul(SCALE)
+        .ok_or("exposure overflow")?
+        / i128::from(denominator);
+    i64::try_from(ticks).map_err(|_| "exposure overflow".to_owned())
+}
+
+fn avg_hold_us(hold_us_sum: i64, round_trips: u64) -> Result<i64, String> {
+    if round_trips == 0 {
+        return Ok(0);
+    }
+    let trips = i64::try_from(round_trips).map_err(|_| "avg hold overflow".to_owned())?;
+    if trips == 0 {
+        return Ok(0);
+    }
+    Ok(hold_us_sum / trips)
 }
 
 struct OosMetrics {
     total_return_ticks: i64,
     sharpe_annual_ticks: Option<i64>,
-    max_drawdown_ticks: i64,
     turnover_ticks: i64,
 }
 
@@ -479,12 +687,10 @@ fn oos_metrics(
     let path = compound(initial, returns)?;
     let end = path.last().copied().ok_or("oos path is empty")?;
     let total = total_return(Cash(initial), Cash(end)).map_err(|err| err.to_string())?;
-    let drawdown = max_drawdown(&path.iter().copied().map(Cash).collect::<Vec<_>>())
-        .map_err(|err| err.to_string())?;
     Ok(OosMetrics {
         total_return_ticks: total.ticks(),
         sharpe_annual_ticks,
-        max_drawdown_ticks: drawdown.ticks(),
+
         turnover_ticks,
     })
 }
@@ -520,7 +726,31 @@ struct FamilyFile {
     turnover_ticks: i64,
     round_trips: u64,
     daily_returns: Vec<i64>,
+    fees_paid_ticks: i64,
+    funding_net_ticks: i64,
+    exposure_ticks: i64,
+    avg_hold_us: i64,
+    n_refused_fills: u64,
+    n_dropped_entries: u64,
+    folds: Vec<FoldFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stay_flat_shadow: Option<ShadowFile>,
     fee_replays: Vec<ReplayFile>,
+    h2_member_sharpes: Vec<Option<i64>>,
+}
+
+#[derive(Serialize)]
+struct FoldFile {
+    fold: u32,
+    selected_config_id: String,
+    is_sharpe_annual_ticks: Option<i64>,
+    train_sharpe_annual_ticks: Vec<Option<i64>>,
+}
+
+#[derive(Serialize)]
+struct ShadowFile {
+    daily_returns: Vec<i64>,
+    fold_flat: Vec<bool>,
 }
 
 #[derive(Serialize)]
@@ -534,6 +764,12 @@ struct ReplayFile {
     net_result_ticks: i64,
     round_trips: u64,
     daily_returns: Vec<i64>,
+    fees_paid_ticks: i64,
+    funding_net_ticks: i64,
+    exposure_ticks: i64,
+    avg_hold_us: i64,
+    n_refused_fills: u64,
+    n_dropped_entries: u64,
 }
 
 #[cfg(test)]
@@ -591,20 +827,26 @@ mod tests {
             round_trips: 3,
             sharpe_annual_ticks: None,
             turnover_ticks: 25_000_000,
+            max_dd_ticks: 0,
+            accounting: crate::walkforward::WindowAccounting::ZERO,
         };
         let family = FamilyOutput {
+            h2_member_sharpes: Vec::new(),
             family: "S01".to_owned(),
             folds: vec![FoldOutcome {
+                cost_replays: Vec::new(),
                 fold_index: 1,
                 train: Vec::new(),
                 test: vec![segment()],
                 selected_index: 0,
                 selected_config_id: "abc".to_owned(),
+                selected_flat: false,
             }],
             stitched_oos_daily_returns: returns.clone(),
             stitched_oos_equity: vec![initial, initial + initial / 10],
             oos_round_trips: 3,
             n_trials: 12,
+            stay_flat_shadow: None,
             fee_replays: vec![
                 replay(2, 2),
                 replay(4, 2),
@@ -645,6 +887,16 @@ mod tests {
             vec![(2, 2), (4, 2), (5, 2), (6, 2), (5, 5)]
         );
         assert_eq!(rows[2]["daily_returns"], value["daily_returns"]);
+        assert_eq!(value["fees_paid_ticks"], 0);
+        assert_eq!(value["funding_net_ticks"], 0);
+        assert_eq!(value["exposure_ticks"], 0);
+        assert_eq!(value["avg_hold_us"], 0);
+        assert_eq!(value["n_refused_fills"], 0);
+        assert_eq!(value["n_dropped_entries"], 0);
+        assert_eq!(value["folds"][0]["selected_config_id"], "abc");
+        assert!(value["folds"][0]["is_sharpe_annual_ticks"].is_null());
+        assert!(value.get("stay_flat_shadow").is_none());
+        assert_eq!(rows[2]["fees_paid_ticks"], 0);
     }
 
     #[test]
@@ -677,18 +929,22 @@ mod tests {
         test.config_id = "cfg-b".to_owned();
         test.trial_id = "trial-b".to_owned();
         let family = FamilyOutput {
+            h2_member_sharpes: Vec::new(),
             family: "S01".to_owned(),
             folds: vec![FoldOutcome {
+                cost_replays: Vec::new(),
                 fold_index: 1,
                 train: vec![train, earlier],
                 test: vec![test],
                 selected_index: 1,
                 selected_config_id: "cfg-b".to_owned(),
+                selected_flat: false,
             }],
             stitched_oos_daily_returns: vec![3],
             stitched_oos_equity: vec![initial, initial],
             oos_round_trips: 0,
             n_trials: 2,
+            stay_flat_shadow: None,
             fee_replays: Vec::new(),
         };
         let dir = tempfile::tempdir().unwrap();
@@ -726,6 +982,39 @@ S01,cfg-b,trial-b,1,1,OOS_fold_1,2022-01-19,3
             round_trips: 3,
             sharpe_annual_ticks: None,
             fill_notional_ticks: 0,
+            max_dd_ticks: 0,
+            accounting: crate::walkforward::WindowAccounting::ZERO,
         }
+    }
+    #[test]
+    fn qr1_all_twelve_members_are_replayed_on_identical_test_folds() {
+        let folds = crate::btcusdt_schedule(crate::WARMUP_DAYS).unwrap();
+        let mut calls = 0;
+        let mut members = std::collections::BTreeSet::new();
+        let values = super::h2_member_diagnostics(&folds, 1_000_000_000, |config, fold| {
+            calls += 1;
+            assert_eq!(config.family, "S01");
+            assert_eq!(config.params["deadband"], 1);
+            members.insert((
+                config.params["interval"],
+                config.params["n"],
+                config.params["c"],
+            ));
+            assert!(fold.test.start >= fold.train.end);
+            Ok(crate::WindowResult {
+                daily_returns: vec![1_000_000, -500_000],
+                equity_ticks: vec![1_000_000_000, 1_010_000_000, 1_004_950_000],
+                net_result_ticks: 4_950_000,
+                round_trips: 1,
+                fill_notional_ticks: 0,
+                max_dd_ticks: 0,
+                accounting: crate::WindowAccounting::ZERO,
+            })
+        })
+        .unwrap();
+        assert_eq!(calls, 12 * folds.len());
+        assert_eq!(members.len(), 12);
+        assert_eq!(values.len(), 12);
+        assert!(values.iter().all(Option::is_some));
     }
 }
