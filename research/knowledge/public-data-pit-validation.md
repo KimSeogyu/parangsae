@@ -4,6 +4,8 @@
 
 핵심은 **현재 내려받을 수 있는 과거 데이터와 당시 관측 가능했던 데이터가 다를 수 있다**는 점이다. [공통 이벤트 스키마와 검증 규약](alternative-signals.md#4-모든-후보에-적용할-검증-규약)을 다음 세 사례로 구체화한다.
 
+후속 [Funding·검색 관심도 경계](funding-attention-source-boundaries.md)는 현재 metadata와 과거 regime, Google Trends 제품별 접근·시점 차이를 별도 coverage와 함께 다룬다. 아래 세 사례의 기존 확인일·한계는 그대로 유지한다.
+
 ## 1. Wikimedia: 공개 역사도 봇 재분류로 소급 수정된다
 
 **공식 운영자 설명:** [데이터 품질 사건 문서의 고정 revision 2462581][W01]은 다음을 기록한다.
