@@ -16,36 +16,8 @@ use parquet::arrow::{arrow_reader::ParquetRecordBatchReaderBuilder, ProjectionMa
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
+use super::profile::{CERTIFIED_NORMAL_GAPS, MARK_GAP_DAY, MARK_GAP_KEYS, REBUILT, STATUS_DAYS};
 use super::*;
-
-const REBUILT: [&str; 6] = [
-    "2020-12-21",
-    "2021-02-11",
-    "2021-04-25",
-    "2021-08-13",
-    "2021-12-24",
-    "2023-03-24",
-];
-const STATUS_DAYS: [&str; 10] = [
-    "2020-12-21",
-    "2020-12-25",
-    "2021-02-11",
-    "2021-03-06",
-    "2021-04-20",
-    "2021-04-25",
-    "2021-08-13",
-    "2021-09-29",
-    "2021-12-24",
-    "2023-03-24",
-];
-// Exact machine keys from the separately authorized original-source key census.
-const CERTIFIED_NORMAL_GAPS: [(&str, i64, i64); 4] = [
-    ("2020-12-25", 1_608_861_600_000_000, 60),
-    ("2021-03-06", 1_614_996_000_000_000, 90),
-    ("2021-04-20", 1_618_884_000_000_000, 150),
-    ("2021-09-29", 1_632_898_800_000_000, 120),
-];
-const MARK_GAP_DAY: &str = "2024-08-12";
 const OVERLAY_DAY: &str = "2023-11-10";
 const MAX_OBJECT_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -315,12 +287,15 @@ impl FileSource {
             || manifest.symbol != "BTCUSDT"
             || manifest.source_start_us != SAMPLE
             || manifest.source_end_us_exclusive != END
-            || manifest.source_policy_id != "C1_ARCHIVED_SPARSE_KEY_CERTIFIED_V2"
-            || manifest.daily_rebuilt_days != REBUILT
-            || manifest.spot_status_days != STATUS_DAYS
         {
             return Err(fault(path, "unsupported C1 source contract"));
         }
+        validate_source_profile(
+            &manifest.source_policy_id,
+            &manifest.daily_rebuilt_days,
+            &manifest.spot_status_days,
+        )
+        .map_err(|reason| fault(path, format!("source profile: {reason:?}")))?;
         let mut expected = BTreeSet::new();
         let mut day = SAMPLE;
         while day < END {
@@ -411,8 +386,8 @@ impl FileSource {
         if source == PriceSource::UmMark
             && UtcDate::from_micros(UtcMicros::from_micros(day)).to_string() == MARK_GAP_DAY
         {
-            for minute in [10 * 60 + 2, 10 * 60 + 3] {
-                status.insert(day + minute * MINUTE, SourceHealth::Gap);
+            for key in MARK_GAP_KEYS {
+                status.insert(key, SourceHealth::Gap);
             }
         }
         let expected = (0..1440)
@@ -496,7 +471,7 @@ fn cash_profile(row: &SourceFunding, proxy: &SourceBar) -> Result<(), SourceErro
     let cut = row
         .settlement
         .micros()
-        .checked_add(MINUTE)
+        .checked_add(profile::FUNDING_FLOOR_US)
         .ok_or(SourceError::Overflow)?;
     let decision = DecisionTime::from_micros(UtcMicros::from_micros(cut));
     if admitted_funding(row, decision)?.is_none() {
