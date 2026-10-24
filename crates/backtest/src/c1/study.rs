@@ -50,12 +50,12 @@ struct Identity {
 #[derive(Debug)]
 enum Outcome {
     Complete {
-        run: ReplayResult,
-        metrics: SeriesMetrics,
+        run: Box<ReplayResult>,
+        metrics: Box<SeriesMetrics>,
     },
     Technical {
         error: String,
-        prefix: Option<ReplayResult>,
+        prefix: Option<Box<ReplayResult>>,
         stop_error: Option<String>,
     },
     NotExecuted,
@@ -110,7 +110,7 @@ impl Unit {
                 stop_error,
             } => json!({"identity":self.identity,
                 "status":"TECHNICAL_UNRESOLVED","ledger_persistence":self.persistence,"error":error,
-                "control_stop_error":stop_error,"metrics":null,"raw_partial":prefix.as_ref().map(replay_diagnostic)}),
+                "control_stop_error":stop_error,"metrics":null,"raw_partial":prefix.as_deref().map(replay_diagnostic)}),
             Outcome::NotExecuted => json!({"identity":self.identity,"status":"INCOMPLETE",
                 "execution_status":"NOT_EXECUTED","ledger_persistence":self.persistence,"metrics":null,"raw":null}),
         }
@@ -266,14 +266,17 @@ fn execute_unit(
         Ok(replay) => match replay.run() {
             Err(failure) => Outcome::Technical {
                 error: format!("{:?}", failure.error),
-                prefix: Some(*failure.prefix),
+                prefix: Some(failure.prefix),
                 stop_error: failure.stop_error.map(|error| format!("{error:?}")),
             },
             Ok(run) => match series_metrics(Ok(&run), range) {
-                Ok(metrics) => Outcome::Complete { run, metrics },
+                Ok(metrics) => Outcome::Complete {
+                    run: Box::new(run),
+                    metrics: Box::new(metrics),
+                },
                 Err(error) => Outcome::Technical {
                     error: error.to_string(),
-                    prefix: Some(run),
+                    prefix: Some(Box::new(run)),
                     stop_error: None,
                 },
             },
@@ -972,11 +975,133 @@ mod tests {
         assert_eq!(std::str::from_utf8(&original).unwrap().lines().count(), 3);
     }
 
+    fn partial_report_artifact_bodies() -> std::collections::BTreeMap<String, String> {
+        use super::super::admission::{ArtifactRef, C1Inputs, Hash64};
+        let directory = tempfile::tempdir().unwrap();
+        let out = directory.path().join("output");
+        std::fs::create_dir(&out).unwrap();
+        let ledger = out.join("trials.jsonl");
+        let ledger_file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&ledger)
+            .unwrap();
+        let settings: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c1/runtime-settings.json"
+        ))
+        .unwrap();
+        let roles:Vec<Value>=["TRAIN_MAX168","TRAIN_MAX336","OOS_HEADLINE","OOS_HIGHER_PERP_FEE","OOS_SLIPPAGE_STRESS"].into_iter().enumerate()
+            .map(|(index,role)|json!({"role":role,"config_id":format!("{index:x}").repeat(64),"config_preimage":{}})).collect();
+        // Synthetic report binding only. It is never offered as admitted market input.
+        let inputs:C1Inputs=serde_json::from_value(json!({"schema":"parangsae-c1-inputs-v1","protocol_version":"C1-2026-10-24-v1",
+            "study_id":"a".repeat(64),"settings":settings,
+            "prereg":{"path":"synthetic-prereg.md","sha256":"b".repeat(64)},"roles":roles,
+            "source_selection":{"source_policy_id":settings["sources"]["source_policy_id"],"daily_rebuilt_days":settings["sources"]["daily_rebuilt_days"],"spot_status_days":settings["sources"]["spot_status_days"]},
+            "source_manifest":{"path":"c1-source-manifest.json","sha256":"c".repeat(64)},"contracts":[],"objects":[],"pinned_root_expected":"d".repeat(64)})).unwrap();
+        let admitted = AdmittedC1 {
+            inputs,
+            pin: "d".repeat(64),
+            prereg_identity: ArtifactRef {
+                path: "synthetic-prereg.md".to_owned(),
+                sha256: Hash64("b".repeat(64)),
+            },
+            source_manifest: directory.path().join("unread-source-manifest.json"),
+            out: out.clone(),
+            ledger: ledger.clone(),
+            ledger_file,
+        };
+        let request = C1BatchRequest {
+            inputs: directory.path().join("unread-inputs.json"),
+            data_root: directory.path().join("unread-snapshot"),
+            out: out.clone(),
+            ledger: ledger.clone(),
+            attempt: 4,
+        };
+        let source = C1SourceView::synthetic(Vec::new(), Vec::new(), Vec::new()).unwrap();
+        let start = UtcDate::parse("2024-01-04").unwrap().start_us().micros();
+        let unit = run_unit(
+            &source,
+            &TrialLog::new(&ledger),
+            identity(&admitted, &request, &admitted.inputs.roles[0], Some(1)),
+            Scenario::Headline,
+            vec![PolicyWindow {
+                start,
+                end: start + 86_400_000_000_i64,
+                hold: C1MaxHold::Hours168,
+                enabled: false,
+            }],
+        )
+        .unwrap();
+        write_outputs(
+            &admitted,
+            &[unit],
+            &[],
+            None,
+            Some("synthetic partial report fixture"),
+        )
+        .unwrap();
+        let names: std::collections::BTreeSet<_> = std::fs::read_dir(&out)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        assert_eq!(
+            names,
+            [
+                "C1.json",
+                "C1-diagnostics.json",
+                "cscv_is_C1.csv",
+                "fold_daily_returns.csv",
+                "table_C1.csv",
+                "trials.jsonl",
+                "run_log.txt"
+            ]
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+        );
+        let summary: Value =
+            serde_json::from_slice(&std::fs::read(out.join("C1.json")).unwrap()).unwrap();
+        assert_eq!(summary["status"], "INCONCLUSIVE_TECHNICAL");
+        assert_eq!(summary["completion"], "INCOMPLETE");
+        assert_eq!(summary["actual_started_units"], 1);
+        assert!(summary["statistics"].is_null());
+        let diagnostics: Value =
+            serde_json::from_slice(&std::fs::read(out.join("C1-diagnostics.json")).unwrap())
+                .unwrap();
+        assert_eq!(diagnostics["units"][0]["status"], "COMPLETE");
+        assert_eq!(diagnostics["units"][0]["metrics"]["calendar_days"], 1);
+        assert_eq!(
+            std::fs::read_to_string(out.join("fold_daily_returns.csv"))
+                .unwrap()
+                .lines()
+                .count(),
+            2
+        );
+        let artifact_bodies: std::collections::BTreeMap<_, _> = names
+            .into_iter()
+            .map(|name| {
+                let body = std::fs::read_to_string(out.join(&name)).unwrap();
+                (name, body)
+            })
+            .collect();
+        artifact_bodies
+    }
+
+    #[test]
+    fn actual_partial_report_writer_emits_the_seven_named_artifacts_without_success_padding() {
+        let artifact_bodies = partial_report_artifact_bodies();
+        println!(
+            "C1_SYNTHETIC_NATIVE_ARTIFACT_BODIES={}",
+            serde_json::to_string(&artifact_bodies).unwrap()
+        );
+    }
+
     #[derive(Debug, Default, cucumber::World)]
     struct AssemblyWorld {
         directory: Option<tempfile::TempDir>,
         unit: Option<Unit>,
         io_evidence: Option<Value>,
+        artifact_bodies: Option<std::collections::BTreeMap<String, String>>,
     }
 
     #[cucumber::when("a real isolated cash only C1 unit is assembled with an explicit flat policy")]
@@ -1032,6 +1157,32 @@ mod tests {
         );
         assert_eq!(records[1]["execution_status"], "NOT_EXECUTED");
         assert_eq!(records[1]["ledger_persistence"]["state"], "START_UNCERTAIN");
+    }
+
+    #[cucumber::when("the actual native writer emits an incomplete synthetic C1 report")]
+    fn native_partial_report(world: &mut AssemblyWorld) {
+        world.artifact_bodies = Some(partial_report_artifact_bodies());
+    }
+
+    #[cucumber::then(
+        "all seven declared artifacts preserve the completed unit without a complete study verdict"
+    )]
+    fn native_partial_report_observed(world: &mut AssemblyWorld) {
+        let bodies = world.artifact_bodies.as_ref().unwrap();
+        assert_eq!(bodies.len(), 7);
+        let summary: Value = serde_json::from_str(&bodies["C1.json"]).unwrap();
+        assert_eq!(summary["completion"], "INCOMPLETE");
+        assert_eq!(summary["actual_started_units"], 1);
+        assert!(summary["statistics"].is_null());
+        let raw: Value = serde_json::from_str(&bodies["C1-diagnostics.json"]).unwrap();
+        assert_eq!(raw["units"][0]["metrics"]["calendar_days"], 1);
+        assert_eq!(raw["units"][0]["status"], "COMPLETE");
+        let ledger: Vec<Value> = bodies["trials.jsonl"]
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(ledger.len(), 2);
+        assert_eq!(ledger[0]["role"], ledger[1]["role"]);
     }
 
     #[tokio::test]
