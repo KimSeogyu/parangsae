@@ -21,6 +21,31 @@ pub enum EngineError {
     BeforeSample(UtcMicros),
     /// `warmup_start` is after the scored start.
     Warmup(UtcMicros),
+    MoneyCapacity {
+        at: UtcMicros,
+    },
+    MoneyClock {
+        at: UtcMicros,
+    },
+    EconomicArithmetic {
+        at: UtcMicros,
+    },
+    UnadmittedMoneyControl {
+        at: UtcMicros,
+    },
+    UnavailableControlMark {
+        at: UtcMicros,
+    },
+    UnfilledLiquidation {
+        trigger: UtcMicros,
+    },
+    UnfilledBoundaryClose {
+        boundary: UtcMicros,
+    },
+    InvalidExecution,
+    TraceCapacity {
+        at: UtcMicros,
+    },
     Unsorted,
     Sim(SimError),
     Tape(TapeError),
@@ -39,6 +64,27 @@ impl fmt::Display for EngineError {
             Self::HoldoutBar(ts) => write!(f, "bar {ts} is in the holdout"),
             Self::BeforeSample(ts) => write!(f, "bar {ts} is before the in-sample start"),
             Self::Warmup(ts) => write!(f, "warmup {ts} starts after the scored window"),
+            Self::MoneyCapacity { at } => write!(f, "money visibility capacity exceeded at {at}"),
+            Self::MoneyClock { at } => write!(f, "money visibility clock is invalid at {at}"),
+            Self::EconomicArithmetic { at } => {
+                write!(f, "economic accounting cannot be represented at {at}")
+            }
+            Self::UnadmittedMoneyControl { at } => {
+                write!(f, "unavailable money dependencies change control at {at}")
+            }
+            Self::UnavailableControlMark { at } => {
+                write!(f, "no published original control mark at {at}")
+            }
+            Self::UnfilledLiquidation { trigger } => write!(
+                f,
+                "liquidation triggered at {trigger} cannot fill before the window ends"
+            ),
+            Self::UnfilledBoundaryClose { boundary } => write!(
+                f,
+                "calendar close at {boundary} cannot fill before the window ends"
+            ),
+            Self::InvalidExecution => write!(f, "execution phase contradicts the actual position"),
+            Self::TraceCapacity { at } => write!(f, "H4 provenance capacity exceeded at {at}"),
             Self::Unsorted => write!(f, "tape timestamps are not strictly increasing"),
             Self::Sim(err) => write!(f, "{err}"),
             Self::Tape(err) => write!(f, "{err}"),
@@ -60,6 +106,15 @@ impl std::error::Error for EngineError {
             | Self::HoldoutBar(_)
             | Self::BeforeSample(_)
             | Self::Warmup(_)
+            | Self::MoneyCapacity { .. }
+            | Self::MoneyClock { .. }
+            | Self::EconomicArithmetic { .. }
+            | Self::UnadmittedMoneyControl { .. }
+            | Self::UnavailableControlMark { .. }
+            | Self::UnfilledLiquidation { .. }
+            | Self::UnfilledBoundaryClose { .. }
+            | Self::InvalidExecution
+            | Self::TraceCapacity { .. }
             | Self::Unsorted => None,
         }
     }

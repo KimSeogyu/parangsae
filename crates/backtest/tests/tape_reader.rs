@@ -652,7 +652,7 @@ fn schema_1_count_zero_minutes_stay_out_of_the_h5_daily_mean() {
         .push(&h1_bar(shock - hour_us), None)
         .unwrap()
         .expect("the previous day is ready at this midnight");
-    assert_eq!(early_signal.decision.target_ticks(), 0);
+    assert_eq!(early_signal.signal.decision.target_ticks(), 0);
 
     let mut settled = Strategy::from_params("H5", &params).unwrap();
     settled.ingest_premium(&history).unwrap();
@@ -661,7 +661,7 @@ fn schema_1_count_zero_minutes_stay_out_of_the_h5_daily_mean() {
         .push(&h1_bar(shock + day_us - hour_us), None)
         .unwrap()
         .expect("the next midnight can use the day");
-    assert_eq!(at_midnight.decision.target_ticks(), -100_000_000);
+    assert_eq!(at_midnight.signal.decision.target_ticks(), -100_000_000);
 }
 
 fn h5_params() -> BTreeMap<String, i64> {

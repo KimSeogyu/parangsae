@@ -487,6 +487,7 @@ pub struct WindowResult {
     /// Per-bar max drawdown, in `10^8` ratio ticks.
     pub max_dd_ticks: i64,
     pub accounting: WindowAccounting,
+    pub h4: Option<crate::h4_report::H4WindowDiagnostics>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -496,6 +497,7 @@ pub enum WindowShape {
     Return,
     Net,
     Overflow,
+    H4(crate::h4_report::H4ReportError),
 }
 
 impl std::fmt::Display for WindowShape {
@@ -506,6 +508,7 @@ impl std::fmt::Display for WindowShape {
             Self::Return => write!(f, "daily returns do not match the equity path"),
             Self::Net => write!(f, "net result is not the equity change"),
             Self::Overflow => write!(f, "window arithmetic overflowed"),
+            Self::H4(error) => std::fmt::Display::fmt(error, f),
         }
     }
 }
@@ -569,6 +572,7 @@ pub fn window_result(initial: Cash, report: &Report) -> Result<WindowResult, Win
                 .map(|(lo, hi)| (lo.min(initial.0), hi.max(initial.0)));
             a
         },
+        h4: crate::h4_report::reduce_window(initial, report).map_err(WindowShape::H4)?,
     })
 }
 
@@ -698,6 +702,7 @@ pub struct SegmentRun {
     /// Per-bar drawdown of this window, including its opening equity.
     pub max_dd_ticks: i64,
     pub accounting: WindowAccounting,
+    pub h4: Option<crate::h4_report::H4WindowDiagnostics>,
 }
 
 /// One fee-grid or stress replay of a family's stitched test path.
@@ -1298,6 +1303,7 @@ impl<F> Drive<'_, F> {
                     fill_notional_ticks: result.fill_notional_ticks,
                     max_dd_ticks: result.max_dd_ticks,
                     accounting: result.accounting,
+                    h4: result.h4,
                 })
             }
             Ok(Err(source)) => {

@@ -137,8 +137,8 @@ fn h4_fades_a_crowded_long_only_after_confirmation_and_observe_does_not_arm() {
     armed.ingest_funding(&funding).unwrap();
     let mut saw_short = false;
     for bar in &bars {
-        if let Some(signal) = armed.push(bar, None).unwrap() {
-            if ticks(&signal) == -SCALE {
+        if let Some(opportunity) = armed.h4_opportunity(bar).unwrap() {
+            if ticks(&opportunity.signal().unwrap()) == -SCALE {
                 saw_short = true;
             }
         }
@@ -154,8 +154,8 @@ fn h4_fades_a_crowded_long_only_after_confirmation_and_observe_does_not_arm() {
         watched.observe(bar).unwrap();
     }
     let next = bar_at(T0 + 24 * HOUR_US, usdt(90));
-    let followed = watched.push(&next, None).unwrap();
-    assert_eq!(followed.map(|signal| ticks(&signal)), Some(0));
+    let followed = watched.h4_opportunity(&next).unwrap();
+    assert_eq!(followed, None);
 }
 
 #[test]
@@ -166,18 +166,18 @@ fn h5_shorts_a_rich_premium_and_drops_a_day_under_1380_valid_minutes() {
     rich.ingest_premium(&premium_history(90, 1_380, 1_380, 1_000, 100_000_000))
         .unwrap();
     let signal = rich.push(&decision, None).unwrap().expect("ready");
-    assert_eq!(ticks(&signal), -SCALE);
+    assert_eq!(ticks(&signal.signal), -SCALE);
 
     let mut thin = Strategy::from_params("H5", &spec).unwrap();
     thin.ingest_premium(&premium_history(90, 1_380, 1_379, 1_000, 100_000_000))
         .unwrap();
     let skipped = thin.push(&decision, None).unwrap().expect("history exists");
-    assert_eq!(ticks(&skipped), 0);
+    assert_eq!(ticks(&skipped.signal), 0);
 
     let mut zeros = Strategy::from_params("H5", &spec).unwrap();
     zeros.ingest_premium(&premium_with_a_zero_minute()).unwrap();
     let counted = zeros.push(&decision, None).unwrap().expect("zero counts");
-    assert_eq!(ticks(&counted), -SCALE);
+    assert_eq!(ticks(&counted.signal), -SCALE);
 
     let mut watched = Strategy::from_params("H5", &spec).unwrap();
     watched
@@ -186,7 +186,7 @@ fn h5_shorts_a_rich_premium_and_drops_a_day_under_1380_valid_minutes() {
     watched.observe(&decision).unwrap();
     let after = bar_at(T0 + 90 * DAY_US, usdt(40_000));
     let held = watched.push(&after, None).unwrap().expect("after observe");
-    assert_eq!(ticks(&held), 0);
+    assert_eq!(ticks(&held.signal), 0);
 }
 
 fn s01_path() -> Vec<parangsae_core::Observation<parangsae_core::ResampledBar>> {
