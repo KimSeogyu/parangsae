@@ -75,7 +75,7 @@ fn session(slip: u32, perp_cash: Cash) -> CarrySession {
         limits: CarryLimits {
             max_net_btc: qty(2 * U),
             max_unhedged_notional: Cash(20_000 * U),
-            max_session_loss: Cash(500 * U),
+            max_session_loss: Cash(50 * U),
             max_mark_age_us: 10_000,
             max_legging_us: 10_000,
             max_orders: 16,
@@ -252,6 +252,11 @@ fn assert_no_posting(t: &CloseTrace) {
         t.after.perp_collateral_reserved,
         t.before.perp_collateral_reserved
     );
+    assert_eq!(t.after.halted, t.before.halted);
+    assert_eq!(t.after.loss_latched, t.before.loss_latched);
+    assert_eq!(t.after.margin_latched, t.before.margin_latched);
+    assert_eq!(t.after.epoch, t.before.epoch);
+    assert_eq!(t.after.unsupported, t.before.unsupported);
 }
 
 fn assert_round_trip(snapshot: &CarrySnapshot, slip: u32) {
