@@ -20,14 +20,6 @@ const END: i64 = 1_759_276_800_000_000;
 const LIMIT: u64 = 16 * 1024 * 1024;
 const CATALOG: &str = "c1-source-manifest.json";
 const PREREG: &str = "research/prereg/2026-10-24-c1-positive-funding-carry.md";
-const REBUILT: [&str; 6] = [
-    "2020-12-21",
-    "2021-02-11",
-    "2021-04-25",
-    "2021-08-13",
-    "2021-12-24",
-    "2023-03-24",
-];
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct C1BatchRequest {
@@ -495,47 +487,15 @@ fn validate_roles(inputs: &C1Inputs) -> Result<()> {
     Ok(())
 }
 
-fn validate_dates(dates: &[String]) -> Result<()> {
-    let mut previous = None;
-    for text in dates {
-        let day = UtcDate::parse(text).ok_or_else(|| refuse("SOURCE_PROFILE", text))?;
-        require(
-            (START..END).contains(&day.start_us().micros()),
-            "HOLDOUT",
-            text,
-        )?;
-        require(
-            previous.is_none_or(|old| old < day),
-            "SOURCE_PROFILE",
-            "dates must be unique and sorted",
-        )?;
-        previous = Some(day);
-    }
-    Ok(())
-}
-
 type DataNames = BTreeMap<String, (C1InputKind, String)>;
 
 fn data_names(selection: &C1SourceSelection) -> Result<DataNames> {
-    validate_dates(&selection.daily_rebuilt_days)?;
-    validate_dates(&selection.spot_status_days)?;
-    require(
-        selection
-            .daily_rebuilt_days
-            .iter()
-            .map(String::as_str)
-            .eq(REBUILT),
-        "SOURCE_PROFILE",
-        "daily reconstruction scope differs",
-    )?;
-    require(
-        selection
-            .daily_rebuilt_days
-            .iter()
-            .all(|day| selection.spot_status_days.contains(day)),
-        "SOURCE_PROFILE",
-        "rebuilt day status missing",
-    )?;
+    crate::c1_source::validate_source_profile(
+        &selection.source_policy_id,
+        &selection.daily_rebuilt_days,
+        &selection.spot_status_days,
+    )
+    .map_err(|error| refuse("SOURCE_PROFILE", format!("{error:?}")))?;
     let mut result = BTreeMap::new();
     let mut day =
         UtcDate::parse("2020-12-18").ok_or_else(|| refuse("SOURCE_PROFILE", "start date"))?;
@@ -590,6 +550,7 @@ fn validate_metadata(inputs: &C1Inputs) -> Result<DataNames> {
         "STUDY_ID",
         "canonical settings differ",
     )?;
+    super::study::validate_runtime_settings(&inputs.settings.0)?;
     require(
         inputs.settings.0.pointer("/scope/family") == Some(&json!("C1"))
             && inputs.settings.0.pointer("/scope/development_start_us") == Some(&json!(START))
@@ -1001,12 +962,17 @@ mod tests {
     }
 
     fn fixture_inputs() -> C1Inputs {
+        let settings: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c1/runtime-settings.json"
+        ))
+        .unwrap();
+        let sources = &settings["sources"];
         let selection = C1SourceSelection {
-            source_policy_id: "SYNTHETIC_METADATA_FIXTURE_NOT_DATA_ADMISSION".to_owned(),
-            daily_rebuilt_days: REBUILT.map(str::to_owned).to_vec(),
-            spot_status_days: REBUILT.map(str::to_owned).to_vec(),
+            source_policy_id: sources["source_policy_id"].as_str().unwrap().to_owned(),
+            daily_rebuilt_days: serde_json::from_value(sources["daily_rebuilt_days"].clone())
+                .unwrap(),
+            spot_status_days: serde_json::from_value(sources["spot_status_days"].clone()).unwrap(),
         };
-        let settings = json!({"scope":{"family":"C1", "development_start_us":START, "development_end_exclusive_us":END, "holdout_start_us":END}, "sources":selection});
         let study = canonical_id(
             &json!({"identity_schema":"parangsae.c1.study.v1", "protocol_version":"C1-2026-10-24-v1", "settings":settings}),
         );
@@ -1089,6 +1055,25 @@ mod tests {
         }
     }
 
+    fn rebind_settings(inputs: &mut C1Inputs) {
+        inputs.study_id = Hash64(canonical_id(&json!({
+            "identity_schema":"parangsae.c1.study.v1",
+            "protocol_version":inputs.protocol_version,
+            "settings":inputs.settings.0
+        })));
+        let mut candidates = Vec::new();
+        for (index, row) in inputs.roles.iter_mut().enumerate() {
+            row.config_preimage.0["study_settings_id"] = json!(inputs.study_id.0);
+            if index >= 2 {
+                row.config_preimage.0["ordered_candidate_config_ids"] = json!(candidates);
+            }
+            row.config_id = Hash64(canonical_id(&row.config_preimage.0));
+            if index < 2 {
+                candidates.push(row.config_id.0.clone());
+            }
+        }
+    }
+
     #[derive(Debug)]
     struct Fixture {
         directory: tempfile::TempDir,
@@ -1132,6 +1117,23 @@ mod tests {
     impl Drop for Fixture {
         fn drop(&mut self) {
             writable(self.directory.path());
+            fn bytes(path: &Path, seen: &mut BTreeSet<(u64, u64)>) -> u64 {
+                let meta = fs::symlink_metadata(path).unwrap();
+                if meta.is_dir() {
+                    fs::read_dir(path)
+                        .unwrap()
+                        .map(|entry| bytes(&entry.unwrap().path(), seen))
+                        .sum()
+                } else if meta.is_file() && seen.insert((meta.dev(), meta.ino())) {
+                    meta.len()
+                } else {
+                    0
+                }
+            }
+            let removed = bytes(self.directory.path(), &mut BTreeSet::new());
+            fs::remove_dir_all(self.directory.path()).unwrap();
+            assert!(!self.directory.path().exists());
+            println!("C1_SYNTHETIC_FIXTURE_REMOVED_BYTES={removed}");
         }
     }
 
@@ -1151,7 +1153,7 @@ mod tests {
             let mut inputs = fixture_inputs();
             let data = data_names(&inputs.source_selection).unwrap();
             let rows: Vec<_> = data.iter().map(|(path, (role, date))| json!({"path":path,"sha256":hash(b"x"),"role":role,"date":date})).collect();
-            let catalog = serde_json::to_vec(&json!({"schema":"parangsae-c1-source-manifest-v1", "source_start_us":START,"source_end_us_exclusive":END,"symbol":"BTCUSDT","source_policy_id":inputs.source_selection.source_policy_id,"daily_rebuilt_days":REBUILT,"spot_status_days":REBUILT,"data_objects":rows})).unwrap();
+            let catalog = serde_json::to_vec(&json!({"schema":"parangsae-c1-source-manifest-v1", "source_start_us":START,"source_end_us_exclusive":END,"symbol":"BTCUSDT","source_policy_id":inputs.source_selection.source_policy_id,"daily_rebuilt_days":inputs.source_selection.daily_rebuilt_days,"spot_status_days":inputs.source_selection.spot_status_days,"data_objects":rows})).unwrap();
             inputs.source_manifest.sha256 = hash(&catalog);
             for (artifact, kind) in [
                 (&inputs.prereg, C1InputKind::Prereg),
@@ -1234,6 +1236,70 @@ mod tests {
         assert_eq!(admit(&fixture.request).unwrap_err().code, "CONFIG_ID");
         assert!(!fixture.request.out.exists());
         assert!(!fixture.request.data_root.join(CATALOG).exists());
+    }
+
+    #[test]
+    fn self_consistent_unsupported_source_profile_is_refused_before_payloads() {
+        let mut fixture = Fixture::new(false);
+        fixture.inputs.source_selection.source_policy_id = "UNSUPPORTED_CALLER_POLICY".to_owned();
+        fixture.inputs.settings.0["sources"]["source_policy_id"] =
+            json!("UNSUPPORTED_CALLER_POLICY");
+        rebind_settings(&mut fixture.inputs);
+        fixture.write_control();
+        assert_eq!(admit(&fixture.request).unwrap_err().code, "SOURCE_PROFILE");
+        assert!(!fixture.request.data_root.join(CATALOG).exists());
+        assert!(!fixture.request.out.exists());
+    }
+
+    #[test]
+    fn recomputed_ids_cannot_override_the_actual_runtime_contract() {
+        let mut fixture = Fixture::new(false);
+        let original = fixture.inputs.settings.0.clone();
+        for path in [
+            "/capital/initial_total_cash_ticks",
+            "/cost_scenarios/HEADLINE/perp_fee_bps",
+            "/horizons_h/0",
+            "/clock/entry_decision_offset_us",
+            "/folds/schedule/0/train_end_exclusive_us",
+        ] {
+            fixture.inputs.settings.0 = original.clone();
+            *fixture.inputs.settings.0.pointer_mut(path).unwrap() = json!(1);
+            rebind_settings(&mut fixture.inputs);
+            fixture.write_control();
+            assert_eq!(
+                admit(&fixture.request).unwrap_err().code,
+                "RUNTIME_SETTINGS"
+            );
+            assert!(!fixture.request.data_root.join(CATALOG).exists());
+            assert!(!fixture.request.out.exists());
+            assert!(!fixture.request.ledger.exists());
+        }
+    }
+
+    #[test]
+    fn recomputed_ids_cannot_change_funding_floor_or_enable_mark_carry() {
+        let mut fixture = Fixture::new(false);
+        let original = fixture.inputs.settings.0.clone();
+        let mut observed = Vec::new();
+        for (path, value) in [
+            ("/sources/funding_effective_available_floor_us", json!(0)),
+            ("/sources/perp_mark_gap_carry", json!(true)),
+        ] {
+            fixture.inputs.settings.0 = original.clone();
+            *fixture.inputs.settings.0.pointer_mut(path).unwrap() = value;
+            rebind_settings(&mut fixture.inputs);
+            fixture.write_control();
+            observed.push(admit(&fixture.request).unwrap_err().code);
+            assert!(!fixture.request.data_root.join(CATALOG).exists());
+            assert!(!fixture.request.out.exists());
+            assert!(!fixture.request.ledger.exists());
+        }
+        assert!(
+            observed
+                .iter()
+                .all(|code| matches!(*code, "RUNTIME_SETTINGS" | "SOURCE_PROFILE")),
+            "actual semantic refusal codes were {observed:?}"
+        );
     }
 
     #[test]
@@ -1345,6 +1411,18 @@ mod tests {
         let fixture = Fixture::new(true);
         let admitted = admit(&fixture.request).unwrap();
         assert_eq!(admitted.pin, fixture.inputs.pinned_root_expected.0);
+        assert_eq!(admitted.inputs.roles.len(), 5);
+        assert_eq!(admitted.prereg_identity, fixture.inputs.prereg);
+        assert_eq!(
+            admitted.source_manifest,
+            fixture.request.data_root.join(CATALOG)
+        );
+        assert_eq!(
+            crate::canon::sha256_file(&admitted.source_manifest).unwrap(),
+            admitted.inputs.source_manifest.sha256.0
+        );
+        assert_eq!(admitted.out, fixture.request.out);
+        assert_eq!(admitted.ledger, fixture.request.ledger);
         assert_eq!(admitted.ledger_file.metadata().unwrap().len(), 0);
         assert_eq!(fs::read(&fixture.request.ledger).unwrap(), b"");
         assert_eq!(admit(&fixture.request).unwrap_err().code, "OUTPUT_EXISTS");
@@ -1418,6 +1496,42 @@ mod tests {
         assert!(!request.ledger.exists());
     }
 
+    #[when("the caller changes the source policy and recomputes every identity")]
+    fn unsupported_profile(world: &mut AdmissionWorld) {
+        let fixture = world.fixture.as_mut().unwrap();
+        fixture.inputs.source_selection.source_policy_id = "UNSUPPORTED_CALLER_POLICY".to_owned();
+        fixture.inputs.settings.0["sources"]["source_policy_id"] =
+            json!("UNSUPPORTED_CALLER_POLICY");
+        rebind_settings(&mut fixture.inputs);
+        fixture.write_control();
+        world.error = Some(admit(&fixture.request).unwrap_err());
+    }
+
+    #[then("the actual Data profile rejects it before payloads or output")]
+    fn unsupported_profile_refused(world: &mut AdmissionWorld) {
+        assert_eq!(world.error.as_ref().unwrap().code, "SOURCE_PROFILE");
+        let request = &world.fixture.as_ref().unwrap().request;
+        assert!(!request.data_root.join(CATALOG).exists());
+        assert!(!request.out.exists());
+    }
+
+    #[when("the caller changes capital and recomputes every identity")]
+    fn unsupported_runtime(world: &mut AdmissionWorld) {
+        let fixture = world.fixture.as_mut().unwrap();
+        fixture.inputs.settings.0["capital"]["initial_total_cash_ticks"] = json!(1);
+        rebind_settings(&mut fixture.inputs);
+        fixture.write_control();
+        world.error = Some(admit(&fixture.request).unwrap_err());
+    }
+
+    #[then("the actual runtime contract rejects it before payloads or output")]
+    fn unsupported_runtime_refused(world: &mut AdmissionWorld) {
+        assert_eq!(world.error.as_ref().unwrap().code, "RUNTIME_SETTINGS");
+        let request = &world.fixture.as_ref().unwrap().request;
+        assert!(!request.data_root.join(CATALOG).exists());
+        assert!(!request.out.exists());
+    }
+
     #[when("C1 admits the synthetic object tree once")]
     fn admit_once(world: &mut AdmissionWorld) {
         world.admitted = Some(admit(&world.fixture.as_ref().unwrap().request).unwrap());
@@ -1438,6 +1552,7 @@ mod tests {
     async fn admission_behavior_feature() {
         AdmissionWorld::cucumber()
             .with_default_cli()
+            .fail_on_skipped()
             .run_and_exit(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/tests/features/c1_admission.feature"

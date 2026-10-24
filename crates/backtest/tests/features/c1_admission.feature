@@ -13,3 +13,13 @@ Feature: C1 metadata admission preserves a fresh one-shot boundary
     Given an independent readonly synthetic C1 object tree
     When C1 admits the synthetic object tree once
     Then the new ledger is empty and a second admission is refused
+
+  Scenario: A recomputed caller identity cannot choose a source policy
+    Given a C1 metadata fixture without market payloads
+    When the caller changes the source policy and recomputes every identity
+    Then the actual Data profile rejects it before payloads or output
+
+  Scenario: A recomputed caller identity cannot change the actual capital model
+    Given a C1 metadata fixture without market payloads
+    When the caller changes capital and recomputes every identity
+    Then the actual runtime contract rejects it before payloads or output
