@@ -19,8 +19,8 @@ use parangsae_backtest::fixture::Scripted;
 use parangsae_backtest::{
     canonical_config_id, finish_trial, run_batch, run_fee_grid, trial_id, turnover_ratio,
     BatchError, BookState, Decision, FeeGridRunner, FlatBars, FlatReason, FundingObs, SignalOutput,
-    SweepPins, Target, TargetEngine, TargetRunner, TargetSignal, TrialError, TrialMetrics,
-    TrialSpec, UtcRange, HOLDOUT_START_US,
+    StrategyOutput, SweepPins, Target, TargetEngine, TargetRunner, TargetSignal, TrialError,
+    TrialMetrics, TrialSpec, UtcRange, HOLDOUT_START_US,
 };
 use parangsae_core::{Causal, DecisionTime, Interval, Ratio, ResampledBar, UtcMicros};
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
@@ -765,19 +765,19 @@ impl TargetSignal for Repeat {
         view: Causal<'_, &[ResampledBar]>,
         _funding: Causal<'_, &[FundingObs]>,
         _book: BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         let bars = *view.value();
         let hour = bars.last()?;
         let decision = self.steps.get(self.cursor).copied()?;
         self.cursor += 1;
         let decision_ts = hour.close_time().checked_add_micros(1_000)?;
-        Some(SignalOutput {
+        Some(StrategyOutput::target(SignalOutput {
             decision_ts: DecisionTime::from_micros(decision_ts),
             bar_close_time_us: hour.close_time(),
             interval: hour.interval(),
             decision,
             accept: 0,
-        })
+        }))
     }
 }
 

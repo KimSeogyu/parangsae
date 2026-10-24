@@ -15,9 +15,9 @@ use parangsae_backtest::{
     btcusdt_schedule, canonical_config_id, check_window_result, daily_return_tick, fold_schedule,
     forced_flat_at, run, run_targets, run_walk_forward, selection_costs, sharpe_ticks, trial_id,
     window_result, BarView, Decision, EngineError, FamilyGrid, Fold, GridPoint, RunConfig,
-    ScheduleSpec, SignalOutput, Strategy, SweepPins, Target, TargetSignal, TrialSpec, UtcDate,
-    UtcRange, WalkContext, WalkError, WalkForward, WindowResult, FEE_GRID_BPS, HOLDOUT_START_US,
-    STRESS_SLIPPAGE_BPS,
+    ScheduleSpec, SignalOutput, Strategy, StrategyOutput, SweepPins, Target, TargetSignal,
+    TrialSpec, UtcDate, UtcRange, WalkContext, WalkError, WalkForward, WindowResult, FEE_GRID_BPS,
+    HOLDOUT_START_US, STRESS_SLIPPAGE_BPS,
 };
 use parangsae_core::{Causal, DecisionTime, Interval, Qty, Side, UtcMicros};
 use parangsae_sim::{Cash, Costs, FeeBps, MarketOrder, SlippageBps};
@@ -679,16 +679,16 @@ impl TargetSignal for Bias {
         view: Causal<'_, &[parangsae_core::ResampledBar]>,
         _funding: Causal<'_, &[parangsae_backtest::FundingObs]>,
         _book: parangsae_backtest::BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         let hour = view.value().last()?;
         let decision_ts = hour.close_time().checked_add_micros(1_000)?;
-        Some(SignalOutput {
+        Some(StrategyOutput::target(SignalOutput {
             decision_ts: DecisionTime::from_micros(decision_ts),
             bar_close_time_us: hour.close_time(),
             interval: hour.interval(),
             decision: Decision::Target(self.target),
             accept: 0,
-        })
+        }))
     }
 }
 
@@ -1187,7 +1187,7 @@ impl TargetSignal for Spike {
         view: Causal<'_, &[parangsae_core::ResampledBar]>,
         _funding: Causal<'_, &[parangsae_backtest::FundingObs]>,
         _book: parangsae_backtest::BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         let hour = view.value().last()?;
         let decision_ts = hour.close_time().checked_add_micros(1_000)?;
         let hot = view
@@ -1195,13 +1195,13 @@ impl TargetSignal for Spike {
             .iter()
             .any(|bar| bar.close().ticks() >= px(500).ticks());
         let target = Target::from_f64(if hot { 1.0 } else { -1.0 }).unwrap();
-        Some(SignalOutput {
+        Some(StrategyOutput::target(SignalOutput {
             decision_ts: DecisionTime::from_micros(decision_ts),
             bar_close_time_us: hour.close_time(),
             interval: hour.interval(),
             decision: Decision::Target(target),
             accept: 0,
-        })
+        }))
     }
 }
 
