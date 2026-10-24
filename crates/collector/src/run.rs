@@ -186,8 +186,8 @@ impl VerifyFilter {
 }
 
 /// Result of one `verify` run. `fault_lines` is every fault the summary counted,
-/// in the order they were found. `partition_loads` is one entry per fact-partition
-/// read, `dataset/symbol/YYYY-MM-DD`, so a second read of the same partition is visible.
+/// in the order they were found. `partition_loads` records kline cache reads as
+/// `dataset/symbol/YYYY-MM-DD`; a second load of the same kline partition is visible.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerifyReport {
     pub summary: RunSummary,
