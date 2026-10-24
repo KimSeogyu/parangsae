@@ -75,7 +75,7 @@ impl From<C1FeatureError> for ReplayError {
 pub(super) struct ReplayFailure {
     pub error: ReplayError,
     pub stop_error: Option<ReplayError>,
-    pub prefix: ReplayResult,
+    pub prefix: Box<ReplayResult>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -214,7 +214,7 @@ impl<'a> C1Replay<'a> {
             Err(error) => Err(ReplayFailure {
                 error,
                 stop_error,
-                prefix,
+                prefix: Box::new(prefix),
             }),
         }
     }
@@ -364,7 +364,7 @@ impl<'a> C1Replay<'a> {
             && self
                 .pairs
                 .last()
-                .is_none_or(|pair| pair.closed_observed_at.is_some_and(|at| at < boundary))
+                .is_none_or(|pair| pair.closed_observed_at.is_some_and(|at| at <= boundary))
     }
 
     fn ensure_engine(&mut self, at: i64) -> Result<(), ReplayError> {
@@ -1158,9 +1158,6 @@ impl<'a> C1Replay<'a> {
             return Ok(());
         }
         let snap = self.snapshot()?.clone();
-        if snap.funding.iter().any(|funding| funding.receipt.is_none()) {
-            return Ok(());
-        }
         if matches!(
             snap.phase,
             CarryPhase::ClosingPerp
