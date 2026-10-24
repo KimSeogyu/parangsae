@@ -100,7 +100,7 @@ async function main() {
   if (command === 'verify') {
     await step('Check generated C1 opportunity control', process.execPath,
       [cli, 'build', '--project', join(root, 'crates/risk/spec/c1/project.json'),
-        '--jar', jar, '--out', join(root, 'crates/risk/spec/c1/generated'), '--check']);
+        '--jar', jar, '--out', join(root, 'spec/sgd/generated/c1-control'), '--check']);
   }
   await step('Check payload-contract erasure', process.execPath, [cli, 'refine',
     '--abstract', join(abstract, 'symbolic-model.json'), '--concrete', join(concrete, 'symbolic-model.json'),

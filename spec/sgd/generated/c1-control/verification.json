@@ -1,0 +1,27 @@
+{
+  "kind": "tlc-finite-completed",
+  "profile": "finite-owned-v1",
+  "rootModule": "C1OpportunityControl",
+  "moduleClosure": [
+    {
+      "name": "C1OpportunityControl.tla",
+      "sha256": "56fdca76a3f379553cc308a1a4cb81760abdc234557f22f7f20a81311a723d71"
+    }
+  ],
+  "standardModules": [
+    "Integers",
+    "Naturals"
+  ],
+  "configSha256": "c2f94b9e7f229d88037bb549d7235387d23717f8eeed360166449c1e8d03164c",
+  "jarSha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+  "dotSha256": "fb6b4a7a074c1686da9e3185e913e656d133c7dafbb3ad0765c0b22605857f20",
+  "mode": {
+    "exploration": "breadth-first",
+    "workers": 1,
+    "fingerprint": 0,
+    "seed": 0,
+    "dump": "dot,actionlabels",
+    "source": "isolated-flat-module-snapshot"
+  },
+  "projectSha256": "0fff8c6ebdedc373911f6d2fb8c12aac28fa5f9e3f14ca42e142669192e9be23"
+}

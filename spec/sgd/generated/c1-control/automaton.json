@@ -1,0 +1,1640 @@
+{
+  "version": 1,
+  "kind": "exact-finite",
+  "name": "C1OpportunityControl",
+  "variables": [
+    {
+      "name": "armed",
+      "kind": "boolean"
+    },
+    {
+      "name": "epochPending",
+      "kind": "boolean"
+    },
+    {
+      "name": "evaluation",
+      "kind": "string"
+    },
+    {
+      "name": "fundingPending",
+      "kind": "boolean"
+    },
+    {
+      "name": "healthy",
+      "kind": "boolean"
+    },
+    {
+      "name": "mode",
+      "kind": "string"
+    },
+    {
+      "name": "settledIdle",
+      "kind": "boolean"
+    },
+    {
+      "name": "stoppedEver",
+      "kind": "boolean"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "s0",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": false
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Stopped"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": false
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "s1",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": false
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Stopped"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Busy"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": false
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Disabled"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Idle"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s5",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Reserved"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": false
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s6",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": false
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Stopped"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": false
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "s7",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Busy"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": false
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s8",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Pending"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Disabled"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s9",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Pending"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Idle"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s10",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Busy"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": false
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s11",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Disabled"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s12",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Idle"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s13",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Reserved"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": false
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s14",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Busy"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": false
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s15",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Pending"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Disabled"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s16",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": false
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Pending"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Idle"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s17",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": true
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Disabled"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s18",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": true
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Idle"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s19",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": true
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Pending"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Disabled"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s20",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": true
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Pending"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Idle"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s21",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": true
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Disabled"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s22",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": true
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Consumed"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Idle"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s23",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": true
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Pending"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Disabled"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    },
+    {
+      "id": "s24",
+      "values": {
+        "armed": {
+          "kind": "boolean",
+          "value": true
+        },
+        "epochPending": {
+          "kind": "boolean",
+          "value": true
+        },
+        "evaluation": {
+          "kind": "string",
+          "value": "Pending"
+        },
+        "fundingPending": {
+          "kind": "boolean",
+          "value": false
+        },
+        "healthy": {
+          "kind": "boolean",
+          "value": true
+        },
+        "mode": {
+          "kind": "string",
+          "value": "Idle"
+        },
+        "settledIdle": {
+          "kind": "boolean",
+          "value": true
+        },
+        "stoppedEver": {
+          "kind": "boolean",
+          "value": false
+        }
+      }
+    }
+  ],
+  "initial": [
+    "s4"
+  ],
+  "actions": [
+    "AllSettledIdle",
+    "DisableIdle",
+    "EnableIdle",
+    "EvaluateEligible",
+    "EvaluateFalse",
+    "EvaluateNoSize",
+    "FreshIdle",
+    "FreshOccupied",
+    "IntentAccepted",
+    "IntentRefused",
+    "NewEpoch",
+    "RecordFundingSettled",
+    "RecordPendingFunding",
+    "Replay",
+    "RequestEpoch",
+    "Stop",
+    "StoppedWait"
+  ],
+  "edges": [
+    {
+      "from": "s0",
+      "event": "AllSettledIdle",
+      "to": "s1"
+    },
+    {
+      "from": "s0",
+      "event": "RecordPendingFunding",
+      "to": "s6"
+    },
+    {
+      "from": "s0",
+      "event": "Replay",
+      "to": "s0"
+    },
+    {
+      "from": "s0",
+      "event": "Stop",
+      "to": "s0"
+    },
+    {
+      "from": "s0",
+      "event": "StoppedWait",
+      "to": "s0"
+    },
+    {
+      "from": "s1",
+      "event": "AllSettledIdle",
+      "to": "s1"
+    },
+    {
+      "from": "s1",
+      "event": "RecordPendingFunding",
+      "to": "s6"
+    },
+    {
+      "from": "s1",
+      "event": "Replay",
+      "to": "s1"
+    },
+    {
+      "from": "s1",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s1",
+      "event": "StoppedWait",
+      "to": "s1"
+    },
+    {
+      "from": "s10",
+      "event": "AllSettledIdle",
+      "to": "s12"
+    },
+    {
+      "from": "s10",
+      "event": "FreshOccupied",
+      "to": "s10"
+    },
+    {
+      "from": "s10",
+      "event": "RecordPendingFunding",
+      "to": "s14"
+    },
+    {
+      "from": "s10",
+      "event": "Replay",
+      "to": "s10"
+    },
+    {
+      "from": "s10",
+      "event": "RequestEpoch",
+      "to": "s10"
+    },
+    {
+      "from": "s10",
+      "event": "Stop",
+      "to": "s0"
+    },
+    {
+      "from": "s11",
+      "event": "EnableIdle",
+      "to": "s12"
+    },
+    {
+      "from": "s11",
+      "event": "NewEpoch",
+      "to": "s3"
+    },
+    {
+      "from": "s11",
+      "event": "Replay",
+      "to": "s11"
+    },
+    {
+      "from": "s11",
+      "event": "RequestEpoch",
+      "to": "s11"
+    },
+    {
+      "from": "s11",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s12",
+      "event": "DisableIdle",
+      "to": "s11"
+    },
+    {
+      "from": "s12",
+      "event": "NewEpoch",
+      "to": "s4"
+    },
+    {
+      "from": "s12",
+      "event": "Replay",
+      "to": "s12"
+    },
+    {
+      "from": "s12",
+      "event": "RequestEpoch",
+      "to": "s12"
+    },
+    {
+      "from": "s12",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s13",
+      "event": "FreshOccupied",
+      "to": "s13"
+    },
+    {
+      "from": "s13",
+      "event": "IntentAccepted",
+      "to": "s10"
+    },
+    {
+      "from": "s13",
+      "event": "IntentRefused",
+      "to": "s12"
+    },
+    {
+      "from": "s13",
+      "event": "Replay",
+      "to": "s13"
+    },
+    {
+      "from": "s13",
+      "event": "RequestEpoch",
+      "to": "s13"
+    },
+    {
+      "from": "s13",
+      "event": "Stop",
+      "to": "s0"
+    },
+    {
+      "from": "s14",
+      "event": "FreshOccupied",
+      "to": "s14"
+    },
+    {
+      "from": "s14",
+      "event": "RecordFundingSettled",
+      "to": "s10"
+    },
+    {
+      "from": "s14",
+      "event": "RecordPendingFunding",
+      "to": "s14"
+    },
+    {
+      "from": "s14",
+      "event": "Replay",
+      "to": "s14"
+    },
+    {
+      "from": "s14",
+      "event": "RequestEpoch",
+      "to": "s14"
+    },
+    {
+      "from": "s14",
+      "event": "Stop",
+      "to": "s6"
+    },
+    {
+      "from": "s15",
+      "event": "EnableIdle",
+      "to": "s16"
+    },
+    {
+      "from": "s15",
+      "event": "NewEpoch",
+      "to": "s3"
+    },
+    {
+      "from": "s15",
+      "event": "RequestEpoch",
+      "to": "s15"
+    },
+    {
+      "from": "s15",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s16",
+      "event": "DisableIdle",
+      "to": "s15"
+    },
+    {
+      "from": "s16",
+      "event": "NewEpoch",
+      "to": "s4"
+    },
+    {
+      "from": "s16",
+      "event": "RequestEpoch",
+      "to": "s16"
+    },
+    {
+      "from": "s16",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s17",
+      "event": "EnableIdle",
+      "to": "s18"
+    },
+    {
+      "from": "s17",
+      "event": "FreshIdle",
+      "to": "s19"
+    },
+    {
+      "from": "s17",
+      "event": "Replay",
+      "to": "s17"
+    },
+    {
+      "from": "s17",
+      "event": "RequestEpoch",
+      "to": "s21"
+    },
+    {
+      "from": "s17",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s18",
+      "event": "DisableIdle",
+      "to": "s17"
+    },
+    {
+      "from": "s18",
+      "event": "FreshIdle",
+      "to": "s20"
+    },
+    {
+      "from": "s18",
+      "event": "Replay",
+      "to": "s18"
+    },
+    {
+      "from": "s18",
+      "event": "RequestEpoch",
+      "to": "s22"
+    },
+    {
+      "from": "s18",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s19",
+      "event": "EnableIdle",
+      "to": "s20"
+    },
+    {
+      "from": "s19",
+      "event": "FreshIdle",
+      "to": "s19"
+    },
+    {
+      "from": "s19",
+      "event": "RequestEpoch",
+      "to": "s23"
+    },
+    {
+      "from": "s19",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s2",
+      "event": "AllSettledIdle",
+      "to": "s4"
+    },
+    {
+      "from": "s2",
+      "event": "FreshOccupied",
+      "to": "s2"
+    },
+    {
+      "from": "s2",
+      "event": "RecordPendingFunding",
+      "to": "s7"
+    },
+    {
+      "from": "s2",
+      "event": "Replay",
+      "to": "s2"
+    },
+    {
+      "from": "s2",
+      "event": "RequestEpoch",
+      "to": "s10"
+    },
+    {
+      "from": "s2",
+      "event": "Stop",
+      "to": "s0"
+    },
+    {
+      "from": "s20",
+      "event": "DisableIdle",
+      "to": "s19"
+    },
+    {
+      "from": "s20",
+      "event": "EvaluateEligible",
+      "to": "s5"
+    },
+    {
+      "from": "s20",
+      "event": "EvaluateFalse",
+      "to": "s18"
+    },
+    {
+      "from": "s20",
+      "event": "EvaluateNoSize",
+      "to": "s18"
+    },
+    {
+      "from": "s20",
+      "event": "FreshIdle",
+      "to": "s20"
+    },
+    {
+      "from": "s20",
+      "event": "RequestEpoch",
+      "to": "s24"
+    },
+    {
+      "from": "s20",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s21",
+      "event": "EnableIdle",
+      "to": "s22"
+    },
+    {
+      "from": "s21",
+      "event": "NewEpoch",
+      "to": "s3"
+    },
+    {
+      "from": "s21",
+      "event": "Replay",
+      "to": "s21"
+    },
+    {
+      "from": "s21",
+      "event": "RequestEpoch",
+      "to": "s21"
+    },
+    {
+      "from": "s21",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s22",
+      "event": "DisableIdle",
+      "to": "s21"
+    },
+    {
+      "from": "s22",
+      "event": "NewEpoch",
+      "to": "s4"
+    },
+    {
+      "from": "s22",
+      "event": "Replay",
+      "to": "s22"
+    },
+    {
+      "from": "s22",
+      "event": "RequestEpoch",
+      "to": "s22"
+    },
+    {
+      "from": "s22",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s23",
+      "event": "EnableIdle",
+      "to": "s24"
+    },
+    {
+      "from": "s23",
+      "event": "NewEpoch",
+      "to": "s3"
+    },
+    {
+      "from": "s23",
+      "event": "RequestEpoch",
+      "to": "s23"
+    },
+    {
+      "from": "s23",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s24",
+      "event": "DisableIdle",
+      "to": "s23"
+    },
+    {
+      "from": "s24",
+      "event": "NewEpoch",
+      "to": "s4"
+    },
+    {
+      "from": "s24",
+      "event": "RequestEpoch",
+      "to": "s24"
+    },
+    {
+      "from": "s24",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s3",
+      "event": "EnableIdle",
+      "to": "s4"
+    },
+    {
+      "from": "s3",
+      "event": "FreshIdle",
+      "to": "s8"
+    },
+    {
+      "from": "s3",
+      "event": "Replay",
+      "to": "s3"
+    },
+    {
+      "from": "s3",
+      "event": "RequestEpoch",
+      "to": "s11"
+    },
+    {
+      "from": "s3",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s4",
+      "event": "DisableIdle",
+      "to": "s3"
+    },
+    {
+      "from": "s4",
+      "event": "FreshIdle",
+      "to": "s9"
+    },
+    {
+      "from": "s4",
+      "event": "Replay",
+      "to": "s4"
+    },
+    {
+      "from": "s4",
+      "event": "RequestEpoch",
+      "to": "s12"
+    },
+    {
+      "from": "s4",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s5",
+      "event": "FreshOccupied",
+      "to": "s5"
+    },
+    {
+      "from": "s5",
+      "event": "IntentAccepted",
+      "to": "s2"
+    },
+    {
+      "from": "s5",
+      "event": "IntentRefused",
+      "to": "s4"
+    },
+    {
+      "from": "s5",
+      "event": "Replay",
+      "to": "s5"
+    },
+    {
+      "from": "s5",
+      "event": "RequestEpoch",
+      "to": "s13"
+    },
+    {
+      "from": "s5",
+      "event": "Stop",
+      "to": "s0"
+    },
+    {
+      "from": "s6",
+      "event": "RecordFundingSettled",
+      "to": "s0"
+    },
+    {
+      "from": "s6",
+      "event": "RecordPendingFunding",
+      "to": "s6"
+    },
+    {
+      "from": "s6",
+      "event": "Replay",
+      "to": "s6"
+    },
+    {
+      "from": "s6",
+      "event": "Stop",
+      "to": "s6"
+    },
+    {
+      "from": "s6",
+      "event": "StoppedWait",
+      "to": "s6"
+    },
+    {
+      "from": "s7",
+      "event": "FreshOccupied",
+      "to": "s7"
+    },
+    {
+      "from": "s7",
+      "event": "RecordFundingSettled",
+      "to": "s2"
+    },
+    {
+      "from": "s7",
+      "event": "RecordPendingFunding",
+      "to": "s7"
+    },
+    {
+      "from": "s7",
+      "event": "Replay",
+      "to": "s7"
+    },
+    {
+      "from": "s7",
+      "event": "RequestEpoch",
+      "to": "s14"
+    },
+    {
+      "from": "s7",
+      "event": "Stop",
+      "to": "s6"
+    },
+    {
+      "from": "s8",
+      "event": "EnableIdle",
+      "to": "s9"
+    },
+    {
+      "from": "s8",
+      "event": "FreshIdle",
+      "to": "s8"
+    },
+    {
+      "from": "s8",
+      "event": "RequestEpoch",
+      "to": "s15"
+    },
+    {
+      "from": "s8",
+      "event": "Stop",
+      "to": "s1"
+    },
+    {
+      "from": "s9",
+      "event": "DisableIdle",
+      "to": "s8"
+    },
+    {
+      "from": "s9",
+      "event": "EvaluateEligible",
+      "to": "s4"
+    },
+    {
+      "from": "s9",
+      "event": "EvaluateFalse",
+      "to": "s18"
+    },
+    {
+      "from": "s9",
+      "event": "EvaluateNoSize",
+      "to": "s4"
+    },
+    {
+      "from": "s9",
+      "event": "FreshIdle",
+      "to": "s9"
+    },
+    {
+      "from": "s9",
+      "event": "RequestEpoch",
+      "to": "s16"
+    },
+    {
+      "from": "s9",
+      "event": "Stop",
+      "to": "s1"
+    }
+  ],
+  "source": {
+    "dotSha256": "fb6b4a7a074c1686da9e3185e913e656d133c7dafbb3ad0765c0b22605857f20",
+    "stateCount": 25,
+    "edgeCount": 129
+  }
+}

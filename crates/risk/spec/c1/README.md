@@ -72,8 +72,10 @@ positive project or weaken the invariants to accept a faulty model.
 Use native sgd_model with project.json and the pinned repository jar for a
 model-only review, and the two negative projects in separate output folders.
 Use sgd_inspect to read the complete automaton. Executable generation requires
-sgd_build; imported DOT is not executable authority. Keep model-only output
-separate from generated/ so review does not replace an executable inventory.
+sgd_build; imported DOT is not executable authority. The local generated/
+directory is model-only review output and contains no executable crate.
+The executable inventory lives at spec/sgd/generated/c1-control from the
+repository root. Never run model-only generation over that executable output.
 
 The installed runner uses its supported 512 MiB Java heap and one worker.
 Do not use inherited JVM overrides or label this as a 256 MiB run.
@@ -81,16 +83,23 @@ Do not use inherited JVM overrides or label this as a 256 MiB run.
 ## Generated Rust publication
 
 Root performed fresh controlled generation from this repository-path project
-into generated/. Its inventory and provenance are retained unchanged. The
+into spec/sgd/generated/c1-control. Its inventory and provenance are retained. The
 generated Rust source matches the independently checked private crate. Do not
 edit those generated files or substitute private provenance.
 
 The actual repository-path generated package is
 sgd-owned-c1opportunitycontrol-50dd0338899d. Its Rust import is
 sgd_owned_c1opportunitycontrol_50dd0338899d. Both are recorded in
-generated/rust/Cargo.toml and the generated README. Confirm them before adding the sole
+spec/sgd/generated/c1-control/rust/Cargo.toml and its generated README. Confirm them before adding the sole
 Backtest path dependency. Ops reviews that exact module/edge and manifest.
 Do not inline the owner as a mutable application module.
+
+The standalone crate must remain outside existing Cargo workspace members.
+Placing it under crates/risk, even with an exact workspace.exclude, causes
+multiple workspace roots on the checked Cargo version. The root workspace
+excludes the actual nonmember path spec/sgd/generated/c1-control/rust.
+The earlier local executable was retired by controlled model-only generation,
+not by editing its generated manifest or state owner.
 
 The actual generated API is C1ControlMachine::new(), read() and send(Event).
 Exact model action IDs are preserved. Inspect both before and after snapshots;
