@@ -18,3 +18,8 @@ Feature: Paper risk authority and atomic settlement
     Given a declared one BTC long paper portfolio
     When a higher causal mark breaches its notional bound
     Then a fresh reduce-only half close is approved while risk remains halted
+
+  Scenario: A refused identity cannot be rebound to the opposite side
+    Given a flat declared paper portfolio
+    When a held buy causes another buy to be refused
+    Then changing the refused order to a sell halts without a fill

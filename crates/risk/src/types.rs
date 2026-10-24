@@ -111,6 +111,8 @@ impl OrderRequest {
 }
 
 /// Explicit session limits. There is no default, day rollover, or automatic reset.
+/// `capacity` separately bounds retained order identities, retained unique fill
+/// receipts, one settlement batch, one terminal receipt list, and a reconcile cut.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Limits {
     pub(crate) max_order: Qty,

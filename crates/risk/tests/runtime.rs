@@ -159,6 +159,267 @@ fn reapproval_replaces_authority_without_duplicating_its_reservation() {
 }
 
 #[test]
+fn a_first_risk_refusal_still_binds_its_order_identity() {
+    let mut gate = gate(0);
+    let mark = mark(MARK);
+    let _held = gate
+        .check(request(1, Side::Buy, UNIT, false), &context(&mark, 0, 0))
+        .unwrap();
+    assert_eq!(
+        gate.check(request(2, Side::Buy, UNIT, false), &context(&mark, 0, 0))
+            .unwrap_err(),
+        RiskError::PositionLimit
+    );
+    assert_eq!(
+        gate.check(request(2, Side::Sell, UNIT, false), &context(&mark, 0, 0))
+            .unwrap_err(),
+        RiskError::IdentityConflict
+    );
+    assert_eq!(gate.snapshot().position_ticks, 0);
+    assert_eq!(gate.snapshot().envelope.high_ticks, i128::from(UNIT));
+    assert!(gate.is_halted());
+}
+
+#[test]
+fn an_oversized_settlement_batch_is_rejected_before_any_fill() {
+    let limits = Limits::new(
+        qty(UNIT),
+        qty(UNIT),
+        amount(20_000 * UNIT),
+        amount(1_000 * UNIT),
+        10,
+        1_000_000,
+        1,
+    )
+    .unwrap();
+    let mut gate = RiskGate::new(
+        limits,
+        InitialPortfolio {
+            symbol: symbol(),
+            position_ticks: 0,
+            equity_ticks: EQUITY,
+            valuation: Price::from_ticks(MARK).unwrap(),
+        },
+        Mono::from_micros(0),
+    )
+    .unwrap();
+    let mark = mark(MARK);
+    let req = request(1, Side::Buy, UNIT, false);
+    let id = req.id();
+    dispatch(&mut gate, req, &mark, 0);
+    let fill = receipt(id, 1, UNIT / 2);
+    assert!(matches!(
+        gate.prepare_settlement(
+            &[Settlement::Fill(fill.clone()), Settlement::Fill(fill)],
+            &context(&mark, 0, 1),
+            PortfolioSnapshot {
+                position_ticks: UNIT / 2,
+                equity_ticks: EQUITY - 5
+            }
+        ),
+        Err(RiskError::Capacity)
+    ));
+    assert_eq!(gate.snapshot().position_ticks, 0);
+    assert_eq!(gate.snapshot().orders[0].remaining.ticks(), UNIT);
+}
+
+#[test]
+fn full_receipt_retention_keeps_exact_replays_and_refuses_new_receipts() {
+    let limits = Limits::new(
+        qty(UNIT),
+        qty(UNIT),
+        amount(20_000 * UNIT),
+        amount(1_000 * UNIT),
+        10,
+        1_000_000,
+        1,
+    )
+    .unwrap();
+    let mut gate = RiskGate::new(
+        limits,
+        InitialPortfolio {
+            symbol: symbol(),
+            position_ticks: 0,
+            equity_ticks: EQUITY,
+            valuation: Price::from_ticks(MARK).unwrap(),
+        },
+        Mono::from_micros(0),
+    )
+    .unwrap();
+    let mark = mark(MARK);
+    let req = request(1, Side::Buy, UNIT, false);
+    let id = req.id();
+    dispatch(&mut gate, req, &mark, 0);
+    let fill = receipt(id, 1, UNIT / 2);
+    gate.prepare_settlement(
+        &[Settlement::Fill(fill.clone())],
+        &context(&mark, 0, 1),
+        PortfolioSnapshot {
+            position_ticks: UNIT / 2,
+            equity_ticks: EQUITY - 5,
+        },
+    )
+    .unwrap()
+    .commit();
+    let before = gate.snapshot();
+    let mut cx = context(&mark, UNIT / 2, 1);
+    cx.equity_ticks = EQUITY - 5;
+    let duplicate = gate
+        .prepare_settlement(
+            &[Settlement::Fill(fill)],
+            &cx,
+            PortfolioSnapshot {
+                position_ticks: UNIT / 2,
+                equity_ticks: EQUITY - 5,
+            },
+        )
+        .unwrap()
+        .commit();
+    assert_eq!(duplicate, vec![SettlementOutcome::Duplicate]);
+    assert_eq!(gate.snapshot(), before);
+    assert!(matches!(
+        gate.prepare_settlement(
+            &[Settlement::Fill(receipt(id, 2, UNIT / 4))],
+            &cx,
+            PortfolioSnapshot {
+                position_ticks: UNIT * 3 / 4,
+                equity_ticks: EQUITY - 10
+            }
+        ),
+        Err(RiskError::Capacity)
+    ));
+    assert_eq!(gate.snapshot().position_ticks, UNIT / 2);
+    assert_eq!(gate.snapshot().orders[0].remaining.ticks(), UNIT / 2);
+}
+
+#[test]
+fn changed_same_key_receipt_halts_without_another_position_delta() {
+    let mut gate = gate(0);
+    let mark = mark(MARK);
+    let req = request(1, Side::Buy, UNIT, false);
+    let id = req.id();
+    dispatch(&mut gate, req, &mark, 0);
+    let fill = receipt(id, 1, UNIT / 2);
+    gate.prepare_settlement(
+        &[Settlement::Fill(fill.clone())],
+        &context(&mark, 0, 1),
+        PortfolioSnapshot {
+            position_ticks: UNIT / 2,
+            equity_ticks: EQUITY - 5,
+        },
+    )
+    .unwrap()
+    .commit();
+    let mut changed = fill;
+    changed.price = Price::from_ticks(MARK + 1).unwrap();
+    assert!(matches!(
+        gate.prepare_settlement(
+            &[Settlement::Fill(changed)],
+            &context(&mark, UNIT / 2, 1),
+            PortfolioSnapshot {
+                position_ticks: UNIT,
+                equity_ticks: EQUITY - 10
+            }
+        ),
+        Err(RiskError::ReceiptConflict)
+    ));
+    assert_eq!(gate.snapshot().position_ticks, UNIT / 2);
+    assert!(gate.is_halted());
+}
+
+#[test]
+fn terminal_receipt_order_does_not_change_economic_identity() {
+    let mut gate = gate(0);
+    let mark = mark(MARK);
+    let req = request(1, Side::Buy, UNIT, false);
+    let id = req.id();
+    dispatch(&mut gate, req, &mark, 0);
+    let first = receipt(id, 1, UNIT / 4);
+    let second = receipt(id, 2, UNIT / 4);
+    let cut = TerminalEvidence {
+        order: id,
+        status: TerminalStatus::Canceled,
+        cumulative: qty(UNIT / 2),
+        receipts: vec![second.key, first.key],
+        complete: true,
+    };
+    gate.prepare_settlement(
+        &[
+            Settlement::Fill(first),
+            Settlement::Fill(second),
+            Settlement::Terminal(cut.clone()),
+        ],
+        &context(&mark, 0, 1),
+        PortfolioSnapshot {
+            position_ticks: UNIT / 2,
+            equity_ticks: EQUITY - 10,
+        },
+    )
+    .unwrap()
+    .commit();
+    let mut same = cut;
+    same.receipts.reverse();
+    let outcomes = gate
+        .prepare_settlement(
+            &[Settlement::Terminal(same)],
+            &context(&mark, UNIT / 2, 1),
+            PortfolioSnapshot {
+                position_ticks: UNIT / 2,
+                equity_ticks: EQUITY - 10,
+            },
+        )
+        .unwrap()
+        .commit();
+    assert_eq!(outcomes, vec![SettlementOutcome::Duplicate]);
+}
+
+#[test]
+fn rejection_tombstones_use_capacity_and_never_evict_a_prior_identity() {
+    let limits = Limits::new(
+        qty(UNIT),
+        qty(UNIT),
+        amount(20_000 * UNIT),
+        amount(1_000 * UNIT),
+        10,
+        1_000_000,
+        1,
+    )
+    .unwrap();
+    let mut gate = RiskGate::new(
+        limits,
+        InitialPortfolio {
+            symbol: symbol(),
+            position_ticks: 0,
+            equity_ticks: EQUITY,
+            valuation: Price::from_ticks(MARK).unwrap(),
+        },
+        Mono::from_micros(0),
+    )
+    .unwrap();
+    let mark = mark(MARK);
+    assert_eq!(
+        gate.check(
+            request(1, Side::Buy, UNIT * 2, false),
+            &context(&mark, 0, 0)
+        )
+        .unwrap_err(),
+        RiskError::OrderQuantity
+    );
+    assert_eq!(
+        gate.check(request(2, Side::Buy, UNIT, false), &context(&mark, 0, 0))
+            .unwrap_err(),
+        RiskError::Capacity
+    );
+    assert_eq!(
+        gate.check(request(1, Side::Sell, UNIT, false), &context(&mark, 0, 0))
+            .unwrap_err(),
+        RiskError::IdentityConflict
+    );
+    assert_eq!(gate.snapshot().position_ticks, 0);
+    assert!(gate.snapshot().orders.is_empty());
+}
+
+#[test]
 fn late_terminal_mismatch_discards_all_new_partial_fills() {
     let mut gate = gate(0);
     let mark = mark(MARK);
