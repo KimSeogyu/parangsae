@@ -34,6 +34,7 @@ Modules == {
   "parangsae-core",
   "parangsae-execution",
   "parangsae-regime",
+  "parangsae-risk",
   "parangsae-signals",
   "parangsae-sim",
   "parangsae-strategies",
@@ -65,6 +66,7 @@ AllowedDependencies == {
   <<"parangsae-collector", "parangsae-core">>,
   <<"parangsae-collector", "sgd-symbolic-factwriteenvelope-281ebc3217c8">>,
   <<"parangsae-execution", "parangsae-core">>,
+  <<"parangsae-risk", "parangsae-core">>,
   <<"parangsae-signals", "parangsae-core">>,
   <<"parangsae-sim", "parangsae-core">>,
   <<"parangsae-strategies", "parangsae-core">>,
@@ -72,6 +74,7 @@ AllowedDependencies == {
 }
 
 AllowedStateWriters == {
+  <<"parangsae-risk", "RiskGate.portfolio">>,
   <<"parangsae-sim", "Ledger.cash">>,
   <<"parangsae-sim", "Ledger.fees_paid">>,
   <<"parangsae-sim", "Ledger.funding_net">>,
@@ -116,6 +119,7 @@ PathOwners == {
   <<"crates/core/**", "Data Engineer">>,
   <<"crates/execution/**", "Execution Builder">>,
   <<"crates/regime/**", "Signal Builder">>,
+  <<"crates/risk/**", "Risk/Portfolio">>,
   <<"crates/signals/**", "Signal Builder">>,
   <<"crates/strategies/**", "Signal Builder">>,
   <<"crates/sim/**", "Risk/Portfolio">>,
@@ -132,6 +136,8 @@ PathOwners == {
   <<"specs/features/instrument_rules.feature", "Data Engineer">>,
   <<"specs/features/kline_integrity.feature", "Data Engineer">>,
   <<"specs/features/signals/**", "Signal Builder">>,
+  <<"specs/features/risk/**", "Risk/Portfolio">>,
+  <<"specs/features/paper_replay.feature", "Execution Builder">>,
   <<"tests/**", "Ops/Release">>,
   <<"xtask/**", "Ops/Release">>
 }

@@ -31,7 +31,7 @@
   "inputProfile": "disjoint-input-product-v1",
   "rowBinding": {
     "profile": "rust-whole-row-v1",
-    "planSha256": "bb2ccddbc04dd8062b8e8e64611a77c974221f8853f617f8024e7d12b9a1f800",
+    "planSha256": "c691483962835fafda41f79f8ad60e12e8296db8679edb469443e7e6f287d489",
     "sourceScope": "production-library-and-audited-local-type-closure",
     "sources": [
       {
@@ -40,7 +40,7 @@
       },
       {
         "path": "Cargo.toml",
-        "sha256": "05502404a8121199953f814c3f2c939c59aef9b8b95c7dd63edb298c9234b1a3"
+        "sha256": "488fdad003ff7bf2b641cba1ef2392caf584cf3af12f15b01df226faece1bf54"
       },
       {
         "path": "crates/collector/Cargo.toml",
