@@ -1492,8 +1492,11 @@ dependencies = [
 name = "parangsae-execution"
 version = "0.0.0"
 dependencies = [
+ "cucumber",
+ "futures",
  "parangsae-core",
  "proptest",
+ "serde",
  "serde_json",
  "sha2",
 ]
