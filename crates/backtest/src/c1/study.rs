@@ -58,6 +58,16 @@ enum Outcome {
         prefix: Option<ReplayResult>,
         stop_error: Option<String>,
     },
+    NotExecuted,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "state", content = "error", rename_all = "SCREAMING_SNAKE_CASE")]
+enum Persistence {
+    Finished,
+    Aborted,
+    StartUncertain(String),
+    TerminalUncertain(String),
 }
 
 #[derive(Debug)]
@@ -65,28 +75,44 @@ struct Unit {
     identity: Identity,
     range: UtcRange,
     outcome: Outcome,
+    persistence: Persistence,
 }
 
 impl Unit {
     fn complete(&self) -> Result<(&ReplayResult, &SeriesMetrics), C1BatchError> {
+        match &self.persistence {
+            Persistence::StartUncertain(error) | Persistence::TerminalUncertain(error) => {
+                return Err(C1BatchError(format!("ledger persistence: {error}")))
+            }
+            Persistence::Aborted => {
+                return Err(C1BatchError(match &self.outcome {
+                    Outcome::Technical { error, .. } => error.clone(),
+                    _ => "unit has no acknowledged successful terminal".to_owned(),
+                }));
+            }
+            Persistence::Finished => {}
+        }
         match &self.outcome {
             Outcome::Complete { run, metrics } => Ok((run, metrics)),
             Outcome::Technical { error, .. } => Err(C1BatchError(error.clone())),
+            Outcome::NotExecuted => Err(C1BatchError("unit execution was not started".to_owned())),
         }
     }
     fn diagnostic(&self) -> Value {
         match &self.outcome {
-            Outcome::Complete { run, metrics } => {
-                json!({"identity":self.identity,"status":"COMPLETE",
-                "metrics":metrics,"raw":replay_diagnostic(run)})
-            }
+            Outcome::Complete { run, metrics } => json!({"identity":self.identity,
+                "status":if matches!(self.persistence,Persistence::Finished){"COMPLETE"}else{"INCOMPLETE"},
+                "execution_status":"COMPLETE","ledger_persistence":self.persistence,
+                "metrics":metrics,"raw":replay_diagnostic(run)}),
             Outcome::Technical {
                 error,
                 prefix,
                 stop_error,
             } => json!({"identity":self.identity,
-                "status":"TECHNICAL_UNRESOLVED","error":error,"control_stop_error":stop_error,
-                "metrics":null,"raw_partial":prefix.as_ref().map(replay_diagnostic)}),
+                "status":"TECHNICAL_UNRESOLVED","ledger_persistence":self.persistence,"error":error,
+                "control_stop_error":stop_error,"metrics":null,"raw_partial":prefix.as_ref().map(replay_diagnostic)}),
+            Outcome::NotExecuted => json!({"identity":self.identity,"status":"INCOMPLETE",
+                "execution_status":"NOT_EXECUTED","ledger_persistence":self.persistence,"metrics":null,"raw":null}),
         }
     }
 }
@@ -200,7 +226,7 @@ fn run_unit(
                 .end,
         ),
     };
-    log.begin(StartRecord {
+    let started = log.begin(StartRecord {
         run_id: &identity.run_id,
         trial_id: &identity.trial_id,
         config_id: &identity.config_id,
@@ -212,9 +238,26 @@ fn run_unit(
         fold: identity.fold,
         segment: Some(identity.unit_kind),
         role: Some(&identity.role),
-    })
-    .map_err(|error| C1BatchError(error.to_string()))?;
-    let outcome = match C1Replay::new(source, actual, policies) {
+    });
+    if let Err(error) = started {
+        return Ok(Unit {
+            identity,
+            range,
+            outcome: Outcome::NotExecuted,
+            persistence: Persistence::StartUncertain(error.to_string()),
+        });
+    }
+    let outcome = execute_unit(source, actual, policies, range);
+    Ok(persist_execution(log, identity, range, outcome))
+}
+
+fn execute_unit(
+    source: &C1SourceView,
+    actual: Scenario,
+    policies: Vec<PolicyWindow>,
+    range: UtcRange,
+) -> Outcome {
+    match C1Replay::new(source, actual, policies) {
         Err(error) => Outcome::Technical {
             error: format!("replay setup: {error:?}"),
             prefix: None,
@@ -235,23 +278,37 @@ fn run_unit(
                 },
             },
         },
-    };
-    match &outcome {
-        Outcome::Complete { metrics, .. } => {
-            let bytes =
-                serde_json::to_vec(metrics).map_err(|error| C1BatchError(error.to_string()))?;
-            log.finish(&identity.run_id, &sha256_hex(&bytes))
-                .map_err(|error| C1BatchError(error.to_string()))?;
-        }
-        Outcome::Technical { error, .. } => log
-            .abort(&identity.run_id, error)
-            .map_err(|error| C1BatchError(error.to_string()))?,
     }
-    Ok(Unit {
+}
+
+fn persist_execution(
+    log: &TrialLog,
+    identity: Identity,
+    range: UtcRange,
+    outcome: Outcome,
+) -> Unit {
+    let persistence = match &outcome {
+        Outcome::Complete { metrics, .. } => match serde_json::to_vec(metrics) {
+            Ok(bytes) => match log.finish(&identity.run_id, &sha256_hex(&bytes)) {
+                Ok(()) => Persistence::Finished,
+                Err(error) => Persistence::TerminalUncertain(error.to_string()),
+            },
+            Err(error) => Persistence::TerminalUncertain(error.to_string()),
+        },
+        Outcome::Technical { error, .. } => match log.abort(&identity.run_id, error) {
+            Ok(()) => Persistence::Aborted,
+            Err(error) => Persistence::TerminalUncertain(error.to_string()),
+        },
+        Outcome::NotExecuted => {
+            Persistence::StartUncertain("execution was not admitted".to_owned())
+        }
+    };
+    Unit {
         identity,
         range,
         outcome,
-    })
+        persistence,
+    }
 }
 
 pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
@@ -394,14 +451,18 @@ fn write_outputs(
     let common = json!({"study_id":admitted.inputs.study_id.0,"attempt":4_u64,"pin":admitted.pin,"prereg":admitted.prereg_identity});
     let diagnostics: Vec<_> = units.iter().map(Unit::diagnostic).collect();
     let policy_windows = policy_windows(units)?;
-    let failed_role = units.iter().rev().find_map(|unit| match unit.outcome {
-        Outcome::Technical { .. } => Some(unit.identity.role.semantic_role.as_str()),
-        Outcome::Complete { .. } => None,
+    let failed_role = units.iter().rev().find_map(|unit| {
+        unit.complete()
+            .is_err()
+            .then_some(unit.identity.role.semantic_role.as_str())
     });
+    let recorded_starts = crate::trial_log::recorded_run_count(&admitted.ledger);
     let summary = json!({"schema":"parangsae-c1-summary-v1","identity":common,
         "status":if fatal.is_some(){"INCONCLUSIVE_TECHNICAL"}else{"COMPLETED_DECLARED_MODEL"},
         "completion":if fatal.is_some(){"INCOMPLETE"}else{"COMPLETE"},"failed_role":failed_role,
-        "error":fatal,"actual_started_units":units.len(),"declared_unit_cap":33,"declared_charge_cap":5,
+        "error":fatal,"actual_started_units":recorded_starts.as_ref().ok(),
+        "ledger_count_error":recorded_starts.as_ref().err().map(|error|error.to_string()),
+        "represented_unit_outcomes":units.len(),"declared_unit_cap":33,"declared_charge_cap":5,
         "statistics":statistics,"policy_fold_windows":policy_windows,
         "selection":selected.iter().map(|value|value.map(C1MaxHold::hours)).collect::<Vec<_>>(),
         "block_diagnostics_status":"DEFERRED_NOT_COMPUTED","trading_readiness_claim":false});
@@ -420,18 +481,22 @@ fn write_outputs(
             TrialRoleKind::ContinuousPolicy => "ContinuousPolicy",
         };
         let (days, ret, sr, dd, pairs, status) = match &unit.outcome {
-            Outcome::Complete { metrics, .. } => (
-                metrics.calendar_days.to_string(),
-                metrics.total_return_ticks.to_string(),
-                metrics
-                    .annual_sharpe_ticks
-                    .map(|v| v.to_string())
-                    .unwrap_or_default(),
-                metrics.daily_close_max_drawdown_ticks.to_string(),
-                metrics.normal_round_trips.to_string(),
-                "COMPLETE",
-            ),
-            Outcome::Technical { .. } => (
+            Outcome::Complete { metrics, .. }
+                if matches!(unit.persistence, Persistence::Finished) =>
+            {
+                (
+                    metrics.calendar_days.to_string(),
+                    metrics.total_return_ticks.to_string(),
+                    metrics
+                        .annual_sharpe_ticks
+                        .map(|v| v.to_string())
+                        .unwrap_or_default(),
+                    metrics.daily_close_max_drawdown_ticks.to_string(),
+                    metrics.normal_round_trips.to_string(),
+                    "COMPLETE",
+                )
+            }
+            Outcome::Technical { .. } | Outcome::NotExecuted | Outcome::Complete { .. } => (
                 String::new(),
                 String::new(),
                 String::new(),
@@ -459,7 +524,7 @@ fn write_outputs(
             pairs,
             status
         ));
-        if let Outcome::Complete { run, .. } = &unit.outcome {
+        if let Ok((run, _)) = unit.complete() {
             for row in &run.daily {
                 daily.push_str(&format!(
                     "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
@@ -528,7 +593,7 @@ fn policy_windows(units: &[Unit]) -> Result<Vec<Value>, C1BatchError> {
         .iter()
         .filter(|unit| unit.identity.role.role_kind == TrialRoleKind::ContinuousPolicy)
     {
-        let Outcome::Complete { run, .. } = &unit.outcome else {
+        let Ok((run, _)) = unit.complete() else {
             continue;
         };
         for fold in &folds {
@@ -752,10 +817,127 @@ mod tests {
         assert!(run.pairs.is_empty() && run.snapshot.is_none());
     }
 
+    fn start_io_fault_evidence() -> Value {
+        let directory = tempfile::tempdir().unwrap();
+        let ledger = directory.path().join("trials.jsonl");
+        let first = isolated_cash_unit(&ledger);
+        let original = std::fs::read(&ledger).unwrap();
+        let retained = directory.path().join("retained-ledger-before-fault.jsonl");
+        // Test-only filesystem obstruction. Retain every original logical fact.
+        std::fs::rename(&ledger, &retained).unwrap();
+        std::fs::create_dir(&ledger).unwrap();
+        let source = C1SourceView::synthetic(Vec::new(), Vec::new(), Vec::new()).unwrap();
+        let mut next = first.identity.clone();
+        next.run_id.push_str("-next");
+        let second = run_unit(
+            &source,
+            &TrialLog::new(&ledger),
+            next,
+            Scenario::Headline,
+            vec![PolicyWindow {
+                start: first.range.start.micros(),
+                end: first.range.end.micros(),
+                hold: C1MaxHold::Hours168,
+                enabled: false,
+            }],
+        )
+        .expect("ledger IO failure must remain an owned reportable unit");
+        assert!(second.complete().is_err());
+        let records = json!([first.diagnostic(), second.diagnostic()]);
+        let output = directory.path().join("retained-unit-evidence.json");
+        create_output(&output, &serde_json::to_vec(&records).unwrap()).unwrap();
+        assert_eq!(std::fs::read(retained).unwrap(), original);
+        assert!(crate::trial_log::recorded_run_count(&ledger).is_err());
+        serde_json::from_slice(&std::fs::read(output).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn ledger_start_io_failure_keeps_prior_unit_evidence_without_executing_the_next_unit() {
+        let records = start_io_fault_evidence();
+        assert_eq!(records[0]["status"], "COMPLETE");
+        assert_eq!(
+            records[0]["metrics"]["final_equity_ticks"],
+            100_000_000_000_000_i64
+        );
+        assert_eq!(records[1]["status"], "INCOMPLETE");
+        assert_eq!(records[1]["execution_status"], "NOT_EXECUTED");
+        assert_eq!(records[1]["ledger_persistence"]["state"], "START_UNCERTAIN");
+        assert!(records[1]["raw"].is_null());
+    }
+
+    #[test]
+    fn a_failed_terminal_append_retains_the_actual_completed_execution_and_metrics() {
+        let directory = tempfile::tempdir().unwrap();
+        let ledger = directory.path().join("trials.jsonl");
+        let first = isolated_cash_unit(&ledger);
+        let log = TrialLog::new(&ledger);
+        let mut next = first.identity.clone();
+        next.run_id.push_str("-terminal-fault");
+        log.begin(StartRecord {
+            run_id: &next.run_id,
+            trial_id: &next.trial_id,
+            config_id: &next.config_id,
+            pinned_root: &next.pinned_root,
+            prereg_sha256: &next.prereg_sha256,
+            attempt: next.attempt,
+            family: "C1",
+            ts: first.range.start.micros(),
+            fold: None,
+            segment: Some(next.unit_kind),
+            role: Some(&next.role),
+        })
+        .unwrap();
+        let source = C1SourceView::synthetic(Vec::new(), Vec::new(), Vec::new()).unwrap();
+        let execution = execute_unit(
+            &source,
+            Scenario::Headline,
+            vec![PolicyWindow {
+                start: first.range.start.micros(),
+                end: first.range.end.micros(),
+                hold: C1MaxHold::Hours168,
+                enabled: false,
+            }],
+            first.range,
+        );
+        let original = std::fs::read(&ledger).unwrap();
+        let retained = directory
+            .path()
+            .join("retained-ledger-before-terminal-fault.jsonl");
+        std::fs::rename(&ledger, &retained).unwrap();
+        std::fs::create_dir(&ledger).unwrap();
+        let second = persist_execution(&log, next, first.range, execution);
+        assert!(second.complete().is_err());
+        let records = json!([first.diagnostic(), second.diagnostic()]);
+        let output = directory.path().join("retained-unit-evidence.json");
+        create_output(&output, &serde_json::to_vec(&records).unwrap()).unwrap();
+        let recorded: Value = serde_json::from_slice(&std::fs::read(output).unwrap()).unwrap();
+        assert_eq!(recorded[0]["status"], "COMPLETE");
+        assert_eq!(recorded[1]["status"], "INCOMPLETE");
+        assert_eq!(recorded[1]["execution_status"], "COMPLETE");
+        assert_eq!(
+            recorded[1]["ledger_persistence"]["state"],
+            "TERMINAL_UNCERTAIN"
+        );
+        assert_eq!(
+            recorded[1]["metrics"]["final_equity_ticks"],
+            100_000_000_000_000_i64
+        );
+        assert_eq!(
+            recorded[1]["raw"]["daily_capital"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
+        assert_eq!(std::fs::read(retained).unwrap(), original);
+        assert_eq!(std::str::from_utf8(&original).unwrap().lines().count(), 3);
+    }
+
     #[derive(Debug, Default, cucumber::World)]
     struct AssemblyWorld {
         directory: Option<tempfile::TempDir>,
         unit: Option<Unit>,
+        io_evidence: Option<Value>,
     }
 
     #[cucumber::when("a real isolated cash only C1 unit is assembled with an explicit flat policy")]
@@ -789,6 +971,28 @@ mod tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[1]["kind"], "RunFinished");
         assert_eq!(rows[0]["role"], rows[1]["role"]);
+    }
+
+    #[cucumber::when("ledger append becomes unavailable after one completed synthetic unit")]
+    fn obstruct_ledger(world: &mut AssemblyWorld) {
+        world.io_evidence = Some(start_io_fault_evidence());
+    }
+
+    #[cucumber::then(
+        "prior full unit evidence is written and the next unit is explicitly not executed"
+    )]
+    fn retained_ledger_error(world: &mut AssemblyWorld) {
+        let records = world.io_evidence.as_ref().unwrap();
+        assert_eq!(
+            records[0]["metrics"]["final_equity_ticks"],
+            100_000_000_000_000_i64
+        );
+        assert_eq!(
+            records[0]["raw"]["daily_capital"].as_array().unwrap().len(),
+            1
+        );
+        assert_eq!(records[1]["execution_status"], "NOT_EXECUTED");
+        assert_eq!(records[1]["ledger_persistence"]["state"], "START_UNCERTAIN");
     }
 
     #[tokio::test]

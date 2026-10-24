@@ -164,6 +164,13 @@ pub fn distinct_trial_count(path: &Path) -> Result<u64, TrialError> {
         .ok_or_else(|| TrialError::Io("trial count".to_owned()))
 }
 
+pub(crate) fn recorded_run_count(path: &Path) -> Result<usize, TrialError> {
+    Ok(read_lines(path)?
+        .iter()
+        .filter(|line| matches!(line, Line::Started { .. }))
+        .count())
+}
+
 fn trial_id_present(value: &serde_json::Value) -> bool {
     match value.get("trial_id") {
         None | Some(serde_json::Value::Null) => false,
