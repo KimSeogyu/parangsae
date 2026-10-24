@@ -40,7 +40,11 @@ pub(super) fn validate_runtime_settings(actual: &Value) -> Result<(), C1Admissio
     let actual_fields = actual
         .as_object()
         .ok_or_else(|| refusal("settings object"))?;
-    if expected_fields.keys().ne(actual_fields.keys()) {
+    if expected_fields.len() != actual_fields.len()
+        || actual_fields
+            .keys()
+            .any(|key| !expected_fields.contains_key(key))
+    {
         return Err(refusal("settings fields"));
     }
     let source = actual.get("sources").ok_or_else(|| refusal("sources"))?;
