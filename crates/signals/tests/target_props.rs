@@ -146,10 +146,7 @@ mod target_props {
         }
 
         #[test]
-        fn finite_unit_interval_matches_truncation(bits in any::<u64>()) {
-            let value = f64::from_bits(bits);
-            prop_assume!(value.is_finite());
-            prop_assume!((-1.0..=1.0).contains(&value));
+        fn finite_unit_interval_matches_truncation(value in -1.0_f64..=1.0) {
             let expected = trunc_to_i64(trunc(value * 100_000_000.0)).unwrap();
             prop_assert_eq!(Target::from_f64(value).unwrap().ticks(), expected);
         }
