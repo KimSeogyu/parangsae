@@ -3,7 +3,7 @@
   "profile": "unbound-partition-v1",
   "generation": "closed-data-fold",
   "projectSha256": "323ac42180f48af7eddd5163cc9e40516a32efe67bdf9a96cd37e6cbc6178c0f",
-  "planSha256": "7310d63d3f454318a8eb9e90647e78ec9d392ba2731afbddf555e34552b90417",
+  "planSha256": "e27b6b69256270107f8e08fc56567d0f175231d23ca65527cd92ec237507d1c1",
   "references": {
     "rowProjectSha256": "883ab3644719df5fb0ea251cdb1600c998891fe9d6f33ab419014587c1c05081",
     "controlProjectSha256": "1cb923914b9fd52bd3ecd529f199a0bc1bf4c7b24c35cde162ee0835c56ba2df",
@@ -100,7 +100,7 @@
     },
     {
       "path": "crates/collector/src/manifest.rs",
-      "sha256": "9aba1c28c86054d821c6e5906e456141eed13d07b86f3914e0c70b609118987e"
+      "sha256": "2cc9590b99e3084922420256582307ef0c57ffb0873c3a8032642db9a33d30c7"
     },
     {
       "path": "crates/collector/src/normalize.rs",
@@ -112,7 +112,7 @@
     },
     {
       "path": "crates/collector/src/run.rs",
-      "sha256": "c9fbcfb7851dd98424184cfbba8569900321de2228b17bbdf2b06a5b3311c005"
+      "sha256": "8492d20f0d6382cddf31ad77d2ee0c33d4048abc52b832e0aceb44a2332b9b48"
     },
     {
       "path": "crates/collector/src/scale.rs",

@@ -853,7 +853,7 @@
         },
         {
           "path": "crates/collector/src/manifest.rs",
-          "sha256": "9aba1c28c86054d821c6e5906e456141eed13d07b86f3914e0c70b609118987e"
+          "sha256": "2cc9590b99e3084922420256582307ef0c57ffb0873c3a8032642db9a33d30c7"
         },
         {
           "path": "crates/collector/src/normalize.rs",
@@ -865,7 +865,7 @@
         },
         {
           "path": "crates/collector/src/run.rs",
-          "sha256": "c9fbcfb7851dd98424184cfbba8569900321de2228b17bbdf2b06a5b3311c005"
+          "sha256": "8492d20f0d6382cddf31ad77d2ee0c33d4048abc52b832e0aceb44a2332b9b48"
         },
         {
           "path": "crates/collector/src/scale.rs",
