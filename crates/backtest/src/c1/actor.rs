@@ -1158,9 +1158,6 @@ impl<'a> C1Replay<'a> {
             return Ok(());
         }
         let snap = self.snapshot()?.clone();
-        if snap.funding.iter().any(|funding| funding.receipt.is_none()) {
-            return Ok(());
-        }
         if matches!(
             snap.phase,
             CarryPhase::ClosingPerp
