@@ -3,12 +3,11 @@ query/cancel data and parses replies. It has no transport, host resolution,
 submission method, mutable request fields, or live configuration switch.
 The existing sealed `Venue` and refusing `PaperVenue` are unchanged.
 
-The real risk crate, `ApprovedOrder`, and `RiskGate` are absent at base
-`973cff653cde011b6fd7a5a58496a8802e2918f3`. New-order market/limit encoding is
-therefore unit-test-only. This change does not integrate a submitting adapter
-behind `Venue`. That integration remains blocked on #17: it must consume the
-real risk-issued approval and check expiry and halt epoch immediately before
-dispatch. No replacement approval type is introduced here.
+The current execution tree has no runtime risk crate, `ApprovedOrder`, or
+`RiskGate`. New-order market/limit encoding is therefore unit-test-only. A
+future submitting adapter behind `Venue` must consume a real risk-issued
+approval and check expiry and halt epoch immediately before dispatch. This
+change does not provide that integration or introduce a replacement approval.
 
 Fixtures are frozen, hand-authored protocol examples and public RFC 4231
 vectors, not captured exchange responses. Tests perform no network I/O.
