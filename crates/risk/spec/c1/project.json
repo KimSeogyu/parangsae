@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "profile": "finite-owned",
+  "name": "C1OpportunityControl",
+  "spec": "C1OpportunityControl.tla",
+  "config": "C1OpportunityControl.cfg",
+  "targets": [
+    "rust"
+  ],
+  "binding": {
+    "className": "C1ControlMachine"
+  }
+}

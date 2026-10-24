@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "profile": "finite-owned",
+  "name": "C1OpportunityControlBadDisarm",
+  "spec": "C1OpportunityControl.tla",
+  "config": "C1OpportunityControlBadDisarm.cfg",
+  "targets": [
+    "rust"
+  ],
+  "binding": {
+    "className": "C1ControlMachine"
+  }
+}
