@@ -716,8 +716,12 @@ impl CarryEngine {
                 if request.qty.ticks() != state.perp_short.ticks() {
                     return Err(CarryError::CapitalEnvelope);
                 }
-                let account_fill =
-                    account_fill(&self.session, &request, request.qty, request.max_price)?;
+                let account_fill = account_fill_at_executed_price(
+                    &self.session,
+                    &request,
+                    request.qty,
+                    request.max_price,
+                )?;
                 self.ledger.prepare(&[AccountEvent::Fill(account_fill)])?;
             }
             CarryStage::SpotExit => {
@@ -1638,9 +1642,19 @@ fn account_fill(
         s.fees.perp_slippage
     };
     let price = fill_price(reference, side, slip).map_err(|_| CarryError::Overflow)?;
+    account_fill_at_executed_price(s, request, qty, price)
+}
+fn account_fill_at_executed_price(
+    s: &CarrySession,
+    request: &LegRequest,
+    qty: Qty,
+    price: Price,
+) -> Result<AccountFill, CarryError> {
     if price.ticks() > request.max_price.ticks() {
         return Err(CarryError::PriceEnvelope);
     }
+    let market = market(request.id.stage);
+    let side = side(request.id.stage);
     Ok(AccountFill {
         market,
         side,
