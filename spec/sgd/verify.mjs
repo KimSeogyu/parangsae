@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { access, link, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, link, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -101,6 +101,15 @@ async function main() {
     await step('Check generated C1 opportunity control', process.execPath,
       [cli, 'build', '--project', join(root, 'crates/risk/spec/c1/project.json'),
         '--jar', jar, '--out', join(root, 'spec/sgd/generated/c1-control'), '--check']);
+    await mkdir(join(root, '.runtime'), { recursive: true });
+    const contracts = await mkdtemp(join(root, '.runtime/c1-contract-checks-'));
+    await step('Check finite C1 adapter obligations', 'python3',
+      [join(root, 'crates/risk/spec/c1-adapter/verify.py'), '--jar', jar,
+        '--out', join(contracts, 'c1-adapter')]);
+    await step('Check finite evidence lifetime', 'python3',
+      [join(root, 'crates/risk/spec/evidence-lifecycle/verify.py'), '--jar', jar,
+        '--out', join(contracts, 'evidence-lifecycle')]);
+    process.stdout.write(`Finite model evidence: ${contracts}\n`);
   }
   await step('Check payload-contract erasure', process.execPath, [cli, 'refine',
     '--abstract', join(abstract, 'symbolic-model.json'), '--concrete', join(concrete, 'symbolic-model.json'),

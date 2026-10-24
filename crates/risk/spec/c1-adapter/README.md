@@ -122,8 +122,11 @@ their native classifications are truthful.
 
 ## Proposed repeatable hook
 
-The included runner is a proposed repeatable hook, not the launcher used for
-the model evidence above. It has been syntax-checked, but not executed here.
+The initial model unit syntax-checked the included runner separately from the
+model launcher used for the evidence above. The maintenance integration now
+executes it from `npm --prefix spec/sgd run verify`, with a fresh owned output
+directory. Its baseline and both named fault expectations passed through that
+entry point. The original native model evidence remains separate.
 It uses the pinned JAR, 512 MiB heap, one worker and a 120 second timeout per
 case. EL must allocate the Java lane before another local invocation:
 
@@ -136,6 +139,6 @@ attempts. Do not use sgd_build or generate a Rust consumer under this
 authorization. Preserve the actual TLC/inspection receipts; no repeat run is
 needed merely to reproduce their counts.
 
-ci-registration-proposal.json is a proposal for Ops/EL. No workflow or
-required-check change is included here. This crate-local path is not currently
-discovered by the hosted tla job.
+ci-registration-proposal.json preserves the original proposal for Ops/EL.
+The selected integration uses the existing verifier rather than changing a
+workflow or required check. The hosted tla path trigger remains unchanged.
