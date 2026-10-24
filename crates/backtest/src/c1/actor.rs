@@ -75,7 +75,7 @@ impl From<C1FeatureError> for ReplayError {
 pub(super) struct ReplayFailure {
     pub error: ReplayError,
     pub stop_error: Option<ReplayError>,
-    pub prefix: ReplayResult,
+    pub prefix: Box<ReplayResult>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -214,7 +214,7 @@ impl<'a> C1Replay<'a> {
             Err(error) => Err(ReplayFailure {
                 error,
                 stop_error,
-                prefix,
+                prefix: Box::new(prefix),
             }),
         }
     }
