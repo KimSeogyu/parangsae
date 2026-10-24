@@ -16,6 +16,14 @@
     ],
     [
       "parangsae-backtest",
+      "parangsae-execution"
+    ],
+    [
+      "parangsae-backtest",
+      "parangsae-risk"
+    ],
+    [
+      "parangsae-backtest",
       "parangsae-signals"
     ],
     [
@@ -37,6 +45,14 @@
     [
       "parangsae-execution",
       "parangsae-core"
+    ],
+    [
+      "parangsae-execution",
+      "parangsae-risk"
+    ],
+    [
+      "parangsae-execution",
+      "parangsae-sim"
     ],
     [
       "parangsae-risk",
@@ -322,5 +338,5 @@
       "Ops/Release"
     ]
   ],
-  "spec_sha256": "30397236cddf3f2b235effa700b3fbd64252486dc7d483fdc3c1120f8a36cb56"
+  "spec_sha256": "3e49e9427a7b4776a4795aef58bc740faf9630908491a07f73c76c1154cb40ea"
 }

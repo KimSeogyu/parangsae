@@ -6,19 +6,7 @@
 
 use crate::error::ConfigError;
 
-/// Injected monotonic microseconds. Not a wall clock.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Mono(u64);
-
-impl Mono {
-    pub const fn from_micros(micros: u64) -> Self {
-        Self(micros)
-    }
-
-    pub const fn micros(self) -> u64 {
-        self.0
-    }
-}
+pub use parangsae_risk::Mono;
 
 /// Microseconds since the last send of one client order id.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]

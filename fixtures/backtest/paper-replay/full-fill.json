@@ -1,0 +1,188 @@
+{
+  "session": {
+    "symbol": "BTCUSDT",
+    "initial_cash_ticks": 1000000000000,
+    "initial_equity_ticks": 1000000000000,
+    "initial_mark": {
+      "event_us": 1704067200000000,
+      "available_us": 1704067200000000,
+      "received_us": 1704067200000000,
+      "price_ticks": 3000000000000
+    },
+    "initial_decision_us": 1704067200000000,
+    "initial_mono_us": 0,
+    "costs": {
+      "taker_fee_bps": 5,
+      "slippage_bps": 2
+    },
+    "limits": {
+      "max_order_ticks": 1000000,
+      "max_position_ticks": 10000000,
+      "max_notional_ticks": 1000000000000,
+      "max_session_loss_ticks": 10000000000,
+      "max_approval_age_us": 10000,
+      "max_mark_age_us": 60000000,
+      "capacity": 128
+    },
+    "execution": {
+      "max_dispatch_latency_us": 100,
+      "recv_window_ms": 5000,
+      "margin_ms": 1000,
+      "max_attempts": 3
+    }
+  },
+  "commands": [
+    {
+      "mono_us": 1,
+      "decision_us": 1704067200000001,
+      "mark": {
+        "timestamps": {
+          "event_us": 1704067200000000,
+          "available_us": 1704067200000000,
+          "received_us": 1704067200000000
+        },
+        "value": 3000000000000
+      },
+      "action": {
+        "kind": "plan",
+        "client_order_id": "eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000",
+        "symbol": "BTCUSDT",
+        "side": "buy",
+        "qty_ticks": 400000,
+        "reduce_only": false
+      }
+    },
+    {
+      "mono_us": 2,
+      "decision_us": 1704067200000002,
+      "mark": {
+        "timestamps": {
+          "event_us": 1704067200000000,
+          "available_us": 1704067200000000,
+          "received_us": 1704067200000000
+        },
+        "value": 3000000000000
+      },
+      "action": {
+        "kind": "dispatch",
+        "client_order_id": "eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000"
+      }
+    },
+    {
+      "mono_us": 3,
+      "decision_us": 1704067200000003,
+      "mark": {
+        "timestamps": {
+          "event_us": 1704067200000000,
+          "available_us": 1704067200000000,
+          "received_us": 1704067200000000
+        },
+        "value": 3000000000000
+      },
+      "action": {
+        "kind": "deliver",
+        "report": {
+          "timestamps": {
+            "event_us": 1704067200000003,
+            "available_us": 1704067200000003,
+            "received_us": 1704067200000003
+          },
+          "value": {
+            "kind": "ack",
+            "client_order_id": "eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000"
+          }
+        }
+      }
+    },
+    {
+      "mono_us": 4,
+      "decision_us": 1704067200000004,
+      "mark": {
+        "timestamps": {
+          "event_us": 1704067200000000,
+          "available_us": 1704067200000000,
+          "received_us": 1704067200000000
+        },
+        "value": 3000000000000
+      },
+      "action": {
+        "kind": "deliver",
+        "report": {
+          "timestamps": {
+            "event_us": 1704067200000004,
+            "available_us": 1704067200000004,
+            "received_us": 1704067200000004
+          },
+          "value": {
+            "kind": "fill",
+            "fill": {
+              "client_order_id": "eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000",
+              "fill_id": 1,
+              "qty_ticks": 400000,
+              "reference_price_ticks": 3000000000000
+            }
+          }
+        }
+      }
+    },
+    {
+      "mono_us": 5,
+      "decision_us": 1704067200000005,
+      "mark": {
+        "timestamps": {
+          "event_us": 1704067200000000,
+          "available_us": 1704067200000000,
+          "received_us": 1704067200000000
+        },
+        "value": 3000000000000
+      },
+      "action": {
+        "kind": "reconcile",
+        "cut": {
+          "timestamps": {
+            "event_us": 1704067200000005,
+            "available_us": 1704067200000005,
+            "received_us": 1704067200000005
+          },
+          "value": {
+            "client_order_id": "eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000",
+            "evidence_id": 5,
+            "status": "filled",
+            "cumulative_ticks": 400000,
+            "receipts": [
+              {
+                "timestamps": {
+                  "event_us": 1704067200000004,
+                  "available_us": 1704067200000004,
+                  "received_us": 1704067200000004
+                },
+                "value": {
+                  "client_order_id": "eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000",
+                  "fill_id": 1,
+                  "qty_ticks": 400000,
+                  "reference_price_ticks": 3000000000000
+                }
+              }
+            ],
+            "complete": true
+          }
+        }
+      }
+    },
+    {
+      "mono_us": 6,
+      "decision_us": 1704067200000006,
+      "mark": {
+        "timestamps": {
+          "event_us": 1704067200000000,
+          "available_us": 1704067200000000,
+          "received_us": 1704067200000000
+        },
+        "value": 3000000000000
+      },
+      "action": {
+        "kind": "reconcile_portfolio"
+      }
+    }
+  ]
+}

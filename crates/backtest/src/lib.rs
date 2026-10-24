@@ -23,6 +23,7 @@ mod engine;
 mod error;
 pub mod fixture;
 mod metrics;
+pub mod offline_replay;
 mod report;
 mod signal;
 mod sizing;
@@ -33,6 +34,10 @@ mod tape;
 mod trial_log;
 mod walkforward;
 mod wfbatch;
+
+#[cfg(test)]
+#[path = "../tests/common/paper_cases.rs"]
+pub mod paper_cases;
 
 pub use bar::{Bar, BarView, FundingStamp, PremiumMinute, Strategy, Tape};
 pub use batch::{

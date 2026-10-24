@@ -209,6 +209,20 @@ impl OrderProgress {
         })
     }
 
+    /// The engine binds a validated CID attempt before Risk approval.
+    pub(crate) fn new_pending_attempt(
+        qty: Qty,
+        attempt: Attempt,
+        max: MaxAttempts,
+    ) -> Result<Self, ProgressError> {
+        if attempt.index() >= max.get() {
+            return Err(ProgressError::AttemptOutOfRange);
+        }
+        let mut progress = Self::new_pending(qty)?;
+        progress.attempt = attempt;
+        Ok(progress)
+    }
+
     pub fn from_checkpoint(parts: Checkpoint) -> Result<Self, ProgressError> {
         Self::restore(ProgressRestore {
             state: parts.state,
@@ -280,6 +294,18 @@ impl OrderProgress {
 
     pub const fn last_sent_at(&self) -> Option<Mono> {
         self.last_sent_at
+    }
+
+    /// Only the owning paper engine calls this after checking real Risk dispatch.
+    /// It is deliberately unavailable to external lifecycle callers.
+    pub(crate) fn record_dispatch(&self, now: Mono) -> Result<Self, TransitionError> {
+        if self.state != OrderState::PendingNew || self.sent {
+            return Err(TransitionError::ReportConflict);
+        }
+        let mut next = self.clone();
+        next.sent = true;
+        next.last_sent_at = Some(now);
+        Ok(next)
     }
 
     /// Cumulative fill frozen on entry to a terminal state, including a later race fill.
