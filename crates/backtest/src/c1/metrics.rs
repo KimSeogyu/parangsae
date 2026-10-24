@@ -67,6 +67,7 @@ pub(super) struct SeriesMetrics {
     pub risk_pairs: usize,
     pub hedge_unwind_pairs: usize,
     pub normal_close_times_us: Vec<i64>,
+    pub active_test_folds: Option<usize>,
     pub funding_net_ticks: i64,
     pub spot_quote_fees_ticks: i64,
     pub spot_btc_fee_qty_ticks: i64,
@@ -170,7 +171,7 @@ pub(super) fn series_metrics(
     if result.daily.len() != days {
         return Err(MetricError::Calendar);
     }
-    financial_clocks(result, start, end)?;
+    let active_test_folds = financial_clocks(result, start, end)?;
 
     let mut levels = Vec::with_capacity(days + 1);
     levels.push(Cash(C0));
@@ -242,6 +243,7 @@ pub(super) fn series_metrics(
         risk_pairs: 0,
         hedge_unwind_pairs: 0,
         normal_close_times_us: Vec::new(),
+        active_test_folds,
         funding_net_ticks: final_account.funding_net,
         spot_quote_fees_ticks: final_account.spot_quote_fees,
         spot_btc_fee_qty_ticks: final_account.spot_btc_fees,
@@ -431,8 +433,7 @@ pub(super) fn selection_statistics(
     if headline.calendar_days != OOS_DAYS {
         return Err(MetricError::Calendar);
     }
-    let active_folds = active_test_folds(headline_result)?;
-    active_test_folds(higher_fee_result)?;
+    let active_folds = headline.active_test_folds.ok_or(MetricError::Calendar)?;
     validate_train_shape(train_folds)?;
     let (dates, columns) = stats::is_matrix(train_folds).map_err(|_| MetricError::Statistics)?;
     if dates.len() != IS_DAYS || columns.len() != 2 {
@@ -520,45 +521,70 @@ pub(super) fn selection_statistics(
     })
 }
 
-fn active_test_folds(result: &ReplayResult) -> Result<usize, MetricError> {
-    let mut active = [false; FOLDS];
-    for pair in &result.pairs {
-        let closed = pair.closed_observed_at.ok_or(MetricError::Pair)?;
-        let open_fold = test_fold(pair.opened_decision)?;
-        // Receipt knowledge at a terminal E belongs to the ending fold.
-        // Economic fills still precede E; E+1ms cannot finish the close.
-        let close_fold = test_fold(closed.checked_sub(1).ok_or(MetricError::Calendar)?)?;
-        if open_fold != close_fold {
-            return Err(MetricError::Pair);
-        }
-        match pair.exit_reason.ok_or(MetricError::Pair)? {
-            ExitReason::MaxHold | ExitReason::NonpositiveFunding => active[close_fold] = true,
-            ExitReason::Terminal | ExitReason::Risk | ExitReason::HedgeEnvelopeUnwind => {}
-        }
-    }
-    Ok(active.iter().filter(|value| **value).count())
-}
-
-fn financial_clocks(result: &ReplayResult, start: i64, end: i64) -> Result<(), MetricError> {
+fn financial_clocks(
+    result: &ReplayResult,
+    start: i64,
+    end: i64,
+) -> Result<Option<usize>, MetricError> {
     let economic = |at| (start..end).contains(&at);
     let known = |at| (start..=end).contains(&at);
+    let is_oos = start == OOS_START && end == OOS_END;
+    let mut active = [false; FOLDS];
+    let mut pair_windows = BTreeMap::new();
+    for pair in &result.pairs {
+        let interval = if is_oos {
+            let index = test_fold(pair.opened_decision)?;
+            if matches!(
+                pair.exit_reason,
+                Some(ExitReason::MaxHold | ExitReason::NonpositiveFunding)
+            ) {
+                active[index] = true;
+            }
+            let offset = i64::try_from(index)
+                .map_err(|_| MetricError::Calendar)?
+                .checked_mul(STEP_DAYS * DAY)
+                .ok_or(MetricError::Calendar)?;
+            let from = OOS_START.checked_add(offset).ok_or(MetricError::Calendar)?;
+            let until = if index + 1 == FOLDS {
+                OOS_END
+            } else {
+                from.checked_add(STEP_DAYS * DAY)
+                    .ok_or(MetricError::Calendar)?
+            };
+            (from, until)
+        } else {
+            (start, end)
+        };
+        if pair_windows.insert(pair.pair.as_str(), interval).is_some() {
+            return Err(MetricError::Pair);
+        }
+    }
+    let owner = |pair: &str| pair_windows.get(pair).copied().ok_or(MetricError::Pair);
     for record in &result.records {
         let valid = match record {
-            ActorRecord::Order { at, reference, .. } => {
-                economic(*at)
-                    && reference.original_event_us < end
+            ActorRecord::Order {
+                at,
+                pair,
+                reference,
+                ..
+            } => {
+                let (from, until) = owner(pair)?;
+                (from..until).contains(at)
+                    && reference.original_event_us < until
                     && reference.original_available_us <= *at
             }
             ActorRecord::Fill {
                 at,
                 physical,
+                pair,
                 source,
                 ..
             } => {
-                economic(*physical)
-                    && known(*at)
+                let (from, until) = owner(pair)?;
+                (from..until).contains(physical)
+                    && (from..=until).contains(at)
                     && physical <= at
-                    && source.original_event_us < end
+                    && source.original_event_us < until
                     && source.original_available_us <= *at
             }
             ActorRecord::FundingBoundary { at, .. } => economic(*at),
@@ -577,7 +603,10 @@ fn financial_clocks(result: &ReplayResult, start: i64, end: i64) -> Result<(), M
                     && rate_source.original_available_us <= *at
                     && mark_source.original_available_us <= *at
             }
-            ActorRecord::PairClosed { at, .. } => known(*at),
+            ActorRecord::PairClosed { at, pair, .. } => {
+                let (from, until) = owner(pair)?;
+                (from..=until).contains(at)
+            }
             ActorRecord::Control { .. }
             | ActorRecord::Evaluation { .. }
             | ActorRecord::RiskStop { .. }
@@ -587,7 +616,7 @@ fn financial_clocks(result: &ReplayResult, start: i64, end: i64) -> Result<(), M
             return Err(MetricError::Window);
         }
     }
-    Ok(())
+    Ok(is_oos.then(|| active.iter().filter(|value| **value).count()))
 }
 
 fn test_fold(at: i64) -> Result<usize, MetricError> {

@@ -227,7 +227,7 @@ fn failed_prefix_and_missing_or_changed_days_never_supply_returns() {
     let failure = ReplayFailure {
         error: ReplayError::UnknownDailyLiability { at: START + DAY },
         stop_error: None,
-        prefix: report(&[C0; 4], &[]),
+        prefix: Box::new(report(&[C0; 4], &[])),
     };
     assert_eq!(
         series_metrics(Err(&failure), range(4)),
@@ -257,12 +257,21 @@ fn only_completed_normal_pairs_contribute_activity() {
 
 #[test]
 fn a_pair_cannot_cross_a_declared_test_terminal_boundary() {
-    let mut value = report(&[C0; 1], &[ExitReason::MaxHold]);
-    value.pairs[0].opened_decision = OOS_START + 90 * DAY - 60_000_000;
-    value.pairs[0].closed_observed_at = Some(OOS_START + 90 * DAY + MS);
-    assert_eq!(active_test_folds(&value), Err(MetricError::Pair));
-    value.pairs[0].closed_observed_at = Some(OOS_START + 90 * DAY);
-    assert_eq!(active_test_folds(&value), Ok(1));
+    let end = OOS_START + 90 * DAY;
+    let mut value = one_oos_pair_report(
+        &vec![C0; OOS_DAYS],
+        ExitReason::MaxHold,
+        end - 3_600_000_000 + MS,
+        end,
+    );
+    assert_eq!(financial_clocks(&value, OOS_START, OOS_END), Ok(Some(1)));
+    if let ActorRecord::PairClosed { at, .. } = &mut value.records[0] {
+        *at = end + MS;
+    }
+    assert_eq!(
+        financial_clocks(&value, OOS_START, OOS_END),
+        Err(MetricError::Window)
+    );
 }
 
 fn closed_at_end_report() -> ReplayResult {
@@ -335,6 +344,123 @@ fn flat_oos_report() -> ReplayResult {
         day.known_at += offset;
     }
     flat
+}
+
+fn one_oos_pair_report(
+    levels: &[i64],
+    reason: ExitReason,
+    opened: i64,
+    closed: i64,
+) -> ReplayResult {
+    let mut value = report(levels, &[]);
+    let offset = OOS_START - START;
+    for day in &mut value.daily {
+        day.day_start += offset;
+        day.economic_end_exclusive += offset;
+        day.known_at += offset;
+    }
+    let final_equity = *levels.last().unwrap();
+    let (mut proposed, _) = pair(0, final_equity, reason);
+    proposed.opened_decision = opened;
+    proposed.origin_key = OOS_START;
+    proposed.entry_epoch_start = OOS_START;
+    proposed.opening_deadline = opened + 600_000_000;
+    proposed.physical_paired_at = Some(opened + 180_000_000);
+    proposed.observed_paired_at = Some(opened + 240_000_000);
+    proposed.exit_decision = Some(closed - 600_000_000);
+    proposed.max_exit_decision = proposed.exit_decision;
+    proposed.closing_deadline = Some(closed);
+    proposed.closed_observed_at = Some(closed);
+    value.records.push(ActorRecord::PairClosed {
+        at: closed,
+        pair: proposed.pair.clone(),
+        account: account(final_equity),
+    });
+    value.pairs.push(proposed);
+    value.snapshot = Some(snapshot(&account(final_equity)));
+    value
+}
+
+#[test]
+fn review_controls_actual_negative_account_still_rejects_without_coverage() {
+    let value = one_oos_pair_report(
+        &vec![C0 - 1_000 * UNIT; OOS_DAYS],
+        ExitReason::Risk,
+        OOS_START + 3_600_000_000 + MS,
+        OOS_START + 7_200_000_000,
+    );
+    let out = selection_statistics(&train_folds(), Ok(&value), Ok(&value), 202).unwrap();
+    assert_eq!(out.headline.net_cash_ticks, -1_000 * UNIT);
+    assert!(out
+        .headline
+        .annual_sharpe_ticks
+        .is_some_and(|value| value < 0));
+    assert_eq!(out.gates.headline_positive_return, StatisticGate::Fail);
+    assert_eq!(out.pbo_probability_ticks, Some(0));
+    assert!(!out.gates.coverage_50_pairs_10_folds);
+    assert_eq!(out.verdict, Verdict::RejectOnDeclaredModelSnapshot);
+}
+
+fn bad_internal_fold_report() -> ReplayResult {
+    // A malformed report DTO, not an observed violation by the real actor.
+    let end = OOS_START + 90 * DAY;
+    let mut value = one_oos_pair_report(
+        &vec![C0; OOS_DAYS],
+        ExitReason::Terminal,
+        end - 3_600_000_000 + MS,
+        end,
+    );
+    let mut provenance = source();
+    provenance.original_event_us = end;
+    provenance.original_available_us = end;
+    value.records.push(ActorRecord::Fill {
+        at: end,
+        physical: end,
+        pair: "synthetic-pair-0".into(),
+        stage: "spot_exit",
+        qty: UNIT,
+        raw_reference: UNIT,
+        executed: UNIT,
+        fee_asset: "USDT",
+        fee_ticks: 0,
+        source: provenance,
+        account: account(C0),
+    });
+    value
+}
+
+#[test]
+fn review_controls_internal_fold_keeps_economic_keys_exclusive() {
+    let end = OOS_START + 90 * DAY;
+    let mut value = bad_internal_fold_report();
+    assert_eq!(
+        selection_statistics(&train_folds(), Ok(&value), Ok(&value), 202),
+        Err(MetricError::Window)
+    );
+    if let ActorRecord::Fill {
+        physical, source, ..
+    } = value.records.last_mut().unwrap()
+    {
+        *physical = end - 60_000_000;
+        source.original_event_us = *physical;
+    }
+    let out = selection_statistics(&train_folds(), Ok(&value), Ok(&value), 202).unwrap();
+    assert_eq!(out.headline.terminal_pairs, 1);
+    value.records.push(ActorRecord::Order {
+        at: end,
+        pair: "synthetic-pair-0".into(),
+        stage: "spot_exit",
+        qty: UNIT,
+        lower: UNIT,
+        upper: UNIT,
+        native_upper: UNIT,
+        deadline: end,
+        reference: source(),
+    });
+    assert_eq!(
+        selection_statistics(&train_folds(), Ok(&value), Ok(&value), 202),
+        Err(MetricError::Window)
+    );
 }
 
 #[test]
@@ -478,6 +604,12 @@ fn named_fixture(world: &mut MetricWorld, name: String) {
 
 #[when("the metrics result is serialized")]
 fn serialize_result(world: &mut MetricWorld) {
+    if world.case == "foldedge" {
+        let value = bad_internal_fold_report();
+        let out = selection_statistics(&train_folds(), Ok(&value), Ok(&value), 202);
+        world.json = Some(serde_json::to_value(out).unwrap());
+        return;
+    }
     if matches!(world.case.as_str(), "undefined" | "allzero") {
         let flat = flat_oos_report();
         let mut folds = train_folds();
@@ -505,7 +637,7 @@ fn serialize_result(world: &mut MetricWorld) {
             let failure = ReplayFailure {
                 error: ReplayError::UnknownDailyLiability { at: START + DAY },
                 stop_error: None,
-                prefix: report(&[C0; 4], &[]),
+                prefix: Box::new(report(&[C0; 4], &[])),
             };
             series_metrics(Err(&failure), range(4))
         }
