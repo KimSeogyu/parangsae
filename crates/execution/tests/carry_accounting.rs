@@ -966,3 +966,78 @@ fn acknowledged_and_priced_partial_cancel_denials_do_not_create_unknown() {
         assert!(state.perp_collateral_reserved.0 > 0);
     }
 }
+
+#[test]
+fn resume_refuses_a_current_delta_breach_even_after_exact_reconciliation() {
+    let mut initial = session();
+    initial.limits.max_unhedged_notional = Cash(1_500 * U);
+    let mut h = Harness::with_session(initial);
+    h.spot();
+    let account = h.engine.snapshot().account;
+    h.marked(
+        CarryAction::ReconcilePortfolio(account.clone()),
+        2_000 * U,
+        1_000 * U,
+    )
+    .unwrap();
+    let epoch = h.engine.snapshot().epoch.get();
+    assert!(h.engine.snapshot().halted);
+    assert_eq!(
+        h.marked(
+            CarryAction::Resume {
+                expected_epoch: epoch
+            },
+            2_000 * U,
+            1_000 * U
+        ),
+        Err(CarryError::CapitalEnvelope)
+    );
+    assert!(h.engine.snapshot().halted);
+    assert_eq!(h.engine.snapshot().account, account);
+    h.act(CarryAction::ReconcilePortfolio(account)).unwrap();
+    h.act(CarryAction::Resume {
+        expected_epoch: epoch,
+    })
+    .unwrap();
+    assert!(!h.engine.snapshot().halted);
+}
+
+#[test]
+fn pre_action_valuation_failure_exposes_unresolved_without_changing_economics() {
+    let mut initial = session();
+    let capital = i64::MAX - 1_000;
+    initial.allocation = Allocation {
+        total: Cash(capital),
+        spot_quote: Cash(capital / 2),
+        perp_collateral: Cash(capital - capital / 2),
+        idle: Cash(0),
+    };
+    initial.fees.spot_bps = FeeBps(0);
+    initial.fees.perp_bps = FeeBps(0);
+    initial.limits.max_unhedged_notional = Cash(i64::MAX);
+    let mut h = Harness::with_session(initial);
+    let mut intent = plan();
+    intent.net_btc = qty(U);
+    h.act(CarryAction::Plan(intent)).unwrap();
+    h.act(CarryAction::Dispatch(id(CarryStage::SpotEntry)))
+        .unwrap();
+    h.fill(CarryStage::SpotEntry, 1, U);
+    h.cut(CarryStage::SpotEntry, CarryTerminal::Filled);
+    let before = h.engine.snapshot();
+    assert!(h
+        .marked(
+            CarryAction::NoExecutionEvidence {
+                order: id(CarryStage::SpotEntry),
+                kind: MissingExecution::ZeroCount
+            },
+            i64::MAX,
+            1_000 * U
+        )
+        .is_err());
+    let after = h.engine.snapshot();
+    assert_eq!(after.account, before.account);
+    assert_eq!(after.fills, before.fills);
+    assert_eq!(after.unsupported, Some(UnsupportedEvidence::Valuation));
+    assert!(after.halted);
+    assert_eq!(after.phase, CarryPhase::Unresolved);
+}

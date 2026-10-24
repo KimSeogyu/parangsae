@@ -192,7 +192,10 @@ impl CarryEngine {
         }
         self.last_now = command.now;
         self.last_decision = command.decision;
-        self.observe(*command.spot.value(), *command.perp.value())?;
+        if let Err(error) = self.observe(*command.spot.value(), *command.perp.value()) {
+            self.refresh_phase(command.decision);
+            return Err(error);
+        }
         let deadline_expired = self.legging_since.is_some_and(|start| {
             command.now.micros() - start.micros() > self.session.limits.max_legging_us
         });
@@ -439,6 +442,9 @@ impl CarryEngine {
                 }
                 if self.margin_latched {
                     return Err(CarryError::Unresolved);
+                }
+                if self.delta_latched {
+                    return Err(CarryError::CapitalEnvelope);
                 }
                 self.halted = false;
                 Ok(CarryOutcome::Resumed(self.epoch))
