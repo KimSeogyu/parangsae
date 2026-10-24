@@ -45,14 +45,19 @@ diagnostic.
 
 Sizing remains a signed one-times-equity notional using admitted decision
 equity, divided by the actual modeled fill price and floored to 0.001 BTC.
-Preserve the pending order's original saved sizing authority; later hidden cash
-or a repeated callback cannot resize it.
+Freeze the pending entry's target, accept, decision equity, origin timing, and
+refusal history. Compute its quantity at the actual adverse modeled fill price
+from that frozen authority. Later hidden cash or a repeated callback cannot
+replace the authority. A closing order uses the actual held lots, not a newly
+computed target notional.
 
 All original mandatory gates remain: DSR at least 0.95; K=2 PBO at most 0.20;
 positive headline net total return and Sharpe; positive 6+2 net Sharpe; at least
 100 strategy-initiated OOS round trips; no-lookahead evidence; both holdout
 guards; and complete accounting of actual starts. Forced fold/data-end exits
 remain excluded from the 100-round-trip gate. H2 gate2prime does not apply.
+Forced ruin/liquidation closes are control exits, not strategy-initiated round
+trips, and are also excluded from that gate while their costs remain in results.
 There is no new drawdown tolerance or mechanism gate. The original H4 mechanism
 falsifiers remain reported, not gated.
 
@@ -121,22 +126,33 @@ feed that SQL close label into native `close + 1 ms` logic or claim full timesta
 equivalence between the routes. Ordinary H1/H2 decision-at-`end` fill eligibility
 is unchanged.
 
-Keep the economic ledger and decision knowledge distinct:
+Keep the economic ledger and decision knowledge distinct. The exact R2 priority
+at a minute open `T` is:
 
-1. At settlement, book the signed funding cashflow on the position held before
-   any same-open fill. Keep all economic funding and fees in performance.
-2. The booked cashflow becomes decision-visible only at the later of effective
-   rate availability and the funding-notional mark's ORIGINAL availability.
-   A carried mark retains its source availability. Scan nonmonotone availability
-   correctly; a hidden rate or mark cannot enter sizing, affordability, or control
-   through already-booked cash.
-3. Decisions and saved sizing equity use only the admitted projection. Raw
-   economic cash or an unrepresentable projection has no fallback authority.
-   Retrospective event-labelled equity rows are output, not earlier knowledge.
+1. A zero-delay H1/H2 callback at `D = T` first freezes its decision equity and
+   order authority before the slot-`T` funding settlement.
+2. Book slot-`T` funding on the pre-fill position. Keep every economic funding
+   cashflow and fee in performance.
+3. Before processing the pending order, apply the ORIGINAL-mark-clock and
+   admitted projected-money control due at `T`. A solvency trigger can cancel
+   the pending order; its liquidation cannot reuse this processed open.
+4. Process an eligible surviving pending order at `T` using its frozen authority.
+5. The H4 callback at `T + 1 ms` follows, using only then-admitted information.
+
+The booked cashflow becomes decision-visible only at the later of effective
+rate availability and the funding-notional mark's ORIGINAL availability.
+A carried mark retains its source availability. Scan nonmonotone availability
+correctly; a hidden rate or mark cannot enter sizing, affordability, or control
+through already-booked cash.
+Decisions and saved sizing equity use only the admitted projection. Raw
+economic cash or an unrepresentable projection has no fallback authority.
+Retrospective event-labelled equity rows are output, not earlier knowledge.
 
 The actual execution book and pending order are authoritative for occupancy.
-An unchanged target keeps the pending order's original decision, saved quantity,
-timing, and refusal history. Pending entry and pending close both remain occupied.
+An unchanged target keeps the pending order's original target, accept, decision
+equity, origin timing, and refusal history. Pending entry and pending close both
+remain occupied. Entry lots are computed at the actual adverse fill from that
+frozen authority; exit lots are the actual held lots.
 Consume each skipped event once; do not replace a pending entry with a later tail
 or re-enter during an unresolved close. A zero-lot request is not a fill and
 cannot arm a hold.
