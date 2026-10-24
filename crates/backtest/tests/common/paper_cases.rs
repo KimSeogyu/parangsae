@@ -225,3 +225,28 @@ pub fn halted() -> (PaperSession, Vec<PaperCommand>) {
         ],
     )
 }
+
+pub fn cancel_denied_unknown() -> (PaperSession, Vec<PaperCommand>) {
+    let mut commands: Vec<_> = prefix().into_iter().take(2).collect();
+    commands.extend([
+        command(
+            3,
+            PaperAction::Cancel {
+                client_order_id: id(1),
+            },
+        ),
+        command(
+            4,
+            PaperAction::Deliver(observation(
+                PaperReport::CancelDenied {
+                    client_order_id: id(1),
+                },
+                4,
+            )),
+        ),
+        cut(8, PaperTerminal::Filled, vec![fill(5, 1, 400_000)]),
+        command(9, PaperAction::ReconcilePortfolio),
+        command(10, PaperAction::Resume { expected_epoch: 1 }),
+    ]);
+    (session(), commands)
+}

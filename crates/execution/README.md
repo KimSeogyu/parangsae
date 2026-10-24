@@ -55,6 +55,13 @@ orders and ledger with Risk. `Resume` must carry the caller's explicitly observe
 after a fresh matching reconciliation. Empty Resume records are refused by the
 unreleased journal codec. Session loss remains latched.
 
+Every lifecycle result of `Unknown` commits the matching Risk reservation phase
+and halt before publishing the lifecycle result. This includes cancellation
+denial before any acknowledgment or fill. Earlier approvals become stale, and
+new exposure-increasing plans remain blocked until complete reconciliation and
+explicit resume. Cancel denial after an acknowledgment or partial fill keeps
+its existing known state and reservation.
+
 The current lifecycle forbids late fills from `Expired`. A terminal Expired cut
 with unaccounted priced receipts returns `ExpiredReceiptRecoveryUnsupported`,
 retains conservative exposure and halts. Extending this boundary requires a

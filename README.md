@@ -4,7 +4,7 @@ A Rust research and execution prototype for systematic trading, starting with **
 
 The project explores **specification-guided development with AI agents**. The goal is correct-by-construction boundaries: use formal models, Rust types, and ownership to prevent callers from constructing invalid states or bypassing permitted transitions.
 
-**Research only.** Live trading is not implemented. The execution crate has no network order client, and its paper venue stub rejects every order. A working paper adapter, profitable strategy, and live-readiness are not claimed.
+**Research only.** Live trading is not implemented. The execution crate has no network order client. Risk-approved offline paper execution and journaled restart replay are implemented; strategy profitability and live-readiness are not claimed.
 
 ## Design direction
 
