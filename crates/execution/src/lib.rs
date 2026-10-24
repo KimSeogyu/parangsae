@@ -10,6 +10,7 @@
 
 mod authority;
 mod book;
+pub mod carry;
 mod config;
 pub mod demo;
 mod error;
