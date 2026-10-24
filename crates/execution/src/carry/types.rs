@@ -112,6 +112,7 @@ pub struct CarryCommand {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CarryAction {
+    Observe,
     Plan(CarryPlan),
     PlanHedge {
         pair: u128,
@@ -274,13 +275,21 @@ pub struct CarrySnapshot {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CarryOutcome {
+    /// Admitted marks were observed; the resulting snapshot may be halted.
+    Observed,
     Planned(CarryOrderId),
     Dispatched(CarryOrderId),
     StateChanged(CarryOrderId),
     FillApplied(CarryRecordedFill),
     TerminalReconciled(CarryOrderId),
-    BoundaryCaptured { key: u64, short: Qty },
-    FundingApplied { key: u64, amount: Cash },
+    BoundaryCaptured {
+        key: u64,
+        short: Qty,
+    },
+    FundingApplied {
+        key: u64,
+        amount: Cash,
+    },
     Duplicate,
     Waiting,
     PortfolioReconciled,
