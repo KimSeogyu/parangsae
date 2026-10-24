@@ -1,8 +1,9 @@
 # H4 causal execution and reconstructed-input amendment
 
-Status: DRAFT, NOT FROZEN. No H4 performance run is authorized by this draft.
-It must receive Engineering Lead and independent review, then be frozen before
-the first H4 `RunStarted`. A later semantic change requires a new dated version.
+Status: FROZEN 2026-10-24, before H4 outcomes. The Engineering Lead and independent
+Reviewer approved the substantive body before this status-only freeze. Freezing
+this contract does not authorize a performance run. A later semantic change
+requires a new dated version.
 
 This amendment applies only to the two configurations in the
 [original H4 preregistration](2026-10-23-h4-funding-crowding-fade.md).
