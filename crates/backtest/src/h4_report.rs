@@ -468,7 +468,8 @@ pub fn reduce_window(
         let trip = raw.trade;
         let close = trip.close_ts.ok_or(H4ReportError::OpenTrade)?;
         let origin = Origin::from(raw.event);
-        if !scored(trip.open_ts.micros())
+        if trip.qty.ticks() <= 0
+            || !scored(trip.open_ts.micros())
             || !scored(close.micros())
             || close < trip.open_ts
             || trip.side != origin.crowded_side.expected_fill()
@@ -508,7 +509,8 @@ pub fn reduce_window(
         let mut fees = 0i128;
         let mut position = 0i128;
         for fill in &raw.fills {
-            if fill.fee.0 < 0 || fill.ts < trip.open_ts || fill.ts > close {
+            if fill.qty.ticks() <= 0 || fill.fee.0 < 0 || fill.ts < trip.open_ts || fill.ts > close
+            {
                 return Err(H4ReportError::Cashflow);
             }
             cash = add(cash, fill_cash(fill)?)?;
@@ -875,10 +877,10 @@ pub fn aggregate_selected(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
-    fn raw_fixture(reason: Option<ForcedExitReason>) -> (Cash, Report) {
+    pub(crate) fn raw_fixture(reason: Option<ForcedExitReason>) -> (Cash, Report) {
         use crate::engine::UtcRange;
         use crate::report::{ForcedExit, H4Trace, H4Trade, Metrics, RoundTrip};
         use parangsae_core::{Price, Qty, Ratio, UtcMicros};
@@ -886,7 +888,7 @@ mod tests {
         use parangsae_strategies::{ActualHold, H4Observation};
         let ts = UtcMicros::from_micros;
         let price = |ticks| Price::from_ticks(ticks).unwrap();
-        let ratio = |ticks| Ratio::from_ticks(ticks).unwrap();
+        let ratio = Ratio::from_ticks;
         let event = H4Event {
             settlement: ts(0),
             episode: ts(0),
@@ -1180,5 +1182,34 @@ mod tests {
         let json = serde_json::to_value(out).unwrap();
         assert_eq!(json["cash"]["net_ticks"], "1000");
         assert_eq!(json["episode_independence_claimed"], false);
+    }
+
+    #[test]
+    fn fractional_loss_truncates_the_delta_before_adding_to_wealth() {
+        let first = window(10);
+        let second = window(-9);
+        let out = aggregate_selected(
+            Cash(101),
+            &[
+                SelectedFold {
+                    fold: 1,
+                    selected_config_id: "a",
+                    window: Some(&first),
+                    daily_returns: Some(&[10_000_000]),
+                    days: 1,
+                },
+                SelectedFold {
+                    fold: 2,
+                    selected_config_id: "b",
+                    window: Some(&second),
+                    daily_returns: Some(&[-9_000_000]),
+                    days: 1,
+                },
+            ],
+        )
+        .unwrap();
+        assert_eq!(out.folds[0].closing_compounded_wealth_ticks, 111);
+        assert_eq!(out.folds[1].closing_compounded_wealth_ticks, 102);
+        assert_eq!(out.folds[1].compounded_increment_ticks, -9);
     }
 }
