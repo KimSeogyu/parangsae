@@ -1,0 +1,45 @@
+{
+  "provenance": "Hand-authored offline USD-M protocol examples frozen for contract tests. These are not captured demo exchange responses; no network was used.",
+  "symbol": "BTCUSDT",
+  "intent": 1,
+  "api_key": "fixture-only-public-id",
+  "signing_bytes": "fixture-only-not-a-real-key",
+  "timestamp_us": 1700000000000000,
+  "query": "symbol=BTCUSDT&origClientOrderId=eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000&recvWindow=5000&timestamp=1700000000000",
+  "cancel": "symbol=BTCUSDT&origClientOrderId=eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000&recvWindow=5000&timestamp=1700000000000",
+  "new_market": "symbol=BTCUSDT&side=BUY&type=MARKET&quantity=0.00100000&reduceOnly=false&positionSide=BOTH&newClientOrderId=eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000&newOrderRespType=RESULT&recvWindow=5000&timestamp=1700000000000",
+  "order": {
+    "symbol": "BTCUSDT",
+    "clientOrderId": "eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000",
+    "orderId": 123456789,
+    "side": "BUY",
+    "type": "MARKET",
+    "status": "FILLED",
+    "origQty": "0.00100000",
+    "executedQty": "0.00100000",
+    "price": "0",
+    "avgPrice": "30000.12345678",
+    "reduceOnly": false,
+    "positionSide": "BOTH",
+    "updateTime": 1700000000123
+  },
+  "not_found": {
+    "code": -2013,
+    "msg": "Order does not exist."
+  },
+  "cancel_unknown": {
+    "code": -2011,
+    "msg": "Unknown order sent."
+  },
+  "timeout": {
+    "code": -1007,
+    "msg": "Timeout waiting for response; execution status unknown."
+  },
+  "rejected": {
+    "code": -1021,
+    "msg": "Timestamp outside recvWindow."
+  },
+  "query_signed": "symbol=BTCUSDT&origClientOrderId=eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000&recvWindow=5000&timestamp=1700000000000&signature=c4607a8b67b6e3c8b2018c48dac6e0d7825beb407ff2929490e0adf1cb12ee62",
+  "cancel_signed": "symbol=BTCUSDT&origClientOrderId=eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000&recvWindow=5000&timestamp=1700000000000&signature=c4607a8b67b6e3c8b2018c48dac6e0d7825beb407ff2929490e0adf1cb12ee62",
+  "new_market_signed": "symbol=BTCUSDT&side=BUY&type=MARKET&quantity=0.00100000&reduceOnly=false&positionSide=BOTH&newClientOrderId=eAAAAAAAAAAAAAAAAAAAAAAAAAB-00000000&newOrderRespType=RESULT&recvWindow=5000&timestamp=1700000000000&signature=602a5f54c110ef7e6b4e28646b7e1c41dbff9784f45221dd580ea2d8652ed3ed"
+}
