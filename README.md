@@ -24,8 +24,9 @@ The collector uses [generated partition merge code](spec/sgd/README.md) from che
 | [`crates/core`](crates/core) | Fixed-point types, timestamps, causal access, bar resampling, and instrument rules |
 | [`crates/collector`](crates/collector) | Public Binance Vision archive ingestion, validation, and Parquet storage; REST/WS modules are boundaries, not working clients |
 | [`crates/signals`](crates/signals) · [`crates/strategies`](crates/strategies) | Causal signals, features, and initial strategy families |
-| [`crates/sim`](crates/sim) · [`crates/backtest`](crates/backtest) | Fixed-point accounting, event-driven backtesting, explicit fees/funding/slippage, and walk-forward tooling |
-| [`crates/execution`](crates/execution) | Offline order lifecycle, a signed USD-M demo query and cancel codec, and a sealed paper venue that rejects all orders |
+| [`crates/sim`](crates/sim) · [`crates/backtest`](crates/backtest) | Fixed-point accounting, explicit fees/funding/slippage, walk-forward tooling, and journaled paper replay |
+| [`crates/risk`](crates/risk) | Pure approval authority, conservative reservations, halt epochs, and explicit reconciliation |
+| [`crates/execution`](crates/execution) | Risk-approved offline paper orders, partial fills and terminal reconciliation; signed USD-M demo query and cancel codec |
 | [`crates/regime`](crates/regime) | Permission-layer scaffold; no classifier implemented |
 | [`specs`](specs) · [`spec/arch`](spec/arch) · [`xtask`](xtask) | Behavioral models and scenarios, architecture policy, and supporting checks |
 
