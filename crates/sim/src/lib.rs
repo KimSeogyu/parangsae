@@ -12,6 +12,7 @@
 #![deny(clippy::float_arithmetic)]
 #![deny(clippy::cast_precision_loss)]
 
+pub mod carry;
 mod ledger;
 mod round;
 mod types;
