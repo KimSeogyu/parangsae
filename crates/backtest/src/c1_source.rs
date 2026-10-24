@@ -307,7 +307,7 @@ impl C1SourceView {
         statuses: Vec<(PriceSource, UtcMicros, SourceHealth)>,
         funding: Vec<(UtcMicros, Ratio, u8, SourceRef)>,
     ) -> Result<Self, SourceError> {
-        if bars.len() > 17_280 || statuses.len() > 17_280 || funding.len() > 12 {
+        if bars.len() > 17_280 || statuses.len() > 17_280 || funding.len() > 16 {
             return Err(SourceError::Invariant("synthetic source capacity"));
         }
         let mut view = Self {
@@ -1040,6 +1040,22 @@ mod tests {
             vec![]
         )
         .is_err());
+    }
+
+    #[test]
+    fn synthetic_history_can_cover_two_cycles_with_a_finite_rate_cap() {
+        let funding = (0..14)
+            .map(|n| {
+                let slot = SAMPLE + n * SLOT;
+                (
+                    UtcMicros::from_micros(slot),
+                    Ratio::from_ticks(1),
+                    8,
+                    fixture(PriceSource::UmTrade, slot).source,
+                )
+            })
+            .collect();
+        assert!(C1SourceView::synthetic(vec![], vec![], funding).is_ok());
     }
 
     #[derive(Debug, Default, cucumber::World)]
