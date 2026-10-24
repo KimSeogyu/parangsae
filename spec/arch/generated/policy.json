@@ -35,6 +35,10 @@
       "parangsae-strategies"
     ],
     [
+      "parangsae-backtest",
+      "sgd-owned-c1opportunitycontrol-50dd0338899d"
+    ],
+    [
       "parangsae-collector",
       "parangsae-core"
     ],
@@ -188,6 +192,7 @@
     "parangsae-signals",
     "parangsae-sim",
     "parangsae-strategies",
+    "sgd-owned-c1opportunitycontrol-50dd0338899d",
     "sgd-symbolic-factwriteenvelope-281ebc3217c8",
     "xtask"
   ],
@@ -342,5 +347,5 @@
       "Ops/Release"
     ]
   ],
-  "spec_sha256": "846c2e439862163f218dcd6103308d5dae2dc09c42f2007601b9021abb58cf8c"
+  "spec_sha256": "828ba80e330b99ebbd626179ae0d2ad8c6e48d98f35034f0b1caad79cba798ed"
 }

@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "files": [
+    "automaton.json",
+    "binding.json",
+    "model.dot",
+    "tlc.log",
+    "verification.json"
+  ]
+}

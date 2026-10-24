@@ -1,21 +1,21 @@
 
 ****** SANY2 Version 2.1 created 24 February 2014
 
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-finite-5EAQGN/models/SgdPartitionMetadata.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-finite-5EAQGN/models/PartitionFamilies.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-finite-7OlTPy/models/SgdPartitionMetadata.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-finite-7OlTPy/models/PartitionFamilies.tla
 Semantic processing of module PartitionFamilies
 Semantic processing of module SgdPartitionMetadata
 Semantic processing of module PartitionFamilies
 Semantic processing of module SgdPartitionMetadata
 TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
-Running breadth-first search Model-Checking with fp 0 and seed 0 with 1 worker on 11 cores with 455MB heap and 64MB offheap memory [pid: 90583] (Mac OS X 26.6.2 aarch64, Amazon.com Inc. 17.0.9 x86_64, MSBDiskFPSet, DiskStateQueue).
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-finite-5EAQGN/models/SgdPartitionMetadata.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-finite-5EAQGN/models/PartitionFamilies.tla
+Running breadth-first search Model-Checking with fp 0 and seed 0 with 1 worker on 11 cores with 455MB heap and 64MB offheap memory [pid: 65411] (Mac OS X 26.6.2 aarch64, Amazon.com Inc. 17.0.9 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-finite-7OlTPy/models/SgdPartitionMetadata.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-finite-7OlTPy/models/PartitionFamilies.tla
 Semantic processing of module PartitionFamilies
 Semantic processing of module SgdPartitionMetadata
-Starting... (2026-10-24 07:23:54)
+Starting... (2026-10-24 22:47:48)
 Computing initial states...
-Finished computing initial states: 1 distinct state generated at 2026-10-24 07:23:54.
+Finished computing initial states: 1 distinct state generated at 2026-10-24 22:47:49.
 Model checking completed. No error has been found.
   Estimates of the probability that TLC did not check all reachable states
   because two distinct states had the same fingerprint:
@@ -23,4 +23,4 @@ Model checking completed. No error has been found.
 3 states generated, 2 distinct states found, 0 states left on queue.
 The depth of the complete state graph search is 2.
 The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 1 and the 95th percentile is 1).
-Finished in 00s at (2026-10-24 07:23:54)
+Finished in 00s at (2026-10-24 22:47:49)
