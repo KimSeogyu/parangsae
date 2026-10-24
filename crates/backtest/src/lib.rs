@@ -17,6 +17,8 @@
 
 mod bar;
 mod batch;
+mod c1;
+mod c1_source;
 mod canon;
 mod cash_view;
 mod date;
@@ -47,6 +49,7 @@ pub use batch::{
     turnover_ratio, BatchError, FeeGridRunner, FlatBars, ResultRow, SweepPins, TargetEngine,
     TargetRunner, TrialMetrics, TrialSpec, HOLDOUT_START_US,
 };
+pub use c1::{run_c1_batch, C1BatchError, C1BatchRequest};
 pub use date::UtcDate;
 pub use engine::{run, run_fee_grid, run_targets, MarkAbsence, RunConfig, UtcRange, FEE_GRID_BPS};
 pub use error::{EngineError, TapeError};

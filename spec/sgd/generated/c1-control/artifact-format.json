@@ -1,0 +1,11 @@
+{
+  "schema": "sgd-artifact-format-v1",
+  "formatter": {
+    "profile": "rustfmt-2021-v1",
+    "configSha256": "daf55c13d4da76ca70eca76c3b0c3a0516e1df306ec99c49eeb7365cdf615c15"
+  },
+  "files": [
+    "rust/src/lib.rs"
+  ],
+  "formatterVersion": "rustfmt 1.8.0-stable (ded5c06cf2 2025-12-08)"
+}

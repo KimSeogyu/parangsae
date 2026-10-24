@@ -40,6 +40,20 @@ impl std::fmt::Display for TrialError {
 
 impl std::error::Error for TrialError {}
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum TrialRoleKind {
+    TrainingCandidate,
+    ContinuousPolicy,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct TrialRoleMetadata {
+    pub role_kind: TrialRoleKind,
+    pub semantic_role: String,
+    pub scenario: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", deny_unknown_fields)]
 enum Line {
@@ -59,14 +73,23 @@ enum Line {
         fold: Option<u32>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         segment: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        role: Option<TrialRoleMetadata>,
     },
     #[serde(rename = "RunFinished")]
     Finished {
         run_id: String,
         metrics_digest: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        role: Option<TrialRoleMetadata>,
     },
     #[serde(rename = "RunAborted")]
-    Aborted { run_id: String, reason: String },
+    Aborted {
+        run_id: String,
+        reason: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        role: Option<TrialRoleMetadata>,
+    },
 }
 
 pub(crate) struct StartRecord<'a> {
@@ -80,6 +103,7 @@ pub(crate) struct StartRecord<'a> {
     pub ts: i64,
     pub fold: Option<u32>,
     pub segment: Option<&'a str>,
+    pub role: Option<&'a TrialRoleMetadata>,
 }
 
 /// `sha256` of the JCS object `{attempt, config_id, pinned_root}`.
@@ -140,6 +164,13 @@ pub fn distinct_trial_count(path: &Path) -> Result<u64, TrialError> {
         .ok_or_else(|| TrialError::Io("trial count".to_owned()))
 }
 
+pub(crate) fn recorded_run_count(path: &Path) -> Result<usize, TrialError> {
+    Ok(read_lines(path)?
+        .iter()
+        .filter(|line| matches!(line, Line::Started { .. }))
+        .count())
+}
+
 fn trial_id_present(value: &serde_json::Value) -> bool {
     match value.get("trial_id") {
         None | Some(serde_json::Value::Null) => false,
@@ -182,6 +213,7 @@ impl TrialLog {
                 ts: start.ts,
                 fold: start.fold,
                 segment: start.segment.map(str::to_owned),
+                role: start.role.cloned(),
             },
         )
     }
@@ -190,6 +222,7 @@ impl TrialLog {
         self.terminal(Line::Finished {
             run_id: run_id.to_owned(),
             metrics_digest: metrics_digest.to_owned(),
+            role: None,
         })
     }
 
@@ -197,10 +230,11 @@ impl TrialLog {
         self.terminal(Line::Aborted {
             run_id: run_id.to_owned(),
             reason: reason.to_owned(),
+            role: None,
         })
     }
 
-    fn terminal(&self, line: Line) -> Result<(), TrialError> {
+    fn terminal(&self, mut line: Line) -> Result<(), TrialError> {
         let run_id = match &line {
             Line::Finished { run_id, .. } | Line::Aborted { run_id, .. } => run_id.clone(),
             Line::Started { .. } => return Err(TrialError::Io("terminal record".to_owned())),
@@ -212,6 +246,19 @@ impl TrialLog {
         }
         if terminal {
             return Err(TrialError::AlreadyTerminal(run_id));
+        }
+        let recorded_role = lines
+            .iter()
+            .find_map(|record| match record {
+                Line::Started {
+                    run_id: id, role, ..
+                } if id == &run_id => Some(role.clone()),
+                _ => None,
+            })
+            .flatten();
+        match &mut line {
+            Line::Finished { role, .. } | Line::Aborted { role, .. } => *role = recorded_role,
+            Line::Started { .. } => return Err(TrialError::Io("terminal record".to_owned())),
         }
         append_value(&self.path, &line)
     }
@@ -336,6 +383,7 @@ mod tests {
                 ts: 0,
                 fold: None,
                 segment: None,
+                role: None,
             })
             .unwrap_err();
         assert_eq!(err, TrialError::Corrupt { line: 1 });
@@ -358,6 +406,7 @@ mod tests {
                 ts: 0,
                 fold: Some(1),
                 segment: Some("train"),
+                role: None,
             })
             .unwrap();
         }
@@ -397,5 +446,146 @@ mod tests {
         )
         .unwrap();
         assert_eq!(distinct_trial_count(&path).unwrap(), 4);
+    }
+
+    fn write_role_rows(path: &Path) {
+        let log = TrialLog::new(path);
+        let roles = [
+            ("TRAIN_MAX168", TrialRoleKind::TrainingCandidate, "HEADLINE"),
+            ("TRAIN_MAX336", TrialRoleKind::TrainingCandidate, "HEADLINE"),
+            ("OOS_HEADLINE", TrialRoleKind::ContinuousPolicy, "HEADLINE"),
+            (
+                "OOS_HIGHER_PERP_FEE",
+                TrialRoleKind::ContinuousPolicy,
+                "HIGHER_PERP_FEE",
+            ),
+            (
+                "OOS_SLIPPAGE_STRESS",
+                TrialRoleKind::ContinuousPolicy,
+                "SLIPPAGE_STRESS",
+            ),
+        ];
+        for (index, (semantic_role, role_kind, scenario)) in roles.into_iter().enumerate() {
+            let role = TrialRoleMetadata {
+                role_kind,
+                semantic_role: semantic_role.to_owned(),
+                scenario: scenario.to_owned(),
+            };
+            let units = if role_kind == TrialRoleKind::TrainingCandidate {
+                2
+            } else {
+                1
+            };
+            for unit in 0..units {
+                let run_id = format!("synthetic-role-{index}-{unit}");
+                let identity = format!("synthetic-charge-{index}");
+                log.begin(StartRecord {
+                    run_id: &run_id,
+                    trial_id: &identity,
+                    config_id: &identity,
+                    pinned_root: "synthetic-pin",
+                    prereg_sha256: "synthetic-prereg",
+                    attempt: 0,
+                    family: "C1",
+                    ts: 0,
+                    fold: (units == 2).then_some(unit + 1),
+                    segment: Some(if units == 2 {
+                        "train"
+                    } else {
+                        "continuous_oos"
+                    }),
+                    role: Some(&role),
+                })
+                .unwrap();
+                if unit == 0 {
+                    log.finish(&run_id, "synthetic-digest").unwrap();
+                } else {
+                    log.abort(&run_id, "synthetic-technical").unwrap();
+                }
+            }
+        }
+    }
+
+    fn assert_role_rows(path: &Path) {
+        assert_eq!(distinct_trial_count(path).unwrap(), 5);
+        let rows = read_lines(path).unwrap();
+        assert_eq!(rows.len(), 14);
+        for pair in rows.as_chunks::<2>().0 {
+            let Line::Started {
+                run_id,
+                role: Some(expected),
+                ..
+            } = &pair[0]
+            else {
+                panic!("typed start")
+            };
+            let (id, role) = match &pair[1] {
+                Line::Finished { run_id, role, .. } | Line::Aborted { run_id, role, .. } => {
+                    (run_id, role)
+                }
+                Line::Started { .. } => panic!("terminal"),
+            };
+            assert_eq!(id, run_id);
+            assert_eq!(role.as_ref(), Some(expected));
+        }
+    }
+
+    #[test]
+    fn typed_roles_follow_actual_units_and_preserve_global_distinct_charges() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("ledger.jsonl");
+        write_role_rows(&path);
+        assert_role_rows(&path);
+    }
+
+    #[test]
+    fn role_none_keeps_legacy_serialization_and_old_rows_parse() {
+        let legacy = concat!(
+            "{\"kind\":\"RunStarted\",\"run_id\":\"r\",\"trial_id\":\"t\",",
+            "\"config_id\":\"c\",\"pinned_root\":\"p\",\"prereg_sha256\":\"\",",
+            "\"attempt\":0,\"family\":\"S01\",\"ts\":0}"
+        );
+        let parsed: Line = serde_json::from_str(legacy).unwrap();
+        assert_eq!(serde_json::to_string(&parsed).unwrap(), legacy);
+        let terminal = "{\"kind\":\"RunFinished\",\"run_id\":\"r\",\"metrics_digest\":\"d\"}";
+        let parsed: Line = serde_json::from_str(terminal).unwrap();
+        assert_eq!(serde_json::to_string(&parsed).unwrap(), terminal);
+        assert!(serde_json::from_str::<Line>("{\"kind\":\"RunAborted\",\"run_id\":\"r\",\"reason\":\"x\",\"role\":{\"role_kind\":\"Unknown\",\"semantic_role\":\"X\",\"scenario\":\"Y\"}}").is_err());
+    }
+
+    #[derive(Debug, Default, cucumber::World)]
+    struct LedgerWorld {
+        directory: Option<tempfile::TempDir>,
+        path: Option<PathBuf>,
+    }
+
+    #[cucumber::given("five C1 roles with two train units per candidate")]
+    fn roles_given(world: &mut LedgerWorld) {
+        let directory = tempfile::tempdir().unwrap();
+        world.path = Some(directory.path().join("ledger.jsonl"));
+        world.directory = Some(directory);
+    }
+
+    #[cucumber::when("the shared native ledger writes finishes and aborts")]
+    fn roles_written(world: &mut LedgerWorld) {
+        write_role_rows(world.path.as_ref().unwrap());
+    }
+
+    #[cucumber::then("each terminal keeps its start role and only five charges are counted")]
+    fn roles_verified(world: &mut LedgerWorld) {
+        assert_role_rows(world.path.as_ref().unwrap());
+    }
+
+    #[tokio::test]
+    async fn c1_ledger_role_feature() {
+        use cucumber::World as _;
+        LedgerWorld::cucumber()
+            .with_default_cli()
+            .fail_on_skipped()
+            .run_and_exit(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/features/c1_ledger_roles.feature"
+            ))
+            .await;
     }
 }

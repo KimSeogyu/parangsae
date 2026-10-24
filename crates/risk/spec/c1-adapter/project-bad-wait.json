@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "profile": "finite-owned",
+  "name": "C1AdapterObligationsBadWait",
+  "spec": "C1AdapterObligations.tla",
+  "config": "C1AdapterObligationsBadWait.cfg",
+  "targets": ["rust"],
+  "binding": {
+    "className": "C1AdapterObligationsWitness"
+  }
+}

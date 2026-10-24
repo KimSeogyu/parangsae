@@ -922,6 +922,43 @@ fn excluded_recursive_shared_module_effects_are_checked() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn aliased_repository_root_preserves_relative_diagnostics() {
+    let fixture = ExcludedPathFixture::new("alias-root");
+    fs::write(
+        fixture.root().join("b/src/lib.rs"),
+        "#[path=\"../../shared.rs\"]\npub mod shared;\n",
+    )
+    .unwrap();
+    fs::write(
+        fixture.root().join("shared.rs"),
+        "pub fn network_order_submit() {}\npub fn bad() -> f64 { network_order_submit(); let _ = std::env::var(\"UNUSED\"); 1.0 }\n",
+    )
+    .unwrap();
+    let physical = fixture.root().canonicalize().unwrap();
+    let alias = fixture.directory.join("workspace-alias");
+    std::os::unix::fs::symlink(&physical, &alias).unwrap();
+    let aliased = enforce_at(&alias);
+    let canonical = enforce_at(&physical);
+    for rule in ["ARCH-CALL-001", "ARCH-EFFECT-001", "ARCH-FLOAT-001"] {
+        assert!(
+            aliased
+                .iter()
+                .any(|diag| diag.rule_id == rule && diag.file == "shared.rs"),
+            "{aliased:#?}"
+        );
+    }
+    assert!(
+        aliased.iter().all(|diag| {
+            !Path::new(&diag.file).is_absolute()
+                && diag.spec_file == "spec/arch/ArchitecturePolicy.tla"
+        }),
+        "{aliased:#?}"
+    );
+    assert_eq!(aliased, canonical);
+}
+
 #[test]
 fn excluded_recursive_module_escape_is_rejected() {
     let fixture = ExcludedPathFixture::new("recursive-escape");

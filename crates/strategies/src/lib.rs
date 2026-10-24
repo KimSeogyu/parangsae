@@ -69,6 +69,7 @@
 #![forbid(unsafe_code)]
 
 mod aux;
+pub mod c1;
 mod donchian;
 mod ensemble;
 mod er_gate;

@@ -681,6 +681,7 @@ fn drive<R: TargetRunner>(
         ts: spec.ts.micros(),
         fold: None,
         segment: None,
+        role: None,
     })
     .map_err(map_trial)?;
     if let Some(reason) = gate(spec) {

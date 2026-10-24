@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "profile": "finite-owned",
+  "name": "C1AdapterObligationsBadStrict",
+  "spec": "C1AdapterObligations.tla",
+  "config": "C1AdapterObligationsBadStrict.cfg",
+  "targets": ["rust"],
+  "binding": {
+    "className": "C1AdapterObligationsWitness"
+  }
+}

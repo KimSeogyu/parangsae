@@ -1,10 +1,10 @@
 
 ****** SANY2 Version 2.1 created 24 February 2014
 
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-mBewhi/models/SGDOracle0.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-mBewhi/models/ManifestWrite.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-mBewhi/java-temp/Integers.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-mBewhi/java-temp/Naturals.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-MFKnLg/models/SGDOracle0.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-MFKnLg/models/ManifestWrite.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-MFKnLg/java-temp/Integers.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-MFKnLg/java-temp/Naturals.tla
 Semantic processing of module Naturals
 Semantic processing of module Integers
 Semantic processing of module ManifestWrite
@@ -14,21 +14,21 @@ Semantic processing of module Integers
 Semantic processing of module ManifestWrite
 Semantic processing of module SGDOracle0
 TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
-Running breadth-first search Model-Checking with fp 0 and seed 0 with 1 worker on 11 cores with 455MB heap and 64MB offheap memory [pid: 65661] (Mac OS X 26.6.2 aarch64, Amazon.com Inc. 17.0.9 x86_64, MSBDiskFPSet, DiskStateQueue).
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-mBewhi/models/SGDOracle0.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-mBewhi/models/ManifestWrite.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-mBewhi/java-temp/Integers.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-mBewhi/java-temp/Naturals.tla
+Running breadth-first search Model-Checking with fp 0 and seed 0 with 1 worker on 11 cores with 455MB heap and 64MB offheap memory [pid: 83637] (Mac OS X 26.6.2 aarch64, Amazon.com Inc. 17.0.9 x86_64, MSBDiskFPSet, DiskStateQueue).
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-MFKnLg/models/SGDOracle0.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-MFKnLg/models/ManifestWrite.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-MFKnLg/java-temp/Integers.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-MFKnLg/java-temp/Naturals.tla
 Semantic processing of module Naturals
 Semantic processing of module Integers
 Semantic processing of module ManifestWrite
 Semantic processing of module SGDOracle0
-Starting... (2026-10-24 22:47:51)
+Starting... (2026-10-25 02:12:57)
 Computing initial states...
 Computed 2 initial states...
 Computed 4 initial states...
 Computed 8 initial states...
-Finished computing initial states: 10 distinct states generated at 2026-10-24 22:47:52.
+Finished computing initial states: 10 distinct states generated at 2026-10-25 02:12:57.
 Model checking completed. No error has been found.
   Estimates of the probability that TLC did not check all reachable states
   because two distinct states had the same fingerprint:
@@ -36,4 +36,4 @@ Model checking completed. No error has been found.
 20 states generated, 18 distinct states found, 0 states left on queue.
 The depth of the complete state graph search is 2.
 The average outdegree of the complete state graph is 0 (minimum is 0, the maximum 1 and the 95th percentile is 1).
-Finished in 00s at (2026-10-24 22:47:52)
+Finished in 00s at (2026-10-25 02:12:57)

@@ -1,0 +1,201 @@
+{
+  "schema": "c1-adapter-obligations-native-binding-v1",
+  "status": "FINITE_MODEL_CHECKED_NATIVE_BINDING_IS_SEPARATE_REVIEW_OBLIGATION",
+  "model": "C1AdapterObligations.tla",
+  "profile": "SGD v2 finite-owned model-only; no generated Rust consumer",
+  "runtime_owners": {
+    "money": "sim::carry::CarryLedger",
+    "position_order_funding": "execution::carry::CarryEngine",
+    "actor_scheduling": "backtest::c1::actor::C1Replay",
+    "opportunity": "existing C1ControlMachine dependency; no duplicate arming owner"
+  },
+  "native_checkpoint": {
+    "head": "da522b3383bff15b0ee9f2a0d1399483b8940cf5",
+    "source_status": "Author-passed 31 C1 tests and 24 Gherkin scenarios / 73 steps are bound to this exact source checkpoint. Risk independently read both genuine failures, the corrected source delta and final layout run, with no additional bounded behavior blocker. Overall integration, architecture/lint/format checks and publication remain HOLD; finite model checking does not prove the native classifier.",
+    "source_files": [
+      {
+        "commit": "da522b3383bff15b0ee9f2a0d1399483b8940cf5",
+        "path": "crates/backtest/src/c1/actor.rs",
+        "sha256": "d62c0b58495aa16bd453d7071127d2790b8e2709b195192a37d93af19d975487"
+      },
+      {
+        "commit": "da522b3383bff15b0ee9f2a0d1399483b8940cf5",
+        "path": "crates/backtest/src/c1/actor_risk_cases.rs",
+        "sha256": "2c5eed02be1ff6c42781fd076eafbb1d793ebb313788ee12f2822f41e7ff784b"
+      },
+      {
+        "commit": "da522b3383bff15b0ee9f2a0d1399483b8940cf5",
+        "path": "crates/backtest/src/c1/actor_cases.rs",
+        "sha256": "28f03bc218548147080fad4fce283412eb55ac415a2ad205d872fced3b3c0b78"
+      },
+      {
+        "commit": "da522b3383bff15b0ee9f2a0d1399483b8940cf5",
+        "path": "crates/backtest/src/c1/actor_boundary_equality_cases.rs",
+        "sha256": "7ffc5f93d60b7cd6d95abee25a035460ac6bf83dceb1abbdcbc5bbe17ea58861"
+      },
+      {
+        "commit": "da522b3383bff15b0ee9f2a0d1399483b8940cf5",
+        "path": "crates/execution/src/carry/engine.rs",
+        "sha256": "2420fadefbe06908f0e8f1261666a34182b49cca29ccdc7fd3b54ab8589e8e81"
+      },
+      {
+        "commit": "da522b3383bff15b0ee9f2a0d1399483b8940cf5",
+        "path": "crates/backtest/src/c1/venue.rs",
+        "sha256": "bf93441d0fe9c1c86d87b250126551d824672dea816b24776fa8a0d0b2c0f4c1"
+      }
+    ]
+  },
+  "native_input_contract": [
+    "RiskDue means the actual mandatory minute+1ms turn has admitted its required context and found a supported known-state risk close. It does not mean every loss is guaranteed to be closable.",
+    "Pending means ANY retained funding boundary whose receipt is absent, including a boundary with zero captured quantity. Paid means no unpaid entry remains, not deletion of historical identities.",
+    "Settled means actual zero inventory plus authoritative complete cuts, not a bare canceled flag or the absence of an order object.",
+    "BeforeE/AtE/AfterE are trusted native classifications of actual observation receipt knowledge. A still-unpublished row is not an admitted economic payload.",
+    "economicBeforeE and sourceBeforeE classify actual physical fills and used keys. This model does not prove the i64 arithmetic, source factory, manifest identity or the classifier itself."
+  ],
+  "coverage_map": [
+    {
+      "id": "AD01",
+      "model": [
+        "ProcessRequiredRiskTick",
+        "RiskTickRequestsClose"
+      ],
+      "native": "actor.rs drive -> risk_tick -> begin_exit -> start_exit; pending settlement must not make start_exit return before BeginExit",
+      "fixtures": [
+        "actor_risk_cases::risk_reduction_dispatches_before_a_retained_payment_becomes_visible",
+        "c1_actor_risk.feature: An unpaid settlement does not postpone a known risk reduction"
+      ],
+      "actual_controls": "a051 unchanged-production close order was 60s late; cebe removes exactly the three-line payment wait and passes. Original closing deadline and qS payment remain.",
+      "coverage_limit": "One supported known-state loss fixture. No arbitrary timer-delivery fairness or guaranteed order acceptance."
+    },
+    {
+      "id": "AD02",
+      "model": [
+        "capturedSettlement",
+        "PayAllCaptured",
+        "PayPartButStillPending",
+        "ClosedRequiresSettledProduct",
+        "MayReportSettledIdle"
+      ],
+      "native": "CarryEngine::settle retains boundary.captured_short; refresh_phase requires every retained receipt. C1Replay::flat_ready requires all funding and cuts; synchronize clears fundingPending only after the whole unpaid projection is empty.",
+      "fixtures": [
+        "actor_risk_cases::risk_reduction_dispatches_before_a_retained_payment_becomes_visible",
+        "actor_risk_cases::selected_cost_paths_match_independent_full_account_oracles"
+      ],
+      "coverage_limit": "These 31-case fixtures preserve capture/payment identity and completion, but their payments arrive before physical close completion. They do not independently discriminate a newly flat position with several still-unpaid boundaries. The model contains that product state; native map cardinality/identity and truthful PayAll classification remain separate source/native obligations."
+    },
+    {
+      "id": "AD03",
+      "model": [
+        "DrainAlreadyAdmittedCut",
+        "BoundaryDecisionFollowsDrain",
+        "LawfulEqualityCompletes"
+      ],
+      "native": "C1Replay::drive drains deliver_due/settle_due/synchronize before activate_policy; boundary_ready accepts closed_observed_at <= boundary.",
+      "fixtures": [
+        "actor_boundary_equality_cases::an_already_admitted_final_spot_cut_at_e_finishes_the_fold"
+      ],
+      "actual_controls": "7f12206 tests against strict < reproduced native Closed at E being rejected. 961 changed only the comparison to <=; final layout source is da522b3.",
+      "coverage_limit": "Native data classifier must actually produce R=E and genuine complete cuts. Model event names alone do not establish that fact."
+    },
+    {
+      "id": "AD04",
+      "model": [
+        "ScheduleUnpublishedCut",
+        "UnpublishedCannotRescue",
+        "DecideAtSemanticE",
+        "Finished"
+      ],
+      "native": "execution_at returns Pending until canonical modeled receipt; actor fails UnclosedBoundary(E) before unpublished E+MS cut can be applied.",
+      "fixtures": [
+        "actor_boundary_equality_cases::a_canonical_post_era_spot_receipt_after_e_cannot_rescue_the_fold"
+      ],
+      "coverage_limit": "The source-only query at E+MS validates the fixture, not an actor recovery action. Technical prefix is not a full later venue statement."
+    },
+    {
+      "id": "AD05",
+      "model": [
+        "SchedulePhysicalAtOrAfterE",
+        "ScheduleSourceAtOrAfterE",
+        "PhysicalAndSourceCutExclusive"
+      ],
+      "native": "Revision 2 equality observers require Order.at < E, fill physical/source keys < E and funding effective/source keys < E in both eras. R=E remains lawful.",
+      "fixtures": [
+        "actor_boundary_equality_cases::an_already_admitted_final_spot_cut_at_e_finishes_the_fold",
+        "actor_boundary_equality_cases::a_canonical_post_era_spot_receipt_after_e_cannot_rescue_the_fold"
+      ],
+      "coverage_limit": "The model rejects abstract invalid classifications. Native source closure, raw units, ceil-to-ms, calendar and holdout rejection require actual reader tests and data admission evidence."
+    },
+    {
+      "id": "AD06",
+      "model": [
+        "DecideAtSemanticE",
+        "ClosedRequiresSettledProduct"
+      ],
+      "native": "Fixed Terminal intent at E-600s; no later observed liquidity can move the original deadline or boundary.",
+      "fixtures": [
+        "an_active_pair_closes_at_the_fixed_fold_terminal_with_all_costs",
+        "zero_closing_liquidity_retains_a_technical_prefix_at_the_original_end",
+        "actor_risk_cases::a_paid_spot_leg_cannot_wait_for_liquidity_beyond_its_original_deadline"
+      ],
+      "coverage_limit": "The model uses relative cuts rather than the numeric 600s clock, the opening/hedging lifecycle or a realistic fill-capacity oracle."
+    },
+    {
+      "id": "AD07",
+      "model": [],
+      "classification": "OUTSIDE_THIS_MODEL",
+      "native": "One raw-to-executed transformation in execution::carry::account_fill; an already executed bound uses account_fill_at_executed_price. Actor eligibility compares expected_executed with actual native output.",
+      "fixtures": [
+        "actor_risk_cases::selected_cost_paths_match_independent_full_account_oracles"
+      ],
+      "coverage_limit": "Price, fee asset, floor/ceil rounding, capital, margin, qS amount, reservations and accounting atomicity are native obligations. Existing close-preflight evidence stays a separate completed unit."
+    },
+    {
+      "id": "AD08",
+      "model": [],
+      "classification": "OUTSIDE_THIS_MODEL",
+      "native": "Reader/source identity, manifest closure and Defined/Undefined statistics have their own actual source and test boundaries.",
+      "fixtures": [],
+      "coverage_limit": "No claim that this product proves source truth, financial-quality admission, statistical definitions or strategy selection."
+    }
+  ],
+  "relationship_to_original_models": {
+    "CarryCapital": "Fixed-price one-pair capital/lifecycle design; excludes funding, numeric clocks, margin, actual rounding and runtime refinement. This product does not extend its monetary proof.",
+    "C1OpportunityControl": "Existing owner checks arming/reserved/busy/stopped/epoch and abstract fundingPending feedback. It has no BeginExit or scheduler/price/numeric-time action. This product specifies native feedback obligations without generating another opportunity owner."
+  },
+  "external_evidence_paths": [
+    "phase/actor-regressions-evidence/risk-genuine-red-receipt.json",
+    "phase/actor-regressions-evidence/equality-genuine-red-receipt.json",
+    "phase/actor-regressions-evidence/risk-fixed-c1-green.log",
+    "phase/actor-regressions-evidence/layout-c1-green.log",
+    "phase/el-boundary-clock-ruling.json",
+    "phase/source-v2-risk-review.json"
+  ],
+  "evidence_path_note": "phase is the approved private c1-goal-20261024 evidence directory. These paths are references, not copied evidence or proof that CI ran them.",
+  "scope_limits": [
+    "Truthful native event classification is assumed and independently tested, not forced on an arbitrary caller by this model.",
+    "No full receipt map, numeric money, raw price transform, I/O, concurrency, persistence, replay/restart or liveness/fairness proof.",
+    "One closing episode is an abstraction, not a runtime cycle cap. Actual opportunity cycles still use one existing generated owner.",
+    "No readiness verdict, live effects, market data read or C1 study start."
+  ],
+  "model_evidence": {
+    "execution": "EL native sgd_model, model-only",
+    "variables": 10,
+    "reachable_nodes": 34,
+    "labeled_edges": 66,
+    "positive_complete": true,
+    "queue_remaining": 0,
+    "fault_old_wait": "Actual RiskTickRequestsClose invariant failure after ProcessRequiredRiskTick",
+    "fault_strict_observation": "Actual LawfulEqualityCompletes invariant failure after equality cut, paid map and boundary decision",
+    "reachable_product_readback": [
+      "position Settled with capturedSettlement Pending",
+      "lawful equality Closed",
+      "unpublished Technical without cut application",
+      "invalid physical/source classification Technical"
+    ],
+    "launcher_cap_mib": 512,
+    "actual_TLC_header": "1 worker, 455MB heap and 64MB offheap",
+    "evidence": "phase/adapter-contract-native/native-responses.json and positive/{tlc.log,verification.json,automaton.json}",
+    "generated_Rust": false,
+    "runtime_binding_or_refinement_proved": false
+  }
+}

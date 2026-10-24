@@ -1,6 +1,7 @@
 {
   "version": 1,
   "files": [
+    "artifact-format.json",
     "automaton.json",
     "binding.json",
     "models/control/automaton.json",
@@ -28,6 +29,7 @@
     "rust/Cargo.toml",
     "rust/README.md",
     "rust/adapter.rs",
+    "rust/rustfmt.toml",
     "rust/src/lib.rs",
     "symbolic-model.json",
     "typescript/README.md",

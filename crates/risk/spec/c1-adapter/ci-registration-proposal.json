@@ -1,0 +1,39 @@
+{
+  "schema": "c1-adapter-ci-registration-proposal-v1",
+  "status": "PROPOSAL_ONLY_NO_WORKFLOW_EDIT",
+  "owner": "Ops/Release after EL review",
+  "model_namespace": "crates/risk/spec/c1-adapter/",
+  "existing_job": "tla",
+  "proposed_changes": [
+    {
+      "location": ".github/workflows/ci.yml changes job path filter",
+      "proposal": "Include crates/risk/spec/c1-adapter/* in the existing tla=true path case. The current filter only discovers specs/tla/* and workflow changes."
+    },
+    {
+      "location": ".github/workflows/ci.yml existing tla job after pinned JAR verification",
+      "argv": [
+        "python3",
+        "crates/risk/spec/c1-adapter/verify.py",
+        "--jar",
+        "specs/tla/tla2tools.jar",
+        "--out",
+        "$RUNNER_TEMP/c1-adapter-obligations"
+      ],
+      "proposal": "Run the positive model and both named failing controls sequentially with one worker, 512 MiB and 120s per case. An unexpected pass/failure, timeout or incomplete positive exploration must fail the job."
+    },
+    {
+      "location": "existing diagnostic artifact handling",
+      "proposal": "Retain result.json and the three raw logs from the new evidence output, with no market payload."
+    }
+  ],
+  "unchanged": [
+    "required check names and set",
+    "aggregate gate behavior",
+    "branch protection",
+    "SDK pin",
+    "architecture permissions/dependencies",
+    "live transport"
+  ],
+  "authorization": "This document proposes only. EL/required human approval and Ops ownership apply before workflow or required-check changes. No such change is implemented by Risk.",
+  "current_claim": "EL completed local native SGD model-only baseline and both named counterexamples on unchanged model/config/project bytes. The standalone proposed verify.py hook is syntax-checked but unexecuted. No hosted discovery or execution is claimed."
+}

@@ -103,7 +103,25 @@ impl Event {
     }
 }
 
-pub const ALL_EVENTS: &[Event] = &[Event::AllSettledIdle, Event::DisableIdle, Event::EnableIdle, Event::EvaluateEligible, Event::EvaluateFalse, Event::EvaluateNoSize, Event::FreshIdle, Event::FreshOccupied, Event::IntentAccepted, Event::IntentRefused, Event::NewEpoch, Event::RecordFundingSettled, Event::RecordPendingFunding, Event::Replay, Event::RequestEpoch, Event::Stop, Event::StoppedWait];
+pub const ALL_EVENTS: &[Event] = &[
+    Event::AllSettledIdle,
+    Event::DisableIdle,
+    Event::EnableIdle,
+    Event::EvaluateEligible,
+    Event::EvaluateFalse,
+    Event::EvaluateNoSize,
+    Event::FreshIdle,
+    Event::FreshOccupied,
+    Event::IntentAccepted,
+    Event::IntentRefused,
+    Event::NewEpoch,
+    Event::RecordFundingSettled,
+    Event::RecordPendingFunding,
+    Event::Replay,
+    Event::RequestEpoch,
+    Event::Stop,
+    Event::StoppedWait,
+];
 
 /// Every supported concrete model value. Integers remain exact decimal strings.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -148,8 +166,11 @@ pub struct TransitionError {
 impl std::fmt::Display for TransitionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.reason {
-            TransitionErrorReason::Disabled => formatter.write_str("TLC001: action is disabled in the current concrete model state"),
-            TransitionErrorReason::RevisionExhausted => formatter.write_str("authority revision is exhausted"),
+            TransitionErrorReason::Disabled => formatter
+                .write_str("TLC001: action is disabled in the current concrete model state"),
+            TransitionErrorReason::RevisionExhausted => {
+                formatter.write_str("authority revision is exhausted")
+            }
         }
     }
 }
@@ -166,261 +187,444 @@ pub struct C1ControlMachine {
 impl C1ControlMachine {
     /// Start a distinct live object at the unique verified Init state.
     pub fn new() -> Self {
-        Self { node: 19, revision: 0 }
+        Self {
+            node: 19,
+            revision: 0,
+        }
     }
 
     pub fn read(&self) -> Snapshot {
         let (node_id, values) = match self.node {
-            0 => ("s0", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(false)),
-                ("mode".to_owned(), FiniteValue::String("Stopped".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(true)),
-            ])),
-            1 => ("s1", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(false)),
-                ("mode".to_owned(), FiniteValue::String("Stopped".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(true)),
-            ])),
-            2 => ("s10", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Busy".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            3 => ("s11", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Disabled".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            4 => ("s12", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            5 => ("s13", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Reserved".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            6 => ("s14", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(true)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Busy".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            7 => ("s15", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Pending".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Disabled".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            8 => ("s16", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Pending".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            9 => ("s17", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(true)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Disabled".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            10 => ("s18", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(true)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            11 => ("s19", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(true)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Pending".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Disabled".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            12 => ("s2", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Busy".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            13 => ("s20", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(true)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Pending".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            14 => ("s21", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(true)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Disabled".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            15 => ("s22", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(true)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            16 => ("s23", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(true)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Pending".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Disabled".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            17 => ("s24", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(true)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(true)),
-                ("evaluation".to_owned(), FiniteValue::String("Pending".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            18 => ("s3", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Disabled".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            19 => ("s4", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            20 => ("s5", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Reserved".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            21 => ("s6", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(true)),
-                ("healthy".to_owned(), FiniteValue::Boolean(false)),
-                ("mode".to_owned(), FiniteValue::String("Stopped".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(true)),
-            ])),
-            22 => ("s7", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Consumed".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(true)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Busy".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            23 => ("s8", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Pending".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Disabled".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
-            24 => ("s9", BTreeMap::from([
-                ("armed".to_owned(), FiniteValue::Boolean(false)),
-                ("epochPending".to_owned(), FiniteValue::Boolean(false)),
-                ("evaluation".to_owned(), FiniteValue::String("Pending".to_owned())),
-                ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
-                ("healthy".to_owned(), FiniteValue::Boolean(true)),
-                ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
-                ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
-                ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
-            ])),
+            0 => (
+                "s0",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(false)),
+                    ("mode".to_owned(), FiniteValue::String("Stopped".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(true)),
+                ]),
+            ),
+            1 => (
+                "s1",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(false)),
+                    ("mode".to_owned(), FiniteValue::String("Stopped".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(true)),
+                ]),
+            ),
+            2 => (
+                "s10",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Busy".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            3 => (
+                "s11",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Disabled".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            4 => (
+                "s12",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            5 => (
+                "s13",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Reserved".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            6 => (
+                "s14",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(true)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Busy".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            7 => (
+                "s15",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Pending".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Disabled".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            8 => (
+                "s16",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Pending".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            9 => (
+                "s17",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(true)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Disabled".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            10 => (
+                "s18",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(true)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            11 => (
+                "s19",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(true)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Pending".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Disabled".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            12 => (
+                "s2",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Busy".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            13 => (
+                "s20",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(true)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Pending".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            14 => (
+                "s21",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(true)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Disabled".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            15 => (
+                "s22",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(true)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            16 => (
+                "s23",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(true)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Pending".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Disabled".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            17 => (
+                "s24",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(true)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Pending".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            18 => (
+                "s3",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Disabled".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            19 => (
+                "s4",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            20 => (
+                "s5",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Reserved".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            21 => (
+                "s6",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(true)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(false)),
+                    ("mode".to_owned(), FiniteValue::String("Stopped".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(true)),
+                ]),
+            ),
+            22 => (
+                "s7",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Consumed".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(true)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Busy".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(false)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            23 => (
+                "s8",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Pending".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    (
+                        "mode".to_owned(),
+                        FiniteValue::String("Disabled".to_owned()),
+                    ),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
+            24 => (
+                "s9",
+                BTreeMap::from([
+                    ("armed".to_owned(), FiniteValue::Boolean(false)),
+                    ("epochPending".to_owned(), FiniteValue::Boolean(false)),
+                    (
+                        "evaluation".to_owned(),
+                        FiniteValue::String("Pending".to_owned()),
+                    ),
+                    ("fundingPending".to_owned(), FiniteValue::Boolean(false)),
+                    ("healthy".to_owned(), FiniteValue::Boolean(true)),
+                    ("mode".to_owned(), FiniteValue::String("Idle".to_owned())),
+                    ("settledIdle".to_owned(), FiniteValue::Boolean(true)),
+                    ("stoppedEver".to_owned(), FiniteValue::Boolean(false)),
+                ]),
+            ),
             _ => unreachable!("private generated node invariant"),
         };
         Snapshot {
@@ -568,15 +772,25 @@ impl C1ControlMachine {
             _ => None,
         };
         let Some(node) = successor else {
-            return Err(TransitionError { reason: TransitionErrorReason::Disabled, state: self.read() });
+            return Err(TransitionError {
+                reason: TransitionErrorReason::Disabled,
+                state: self.read(),
+            });
         };
         let Some(revision) = self.revision.checked_add(1) else {
-            return Err(TransitionError { reason: TransitionErrorReason::RevisionExhausted, state: self.read() });
+            return Err(TransitionError {
+                reason: TransitionErrorReason::RevisionExhausted,
+                state: self.read(),
+            });
         };
         let before = self.read();
         self.node = node;
         self.revision = revision;
-        Ok(Receipt { event, before, after: self.read() })
+        Ok(Receipt {
+            event,
+            before,
+            after: self.read(),
+        })
     }
 }
 
@@ -590,7 +804,9 @@ mod tests {
         authority.revision = u64::MAX;
         let before = authority.read();
         for event in ALL_EVENTS {
-            let error = authority.send(*event).expect_err("no revision can follow u64::MAX");
+            let error = authority
+                .send(*event)
+                .expect_err("no revision can follow u64::MAX");
             assert_eq!(error.state, before);
             assert_eq!(authority.read(), before);
         }
