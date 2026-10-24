@@ -2,13 +2,14 @@ use std::path::PathBuf;
 
 use cucumber::{then, when, World as _};
 use parangsae_backtest::{
-    run_targets, Bar, BookState, EngineError, FundingObs, FundingStamp, Report, RunConfig,
-    SignalOutput, Tape, Target, TargetSignal, UtcDate, UtcRange,
+    run_targets, Bar, BookState, EngineError, ForcedExitReason, FundingObs, FundingStamp, Report,
+    RunConfig, SignalOutput, Tape, Target, TargetSignal, UtcDate, UtcRange,
 };
 use parangsae_core::{
     BarInterval, Causal, DecisionTime, Interval, Price, Qty, Ratio, ResampledBar, Side, UtcMicros,
 };
 use parangsae_sim::{Cash, Costs, FeeBps, Fill, SlippageBps};
+use parangsae_strategies::StrategyOutput;
 
 const MINUTE: i64 = 60_000_000;
 const HOUR: i64 = 60 * MINUTE;
@@ -31,9 +32,9 @@ impl TargetSignal for FixedTarget {
         bars: Causal<'_, &[ResampledBar]>,
         _: Causal<'_, &[FundingObs]>,
         _: BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         let last = bars.value().last().unwrap();
-        Some(SignalOutput {
+        Some(StrategyOutput::target(SignalOutput {
             decision_ts: DecisionTime::from_micros(
                 last.close_time().checked_add_micros(1_000).unwrap(),
             ),
@@ -41,7 +42,7 @@ impl TargetSignal for FixedTarget {
             interval: BarInterval::H1,
             decision: parangsae_backtest::Decision::Target(Target::from_ticks(self.0).unwrap()),
             accept: 0,
-        })
+        }))
     }
 }
 
@@ -206,8 +207,11 @@ fn causal_prefix(world: &mut BoundaryWorld) {
         if let Ok(report) = &changed.result {
             assert_eq!(prefix(report),prefix(baseline),"future count tail={tail} chose an earlier fill; first changed={first_changed}, fixed boundary={}, changed fills={:?}",base.boundary,report.fills);
         }
-        // Whole-run technical refusal is the R3 disposition for an unfillable
-        // scheduled boundary. Integration will assert its new typed variant.
+        assert!(
+            matches!(&changed.result, Err(EngineError::UnfilledBoundaryClose { boundary }) if *boundary == ts(base.boundary)),
+            "every held unfillable scheduled boundary must have its typed whole-run refusal: {:?}",
+            changed.result
+        );
     }
 }
 
@@ -219,9 +223,8 @@ fn run_zero(world: &mut BoundaryWorld, scope: String) {
 fn refused(world: &mut BoundaryWorld) {
     let case = world.case.as_ref().unwrap();
     assert!(
-        case.result.is_err(),
-        "unfillable scheduled boundary={} must fail whole run, not accept earlier fills: {:?}",
-        case.boundary,
+        matches!(&case.result, Err(EngineError::UnfilledBoundaryClose { boundary }) if *boundary == ts(case.boundary)),
+        "unfilled scheduled boundary must have its exact typed failure: {:?}",
         case.result
     );
 }
@@ -239,6 +242,11 @@ fn positive(world: &mut BoundaryWorld) {
     assert_eq!(report.fills[1].side, Side::Sell);
     assert_eq!(report.fills[1].ts, ts(case.boundary));
     assert_eq!(report.n_forced_exits, 1);
+    assert_eq!(report.forced_exits.len(), 1);
+    let event = &report.forced_exits[0];
+    assert_eq!(event.trigger, ts(case.boundary));
+    assert_eq!(event.filled_at, ts(case.boundary));
+    assert!(matches!(&event.reason, ForcedExitReason::Terminal));
     assert!(report.fills.iter().all(|fill| fill.fee.0 > 0));
     assert!(report.slippage_cost.0 > 0);
 }
@@ -267,6 +275,7 @@ fn pending_cancel(world: &mut BoundaryWorld) {
     assert_eq!(report.metrics.fees_paid.0, 0);
     assert_eq!(report.metrics.funding_net.0, 0);
     assert_eq!(report.n_forced_exits, 0);
+    assert!(report.forced_exits.is_empty());
     assert_eq!(
         report.n_refused_fills, 1,
         "intent must not use a future count scan before queueing"
@@ -290,6 +299,11 @@ fn co_trigger(world: &mut BoundaryWorld) {
         "new Ruin cannot backdate the predeclared Terminal fill"
     );
     assert_eq!(report.n_forced_exits, 1);
+    assert_eq!(report.forced_exits.len(), 1);
+    let event = &report.forced_exits[0];
+    assert_eq!(event.trigger, ts(case.boundary));
+    assert_eq!(event.filled_at, ts(case.boundary));
+    assert!(matches!(&event.reason, ForcedExitReason::Terminal));
     assert!(report.fills.iter().all(|fill| fill.fee.0 > 0));
 }
 
@@ -309,9 +323,8 @@ fn unknown(world: &mut BoundaryWorld) {
         case.result
     );
     assert!(
-        case.result.is_err(),
-        "hidden 200% funding should refuse before Terminal at{}, got accepted report={:?}",
-        case.boundary,
+        matches!(&case.result, Err(EngineError::UnadmittedMoneyControl { at }) if *at == ts(case.boundary)),
+        "unknown control must refuse before Terminal with exact use clock: {:?}",
         case.result
     );
 }

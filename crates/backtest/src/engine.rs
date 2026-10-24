@@ -11,14 +11,19 @@ use parangsae_sim::{
 };
 
 use crate::bar::{Bar, BarView, FundingStamp, Strategy, Tape, ONE_MINUTE_US};
+use crate::cash_view::{CashVisibility, FundingDependency, VisibleEquity};
 use crate::date::UtcDate;
 use crate::error::EngineError;
 use crate::metrics::{
     fill_notional_ticks, max_drawdown, sharpe_ticks, total_return, turnover_ticks,
 };
-use crate::report::{daily_equity, Metrics, Report, RoundTrip};
+use crate::report::{
+    daily_equity, ForcedExit, ForcedExitReason, H4EntryDrop, H4EntryDropReason, H4Trace, H4Trade,
+    Metrics, Report, RoundTrip,
+};
 use crate::signal::{
-    funding_visible, BookState, Decision, FlatReason, FundingObs, SignalOutput, TargetSignal,
+    funding_visible, ActualHold, BookState, Decision, ExecutionDirective, ExecutionPhase,
+    FlatReason, FundingObs, H4Event, PositionSide, SignalOutput, TargetSignal,
 };
 use crate::sizing::target_qty;
 use crate::tape::{sample_start, TapeError};
@@ -69,6 +74,7 @@ pub fn run<S: Strategy>(
                 &mut ledger,
                 &mut book,
                 &mut funding,
+                None,
                 window,
                 index,
             )?;
@@ -115,7 +121,7 @@ pub fn run<S: Strategy>(
         let view = BarView::new(&window[..=index], bar.available);
         match strategy.on_bar(view) {
             Some(_) if index + 1 == window.len() => dropped_orders += 1,
-            Some(order) => pending = Some(HeldOrder::new(order)),
+            Some(order) => pending = Some(HeldOrder::new(PendingIntent::Fixed(order))),
             None => {}
         }
     }
@@ -145,6 +151,8 @@ pub fn run<S: Strategy>(
             n_rebalances: 0,
             n_sign_changes: 0,
             n_forced_exits: 0,
+            forced_exits: Vec::new(),
+            h4: None,
         },
     )
 }
@@ -188,9 +196,8 @@ where
 /// fill, funding settlement, or equity point. A hold or held target built
 /// there is not a position: the first scored bar decides from a flat book.
 ///
-/// `cfg.flatten_before` flattens at the last scored minute before that instant
-/// with `count > 0`. A window that contains 2025-09-30 23:59 UTC also flattens
-/// at the last scored minute at or before that open with `count > 0`.
+/// Calendar exits use the fixed scheduled minute immediately before the boundary.
+/// Missing or unfillable held closes fail the whole run; later liquidity is never scanned.
 pub fn run_targets<S: TargetSignal>(
     tape: &Tape,
     signal: &mut S,
@@ -230,12 +237,12 @@ pub fn run_targets<S: TargetSignal>(
         .filter_map(|range| {
             window
                 .iter()
-                .find(|bar| bar.open_time >= range.start && !bar.is_filler())
+                .find(|bar| bar.open_time >= range.start)
                 .map(|bar| bar.open_time)
         })
         .collect();
-    let window_flat = window_flat_open(window, cfg);
-    let end_open = last_tradable_open(window, cfg.start);
+    let window_flat = window_flat_open(window, cfg)?;
+    let end_open = development_flat_open(window, cfg)?;
 
     let mut ledger = Ledger::new(cfg.initial_cash);
     let mut book = Book::default();
@@ -258,6 +265,23 @@ pub fn run_targets<S: TargetSignal>(
     let mut n_rebalances = 0u64;
     let mut n_sign_changes = 0u64;
     let mut n_forced_exits = 0u64;
+    let mut forced_exits = Vec::new();
+    let mut cash_visibility = CashVisibility::new(tape.funding.len());
+    let trace_capacity = tape
+        .funding
+        .len()
+        .checked_mul(parangsae_strategies::H4_OBSERVATIONS_PER_EVENT)
+        .ok_or(EngineError::TraceCapacity { at: cfg.start })?;
+    let mut h4 = (signal.h4_observation_capacity() > 0).then(|| H4Trace {
+        scored: UtcRange {
+            start: cfg.start,
+            end: cfg.end,
+        },
+        observations: Vec::new(),
+        trades: Vec::new(),
+        entry_drops: Vec::new(),
+    });
+    book.trace_capacity = trace_capacity;
 
     let scored_bars = scored_len(window, cfg.start);
     for (index, bar) in window.iter().enumerate() {
@@ -281,11 +305,12 @@ pub fn run_targets<S: TargetSignal>(
                     .expect("the prefix is stamped available at the decision");
                 if delay == 0 || decision < cfg.start {
                     signal.on_warmup_bar(view, funding_view);
+                    drain_observations(signal, &mut h4, trace_capacity, decision)?;
                 }
             }
             continue;
         }
-        if ruined.is_none() {
+        if frozen.is_none() {
             funding_i = settle_funding(
                 &FundingPass {
                     tape,
@@ -295,21 +320,75 @@ pub fn run_targets<S: TargetSignal>(
                 &mut ledger,
                 &mut book,
                 &mut funding,
+                Some(&mut cash_visibility),
                 window,
                 index,
             )?;
-            let before_settlement = ledger.position().0;
-            let mut forced_exit = false;
+            let halt = ruined.is_none()
+                && control_wants_halt(
+                    tape,
+                    &ledger,
+                    &mut cash_visibility,
+                    bar.open_time,
+                    index.checked_sub(1).map(|i| window[i].open_time),
+                    &cfg.mark_gaps,
+                )?;
+            if halt {
+                start_liquidation(
+                    &ledger,
+                    &mut pending,
+                    &mut ruined,
+                    &mut frozen,
+                    bar.open_time,
+                )?;
+            }
             if window_flat == Some(bar.open_time)
                 || end_open == Some(bar.open_time)
                 || forced_opens.contains(&bar.open_time)
             {
+                // A calendar boundary cancels risk even while the actual position is flat.
+                if let Some(canceled) = pending.take() {
+                    if let Some(entry) = canceled.entry {
+                        record_entry_drop(
+                            &mut h4,
+                            H4EntryDrop {
+                                event: entry.event,
+                                at: bar.open_time,
+                                reason: H4EntryDropReason::Terminal,
+                            },
+                            trace_capacity,
+                        )?;
+                    }
+                    if ledger.position().0 == 0 {
+                        dropped_orders = dropped_orders
+                            .checked_add(1)
+                            .ok_or(EngineError::Sim(SimError::Overflow))?;
+                    }
+                }
                 if let Some(order) = flatten_order(&ledger)? {
-                    pending = Some(HeldOrder::new(order));
-                    forced_exit = true;
+                    let mut held = HeldOrder::new(PendingIntent::Fixed(order));
+                    held.reason = OrderReason::Terminal;
+                    held.trigger = Some(bar.open_time);
+                    pending = Some(held);
                 }
             }
-            if let Some(resolved) = settle_pending(
+            let before_settlement = ledger.position().0;
+            let forced_exit = pending
+                .as_ref()
+                .is_some_and(|order| order.reason != OrderReason::Strategy);
+            let forced_event = pending.as_ref().and_then(|order| {
+                let reason = match order.reason {
+                    OrderReason::Strategy => return None,
+                    OrderReason::Terminal => ForcedExitReason::Terminal,
+                    OrderReason::Ruin => ForcedExitReason::Ruin,
+                };
+                Some(ForcedExit {
+                    trigger: order.trigger.expect("forced order has its trigger"),
+                    filled_at: bar.open_time,
+                    reason,
+                })
+            });
+            let outcome = settle_pending(
                 &mut pending,
                 &mut refused_fills,
                 &mut FillSink {
@@ -320,8 +399,16 @@ pub fn run_targets<S: TargetSignal>(
                 &mut book,
                 bar,
                 costs,
-            )? {
+            )?;
+            if let Some(resolved) = outcome.sized {
                 sized = Some(resolved);
+            }
+            if let Some(drop) = outcome.entry_drop {
+                dropped_orders = dropped_orders
+                    .checked_add(1)
+                    .ok_or(EngineError::Sim(SimError::Overflow))?;
+                record_entry_drop(&mut h4, drop, trace_capacity)?;
+                sized = None;
             }
             note_settlement(
                 &mut n_rebalances,
@@ -331,45 +418,31 @@ pub fn run_targets<S: TargetSignal>(
                 before_settlement,
                 ledger.position().0,
             )?;
+            if before_settlement != 0 && ledger.position().0 == 0 {
+                if let Some(event) = forced_event {
+                    forced_exits.push(event);
+                }
+            }
+            if ruined.is_some() && ledger.position().0 == 0 {
+                frozen = Some(ledger.cash());
+                pending = None;
+            }
         }
 
         for before_close in [true, false] {
             if !before_close {
-                let mark = resolve_mark(&tape.marks, bar.open_time, &cfg.mark_gaps)?;
-                if let Some(cash) = frozen {
-                    equity_curve.push((bar.close_time, cash));
-                    continue;
-                }
-                let equity = ledger.equity(mark.close).map_err(EngineError::Sim)?;
-                if equity.0 <= 0 {
-                    let before_flatten = ledger.position().0;
-                    force_flat(
-                        &mut ledger,
-                        &mut book,
-                        &mut fills,
-                        &mut slippage_ticks,
-                        mark.close,
-                        costs,
-                        bar.close_time,
-                    )?;
-                    note_settlement(
-                        &mut n_rebalances,
-                        &mut n_sign_changes,
-                        &mut n_forced_exits,
-                        true,
-                        before_flatten,
-                        ledger.position().0,
-                    )?;
-                    let after = ledger.equity(mark.close).map_err(EngineError::Sim)?;
-                    ruined = Some(bar.close_time);
-                    frozen = Some(after);
-                    equity_curve.push((bar.close_time, after));
-                    pending = None;
-                    continue;
-                }
+                // This is a retrospective economic curve label, never an action clock.
+                let equity = if let Some(cash) = frozen {
+                    cash
+                } else {
+                    let mark = resolve_mark(&tape.marks, bar.open_time, &cfg.mark_gaps)?;
+                    ledger
+                        .equity(mark.close)
+                        .map_err(|_| EngineError::EconomicArithmetic { at: bar.close_time })?
+                };
                 equity_curve.push((bar.close_time, equity));
             }
-            if frozen.is_some() {
+            if ruined.is_some() {
                 continue;
             }
             let hour_index = if before_close {
@@ -391,6 +464,21 @@ pub fn run_targets<S: TargetSignal>(
                 .close_time()
                 .checked_add_micros(1_000 + delay)
                 .ok_or(EngineError::Sim(SimError::Overflow))?;
+            if control_wants_halt(
+                tape,
+                &ledger,
+                &mut cash_visibility,
+                decision,
+                if before_close {
+                    index.checked_sub(1).map(|i| window[i].open_time)
+                } else {
+                    Some(bar.open_time)
+                },
+                &cfg.mark_gaps,
+            )? {
+                start_liquidation(&ledger, &mut pending, &mut ruined, &mut frozen, decision)?;
+                continue;
+            }
             let bars_prefix = &resampled[..=hour_index];
             let fund_prefix = funding_visible(&funding_rows, decision);
             let bar_obs = Observation::new(decision_stamps(decision), bars_prefix);
@@ -402,23 +490,51 @@ pub fn run_targets<S: TargetSignal>(
                 .causal_at(DecisionTime::from_micros(decision))
                 .expect("the prefix is stamped available at the decision");
             let decision_close = hour.close();
-            let sizing_equity = ledger.equity(decision_close).map_err(EngineError::Sim)?;
-            let book_state = BookState {
-                equity_ticks: sizing_equity.0,
-                position_lots: ledger.position().0,
-                mark_ticks: decision_close.ticks(),
-            };
-            match signal.on_bar(view, funding_view, book_state) {
+            let visible_money = cash_visibility.project(&ledger, decision_close, decision)?;
+            let sizing_equity = visible_money.equity();
+            let execution = book.execution_phase(&ledger, pending.as_ref())?;
+            let book_state = BookState::new(
+                visible_money,
+                ledger.position().0,
+                decision_close.ticks(),
+                execution,
+            );
+            let next = signal.on_bar(view, funding_view, book_state);
+            drain_observations(signal, &mut h4, trace_capacity, decision)?;
+            match next {
                 None if !seen => warmup_bars += 1,
                 None => return Err(EngineError::MissingSignal(decision)),
-                Some(output)
+                Some(envelope) => {
+                    let output = envelope.signal;
                     if output.bar_close_time_us != hour.close_time()
-                        || output.decision_ts.micros() != decision =>
-                {
-                    return Err(EngineError::MissingSignal(decision));
-                }
-                Some(output) => {
+                        || output.decision_ts.micros() != decision
+                    {
+                        return Err(EngineError::MissingSignal(decision));
+                    }
                     seen = true;
+                    signal_outputs.push(output);
+                    // Keep is an execution no-op even when its diagnostic target differs.
+                    let entry = match envelope.directive {
+                        ExecutionDirective::Keep => continue,
+                        ExecutionDirective::SetTarget => None,
+                        ExecutionDirective::Enter { event, hold } => {
+                            if h4.is_none() {
+                                return Err(EngineError::InvalidExecution);
+                            }
+                            if execution != ExecutionPhase::Flat
+                                || pending.is_some()
+                                || output.decision.target_ticks()
+                                    != event.crowd_side.opposite().target_ticks()
+                            {
+                                return Err(EngineError::InvalidExecution);
+                            }
+                            Some(H4EntryPlan {
+                                event,
+                                hold,
+                                development_end: cfg.holdout_start.min(sample_end()),
+                            })
+                        }
+                    };
                     let inside = cfg
                         .forced_flat
                         .iter()
@@ -444,43 +560,53 @@ pub fn run_targets<S: TargetSignal>(
                         inside || matches!(output.decision, Decision::Flat(_)),
                         output.decision.target_ticks(),
                         output.accept,
-                        sizing_equity.0,
+                        sizing_equity.ticks(),
                         decision_close.ticks(),
                         cfg.lot_ticks,
                     )
                     .map_err(EngineError::Sim)?;
-                    signal_outputs.push(output);
+                    if book.open.as_ref().is_some_and(|open| open.h4.is_some())
+                        && output.decision.target_ticks() != 0
+                    {
+                        return Err(EngineError::InvalidExecution);
+                    }
+                    // A sized intent has no provisional market side or quantity. An
+                    // unchanged request retains frozen money and its refusal history.
+                    if !suppressed
+                        && pending.as_ref().is_some_and(|held| {
+                            matches!(held.intent,
+                        PendingIntent::Sized(sizing) if (sizing.target, sizing.accept) == key)
+                        })
+                    {
+                        continue;
+                    }
                     let diff = lots
                         .checked_sub(ledger.position().0)
                         .ok_or(EngineError::Sim(SimError::Overflow))?;
                     if diff == 0 && !resize {
                         pending = None;
                     } else {
-                        let side = if diff > 0 { Side::Buy } else { Side::Sell };
-                        let qty_ticks = diff
-                            .checked_abs()
-                            .ok_or(EngineError::Sim(SimError::Overflow))?;
-                        let qty = Qty::from_ticks(qty_ticks)
-                            .map_err(|_| EngineError::Sim(SimError::Negative))?;
-                        if window[index + 1..].iter().any(|next| next.count > 0) {
-                            let order = MarketOrder { side, qty };
-                            // An unchanged order retains its one-refusal history.
-                            if resize || !pending.as_ref().is_some_and(|held| held.order == order) {
-                                let mut held = HeldOrder::new(order);
-                                held.not_before = Some(decision);
-                                if resize {
-                                    held.sizing = Some(FillSizing {
-                                        target: key.0,
-                                        equity: sizing_equity.0,
-                                        lot: cfg.lot_ticks,
-                                        accept: key.1,
-                                    });
-                                }
-                                pending = Some(held);
-                            }
+                        let intent = if resize {
+                            PendingIntent::Sized(FillSizing {
+                                target: key.0,
+                                equity: sizing_equity,
+                                lot: cfg.lot_ticks,
+                                accept: key.1,
+                            })
                         } else {
-                            pending = None;
-                            dropped_orders += 1;
+                            let side = if diff > 0 { Side::Buy } else { Side::Sell };
+                            let qty_ticks = diff
+                                .checked_abs()
+                                .ok_or(EngineError::Sim(SimError::Overflow))?;
+                            let qty = Qty::from_ticks(qty_ticks)
+                                .map_err(|_| EngineError::Sim(SimError::Negative))?;
+                            PendingIntent::Fixed(MarketOrder { side, qty })
+                        };
+                        if resize || !pending.as_ref().is_some_and(|held| held.intent == intent) {
+                            let mut held = HeldOrder::new(intent);
+                            held.not_before = Some(decision);
+                            held.entry = entry;
+                            pending = Some(held);
                         }
                     }
                 }
@@ -488,6 +614,37 @@ pub fn run_targets<S: TargetSignal>(
         }
     }
 
+    if pending
+        .as_ref()
+        .is_some_and(|order| order.reason == OrderReason::Terminal)
+    {
+        return Err(EngineError::UnfilledBoundaryClose {
+            boundary: window_flat.or(end_open).unwrap_or(cfg.end),
+        });
+    }
+    if ruined.is_none() {
+        if let Some(last) = window.last() {
+            let boundary = last
+                .open_time
+                .checked_add_micros(ONE_MINUTE_US)
+                .ok_or(EngineError::Sim(SimError::Overflow))?;
+            if control_wants_halt(
+                tape,
+                &ledger,
+                &mut cash_visibility,
+                boundary,
+                Some(last.open_time),
+                &cfg.mark_gaps,
+            )? {
+                start_liquidation(&ledger, &mut pending, &mut ruined, &mut frozen, boundary)?;
+            }
+        }
+    }
+    if let Some(trigger) = ruined {
+        if ledger.position().0 != 0 {
+            return Err(EngineError::UnfilledLiquidation { trigger });
+        }
+    }
     if pending.is_some() {
         dropped_orders += 1;
     }
@@ -513,8 +670,118 @@ pub fn run_targets<S: TargetSignal>(
             n_rebalances,
             n_sign_changes,
             n_forced_exits,
+            forced_exits,
+            h4,
         },
     )
+}
+
+fn drain_observations<S: TargetSignal>(
+    signal: &mut S,
+    trace: &mut Option<H4Trace>,
+    capacity: usize,
+    at: UtcMicros,
+) -> Result<(), EngineError> {
+    let items = signal.take_h4_observations();
+    if items.is_empty() {
+        return Ok(());
+    }
+    let trace = trace.as_mut().ok_or(EngineError::InvalidExecution)?;
+    if trace
+        .observations
+        .len()
+        .checked_add(items.len())
+        .is_none_or(|n| n > capacity)
+    {
+        return Err(EngineError::TraceCapacity { at });
+    }
+    trace.observations.extend(items);
+    Ok(())
+}
+
+fn record_entry_drop(
+    trace: &mut Option<H4Trace>,
+    drop: H4EntryDrop,
+    capacity: usize,
+) -> Result<(), EngineError> {
+    let trace = trace.as_mut().ok_or(EngineError::InvalidExecution)?;
+    if trace.entry_drops.len() >= capacity {
+        return Err(EngineError::TraceCapacity { at: drop.at });
+    }
+    trace.entry_drops.push(drop);
+    Ok(())
+}
+
+/// Money control uses a published original mark at its actual use clock.
+/// Economic curve labels never authorize a fill or a pending cancellation.
+fn control_wants_halt(
+    tape: &Tape,
+    ledger: &Ledger,
+    visibility: &mut CashVisibility,
+    at: UtcMicros,
+    economic_open: Option<UtcMicros>,
+    gaps: &[MarkAbsence],
+) -> Result<bool, EngineError> {
+    let unknown_cash = visibility.unavailable_dependencies(at).next().is_some();
+    let (price, economic) = if ledger.position().0 == 0 {
+        // A known flat position has no price dependency; this is structural zero.
+        (
+            parangsae_core::Price::from_ticks(0).expect("zero price"),
+            ledger.cash(),
+        )
+    } else {
+        let original = resolve_mark(
+            &tape.marks,
+            economic_open.ok_or(EngineError::UnavailableControlMark { at })?,
+            gaps,
+        )?;
+        if original.available > at || original.close_time >= at {
+            return Err(EngineError::UnavailableControlMark { at });
+        }
+        let economic = ledger
+            .equity(original.close)
+            .map_err(|_| EngineError::EconomicArithmetic { at })?;
+        (original.close, economic)
+    };
+    let visible = visibility.project(ledger, price, at)?;
+    let visible_equity = if ledger.position().0 == 0 {
+        visible.cash().0
+    } else {
+        visible.equity().ticks()
+    };
+    if (economic.0 <= 0) != (visible_equity <= 0) {
+        return Err(if unknown_cash {
+            EngineError::UnadmittedMoneyControl { at }
+        } else {
+            EngineError::InvalidExecution
+        });
+    }
+    Ok(visible_equity <= 0)
+}
+
+fn start_liquidation(
+    ledger: &Ledger,
+    pending: &mut Option<HeldOrder>,
+    ruined: &mut Option<UtcMicros>,
+    frozen: &mut Option<Cash>,
+    trigger: UtcMicros,
+) -> Result<(), EngineError> {
+    *ruined = Some(trigger);
+    *pending = None;
+    if let Some(order) = flatten_order(ledger)? {
+        let mut close = HeldOrder::new(PendingIntent::Fixed(order));
+        close.not_before = Some(
+            trigger
+                .checked_add_micros(1)
+                .ok_or(EngineError::EconomicArithmetic { at: trigger })?,
+        );
+        close.reason = OrderReason::Ruin;
+        close.trigger = Some(trigger);
+        *pending = Some(close);
+    } else {
+        *frozen = Some(ledger.cash());
+    }
+    Ok(())
 }
 
 /// Count realized position changes once per settled order, after both fill legs.
@@ -571,28 +838,52 @@ fn held_lots(
     Ok(lots)
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 struct FillSizing {
     target: i64,
-    equity: i64,
+    equity: VisibleEquity,
     lot: i64,
     accept: u64,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PendingIntent {
+    Fixed(MarketOrder),
+    Sized(FillSizing),
+}
+
 struct HeldOrder {
-    order: MarketOrder,
+    intent: PendingIntent,
     refused: bool,
     not_before: Option<UtcMicros>,
-    sizing: Option<FillSizing>,
+    reason: OrderReason,
+    trigger: Option<UtcMicros>,
+    entry: Option<H4EntryPlan>,
+}
+
+#[derive(Clone, Copy)]
+struct H4EntryPlan {
+    event: H4Event,
+    hold: ActualHold,
+    development_end: UtcMicros,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OrderReason {
+    Strategy,
+    Terminal,
+    Ruin,
 }
 
 impl HeldOrder {
-    fn new(order: MarketOrder) -> Self {
+    fn new(intent: PendingIntent) -> Self {
         Self {
-            order,
+            intent,
             refused: false,
             not_before: None,
-            sizing: None,
+            reason: OrderReason::Strategy,
+            trigger: None,
+            entry: None,
         }
     }
 }
@@ -600,6 +891,12 @@ impl HeldOrder {
 struct FillSink<'a> {
     fills: &'a mut Vec<Fill>,
     slippage_ticks: &'a mut i64,
+}
+
+#[derive(Default)]
+struct PendingOutcome {
+    sized: Option<(i64, i64, u64)>,
+    entry_drop: Option<H4EntryDrop>,
 }
 
 fn settle_pending(
@@ -610,15 +907,20 @@ fn settle_pending(
     book: &mut Book,
     bar: &Bar,
     costs: &Costs,
-) -> Result<Option<(i64, i64, u64)>, EngineError> {
+) -> Result<PendingOutcome, EngineError> {
     let Some(mut held) = pending.take() else {
-        return Ok(None);
+        return Ok(PendingOutcome::default());
     };
     if held.not_before.is_some_and(|time| bar.open_time < time) {
         *pending = Some(held);
-        return Ok(None);
+        return Ok(PendingOutcome::default());
     }
     if bar.count == 0 {
+        if held.reason == OrderReason::Terminal {
+            return Err(EngineError::UnfilledBoundaryClose {
+                boundary: bar.open_time,
+            });
+        }
         if !held.refused {
             *refused_fills = refused_fills
                 .checked_add(1)
@@ -626,69 +928,126 @@ fn settle_pending(
             held.refused = true;
         }
         *pending = Some(held);
-        return Ok(None);
+        return Ok(PendingOutcome::default());
+    }
+    if let Some(entry) = held.entry {
+        if ledger.position().0 != 0 {
+            return Err(EngineError::InvalidExecution);
+        }
+        let exit = entry
+            .hold
+            .exit_decision(bar.open_time)
+            .map_err(|_| EngineError::EconomicArithmetic { at: bar.open_time })?;
+        if exit.micros() >= entry.development_end {
+            return Ok(PendingOutcome {
+                sized: None,
+                entry_drop: Some(H4EntryDrop {
+                    event: entry.event,
+                    at: bar.open_time,
+                    reason: H4EntryDropReason::DevelopmentBoundary,
+                }),
+            });
+        }
     }
     let mut resolved = None;
-    if let Some(sizing) = held.sizing {
-        let mut chosen = None;
-        // A rebalance may buy or sell an existing position. Use the same adverse
-        // execution-price function as the ledger, then floor to the lot grid.
-        for side in [Side::Buy, Side::Sell] {
-            let price = fill_price(bar.open, side, costs.slippage).map_err(EngineError::Sim)?;
-            let lots = target_qty(sizing.target, sizing.equity, price.ticks(), sizing.lot)
-                .map_err(EngineError::Sim)?;
-            let diff = lots
-                .checked_sub(ledger.position().0)
-                .ok_or(EngineError::Sim(SimError::Overflow))?;
-            if (side == Side::Buy && diff > 0) || (side == Side::Sell && diff < 0) {
-                let qty = Qty::from_ticks(
-                    diff.checked_abs()
-                        .ok_or(EngineError::Sim(SimError::Overflow))?,
+    let order = match held.intent {
+        PendingIntent::Fixed(order) => order,
+        PendingIntent::Sized(sizing) => {
+            let mut chosen = None;
+            // A rebalance may buy or sell an existing position. Use the same adverse
+            // execution-price function as the ledger, then floor to the lot grid.
+            for side in [Side::Buy, Side::Sell] {
+                let price = fill_price(bar.open, side, costs.slippage).map_err(EngineError::Sim)?;
+                let lots = target_qty(
+                    sizing.target,
+                    sizing.equity.ticks(),
+                    price.ticks(),
+                    sizing.lot,
                 )
-                .map_err(|_| EngineError::Sim(SimError::Negative))?;
-                chosen = Some((MarketOrder { side, qty }, lots));
-                break;
+                .map_err(EngineError::Sim)?;
+                let diff = lots
+                    .checked_sub(ledger.position().0)
+                    .ok_or(EngineError::Sim(SimError::Overflow))?;
+                if (side == Side::Buy && diff > 0) || (side == Side::Sell && diff < 0) {
+                    let qty = Qty::from_ticks(
+                        diff.checked_abs()
+                            .ok_or(EngineError::Sim(SimError::Overflow))?,
+                    )
+                    .map_err(|_| EngineError::Sim(SimError::Negative))?;
+                    chosen = Some((MarketOrder { side, qty }, lots));
+                    break;
+                }
             }
+            let Some((order, lots)) = chosen else {
+                return Ok(PendingOutcome {
+                    sized: Some((sizing.target, ledger.position().0, sizing.accept)),
+                    entry_drop: held.entry.map(|entry| H4EntryDrop {
+                        event: entry.event,
+                        at: bar.open_time,
+                        reason: H4EntryDropReason::ZeroLots,
+                    }),
+                });
+            };
+            resolved = Some((sizing.target, lots, sizing.accept));
+            order
         }
-        let Some((order, lots)) = chosen else {
-            return Ok(Some((sizing.target, ledger.position().0, sizing.accept)));
-        };
-        held.order = order;
-        resolved = Some((sizing.target, lots, sizing.accept));
+    };
+    let first_fill = sink.fills.len();
+    let first_slippage = *sink.slippage_ticks;
+    execute(ledger, book, sink, order, bar.open, costs, bar.open_time)?;
+    if let Some(entry) = held.entry {
+        let open = book.open.as_mut().ok_or(EngineError::InvalidExecution)?;
+        if sink.fills.len() != first_fill + 1 {
+            return Err(EngineError::InvalidExecution);
+        }
+        open.h4 = Some(OpenH4 {
+            plan: entry,
+            funding: Vec::new(),
+            fills: vec![sink.fills[first_fill]],
+            slippage_cost: Cash(
+                sink.slippage_ticks
+                    .checked_sub(first_slippage)
+                    .ok_or(EngineError::EconomicArithmetic { at: bar.open_time })?,
+            ),
+        });
     }
-    execute(
-        ledger,
-        book,
-        sink,
-        held.order,
-        bar.open,
-        costs,
-        bar.open_time,
-    )?;
-    Ok(resolved)
+    Ok(PendingOutcome {
+        sized: resolved,
+        entry_drop: None,
+    })
 }
 
-/// Last open at or before 2025-09-30 23:59 UTC whose `count` can fill.
-///
-/// A window that never reaches that minute is left alone. A `count = 0` bar
-/// at 23:59 walks back to the previous open that can fill.
-fn last_tradable_open(window: &[Bar], start: UtcMicros) -> Option<UtcMicros> {
+/// Fixed scheduled development-terminal open; a missing key is an error.
+fn development_flat_open(
+    window: &[Bar],
+    cfg: &RunConfig,
+) -> Result<Option<UtcMicros>, EngineError> {
     let limit = sample_end_open();
-    if !window.iter().any(|bar| bar.open_time == limit) {
-        return None;
+    if cfg.start > limit || cfg.end <= limit {
+        return Ok(None);
     }
-    window
-        .iter()
-        .rev()
-        .find(|bar| bar.open_time >= start && bar.open_time <= limit && bar.count > 0)
-        .map(|bar| bar.open_time)
+    require_terminal_key(window, limit)?;
+    Ok(Some(limit))
+}
+
+fn require_terminal_key(window: &[Bar], key: UtcMicros) -> Result<(), EngineError> {
+    if window
+        .binary_search_by_key(&key, |bar| bar.open_time)
+        .is_err()
+    {
+        return Err(EngineError::UnfilledBoundaryClose { boundary: key });
+    }
+    Ok(())
+}
+
+fn sample_end() -> UtcMicros {
+    UtcDate::parse("2025-10-01")
+        .expect("valid development boundary")
+        .start_us()
 }
 
 fn sample_end_open() -> UtcMicros {
-    let holdout = UtcDate::parse("2025-10-01")
-        .expect("2025-10-01 is a valid date")
-        .start_us();
-    UtcMicros::from_micros(holdout.micros() - ONE_MINUTE_US)
+    UtcMicros::from_micros(sample_end().micros() - ONE_MINUTE_US)
 }
 
 fn in_window_flat(open: Option<UtcMicros>, limit: Option<UtcMicros>, bar_open: UtcMicros) -> bool {
@@ -747,7 +1106,7 @@ pub struct RunConfig {
     pub end: UtcMicros,
     pub holdout_start: UtcMicros,
     pub forced_flat: Vec<UtcRange>,
-    /// Flatten on the last scored minute before this instant with `count > 0`.
+    /// Flatten at the scheduled minute immediately before this instant.
     /// `None` does not add a window-end flatten.
     pub flatten_before: Option<UtcMicros>,
     pub mark_gaps: Vec<MarkAbsence>,
@@ -951,12 +1310,18 @@ fn refuse_holdout(tape: &Tape, cfg: &RunConfig) -> Result<(), EngineError> {
     Ok(())
 }
 
-fn window_flat_open(window: &[Bar], cfg: &RunConfig) -> Option<UtcMicros> {
-    let end = cfg.flatten_before?;
-    window
-        .iter()
-        .rfind(|bar| bar.open_time >= cfg.start && bar.open_time < end && bar.count > 0)
-        .map(|bar| bar.open_time)
+fn window_flat_open(window: &[Bar], cfg: &RunConfig) -> Result<Option<UtcMicros>, EngineError> {
+    let Some(end) = cfg.flatten_before else {
+        return Ok(None);
+    };
+    let key = end
+        .checked_add_micros(-ONE_MINUTE_US)
+        .ok_or(EngineError::EconomicArithmetic { at: end })?;
+    if key < cfg.start || key >= cfg.end {
+        return Err(EngineError::UnfilledBoundaryClose { boundary: key });
+    }
+    require_terminal_key(window, key)?;
+    Ok(Some(key))
 }
 
 struct FundingPass<'a> {
@@ -970,6 +1335,7 @@ fn settle_funding(
     ledger: &mut Ledger,
     book: &mut Book,
     events: &mut Vec<FundingEvent>,
+    mut visibility: Option<&mut CashVisibility>,
     window: &[Bar],
     bar_index: usize,
 ) -> Result<usize, EngineError> {
@@ -983,10 +1349,53 @@ fn settle_funding(
     while funding_i < tape.funding.len() && tape.funding[funding_i].funding_time.micros() <= open {
         let stamp = &tape.funding[funding_i];
         let mark = resolve_mark(&tape.marks, stamp.funding_time, pass.gaps)?;
-        let event = ledger
+        let checked_money = visibility.is_some();
+        let reservation = visibility
+            .as_deref_mut()
+            .map(|view| view.reserve(FundingDependency::from_sources(stamp, mark)))
+            .transpose()?;
+        let arithmetic_error = |error| {
+            if checked_money {
+                EngineError::EconomicArithmetic {
+                    at: stamp.funding_time,
+                }
+            } else {
+                EngineError::Sim(error)
+            }
+        };
+        if book
+            .open
+            .as_ref()
+            .and_then(|open| open.h4.as_ref())
+            .is_some_and(|raw| raw.funding.len() >= book.trace_capacity)
+        {
+            return Err(EngineError::TraceCapacity {
+                at: stamp.funding_time,
+            });
+        }
+        let mut staged_ledger = ledger.clone();
+        let event = staged_ledger
             .apply_funding(stamp.rate, mark.open, stamp.funding_time)
-            .map_err(EngineError::Sim)?;
-        book.on_funding(i128::from(event.amount.0))?;
+            .map_err(arithmetic_error)?;
+        let next_pnl = book
+            .open
+            .as_ref()
+            .map(|open| {
+                open.pnl
+                    .checked_add(i128::from(event.amount.0))
+                    .ok_or_else(|| arithmetic_error(SimError::Overflow))
+            })
+            .transpose()?;
+        if let Some(reservation) = reservation {
+            reservation.commit(event.amount);
+        }
+        *ledger = staged_ledger;
+        if let Some(pnl) = next_pnl {
+            book.open.as_mut().expect("staged open trade").pnl = pnl;
+        }
+        if let Some(raw) = book.open.as_mut().and_then(|open| open.h4.as_mut()) {
+            raw.funding.push(event);
+        }
         events.push(event);
         funding_i += 1;
     }
@@ -1042,34 +1451,48 @@ fn execute(
     ts: UtcMicros,
 ) -> Result<(), EngineError> {
     let (close_qty, open_qty) = split_legs(ledger.position().0, order.side, order.qty.ticks())?;
-    if close_qty > 0 {
-        apply_leg(
-            ledger,
-            book,
-            sink,
-            costs,
-            Leg {
-                side: order.side,
-                lots: close_qty,
-                price,
-                ts,
-            },
-        )?;
+    let mut staged_ledger = ledger.clone();
+    let mut staged_book = Book {
+        closed: Vec::with_capacity(1),
+        open: book.open.clone(),
+        trace_capacity: book.trace_capacity,
+    };
+    let mut staged_fills = Vec::with_capacity(2);
+    let mut staged_slippage = *sink.slippage_ticks;
+    let mut staged_sink = FillSink {
+        fills: &mut staged_fills,
+        slippage_ticks: &mut staged_slippage,
+    };
+    for lots in [close_qty, open_qty] {
+        if lots > 0 {
+            apply_leg(
+                &mut staged_ledger,
+                &mut staged_book,
+                &mut staged_sink,
+                costs,
+                Leg {
+                    side: order.side,
+                    lots,
+                    price,
+                    ts,
+                },
+            )?;
+        }
     }
-    if open_qty > 0 {
-        apply_leg(
-            ledger,
-            book,
-            sink,
-            costs,
-            Leg {
-                side: order.side,
-                lots: open_qty,
-                price,
-                ts,
-            },
-        )?;
+    if staged_book.closed.iter().any(|done| done.h4.is_some())
+        && book
+            .closed
+            .len()
+            .checked_add(staged_book.closed.len())
+            .is_none_or(|n| n > book.trace_capacity)
+    {
+        return Err(EngineError::TraceCapacity { at: ts });
     }
+    *ledger = staged_ledger;
+    book.open = staged_book.open;
+    book.closed.extend(staged_book.closed);
+    sink.fills.extend(staged_fills);
+    *sink.slippage_ticks = staged_slippage;
     Ok(())
 }
 
@@ -1118,7 +1541,7 @@ fn apply_leg(
         )
         .map_err(EngineError::Sim)?;
     let delta = i128::from(ledger.cash().0) - cash_before;
-    book.note_fill(pos_before, &fill, delta)?;
+    book.note_fill(pos_before, &fill, delta, cost)?;
     sink.fills.push(fill);
     Ok(())
 }
@@ -1140,6 +1563,8 @@ struct Accum {
     n_rebalances: u64,
     n_sign_changes: u64,
     n_forced_exits: u64,
+    forced_exits: Vec<ForcedExit>,
+    h4: Option<H4Trace>,
 }
 
 fn finish(
@@ -1166,8 +1591,15 @@ fn finish(
         n_rebalances,
         n_sign_changes,
         n_forced_exits,
+        forced_exits,
+        mut h4,
     } = accum;
-    let trades = book.into_trades()?;
+    let (trades, h4_trades) = book.into_trades()?;
+    if let Some(trace) = h4.as_mut() {
+        trace.trades = h4_trades;
+    } else if !h4_trades.is_empty() {
+        return Err(EngineError::InvalidExecution);
+    }
     let daily = daily_equity(&equity_curve);
     let end = equity_curve
         .last()
@@ -1213,6 +1645,8 @@ fn finish(
         n_rebalances,
         n_sign_changes,
         n_forced_exits,
+        forced_exits,
+        h4,
         warmup_bars,
         flat_funding_stale,
         flat_funding_slot_missing,
@@ -1225,47 +1659,121 @@ fn finish(
 
 #[derive(Default)]
 struct Book {
-    closed: Vec<RoundTrip>,
+    closed: Vec<ClosedTrade>,
     open: Option<OpenTrade>,
+    trace_capacity: usize,
 }
 
+struct ClosedTrade {
+    trip: RoundTrip,
+    h4: Option<H4Trade>,
+}
+
+#[derive(Clone)]
 struct OpenTrade {
     side: Side,
     qty: i64,
     open_ts: UtcMicros,
     pnl: i128,
+    h4: Option<OpenH4>,
+}
+
+#[derive(Clone)]
+struct OpenH4 {
+    plan: H4EntryPlan,
+    funding: Vec<FundingEvent>,
+    fills: Vec<Fill>,
+    slippage_cost: Cash,
 }
 
 impl Book {
-    fn on_funding(&mut self, delta: i128) -> Result<(), EngineError> {
-        if let Some(open) = self.open.as_mut() {
-            open.pnl = open
-                .pnl
-                .checked_add(delta)
-                .ok_or(EngineError::Sim(SimError::Overflow))?;
+    fn execution_phase(
+        &self,
+        ledger: &Ledger,
+        pending: Option<&HeldOrder>,
+    ) -> Result<ExecutionPhase, EngineError> {
+        let position = ledger.position().0;
+        if position == 0 {
+            if self.open.is_some() {
+                return Err(EngineError::InvalidExecution);
+            }
+            return Ok(match pending {
+                Some(held) => ExecutionPhase::EntryPending {
+                    side: match held.intent {
+                        PendingIntent::Fixed(order) => position_side(order.side),
+                        PendingIntent::Sized(sizing) if sizing.target > 0 => PositionSide::Long,
+                        PendingIntent::Sized(sizing) if sizing.target < 0 => PositionSide::Short,
+                        PendingIntent::Sized(_) => return Err(EngineError::InvalidExecution),
+                    },
+                },
+                None => ExecutionPhase::Flat,
+            });
         }
-        Ok(())
+        let open = self.open.as_ref().ok_or(EngineError::InvalidExecution)?;
+        let side = position_side(open.side);
+        if (position > 0) != (side == PositionSide::Long) {
+            return Err(EngineError::InvalidExecution);
+        }
+        Ok(match pending {
+            None => ExecutionPhase::Open {
+                side,
+                entered_at: open.open_ts,
+            },
+            Some(HeldOrder {
+                intent: PendingIntent::Fixed(order),
+                ..
+            }) if position_side(order.side) != side
+                && order.qty.ticks()
+                    == position
+                        .checked_abs()
+                        .ok_or(EngineError::InvalidExecution)? =>
+            {
+                ExecutionPhase::ExitPending {
+                    side,
+                    entered_at: open.open_ts,
+                }
+            }
+            Some(_) => ExecutionPhase::Adjusting {
+                side,
+                entered_at: open.open_ts,
+            },
+        })
     }
 
-    fn note_fill(&mut self, pos_before: i64, fill: &Fill, delta: i128) -> Result<(), EngineError> {
+    fn note_fill(
+        &mut self,
+        pos_before: i64,
+        fill: &Fill,
+        delta: i128,
+        slippage: Cash,
+    ) -> Result<(), EngineError> {
         if pos_before == 0 {
             self.open = Some(OpenTrade {
                 side: fill.side,
                 qty: fill.qty.ticks(),
                 open_ts: fill.ts,
                 pnl: delta,
+                h4: None,
             });
             return Ok(());
         }
         let same_side = {
-            let open = self
-                .open
-                .as_mut()
-                .expect("a non-zero position has an open trip");
+            let open = self.open.as_mut().ok_or(EngineError::InvalidExecution)?;
             open.pnl = open
                 .pnl
                 .checked_add(delta)
                 .ok_or(EngineError::Sim(SimError::Overflow))?;
+            if let Some(raw) = open.h4.as_mut() {
+                if raw.fills.len() >= 2 {
+                    return Err(EngineError::TraceCapacity { at: fill.ts });
+                }
+                raw.slippage_cost.0 = raw
+                    .slippage_cost
+                    .0
+                    .checked_add(slippage.0)
+                    .ok_or(EngineError::EconomicArithmetic { at: fill.ts })?;
+                raw.fills.push(*fill);
+            }
             fill.side == open.side
         };
         let signed = match fill.side {
@@ -1276,7 +1784,7 @@ impl Book {
             .checked_add(signed)
             .ok_or(EngineError::Sim(SimError::Overflow))?;
         if pos_after == 0 {
-            let done = self.open.take().expect("open trip");
+            let done = self.open.take().expect("checked open trip");
             self.closed.push(done.into_trip(Some(fill.ts))?);
         } else if same_side {
             let open = self.open.as_mut().expect("open trip");
@@ -1288,23 +1796,158 @@ impl Book {
         Ok(())
     }
 
-    fn into_trades(self) -> Result<Vec<RoundTrip>, EngineError> {
-        let mut trades = self.closed;
+    fn into_trades(self) -> Result<(Vec<RoundTrip>, Vec<H4Trade>), EngineError> {
+        let mut closed = self.closed;
         if let Some(open) = self.open {
-            trades.push(open.into_trip(None)?);
+            closed.push(open.into_trip(None)?);
         }
-        Ok(trades)
+        let mut trades = Vec::with_capacity(closed.len());
+        let mut h4 = Vec::new();
+        for done in closed {
+            trades.push(done.trip);
+            if let Some(raw) = done.h4 {
+                h4.push(raw);
+            }
+        }
+        Ok((trades, h4))
+    }
+}
+
+fn position_side(side: Side) -> PositionSide {
+    match side {
+        Side::Buy => PositionSide::Long,
+        Side::Sell => PositionSide::Short,
     }
 }
 
 impl OpenTrade {
-    fn into_trip(self, close_ts: Option<UtcMicros>) -> Result<RoundTrip, EngineError> {
-        Ok(RoundTrip {
+    fn into_trip(self, close_ts: Option<UtcMicros>) -> Result<ClosedTrade, EngineError> {
+        let trip = RoundTrip {
             open_ts: self.open_ts,
             close_ts,
             side: self.side,
             qty: Qty::from_ticks(self.qty).map_err(|_| EngineError::Sim(SimError::Negative))?,
             pnl: Cash(i64::try_from(self.pnl).map_err(|_| EngineError::Sim(SimError::Overflow))?),
-        })
+        };
+        let h4 = self.h4.map(|raw| H4Trade {
+            trade: trip,
+            event: raw.plan.event,
+            hold: raw.plan.hold,
+            slippage_cost: raw.slippage_cost,
+            funding: raw.funding,
+            fills: raw.fills,
+        });
+        Ok(ClosedTrade { trip, h4 })
+    }
+}
+
+#[cfg(test)]
+mod staged_trace_tests {
+    use super::*;
+    use parangsae_core::Price;
+    use parangsae_sim::{FeeBps, SlippageBps};
+
+    #[test]
+    fn retained_h4_trade_capacity_refuses_before_cash_or_fill_commit() {
+        let start = UtcDate::parse("2024-06-01")
+            .expect("fixture date")
+            .start_us();
+        let price = Price::from_ticks(100 * 100_000_000).expect("fixture price");
+        let costs = Costs {
+            taker_fee: FeeBps(5),
+            slippage: SlippageBps(2),
+        };
+        let mut ledger = Ledger::new(Cash(10_000 * 100_000_000));
+        let mut book = Book {
+            trace_capacity: 1,
+            ..Book::default()
+        };
+        let mut fills = Vec::new();
+        let mut slippage = 0;
+        let mut refused = 0;
+        let mut visibility = CashVisibility::new(0);
+        for round in 0..2 {
+            let at = start
+                .checked_add_micros(round * 2 * ONE_MINUTE_US)
+                .expect("fixture time");
+            let bar = Bar {
+                open_time: at,
+                close_time: at
+                    .checked_add_micros(ONE_MINUTE_US - 1_000)
+                    .expect("fixture close"),
+                available: at
+                    .checked_add_micros(ONE_MINUTE_US)
+                    .expect("fixture available"),
+                open: price,
+                high: price,
+                low: price,
+                close: price,
+                volume: Qty::from_ticks(100_000_000).expect("fixture volume"),
+                count: 1,
+            };
+            let equity = visibility
+                .project(&ledger, price, at)
+                .expect("admitted money")
+                .equity();
+            let mut entry = HeldOrder::new(PendingIntent::Sized(FillSizing {
+                target: 100_000_000,
+                equity,
+                lot: 100_000,
+                accept: 0,
+            }));
+            entry.entry = Some(H4EntryPlan {
+                event: H4Event {
+                    settlement: at,
+                    episode: at,
+                    crowd_side: PositionSide::Short,
+                    gap_boundary: false,
+                },
+                hold: ActualHold::from_hours(72).expect("fixture hold"),
+                development_end: sample_end(),
+            });
+            let outcome = settle_pending(
+                &mut Some(entry),
+                &mut refused,
+                &mut FillSink {
+                    fills: &mut fills,
+                    slippage_ticks: &mut slippage,
+                },
+                &mut ledger,
+                &mut book,
+                &bar,
+                &costs,
+            )
+            .expect("entry admitted");
+            assert!(outcome.entry_drop.is_none());
+            let before = ledger.clone();
+            let before_fills = fills.clone();
+            let before_slippage = slippage;
+            let close_at = at.checked_add_micros(ONE_MINUTE_US).expect("fixture exit");
+            let result = execute(
+                &mut ledger,
+                &mut book,
+                &mut FillSink {
+                    fills: &mut fills,
+                    slippage_ticks: &mut slippage,
+                },
+                flatten_order(&before)
+                    .expect("close shape")
+                    .expect("held position"),
+                price,
+                &costs,
+                close_at,
+            );
+            if round == 0 {
+                result.expect("capacity permits first trip");
+                assert_eq!(book.closed.len(), 1);
+            } else {
+                assert!(matches!(result, Err(EngineError::TraceCapacity { at }) if at == close_at));
+                assert_eq!(ledger, before);
+                assert_eq!(fills, before_fills);
+                assert_eq!(slippage, before_slippage);
+                assert_eq!(book.closed.len(), 1);
+                assert_eq!(book.open.as_ref().expect("held trip retained").open_ts, at);
+            }
+        }
     }
 }

@@ -1029,7 +1029,7 @@ fn warmup_changes_the_first_decision_and_is_not_scored() {
 }
 
 #[test]
-fn a_mid_history_window_flattens_on_the_last_traded_minute() {
+fn a_mid_history_window_requires_its_fixed_scheduled_terminal() {
     let start_us = date("2022-06-14").start_us().micros();
     let minutes = 2 * 1_440;
     let bars: Vec<_> = (0..minutes)
@@ -1060,7 +1060,7 @@ fn a_mid_history_window_flattens_on_the_last_traded_minute() {
     let tape = tape_marked(bars.clone(), bars, funding);
     let scored = date("2022-06-15").start_us();
     let end = date("2022-06-16").start_us();
-    let flat_open = end.micros() - 2 * MINUTE_US;
+    let flat_open = end.micros() - MINUTE_US;
     let initial = usd(10_000);
     let mut config = cfg(&tape.bars, 10_000);
     config.warmup_start = UtcMicros::from_micros(start_us);
@@ -1070,7 +1070,17 @@ fn a_mid_history_window_flattens_on_the_last_traded_minute() {
     config.forced_flat.clear();
     config.flatten_before = Some(end);
 
-    let report = run_targets(&tape, &mut Spike, &selection_costs(), &config).unwrap();
+    let error = run_targets(&tape, &mut Spike, &selection_costs(), &config).unwrap_err();
+    assert!(
+        matches!(error, EngineError::UnfilledBoundaryClose { boundary }
+        if boundary.micros() == flat_open)
+    );
+
+    // The same scheduled key, made tradable, is the active positive control.
+    // No earlier open is selected from the future count pattern.
+    let mut tradable = tape.clone();
+    tradable.bars.last_mut().unwrap().count = 1;
+    let report = run_targets(&tradable, &mut Spike, &selection_costs(), &config).unwrap();
     let first = report.signal_outputs.first().expect("decision").decision;
     assert!(first.target_ticks() > 0);
     assert!(report
@@ -1085,10 +1095,14 @@ fn a_mid_history_window_flattens_on_the_last_traded_minute() {
     let exit = report.fills.last().expect("flatten fill");
     assert_eq!(exit.ts.micros(), flat_open);
     assert_eq!(exit.side, Side::Sell);
-    assert!(report
-        .fills
-        .iter()
-        .all(|fill| fill.ts.micros() != last_open));
+    assert_eq!(
+        report
+            .fills
+            .iter()
+            .filter(|fill| fill.ts.micros() == last_open)
+            .count(),
+        1
+    );
     assert!(report.trades.iter().all(|trade| trade.close_ts.is_some()));
     assert!(!report.trades.is_empty());
 
@@ -1099,7 +1113,7 @@ fn a_mid_history_window_flattens_on_the_last_traded_minute() {
     assert!(held
         .fills
         .iter()
-        .all(|fill| fill.ts.micros() != flat_open && fill.ts.micros() != last_open));
+        .all(|fill| fill.ts.micros() != last_open - MINUTE_US && fill.ts.micros() != last_open));
 }
 
 #[test]

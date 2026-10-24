@@ -36,3 +36,16 @@ Feature: H4 economic visibility and actual entry time
   Scenario: A new H4 hold cannot cross the development end
     When actual H4 offers an entry whose hold passes the development end
     Then the entry is refused and its dropped-entry count is visible
+
+  Scenario: Keep cannot replace an actual pending order from its diagnostic target
+    When a real H4 entry waits past another decision whose Keep diagnostic disagrees
+    Then the original short order keeps its sizing origin and one refusal until its actual fill
+
+  Scenario Outline: Zero lots are decided at the actual adverse fill quote
+    When a provisional zero-lot long reaches a <quote> open after <fillers> filler minutes
+    Then only actual-fill sizing can drop or arm the entry and pending feedback stays Long
+    Examples:
+      | quote     | fillers |
+      | cheaper   | 0       |
+      | unchanged | 0       |
+      | cheaper   | 61      |

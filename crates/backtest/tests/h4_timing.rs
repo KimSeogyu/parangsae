@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use cucumber::{then, when, World as _};
 use parangsae_backtest::{
     run_targets, target_qty, Bar, BookState, FundingObs, FundingStamp, Report, RunConfig,
-    SignalOutput, Tape, Target, TargetSignal, UtcDate,
+    SignalOutput, StrategyOutput, Tape, Target, TargetSignal, UtcDate,
 };
 use parangsae_core::{
     AvailableTs, Causal, EventTs, Interval, Observation, Price, Qty, Ratio, ReceivedTs,
@@ -100,7 +100,7 @@ impl TargetSignal for CashProbe {
         bars: Causal<'_, &[ResampledBar]>,
         funding: Causal<'_, &[FundingObs]>,
         book: BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         let last = bars.value().last().unwrap();
         let decision = last.close_time().micros() + 2_000;
         let target = if decision < self.slot - HOUR {
@@ -114,7 +114,7 @@ impl TargetSignal for CashProbe {
             self.capture = Some(Capture {
                 decision,
                 book,
-                requested_lots: target_qty(SCALE, book.equity_ticks, book.mark_ticks, 100_000)
+                requested_lots: target_qty(SCALE, book.equity_ticks(), book.mark_ticks(), 100_000)
                     .unwrap(),
                 visible_slots: funding
                     .value()
@@ -123,7 +123,11 @@ impl TargetSignal for CashProbe {
                     .collect(),
             });
         }
-        Some(output(last.close_time(), time(decision), target))
+        Some(StrategyOutput::target(output(
+            last.close_time(),
+            time(decision),
+            target,
+        )))
     }
 }
 
@@ -190,6 +194,8 @@ fn cash_case(held: bool, input: &str, altered: bool) -> CashCase {
 struct ActualH4 {
     strategy: parangsae_strategies::Strategy,
     funding_through: i64,
+    alter_kept_diagnostics: bool,
+    keep_overrides: usize,
 }
 
 impl ActualH4 {
@@ -203,11 +209,20 @@ impl ActualH4 {
         Self {
             strategy: parangsae_strategies::Strategy::from_params("H4", &params).unwrap(),
             funding_through: i64::MIN,
+            alter_kept_diagnostics: false,
+            keep_overrides: 0,
         }
     }
 }
 
 impl TargetSignal for ActualH4 {
+    fn take_h4_observations(&mut self) -> Vec<parangsae_strategies::H4Observation> {
+        self.strategy.take_h4_observations()
+    }
+    fn h4_observation_capacity(&self) -> usize {
+        self.strategy.h4_observation_capacity()
+    }
+
     fn decision_delay_us(&self) -> i64 {
         1_000
     }
@@ -217,7 +232,7 @@ impl TargetSignal for ActualH4 {
         bars: Causal<'_, &[ResampledBar]>,
         funding: Causal<'_, &[FundingObs]>,
         book: BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         let last = *bars.value().last().unwrap();
         let available = last.close_time().micros() + 1_000;
         let prints: Vec<_> = funding
@@ -245,16 +260,35 @@ impl TargetSignal for ActualH4 {
             },
             last,
         );
-        self.strategy
+        let mut output = self
+            .strategy
             .push(
                 &obs,
                 Some(parangsae_strategies::DecisionBook {
-                    equity_ticks: book.equity_ticks,
-                    position_lots: book.position_lots,
-                    mark_ticks: book.mark_ticks,
+                    equity_ticks: book.equity_ticks(),
+                    position_lots: book.position_lots(),
+                    mark_ticks: book.mark_ticks(),
+                    execution: book.execution(),
                 }),
             )
-            .unwrap()
+            .unwrap();
+        if self.alter_kept_diagnostics
+            && matches!(
+                book.execution(),
+                parangsae_backtest::ExecutionPhase::EntryPending { .. }
+            )
+        {
+            let output = output.as_mut().unwrap();
+            assert_eq!(
+                output.directive,
+                parangsae_backtest::ExecutionDirective::Keep
+            );
+            output.signal.decision =
+                parangsae_backtest::Decision::Target(Target::from_ticks(SCALE).unwrap());
+            output.signal.accept = 73;
+            self.keep_overrides += 1;
+        }
+        output
     }
 }
 
@@ -265,9 +299,14 @@ struct HoldCase {
     dropped: u64,
     end: i64,
     fillers: i64,
+    keep_overrides: usize,
 }
 
 fn hold_case(fillers: i64, boundary: &str) -> HoldCase {
+    hold_case_with_diagnostic(fillers, boundary, false)
+}
+
+fn hold_case_with_diagnostic(fillers: i64, boundary: &str, alter_kept: bool) -> HoldCase {
     let ft = if boundary == "development" {
         day("2025-09-27")
     } else {
@@ -315,13 +354,23 @@ fn hold_case(fillers: i64, boundary: &str) -> HoldCase {
     }
     let tape = Tape::from_parts(bars.clone(), bars, funding);
     let mut signal = ActualH4::new();
+    signal.alter_kept_diagnostics = alter_kept;
     let report = run_targets(&tape, &mut signal, &no_costs(), &cfg).unwrap();
+    let dropped = report
+        .h4
+        .as_ref()
+        .unwrap()
+        .entry_drops
+        .iter()
+        .filter(|drop| drop.reason == parangsae_backtest::H4EntryDropReason::DevelopmentBoundary)
+        .count() as u64;
     HoldCase {
         report,
         entry_decision,
-        dropped: signal.strategy.dropped_entries(),
+        dropped,
         end,
         fillers,
+        keep_overrides: signal.keep_overrides,
     }
 }
 
@@ -329,6 +378,7 @@ fn hold_case(fillers: i64, boundary: &str) -> HoldCase {
 struct TimingWorld {
     cash: Option<(CashCase, CashCase, bool)>,
     hold: Option<HoldCase>,
+    sizing: Option<SizingCase>,
 }
 
 #[when(
@@ -349,7 +399,7 @@ fn cash_construction(world: &mut TimingWorld) {
     for case in [left, right] {
         assert_eq!(case.capture.decision, case.slot + 1_000);
         assert!(case.capture.decision < case.publication);
-        assert_eq!(case.capture.book.position_lots, 0);
+        assert_eq!(case.capture.book.position_lots(), 0);
         assert!(!case.capture.visible_slots.contains(&case.slot));
         let reentry = case
             .report
@@ -444,6 +494,36 @@ fn hold_anchor(world: &mut TimingWorld) {
         case.report.fills[1].ts.micros() - fill);
 }
 
+#[when("a real H4 entry waits past another decision whose Keep diagnostic disagrees")]
+fn run_keep(world: &mut TimingWorld) {
+    world.hold = Some(hold_case_with_diagnostic(61, "normal", true));
+}
+
+#[then("the original short order keeps its sizing origin and one refusal until its actual fill")]
+fn keep_order(world: &mut TimingWorld) {
+    hold_construction(world);
+    hold_anchor(world);
+    let case = world.hold.as_ref().unwrap();
+    assert!(
+        case.keep_overrides > 0,
+        "the pending decision must be exercised"
+    );
+    assert_eq!(case.report.n_rebalances, 2);
+    let raw = case.report.h4.as_ref().unwrap();
+    assert_eq!(raw.trades.len(), 1);
+    assert_eq!(raw.trades[0].event.settlement.micros(), day("2024-06-01"));
+    assert_eq!(
+        raw.trades[0].event.crowd_side,
+        parangsae_backtest::PositionSide::Long
+    );
+    assert_eq!(raw.trades[0].fills, case.report.fills);
+    assert!(raw.entry_drops.is_empty());
+    assert!(raw
+        .observations
+        .iter()
+        .any(|item| item.kind == parangsae_strategies::H4ObservationKind::OccupiedSkip));
+}
+
 #[when("actual H4 is flattened by a short scored fold")]
 fn run_fold(world: &mut TimingWorld) {
     world.hold = Some(hold_case(1, "fold"));
@@ -473,6 +553,171 @@ fn end_control(world: &mut TimingWorld) {
     assert!(case.report.fills.is_empty());
     assert_eq!(case.dropped, 1);
     assert!(case.entry_decision + HOLD > day("2025-10-01") - MINUTE);
+}
+
+struct EntryProbe {
+    origin: i64,
+    sent: bool,
+    phases: Vec<parangsae_backtest::ExecutionPhase>,
+}
+
+impl TargetSignal for EntryProbe {
+    fn decision_delay_us(&self) -> i64 {
+        1_000
+    }
+    fn h4_observation_capacity(&self) -> usize {
+        3
+    }
+    fn on_bar(
+        &mut self,
+        bars: Causal<'_, &[ResampledBar]>,
+        _: Causal<'_, &[FundingObs]>,
+        book: BookState,
+    ) -> Option<StrategyOutput> {
+        self.phases.push(book.execution());
+        let row = bars.value().last().unwrap();
+        let mut envelope = StrategyOutput::target(output(
+            row.close_time(),
+            time(row.close_time().micros() + 2_000),
+            SCALE,
+        ));
+        envelope.directive = if self.sent {
+            parangsae_backtest::ExecutionDirective::Keep
+        } else {
+            self.sent = true;
+            parangsae_backtest::ExecutionDirective::Enter {
+                event: parangsae_backtest::H4Event {
+                    settlement: time(self.origin),
+                    episode: time(self.origin),
+                    crowd_side: parangsae_backtest::PositionSide::Short,
+                    gap_boundary: false,
+                },
+                hold: parangsae_backtest::ActualHold::from_hours(72).unwrap(),
+            }
+        };
+        Some(envelope)
+    }
+}
+
+#[derive(Debug)]
+struct SizingCase {
+    report: Report,
+    phases: Vec<parangsae_backtest::ExecutionPhase>,
+    cheaper: bool,
+    fillers: i64,
+}
+
+#[when(
+    regex = r"^a provisional zero-lot long reaches a (cheaper|unchanged) open after (\d+) filler minutes$"
+)]
+fn sizing_case(world: &mut TimingWorld, price_change: String, fillers: i64) {
+    let start = day("2024-06-01");
+    let cheaper = price_change == "cheaper";
+    let bars: Vec<_> = (0..4 * 60)
+        .map(|index| {
+            let open = start + index * MINUTE;
+            let mut row = bar(
+                open,
+                if cheaper && open > start + HOUR {
+                    50
+                } else {
+                    200
+                },
+            );
+            if open >= start + HOUR + MINUTE && open < start + HOUR + (fillers + 1) * MINUTE {
+                row.count = 0;
+            }
+            row
+        })
+        .collect();
+    let mut cfg = config(&bars);
+    cfg.initial_cash = Cash(100 * SCALE);
+    cfg.lot_ticks = SCALE;
+    cfg.flatten_before = Some(cfg.end);
+    let funding = vec![FundingStamp {
+        funding_time: time(start),
+        available: time(start + MINUTE),
+        rate: Ratio::from_ticks(0),
+        interval_hours: 8,
+    }];
+    let tape = Tape::from_parts(bars.clone(), bars, funding);
+    let mut signal = EntryProbe {
+        origin: start,
+        sent: false,
+        phases: Vec::new(),
+    };
+    let report = run_targets(
+        &tape,
+        &mut signal,
+        &Costs {
+            taker_fee: FeeBps(5),
+            slippage: SlippageBps(2),
+        },
+        &cfg,
+    )
+    .unwrap();
+    world.sizing = Some(SizingCase {
+        report,
+        phases: signal.phases,
+        cheaper,
+        fillers,
+    });
+}
+
+#[then("only actual-fill sizing can drop or arm the entry and pending feedback stays Long")]
+fn sizing_disposition(world: &mut TimingWorld) {
+    let case = world.sizing.as_ref().unwrap();
+    let trace = case.report.h4.as_ref().unwrap();
+    if case.fillers >= 60 {
+        let pending: Vec<_> = case
+            .phases
+            .iter()
+            .filter(|phase| {
+                matches!(
+                    phase,
+                    parangsae_backtest::ExecutionPhase::EntryPending { .. }
+                )
+            })
+            .collect();
+        assert!(!pending.is_empty());
+        assert!(pending.iter().all(|phase| **phase
+            == parangsae_backtest::ExecutionPhase::EntryPending {
+                side: parangsae_backtest::PositionSide::Long
+            }));
+        assert_eq!(case.report.n_refused_fills, 1);
+    }
+    if case.cheaper {
+        assert_eq!(case.report.fills.len(), 2);
+        assert_eq!(case.report.fills[0].side, Side::Buy);
+        assert_eq!(case.report.fills[0].qty.ticks(), SCALE);
+        assert!(
+            trace.entry_drops.is_empty(),
+            "a filled event must not also be dropped: {:?}",
+            trace.entry_drops
+        );
+        assert_eq!(trace.trades.len(), 1);
+        assert!(case.phases.iter().any(|phase| matches!(
+            phase,
+            parangsae_backtest::ExecutionPhase::Open {
+                side: parangsae_backtest::PositionSide::Long,
+                ..
+            }
+        )));
+    } else {
+        assert!(case.report.fills.is_empty());
+        assert_eq!(case.report.metrics.fees_paid.0, 0);
+        assert_eq!(trace.entry_drops.len(), 1);
+        assert_eq!(
+            trace.entry_drops[0].reason,
+            parangsae_backtest::H4EntryDropReason::ZeroLots
+        );
+        assert!(trace.trades.is_empty());
+        assert!(!case.phases.iter().any(|phase| matches!(
+            phase,
+            parangsae_backtest::ExecutionPhase::Open { .. }
+                | parangsae_backtest::ExecutionPhase::ExitPending { .. }
+        )));
+    }
 }
 
 #[tokio::main]

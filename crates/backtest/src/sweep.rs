@@ -23,8 +23,8 @@ use parangsae_core::{
     AvailableTs, BarInterval, Causal, EventTs, Interval, Observation, ReceivedTs, ResampledBar,
     Symbol, Timestamps, UtcMicros, SCALE,
 };
-use parangsae_signals::SignalOutput;
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
+use parangsae_strategies::StrategyOutput;
 use parangsae_strategies::EARLIEST_US;
 use serde::Deserialize;
 
@@ -155,11 +155,12 @@ impl<'a> FoldRunner<'a> {
             Ok(result) => result.map_err(|err| err.to_string())?,
             Err(payload) => return Err(panic_message(&payload)),
         };
-        Ok((report, signal.dropped_entries()))
+        let dropped = runtime_dropped_entries(&report, signal.dropped_entries())?;
+        Ok((report, dropped))
     }
 
     /// One scored window. Bars from `warmup_us` reach the signal. Fills start at
-    /// `start_us`. The position is flattened at the last traded minute before `end_us`.
+    /// `start_us`. The position is flattened at the fixed scheduled minute before `end_us`.
     pub fn run_scored(
         &self,
         config: &WindowConfig,
@@ -187,7 +188,8 @@ impl<'a> FoldRunner<'a> {
         };
         let mut result = crate::walkforward::window_result(Cash(config.initial_cash), &report)
             .map_err(|err| err.to_string())?;
-        result.accounting.n_dropped_entries = signal.dropped_entries();
+        result.accounting.n_dropped_entries =
+            runtime_dropped_entries(&report, signal.dropped_entries())?;
         Ok(result)
     }
 }
@@ -681,6 +683,20 @@ fn now_us() -> Result<i64, String> {
     i64::try_from(elapsed.as_micros()).map_err(|_| "clock does not fit in i64".to_owned())
 }
 
+fn runtime_dropped_entries(report: &Report, strategy_count: u64) -> Result<u64, String> {
+    let Some(trace) = report.h4.as_ref() else {
+        return Ok(strategy_count);
+    };
+    u64::try_from(
+        trace
+            .entry_drops
+            .iter()
+            .filter(|drop| drop.reason == crate::report::H4EntryDropReason::DevelopmentBoundary)
+            .count(),
+    )
+    .map_err(|_| "H4 boundary-drop count overflow".to_owned())
+}
+
 struct FamilySignal<'a> {
     strategy: parangsae_strategies::Strategy,
     family: String,
@@ -726,12 +742,18 @@ impl<'a> FamilySignal<'a> {
         decide_last: bool,
         book: Option<parangsae_strategies::DecisionBook>,
         funding: &[FundingObs],
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         let fresh = self.fresh_rows(rows);
         let last = fresh.len().saturating_sub(1);
         let mut output = None;
         for (index, row) in fresh.into_iter().enumerate() {
-            let decision_us = row.timestamps().available_ts.micros().micros();
+            let decision_us = row
+                .timestamps()
+                .available_ts
+                .micros()
+                .micros()
+                .checked_add(self.decision_delay_us())
+                .expect("strategy decision clock fits");
             self.feed_aux(decision_us, funding);
             if decide_last && index == last {
                 let Some(marked) = book else {
@@ -818,6 +840,13 @@ impl<'a> FamilySignal<'a> {
 }
 
 impl TargetSignal for FamilySignal<'_> {
+    fn take_h4_observations(&mut self) -> Vec<parangsae_strategies::H4Observation> {
+        self.strategy.take_h4_observations()
+    }
+    fn h4_observation_capacity(&self) -> usize {
+        self.strategy.h4_observation_capacity()
+    }
+
     fn decision_delay_us(&self) -> i64 {
         if matches!(self.family.as_str(), "H4" | "H5") {
             1_000
@@ -838,11 +867,12 @@ impl TargetSignal for FamilySignal<'_> {
         bars: Causal<'_, &[ResampledBar]>,
         funding: Causal<'_, &[FundingObs]>,
         book: BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         let marked = parangsae_strategies::DecisionBook {
-            equity_ticks: book.equity_ticks,
-            position_lots: book.position_lots,
-            mark_ticks: book.mark_ticks,
+            equity_ticks: book.equity_ticks(),
+            position_lots: book.position_lots(),
+            mark_ticks: book.mark_ticks(),
+            execution: book.execution(),
         };
         self.absorb(bars.value(), true, Some(marked), funding.value())
     }
@@ -1767,7 +1797,9 @@ mod tests {
         let hours = 200i64;
         let scored = start + 48 * 4 * hour;
         let end = start + hours * hour;
-        let bars = hour_bars(start, hours, |hour_index| {
+        // The warmup control below declares a 212-hour scored end. Its fixed
+        // scheduled terminal key must exist even though that control stays flat.
+        let bars = hour_bars(start, 53 * 4, |hour_index| {
             if hour_index / 4 >= 42 {
                 50_000
             } else {
@@ -1870,6 +1902,15 @@ mod tests {
 
     #[test]
     fn h4_funding_on_the_tape_fades_after_confirmation() {
+        assert_h4_confirmation(false);
+    }
+
+    #[test]
+    fn h4_adapter_admits_funding_available_exactly_at_the_delayed_confirmation() {
+        assert_h4_confirmation(true);
+    }
+
+    fn assert_h4_confirmation(delayed_to_confirmation: bool) {
         let ft = UtcDate::parse("2024-06-01").unwrap().start_us().micros();
         let hour = 3_600_000_000i64;
         let day = 86_400_000_000i64;
@@ -1887,7 +1928,11 @@ mod tests {
             let rate = if time == ft { 100_000_000 } else { 0 };
             funding.push(FundingStamp {
                 funding_time: UtcMicros::from_micros(time),
-                available: UtcMicros::from_micros(time + 60_000_000),
+                available: UtcMicros::from_micros(if delayed_to_confirmation && time == ft {
+                    ft + 24 * hour + 1_000
+                } else {
+                    time + 60_000_000
+                }),
                 rate: Ratio::from_ticks(rate),
                 interval_hours: 8,
             });

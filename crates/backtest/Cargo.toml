@@ -64,3 +64,7 @@ name = "first_table"
 [[example]]
 name = "readpath_parity"
 test = true
+
+[[test]]
+name = "h4_admission_extra"
+harness = false

@@ -33,16 +33,47 @@ pub fn funding_visible(rows: &[FundingObs], decision: UtcMicros) -> &[FundingObs
     &rows[..end]
 }
 
-/// Position at the decision. `mark_ticks` is the closed bar's close.
-///
-/// The engine freezes equity at the decision and sizes at the actual slipped
-/// price of the next eligible 1m open with `count > 0`.
+/// A read-only engine-created decision book. Money is admitted before construction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BookState {
-    pub equity_ticks: i64,
-    pub position_lots: i64,
-    pub mark_ticks: i64,
+    money: crate::cash_view::VisibleMoney,
+    position_lots: i64,
+    mark_ticks: i64,
+    execution: ExecutionPhase,
 }
+
+impl BookState {
+    pub(crate) fn new(
+        money: crate::cash_view::VisibleMoney,
+        position_lots: i64,
+        mark_ticks: i64,
+        execution: ExecutionPhase,
+    ) -> Self {
+        Self {
+            money,
+            position_lots,
+            mark_ticks,
+            execution,
+        }
+    }
+    pub fn equity_ticks(self) -> i64 {
+        self.money.equity().ticks()
+    }
+    pub fn position_lots(self) -> i64 {
+        self.position_lots
+    }
+    pub fn mark_ticks(self) -> i64 {
+        self.mark_ticks
+    }
+    pub fn execution(self) -> ExecutionPhase {
+        self.execution
+    }
+}
+
+pub use parangsae_strategies::{
+    ActualHold, ExecutionDirective, ExecutionPhase, H4Event, H4Observation, PositionSide,
+    StrategyOutput,
+};
 
 /// Called once per closed 1h or 4h bar.
 ///
@@ -53,6 +84,13 @@ pub struct BookState {
 /// The engine does not size, fill, fund, or score those bars. A stateful
 /// signal updates lookback there and does not arm a hold.
 pub trait TargetSignal {
+    fn take_h4_observations(&mut self) -> Vec<H4Observation> {
+        Vec::new()
+    }
+    fn h4_observation_capacity(&self) -> usize {
+        0
+    }
+
     /// Additional delay after closed-bar availability (H4/H5 use 1 ms).
     fn decision_delay_us(&self) -> i64 {
         0
@@ -62,7 +100,7 @@ pub trait TargetSignal {
         view: Causal<'_, &[ResampledBar]>,
         funding: Causal<'_, &[FundingObs]>,
         book: BookState,
-    ) -> Option<SignalOutput>;
+    ) -> Option<StrategyOutput>;
 
     /// Feature lookback before the scored start. The default reads nothing.
     fn on_warmup_bar(
