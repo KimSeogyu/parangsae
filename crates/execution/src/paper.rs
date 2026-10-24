@@ -308,7 +308,9 @@ impl PaperEngine {
                     }
                 }
             }
-            PaperAction::Timeout { client_order_id } => self.timeout(client_order_id, cx),
+            PaperAction::Timeout { client_order_id } => {
+                self.change(client_order_id, ValidatedEvent::Timeout, cx)
+            }
             PaperAction::Reconcile(cut) => self.terminal(cut, cx),
             PaperAction::ReconcilePortfolio => {
                 if self.orders.values().any(|order| {
@@ -461,48 +463,28 @@ impl PaperEngine {
                 state: order.progress.state(),
             });
         }
-        self.risk.observe(cx).map_err(PaperError::Risk)?;
+        // Derive Risk authority from the computed lifecycle result. No event
+        // may publish Unknown while keeping a submitted, known reservation.
+        if next.state() == OrderState::Unknown {
+            let draft = self
+                .risk
+                .prepare_settlement(
+                    &[Settlement::Unknown(order.request.id())],
+                    cx,
+                    PortfolioSnapshot {
+                        position_ticks: cx.position_ticks,
+                        equity_ticks: cx.equity_ticks,
+                    },
+                )
+                .map_err(PaperError::Risk)?;
+            draft.commit();
+        } else {
+            self.risk.observe(cx).map_err(PaperError::Risk)?;
+        }
         order.progress = next;
         Ok(PaperOutcome::StateChanged {
             client_order_id: id.clone(),
             state: order.progress.state(),
-        })
-    }
-
-    fn timeout(
-        &mut self,
-        id: &ClientOrderId,
-        cx: &RiskContext<'_>,
-    ) -> Result<PaperOutcome, PaperError> {
-        let order = self
-            .orders
-            .get_mut(id.as_str())
-            .ok_or(PaperError::UnknownOrder)?;
-        if !order.progress.sent() || finalized(order) {
-            return Err(PaperError::NotDispatched);
-        }
-        let next = transition(
-            &order.progress,
-            &ValidatedEvent::Timeout,
-            &cell(&self.session, cx),
-        )
-        .map_err(PaperError::Transition)?;
-        let draft = self
-            .risk
-            .prepare_settlement(
-                &[Settlement::Unknown(order.request.id())],
-                cx,
-                PortfolioSnapshot {
-                    position_ticks: cx.position_ticks,
-                    equity_ticks: cx.equity_ticks,
-                },
-            )
-            .map_err(PaperError::Risk)?;
-        draft.commit();
-        order.progress = next;
-        Ok(PaperOutcome::StateChanged {
-            client_order_id: id.clone(),
-            state: OrderState::Unknown,
         })
     }
 

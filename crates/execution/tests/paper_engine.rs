@@ -696,3 +696,185 @@ fn exact_receipt_observation_latches_a_new_notional_breach() {
     assert!(engine.snapshot().risk.halted);
     assert_eq!(engine.snapshot().risk.epoch, latched.risk.epoch);
 }
+
+#[test]
+fn cancel_denied_without_ack_commits_unknown_risk_authority() {
+    use parangsae_risk::ReservationPhase;
+    let (initial, commands) = cancel_denied_unknown();
+    let mut engine = run(initial, &commands[..3]);
+    let before = engine.snapshot();
+    engine.step(&commands[3]).unwrap();
+    let unknown = engine.snapshot();
+    let second_plan = engine.step(&plan(5, 2));
+    let second_dispatch = if second_plan.is_ok() {
+        Some(engine.step(&command(
+            6,
+            PaperAction::Dispatch {
+                client_order_id: id(2),
+            },
+        )))
+    } else {
+        None
+    };
+    assert_eq!(unknown.orders[0].progress.state(), OrderState::Unknown);
+    assert_eq!(
+        unknown.risk.exposure,
+        ExposureState::Unknown,
+        "Risk={:?}; second_plan={second_plan:?}; second_dispatch={second_dispatch:?}",
+        unknown.risk
+    );
+    assert!(unknown.risk.halted);
+    assert_eq!(unknown.risk.epoch.get(), before.risk.epoch.get() + 1);
+    assert_eq!(unknown.risk.orders[0].phase, ReservationPhase::Unknown);
+    assert_eq!(unknown.risk.orders[0].remaining.ticks(), 400_000);
+    assert_eq!(unknown.cash, before.cash);
+    assert_eq!(unknown.position, before.position);
+    assert_eq!(unknown.fees_paid, before.fees_paid);
+    assert_eq!(unknown.fills, before.fills);
+    assert_eq!(
+        second_plan,
+        Err(PaperError::Risk(RiskError::ExposureUnknown))
+    );
+    assert!(second_dispatch.is_none());
+}
+
+#[test]
+fn cancel_denied_invalidates_old_approval_then_requires_complete_recovery() {
+    use parangsae_execution::PaperReport;
+    let mut engine = run(session(), &prefix().into_iter().take(2).collect::<Vec<_>>());
+    engine.step(&plan(3, 2)).unwrap();
+    engine
+        .step(&command(
+            4,
+            PaperAction::Cancel {
+                client_order_id: id(1),
+            },
+        ))
+        .unwrap();
+    engine
+        .step(&command(
+            5,
+            PaperAction::Deliver(observation(
+                PaperReport::CancelDenied {
+                    client_order_id: id(1),
+                },
+                5,
+            )),
+        ))
+        .unwrap();
+    let unknown = engine.snapshot();
+    let old = engine
+        .step(&command(
+            6,
+            PaperAction::Dispatch {
+                client_order_id: id(2),
+            },
+        ))
+        .unwrap();
+    assert!(
+        matches!(
+            old,
+            PaperOutcome::Refused {
+                reason: RiskError::StaleApproval,
+                ..
+            }
+        ),
+        "old approval outcome={old:?}"
+    );
+    assert_eq!(
+        engine.step(&plan(7, 3)),
+        Err(PaperError::Risk(RiskError::ExposureUnknown))
+    );
+    assert!(engine.snapshot().risk.halted);
+    assert_eq!(unknown.risk.epoch.get(), 1);
+    engine
+        .step(&cut(8, PaperTerminal::Filled, vec![fill(7, 1, 400_000)]))
+        .unwrap();
+    assert!(engine.snapshot().risk.halted);
+    assert_eq!(
+        engine.step(&command(9, PaperAction::Resume { expected_epoch: 1 })),
+        Err(PaperError::Risk(RiskError::ResetRequiresReconciliation))
+    );
+    engine
+        .step(&command(10, PaperAction::ReconcilePortfolio))
+        .unwrap();
+    engine
+        .step(&command(11, PaperAction::Resume { expected_epoch: 1 }))
+        .unwrap();
+    assert!(!engine.snapshot().risk.halted);
+    assert_eq!(engine.snapshot().position.0, 400_000);
+    // A refused request identity remains a tombstone after recovery.
+    assert_eq!(
+        engine.step(&plan(12, 3)),
+        Err(PaperError::Risk(RiskError::TerminalOrder))
+    );
+    engine.step(&plan(13, 4)).unwrap();
+    assert!(matches!(
+        engine.step(&command(
+            14,
+            PaperAction::Dispatch {
+                client_order_id: id(4)
+            }
+        )),
+        Ok(PaperOutcome::Dispatched(_))
+    ));
+}
+
+#[test]
+fn cancel_denied_after_ack_or_partial_fill_preserves_known_authority() {
+    use parangsae_execution::PaperReport;
+    use parangsae_risk::ReservationPhase;
+    for partial_without_ack in [false, true] {
+        let mut engine = if partial_without_ack {
+            let mut engine = run(session(), &prefix().into_iter().take(2).collect::<Vec<_>>());
+            engine.step(&deliver(3, &fill(3, 1, 100_000))).unwrap();
+            engine
+        } else {
+            run(session(), &prefix())
+        };
+        let before = engine.snapshot();
+        engine
+            .step(&command(
+                4,
+                PaperAction::Cancel {
+                    client_order_id: id(1),
+                },
+            ))
+            .unwrap();
+        engine
+            .step(&command(
+                5,
+                PaperAction::Deliver(observation(
+                    PaperReport::CancelDenied {
+                        client_order_id: id(1),
+                    },
+                    5,
+                )),
+            ))
+            .unwrap();
+        let after = engine.snapshot();
+        let state = if partial_without_ack {
+            OrderState::PartiallyFilled
+        } else {
+            OrderState::Acked
+        };
+        assert_eq!(after.orders[0].progress.state(), state);
+        assert_eq!(after.risk.exposure, ExposureState::Known);
+        assert!(!after.risk.halted);
+        assert_eq!(after.risk.epoch, before.risk.epoch);
+        assert_eq!(after.risk.orders, before.risk.orders);
+        assert_eq!(after.risk.orders[0].phase, ReservationPhase::Submitted);
+        assert_eq!(after.cash, before.cash);
+        assert_eq!(after.position, before.position);
+        engine.step(&plan(6, 2)).unwrap();
+        assert!(matches!(
+            engine.step(&command(
+                7,
+                PaperAction::Dispatch {
+                    client_order_id: id(2)
+                }
+            )),
+            Ok(PaperOutcome::Dispatched(_))
+        ));
+    }
+}
