@@ -20,6 +20,32 @@ pub struct PaperCommand {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PaperInputError(String);
+
+impl std::fmt::Display for PaperInputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for PaperInputError {}
+
+impl PaperCommand {
+    /// Admits the native input through the same conversion as journal decoding.
+    /// Returns the original command, including all clocks, without changing
+    /// schema-valid values that the engine may refuse.
+    pub fn admit(self) -> Result<Self, PaperInputError> {
+        let decoded = Self::try_from(wire::Command::from(self.clone())).map_err(PaperInputError)?;
+        if decoded != self {
+            return Err(PaperInputError(
+                "paper input changes during its protocol round trip".to_owned(),
+            ));
+        }
+        Ok(self)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum PaperAction {
     Plan {
         client_order_id: ClientOrderId,
