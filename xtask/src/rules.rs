@@ -65,8 +65,9 @@ pub fn enforce(opts: &EnforceOptions<'_>) -> Result<Vec<Diagnostic>, ToolError> 
             diags.push(diag);
         }
     }
-    diags.extend(dep_diags(&metadata, &policy, &root)?);
-    let targets = target_roots(&metadata, &root);
+    let controlled = controlled_package_ids(&metadata, &policy, &root)?;
+    diags.extend(dep_diags(&metadata, &policy, &root, &controlled)?);
+    let targets = target_roots(&metadata, &controlled);
     scan_ast(&root, &targets, &policy, &mut diags)?;
     diags.extend(package_effects(&metadata, &policy, &root)?);
     if let Some(range) = opts.diff {
@@ -215,7 +216,8 @@ pub fn impact(manifest: &Path, module: &str, capability: &str) -> Result<String,
         .iter()
         .any(|pair| pair.left == module && pair.right == capability);
     let mut diags = Vec::new();
-    let targets = target_roots(&metadata, &root);
+    let controlled = controlled_package_ids(&metadata, &policy, &root)?;
+    let targets = target_roots(&metadata, &controlled);
     let _reached = scan_ast(&root, &targets, &policy, &mut diags)?;
     let calls: Vec<_> = diags
         .iter()
@@ -355,6 +357,7 @@ fn dep_diags(
     metadata: &cargo_metadata::Metadata,
     policy: &Policy,
     root: &Path,
+    controlled: &BTreeSet<cargo_metadata::PackageId>,
 ) -> Result<Vec<Diagnostic>, ToolError> {
     let members: BTreeSet<_> = metadata.workspace_members.iter().cloned().collect();
     let local_names = local_package_names(metadata, &members);
@@ -394,7 +397,23 @@ fn dep_diags(
                 continue;
             }
             let outside = match target {
-                Some(target) => !members.contains(&pkg.id) || !members.contains(&target.id),
+                Some(target) => {
+                    let path_matches = dep.path.as_ref().is_some_and(|path| {
+                        let actual = std::fs::canonicalize(path.as_str()).ok();
+                        let expected = Path::new(target.manifest_path.as_str())
+                            .parent()
+                            .and_then(|parent| std::fs::canonicalize(parent).ok());
+                        actual.is_some() && actual == expected
+                    });
+                    let resolved_matches = resolved_pkg.is_some_and(|resolved| {
+                        resolved.source.is_none() && resolved.id == target.id
+                    });
+                    let identity_matches =
+                        members.contains(&target.id) || (path_matches && resolved_matches);
+                    !controlled.contains(&pkg.id)
+                        || !controlled.contains(&target.id)
+                        || !identity_matches
+                }
                 None => true,
             };
             graph.entry(from.clone()).or_default().insert(to.clone());
@@ -727,14 +746,48 @@ fn manifest_line(text: &str, dep: &str) -> u32 {
     1
 }
 
+fn controlled_package_ids(
+    metadata: &cargo_metadata::Metadata,
+    policy: &Policy,
+    root: &Path,
+) -> Result<BTreeSet<cargo_metadata::PackageId>, ToolError> {
+    let root = std::fs::canonicalize(root)
+        .map_err(|err| ToolError::tool(format!("canonicalize {}: {err}", root.display())))?;
+    let members: BTreeSet<_> = metadata.workspace_members.iter().cloned().collect();
+    let inside = |path: &str| std::fs::canonicalize(path).is_ok_and(|path| path.starts_with(&root));
+    let mut controlled = BTreeSet::new();
+    for pkg in &metadata.packages {
+        if pkg.source.is_some() {
+            continue;
+        }
+        let contained = inside(pkg.manifest_path.as_str())
+            && pkg
+                .targets
+                .iter()
+                .all(|target| inside(target.src_path.as_str()));
+        if members.contains(&pkg.id) && !contained {
+            return Err(ToolError::tool(format!(
+                "workspace package {} has a manifest or target outside {}",
+                pkg.name,
+                root.display()
+            )));
+        }
+        if contained
+            && (members.contains(&pkg.id) || policy.modules.contains_key(pkg.name.as_str()))
+        {
+            controlled.insert(pkg.id.clone());
+        }
+    }
+    Ok(controlled)
+}
+
 fn target_roots(
     metadata: &cargo_metadata::Metadata,
-    _root: &Path,
+    controlled: &BTreeSet<cargo_metadata::PackageId>,
 ) -> Vec<(String, String, String, bool, PathBuf)> {
-    let members: BTreeSet<_> = metadata.workspace_members.iter().cloned().collect();
     let mut out = Vec::new();
     for pkg in &metadata.packages {
-        if !members.contains(&pkg.id) {
+        if !controlled.contains(&pkg.id) {
             continue;
         }
         let lib_name = pkg
