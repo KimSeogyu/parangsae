@@ -39,6 +39,10 @@
       "parangsae-core"
     ],
     [
+      "parangsae-risk",
+      "parangsae-core"
+    ],
+    [
       "parangsae-signals",
       "parangsae-core"
     ],
@@ -119,6 +123,10 @@
   ],
   "allowed_state_writers": [
     [
+      "parangsae-risk",
+      "RiskGate.portfolio"
+    ],
+    [
       "parangsae-sim",
       "Ledger.cash"
     ],
@@ -156,6 +164,7 @@
     "parangsae-core",
     "parangsae-execution",
     "parangsae-regime",
+    "parangsae-risk",
     "parangsae-signals",
     "parangsae-sim",
     "parangsae-strategies",
@@ -229,6 +238,10 @@
       "Signal Builder"
     ],
     [
+      "crates/risk/**",
+      "Risk/Portfolio"
+    ],
+    [
       "crates/signals/**",
       "Signal Builder"
     ],
@@ -285,6 +298,14 @@
       "Data Engineer"
     ],
     [
+      "specs/features/paper_replay.feature",
+      "Execution Builder"
+    ],
+    [
+      "specs/features/risk/**",
+      "Risk/Portfolio"
+    ],
+    [
       "specs/features/signals/**",
       "Signal Builder"
     ],
@@ -301,5 +322,5 @@
       "Ops/Release"
     ]
   ],
-  "spec_sha256": "2a3efb9df9db188fd9fb3f3c0e011d2325bd6db7fbf4df877f2dc69c773f62e4"
+  "spec_sha256": "30397236cddf3f2b235effa700b3fbd64252486dc7d483fdc3c1120f8a36cb56"
 }
