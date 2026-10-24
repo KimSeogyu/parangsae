@@ -14,12 +14,22 @@ pub struct FundingStamp {
     pub interval_hours: i64,
 }
 
-/// Um bars, mark bars, and funding stamps. `run` rejects gaps and missing coverage.
+/// One premium-index minute. `close_ticks` is a ratio at `10^8` and may be negative.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PremiumMinute {
+    pub open_time: UtcMicros,
+    pub close_ticks: i64,
+    pub count: i64,
+    pub available: UtcMicros,
+}
+
+/// Um bars, mark bars, funding stamps, and premium minutes. `run` rejects gaps and missing coverage.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tape {
     pub bars: Vec<Bar>,
     pub marks: Vec<Bar>,
     pub funding: Vec<FundingStamp>,
+    pub premium: Vec<PremiumMinute>,
     pub overlays: Vec<crate::tape::AppliedOverlay>,
 }
 
@@ -29,8 +39,15 @@ impl Tape {
             bars,
             marks,
             funding,
+            premium: Vec::new(),
             overlays: Vec::new(),
         }
+    }
+
+    pub fn with_premium(mut self, mut premium: Vec<PremiumMinute>) -> Self {
+        premium.sort_by_key(|row| (row.available, row.open_time));
+        self.premium = premium;
+        self
     }
 }
 

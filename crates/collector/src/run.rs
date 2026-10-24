@@ -629,6 +629,12 @@ fn ingest_klines(
     };
     object.schema_version = parsed.schema_version;
     object.row_count = parsed.rows.len() as u64;
+    if let Err(err) = check_kline_archive_calendar(&parsed.rows, &item.name) {
+        reject(
+            request, &item.key, object, previous, manifest, summary, &err,
+        )?;
+        return Ok(false);
+    }
     let faults = kline_row_faults(&parsed.rows, clock.expected());
     if !faults.is_empty() {
         reject_faults(
@@ -955,6 +961,26 @@ fn in_range(ts: UtcMicros, range: DayRange) -> bool {
     ts >= range.start_us() && ts < range.end_us()
 }
 
+fn check_kline_archive_calendar(rows: &[KlineFact], name: &ArchiveName) -> Result<(), Error> {
+    let (start, end) = match name.day {
+        Some(day) => (day.start_us(), day.end_us()),
+        None => (name.month.first().start_us(), name.month.last().end_us()),
+    };
+    if let Some(row) = rows
+        .iter()
+        .find(|row| row.open_time < start || row.open_time >= end)
+    {
+        return Err(Error::check(
+            "archive_calendar",
+            format!(
+                "{} open_time {} is outside [{start}, {end})",
+                name.file_name, row.open_time
+            ),
+        ));
+    }
+    Ok(())
+}
+
 fn overlaps(name: &ArchiveName, range: DayRange) -> bool {
     match name.day {
         Some(day) => range.contains(day),
@@ -1140,8 +1166,14 @@ struct PartitionKey {
 #[derive(Default)]
 struct PartitionCache {
     pending: BTreeMap<PartitionKey, u32>,
-    loaded: BTreeMap<PartitionKey, Option<BTreeMap<i64, KlineFact>>>,
+    loaded: BTreeMap<PartitionKey, Option<KlinePartition>>,
     loads: Vec<String>,
+}
+
+struct KlinePartition {
+    rows: BTreeMap<i64, KlineFact>,
+    unmatched: BTreeSet<i64>,
+    duplicates: BTreeSet<i64>,
 }
 
 enum StoredRow {
@@ -1152,6 +1184,39 @@ enum StoredRow {
 }
 
 impl PartitionCache {
+    fn load_kline(&mut self, data_dir: &Path, key: &PartitionKey) -> Result<(), Error> {
+        if !self.loaded.contains_key(key) {
+            let path = store::fact_path(data_dir, &key.dataset, &key.symbol, key.day);
+            if path.exists() {
+                let stored = store::load_klines(data_dir, &key.dataset, &key.symbol, key.day)?;
+                self.loads
+                    .push(format!("{}/{}/{}", key.dataset, key.symbol, key.day));
+                let mut rows = BTreeMap::new();
+                let mut duplicates = BTreeSet::new();
+                for kept in stored {
+                    let open = kept.open_time.micros();
+                    if let std::collections::btree_map::Entry::Vacant(slot) = rows.entry(open) {
+                        slot.insert(kept);
+                    } else {
+                        duplicates.insert(open);
+                    }
+                }
+                let unmatched = rows.keys().copied().collect();
+                self.loaded.insert(
+                    key.clone(),
+                    Some(KlinePartition {
+                        rows,
+                        unmatched,
+                        duplicates,
+                    }),
+                );
+            } else {
+                self.loaded.insert(key.clone(), None);
+            }
+        }
+        Ok(())
+    }
+
     fn compare_kline(
         &mut self,
         data_dir: &Path,
@@ -1165,24 +1230,12 @@ impl PartitionCache {
             symbol: symbol.to_owned(),
             day,
         };
-        if !self.loaded.contains_key(&key) {
-            let path = store::fact_path(data_dir, dataset, symbol, day);
-            if path.exists() {
-                let stored = store::load_klines(data_dir, dataset, symbol, day)?;
-                self.loads.push(format!("{dataset}/{symbol}/{day}"));
-                let mut index = BTreeMap::new();
-                for kept in stored {
-                    index.entry(kept.open_time.micros()).or_insert(kept);
-                }
-                self.loaded.insert(key.clone(), Some(index));
-            } else {
-                self.loaded.insert(key.clone(), None);
-            }
-        }
-        let Some(index) = self.loaded.get(&key).and_then(Option::as_ref) else {
+        self.load_kline(data_dir, &key)?;
+        let Some(partition) = self.loaded.get_mut(&key).and_then(Option::as_mut) else {
             return Ok(StoredRow::FileMissing);
         };
-        Ok(match index.get(&row.open_time.micros()) {
+        partition.unmatched.remove(&row.open_time.micros());
+        Ok(match partition.rows.get(&row.open_time.micros()) {
             Some(kept) if kept == row => StoredRow::Equal,
             Some(_) => StoredRow::Conflict,
             None => StoredRow::Missing,
@@ -1195,6 +1248,7 @@ impl PartitionCache {
         symbol: &str,
         name: &ArchiveName,
         filter: &VerifyFilter,
+        out: &mut VerifyOut<'_>,
     ) {
         if !loads_kline_facts(dataset) {
             return;
@@ -1218,7 +1272,22 @@ impl PartitionCache {
             };
             if finished {
                 self.pending.remove(&key);
-                self.loaded.remove(&key);
+                if let Some(Some(partition)) = self.loaded.remove(&key) {
+                    // Monthly and daily archives contribute one union. Only the
+                    // last applicable archive can establish that a key is extra.
+                    for open in partition.duplicates {
+                        out.fault(format!(
+                            "duplicate parquet key {}/{}/{} {open}",
+                            key.dataset, key.symbol, key.day
+                        ));
+                    }
+                    for open in partition.unmatched {
+                        out.fault(format!(
+                            "unexpected parquet row {}/{}/{} {open}",
+                            key.dataset, key.symbol, key.day
+                        ));
+                    }
+                }
             }
         }
     }
@@ -1293,7 +1362,7 @@ pub fn verify(data_dir: &Path, filter: &VerifyFilter) -> Result<VerifyReport, Er
             let checked = verify_object(&mut ctx, object)?;
             if let Some((dataset, name)) = &decision.archive {
                 ctx.cache
-                    .release_archive(*dataset, &object.symbol, name, ctx.filter);
+                    .release_archive(*dataset, &object.symbol, name, ctx.filter, &mut ctx.out);
             }
             if checked {
                 ctx.out.summary.archives += 1;
@@ -1418,10 +1487,31 @@ fn verify_kline_archive(
     if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
+    if let Err(err) = check_kline_archive_calendar(&parsed.rows, name) {
+        ctx.out.fault(format!("{} {err}", object.path));
+        return Ok(());
+    }
     let faults = kline_faults_in_scope(&parsed.rows, clock.expected(), ctx.filter)?;
     if !faults.is_empty() {
         ctx.out.fault(format!("{} {}", object.path, faults[0].name));
         return Ok(());
+    }
+    for day in covered_days(name, ctx.filter) {
+        if object
+            .materialized_days
+            .as_ref()
+            .is_some_and(|days| !days.contains(&day))
+        {
+            continue;
+        }
+        ctx.cache.load_kline(
+            ctx.data_dir,
+            &PartitionKey {
+                dataset: dataset.as_str().to_owned(),
+                symbol: symbol.as_str().to_owned(),
+                day,
+            },
+        )?;
     }
     for row in &parsed.rows {
         let day = day_of(row.open_time)?;

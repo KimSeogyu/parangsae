@@ -39,6 +39,10 @@ harness = false
 name = "paper_replay_behavior"
 harness = false
 
+[[test]]
+name = "walkforward_flat"
+harness = false
+
 [[example]]
 name = "smoke"
 

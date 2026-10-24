@@ -120,3 +120,24 @@ Feature: Backtest engine v0
     Then there are 1 fills
     And fill 1 is buy at 100 USDT with fee 0
     And refused orders are 1
+
+  Scenario: A decision after the boundary cannot trade at the boundary open
+    When a target waits for a decision one millisecond after the boundary
+    Then the first fill is the 13:01 open
+
+  Scenario: A target quantity uses its actual execution price
+    When the target is half equity and the fill price doubles
+    Then there are 1 fills
+    And the filled quantity is 5000000 ticks
+
+  Scenario: Compounded drawdown rounds a fractional ratio tick upward
+    When the fractional-tick drawdown cash curve is measured
+    Then the max drawdown ticks are 28000001
+
+  Scenario: An inactive lookahead probe cannot attest causality
+    When the H2 lookahead probe runs with an unreachable deadband
+    Then the probe refuses to attest causality without an active decision
+
+  Scenario: An unfilled position flip cannot satisfy the activity gate
+    When a pending position flip is canceled before a tradable minute
+    Then only the initial realized rebalance counts toward the activity gate

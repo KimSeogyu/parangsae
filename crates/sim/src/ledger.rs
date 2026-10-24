@@ -144,6 +144,27 @@ impl Ledger {
     }
 }
 
+/// Cash the trader loses because the fill price is worse than `open`.
+///
+/// The fee is not included. A buy pays more notional; a sell receives less.
+pub fn slippage_cost(
+    open: Price,
+    side: Side,
+    qty: Qty,
+    slip: SlippageBps,
+) -> Result<Cash, SimError> {
+    let slipped = fill_price(open, side, slip)?;
+    let raw = signed_notional(side, open, qty)?;
+    let paid = signed_notional(side, slipped, qty)?;
+    let cost = i128::from(raw)
+        .checked_sub(i128::from(paid))
+        .ok_or(SimError::Overflow)?;
+    if cost < 0 {
+        return Err(SimError::Negative);
+    }
+    Ok(Cash(fit_i64(cost)?))
+}
+
 /// `ceil(|qty * price| * bps / (1e8 * 10_000))`.
 pub fn taker_fee(price: Price, qty: Qty, bps: FeeBps) -> Result<Cash, SimError> {
     let num = i128::from(qty.ticks())
@@ -155,7 +176,8 @@ pub fn taker_fee(price: Price, qty: Qty, bps: FeeBps) -> Result<Cash, SimError> 
     Ok(Cash(fit_i64(ticks)?))
 }
 
-pub(crate) fn fill_price(open: Price, side: Side, slip: SlippageBps) -> Result<Price, SimError> {
+/// Adverse execution quote shared by fill sizing and ledger settlement.
+pub fn fill_price(open: Price, side: Side, slip: SlippageBps) -> Result<Price, SimError> {
     let slip = i128::from(slip.0);
     let (factor, pays) = match side {
         Side::Buy => (BPS_DENOM + slip, true),
@@ -203,10 +225,20 @@ pub(crate) fn funding_amount(position: i64, mark: i64, rate: i64) -> Result<i64,
 
 #[cfg(test)]
 mod tests {
-    use parangsae_core::{Price, Qty, UtcMicros};
+    use parangsae_core::{Price, Qty, Side, UtcMicros};
 
-    use super::taker_fee;
-    use crate::types::{FeeBps, SimError};
+    use super::{slippage_cost, taker_fee};
+    use crate::types::{FeeBps, SimError, SlippageBps};
+
+    #[test]
+    fn two_bps_on_one_btc_at_one_hundred_costs_two_cents() {
+        let open = Price::from_ticks(100 * 100_000_000).unwrap();
+        let qty = Qty::from_ticks(100_000_000).unwrap();
+        let cost = slippage_cost(open, Side::Buy, qty, SlippageBps(2)).unwrap();
+        assert_eq!(cost.0, 2_000_000);
+        let cost = slippage_cost(open, Side::Sell, qty, SlippageBps(2)).unwrap();
+        assert_eq!(cost.0, 2_000_000);
+    }
 
     #[test]
     fn one_lot_at_one_hundred_usdt_charges_one_tick() {

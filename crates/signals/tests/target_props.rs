@@ -112,6 +112,12 @@ mod target_props {
         assert_eq!(Target::from_f64(f64::MIN_POSITIVE).unwrap().ticks(), 0);
         assert_eq!(Target::from_f64(f64::from_bits(1)).unwrap().ticks(), 0);
         assert_eq!(Target::from_f64(1.0).unwrap().ticks(), TARGET_SCALE);
+        assert_eq!(Target::from_ticks(25_000_000).unwrap().ticks(), 25_000_000);
+        assert_eq!(
+            Target::from_ticks(-25_000_000).unwrap().ticks(),
+            -25_000_000
+        );
+        assert!(Target::from_ticks(TARGET_SCALE + 1).is_err());
         assert_eq!(Target::from_f64(-1.0).unwrap().ticks(), -TARGET_SCALE);
         assert_eq!(Target::from_f64(0.999_999_999).unwrap().ticks(), 99_999_999);
         assert_eq!(Target::from_f64(-0.000_000_009).unwrap().ticks(), 0);
@@ -146,10 +152,7 @@ mod target_props {
         }
 
         #[test]
-        fn finite_unit_interval_matches_truncation(bits in any::<u64>()) {
-            let value = f64::from_bits(bits);
-            prop_assume!(value.is_finite());
-            prop_assume!((-1.0..=1.0).contains(&value));
+        fn finite_unit_interval_matches_truncation(value in -1.0_f64..=1.0) {
             let expected = trunc_to_i64(trunc(value * 100_000_000.0)).unwrap();
             prop_assert_eq!(Target::from_f64(value).unwrap().ticks(), expected);
         }

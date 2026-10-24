@@ -35,8 +35,8 @@ pub fn funding_visible(rows: &[FundingObs], decision: UtcMicros) -> &[FundingObs
 
 /// Position at the decision. `mark_ticks` is the closed bar's close.
 ///
-/// The engine marks `equity_ticks` at that close and sizes from it. The close
-/// stands in for the fill, which is the next 1m open with `count > 0`.
+/// The engine freezes equity at the decision and sizes at the actual slipped
+/// price of the next eligible 1m open with `count > 0`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct BookState {
     pub equity_ticks: i64,
@@ -53,6 +53,10 @@ pub struct BookState {
 /// The engine does not size, fill, fund, or score those bars. A stateful
 /// signal updates lookback there and does not arm a hold.
 pub trait TargetSignal {
+    /// Additional delay after closed-bar availability (H4/H5 use 1 ms).
+    fn decision_delay_us(&self) -> i64 {
+        0
+    }
     fn on_bar(
         &mut self,
         view: Causal<'_, &[ResampledBar]>,

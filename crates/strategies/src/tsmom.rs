@@ -1,4 +1,4 @@
-//! S01 `tsmom-slow`. The scaled return is `signals::Tsmom`. The 0.25 band is local state.
+//! S01 `tsmom-slow` and the H1 daily cadence. The scaled return is `signals::Tsmom`.
 
 use std::collections::BTreeMap;
 
@@ -8,23 +8,32 @@ use parangsae_signals::{drive, Decision, Target, Tsmom};
 
 use crate::error::StrategyError;
 use crate::series::{
-    decision_micros, emitted, ticks_to_unit, Cursor, DecisionBook, Ring, WARMUP_30D_US,
+    decision_micros, emitted, ticks_to_unit, utc_hour, Cursor, DecisionBook, Ring, WARMUP_30D_US,
+    WARMUP_60D_US,
 };
 
-const DEADBAND_TICKS: i64 = 25_000_000;
+const DEFAULT_DEADBAND_TICKS: i64 = 25_000_000;
 
 pub struct TsmomSlow {
-    interval: BarInterval,
-    n: u16,
-    r_scale: f64,
-    cursor: Cursor,
-    ring: Ring,
+    leg: TsmomLeg,
+    deadband: i64,
+    decision_hour: Option<i64>,
+    warmup_us: i64,
     held: Target,
     accept: u64,
+    live: bool,
 }
 
 impl TsmomSlow {
     pub fn from_params(params: &BTreeMap<String, i64>) -> Result<Self, StrategyError> {
+        Self::build(params, false)
+    }
+
+    pub(crate) fn h1(params: &BTreeMap<String, i64>) -> Result<Self, StrategyError> {
+        Self::build(params, true)
+    }
+
+    fn build(params: &BTreeMap<String, i64>, hourly: bool) -> Result<Self, StrategyError> {
         let minutes = *params
             .get("interval")
             .ok_or(StrategyError::Param("interval"))?;
@@ -39,26 +48,36 @@ impl TsmomSlow {
             return Err(StrategyError::Param("n"));
         }
         let c = *params.get("c").ok_or(StrategyError::Param("c"))?;
-        let r_scale = r_scale(interval, n, c)?;
-        let cap = usize::from(n) + 1;
+        let deadband = match params.get("deadband").copied() {
+            Some(ticks) if ticks > 0 => ticks,
+            Some(_) => return Err(StrategyError::Param("deadband")),
+            None if hourly => return Err(StrategyError::Param("deadband")),
+            None => DEFAULT_DEADBAND_TICKS,
+        };
+        let decision_hour = match params.get("decision_hour_utc").copied() {
+            Some(hour) if (0..24).contains(&hour) => Some(hour),
+            Some(_) => return Err(StrategyError::Param("decision_hour_utc")),
+            None if hourly => return Err(StrategyError::Param("decision_hour_utc")),
+            None => None,
+        };
         Ok(Self {
-            interval,
-            n,
-            r_scale,
-            cursor: Cursor::new(interval),
-            ring: Ring::new(cap),
+            leg: TsmomLeg::new(interval, n, c)?,
+            deadband,
+            decision_hour,
+            warmup_us: if hourly { WARMUP_60D_US } else { WARMUP_30D_US },
             held: Target::FLAT,
             accept: 0,
+            live: false,
         })
     }
 
     pub fn interval(&self) -> BarInterval {
-        self.interval
+        self.leg.interval
     }
 
     /// Ring only. `held` and `accept` stay put, so a warmup target cannot reopen.
     pub fn observe(&mut self, row: &Observation<ResampledBar>) -> Result<(), StrategyError> {
-        let _ready = self.ingest(row)?;
+        let _ready = self.leg.push_row(row)?;
         Ok(())
     }
 
@@ -67,26 +86,83 @@ impl TsmomSlow {
         row: &Observation<ResampledBar>,
         book: Option<DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
-        let Some(ready) = self.ingest(row)? else {
+        let Some(ready) = self.leg.push_row(row)? else {
             return Ok(None);
         };
-        if ready.decision_us < WARMUP_30D_US {
+        if ready.decision_us < self.warmup_us {
             return Ok(None);
+        }
+        if !self.on_hour(ready.decision_us)? {
+            if !self.live {
+                return Ok(None);
+            }
+            return Ok(Some(self.emit(&ready)));
         }
         let current = match book {
             Some(book) => signed_weight(book)?,
             None => self.held.ticks(),
         };
-        if passes_deadband(current, ready.target.ticks()) {
+        if passes_deadband(current, ready.target.ticks(), self.deadband) {
             self.held = ready.target;
             self.accept = self.accept.checked_add(1).ok_or(StrategyError::Overflow)?;
         }
-        let mut output = emitted(&ready.bar, ready.decision_us, self.held);
-        output.accept = self.accept;
-        Ok(Some(output))
+        self.live = true;
+        Ok(Some(self.emit(&ready)))
     }
 
-    fn ingest(&mut self, row: &Observation<ResampledBar>) -> Result<Option<Ready>, StrategyError> {
+    fn on_hour(&self, decision_us: i64) -> Result<bool, StrategyError> {
+        match self.decision_hour {
+            None => Ok(true),
+            Some(hour) => Ok(utc_hour(decision_us)? == hour),
+        }
+    }
+
+    fn emit(&self, ready: &LegOut) -> parangsae_signals::SignalOutput {
+        let mut output = emitted(&ready.bar, ready.decision_us, self.held);
+        output.accept = self.accept;
+        output
+    }
+}
+
+pub(crate) struct TsmomLeg {
+    interval: BarInterval,
+    n: u16,
+    r_scale: f64,
+    cursor: Cursor,
+    ring: Ring,
+    last: Target,
+    ready: bool,
+}
+
+impl TsmomLeg {
+    pub(crate) fn new(interval: BarInterval, n: u16, c_ticks: i64) -> Result<Self, StrategyError> {
+        if !n_supported(n) {
+            return Err(StrategyError::Param("n"));
+        }
+        let r_scale = r_scale(interval, n, c_ticks)?;
+        Ok(Self {
+            interval,
+            n,
+            r_scale,
+            cursor: Cursor::new(interval),
+            ring: Ring::new(usize::from(n) + 1),
+            last: Target::FLAT,
+            ready: false,
+        })
+    }
+
+    pub(crate) fn ready(&self) -> bool {
+        self.ready
+    }
+
+    pub(crate) fn last(&self) -> Target {
+        self.last
+    }
+
+    pub(crate) fn push_row(
+        &mut self,
+        row: &Observation<ResampledBar>,
+    ) -> Result<Option<LegOut>, StrategyError> {
         let view = self.cursor.admit(row)?;
         let decision_us = decision_micros(&view);
         let bar = *view.value();
@@ -94,25 +170,27 @@ impl TsmomSlow {
         let rows = self.ring.to_vec();
         let decision = DecisionTime::from_micros(UtcMicros::from_micros(decision_us));
         let raw = drive_n(self.n, self.interval, self.r_scale, &rows, decision)?;
-        let Some(raw) = raw else {
-            return Ok(None);
-        };
-        let target = match raw.decision {
-            Decision::Target(target) => target,
-            Decision::Flat(_) => return Err(StrategyError::Param("tsmom")),
-        };
-        Ok(Some(Ready {
-            bar,
-            decision_us,
-            target,
-        }))
+        if let Some(raw) = raw {
+            let target = match raw.decision {
+                Decision::Target(target) => target,
+                Decision::Flat(_) => return Err(StrategyError::Param("tsmom")),
+            };
+            self.last = target;
+            self.ready = true;
+            return Ok(Some(LegOut {
+                bar,
+                decision_us,
+                target,
+            }));
+        }
+        Ok(None)
     }
 }
 
-struct Ready {
-    bar: ResampledBar,
-    decision_us: i64,
-    target: Target,
+pub(crate) struct LegOut {
+    pub bar: ResampledBar,
+    pub decision_us: i64,
+    pub target: Target,
 }
 
 fn signed_weight(book: DecisionBook) -> Result<i64, StrategyError> {
@@ -126,9 +204,9 @@ fn signed_weight(book: DecisionBook) -> Result<i64, StrategyError> {
     i64::try_from(weight).map_err(|_| StrategyError::Overflow)
 }
 
-fn passes_deadband(held: i64, next: i64) -> bool {
+fn passes_deadband(held: i64, next: i64, deadband: i64) -> bool {
     let diff = i128::from(next) - i128::from(held);
-    diff.abs() >= i128::from(DEADBAND_TICKS)
+    diff.abs() >= i128::from(deadband)
 }
 
 fn r_scale(interval: BarInterval, n: u16, c_ticks: i64) -> Result<f64, StrategyError> {
@@ -149,7 +227,7 @@ fn r_scale(interval: BarInterval, n: u16, c_ticks: i64) -> Result<f64, StrategyE
 }
 
 fn n_supported(n: u16) -> bool {
-    matches!(n, 24 | 42 | 72 | 90 | 168 | 180)
+    matches!(n, 24 | 42 | 72 | 90 | 168 | 180 | 360)
 }
 
 fn drive_n(
@@ -166,6 +244,7 @@ fn drive_n(
         90 => drive(&Tsmom::<90>::new(interval, r_scale)?, rows, decision).map_err(Into::into),
         168 => drive(&Tsmom::<168>::new(interval, r_scale)?, rows, decision).map_err(Into::into),
         180 => drive(&Tsmom::<180>::new(interval, r_scale)?, rows, decision).map_err(Into::into),
+        360 => drive(&Tsmom::<360>::new(interval, r_scale)?, rows, decision).map_err(Into::into),
         _ => Err(StrategyError::Param("n")),
     }
 }

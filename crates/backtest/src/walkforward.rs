@@ -61,6 +61,14 @@ pub const REMAINDER_OWN_FOLD_DAYS: i64 = 45;
 pub const WARMUP_DAYS: i64 = 30;
 /// Feature warmup for the session family (S06).
 pub const SESSION_WARMUP_DAYS: i64 = 365;
+/// H1 daily tsmom. Both grid points share the 60-day folds.
+pub const H1_WARMUP_DAYS: i64 = 60;
+/// H3 efficiency-ratio gate.
+pub const H3_WARMUP_DAYS: i64 = 373;
+/// H4 funding-crowding fade.
+pub const H4_WARMUP_DAYS: i64 = 366;
+/// H5 premium reversal.
+pub const H5_WARMUP_DAYS: i64 = 91;
 /// Headline taker fee used to pick a config. Fee-grid replays are not trials.
 pub const SELECTION_FEE_BPS: u32 = 5;
 /// Slippage, in bps, on every selection fill.
@@ -387,6 +395,10 @@ pub struct GridPoint<C> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FamilyGrid<C> {
     pub family: String,
+    /// `table_<slug>.csv`. Empty uses [`Self::family`].
+    pub slug: String,
+    /// Sha256 of the prereg file, written on every `RunStarted` before compute.
+    pub prereg_sha256: String,
     pub folds: Vec<Fold>,
     pub points: Vec<GridPoint<C>>,
 }
@@ -399,6 +411,72 @@ pub struct FamilyGrid<C> {
 /// equity minus the opening equity, after fees, slippage, and funding.
 /// `round_trips` counts trips that closed inside the window.
 /// `fill_notional_ticks` is the sum of `|price * qty| / 1e8` over fills.
+/// Costs and time-in-position for one scored window. Not part of the trial digest.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WindowAccounting {
+    /// Per-bar (minimum, maximum), including opening equity. None only for daily-only fixtures.
+    pub equity_range: Option<(i64, i64)>,
+    pub fees_paid_ticks: i64,
+    pub funding_net_ticks: i64,
+    pub position_us: i64,
+    pub window_us: i64,
+    pub hold_us_sum: i64,
+    pub n_refused_fills: u64,
+    pub n_dropped_entries: u64,
+    pub slippage_cost_ticks: i64,
+    pub n_rebalances: u64,
+    pub n_sign_changes: u64,
+    pub n_forced_exits: u64,
+}
+
+impl WindowAccounting {
+    pub const ZERO: Self = Self {
+        equity_range: None,
+        fees_paid_ticks: 0,
+        funding_net_ticks: 0,
+        position_us: 0,
+        window_us: 0,
+        hold_us_sum: 0,
+        n_refused_fills: 0,
+        n_dropped_entries: 0,
+        slippage_cost_ticks: 0,
+        n_rebalances: 0,
+        n_sign_changes: 0,
+        n_forced_exits: 0,
+    };
+
+    fn checked_add(self, other: Self) -> Option<Self> {
+        Some(Self {
+            equity_range: None,
+            fees_paid_ticks: self.fees_paid_ticks.checked_add(other.fees_paid_ticks)?,
+            funding_net_ticks: self
+                .funding_net_ticks
+                .checked_add(other.funding_net_ticks)?,
+            position_us: self.position_us.checked_add(other.position_us)?,
+            window_us: self.window_us.checked_add(other.window_us)?,
+            hold_us_sum: self.hold_us_sum.checked_add(other.hold_us_sum)?,
+            n_refused_fills: self.n_refused_fills.checked_add(other.n_refused_fills)?,
+            n_dropped_entries: self
+                .n_dropped_entries
+                .checked_add(other.n_dropped_entries)?,
+            slippage_cost_ticks: self
+                .slippage_cost_ticks
+                .checked_add(other.slippage_cost_ticks)?,
+            n_rebalances: self.n_rebalances.checked_add(other.n_rebalances)?,
+            n_sign_changes: self.n_sign_changes.checked_add(other.n_sign_changes)?,
+            n_forced_exits: self.n_forced_exits.checked_add(other.n_forced_exits)?,
+        })
+    }
+
+    fn checked_add_flat_days(self, days: usize) -> Option<Self> {
+        let window_us = i64::try_from(days).ok()?.checked_mul(DAY_US)?;
+        self.checked_add(Self {
+            window_us,
+            ..Self::ZERO
+        })
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WindowResult {
     pub daily_returns: Vec<i64>,
@@ -406,6 +484,9 @@ pub struct WindowResult {
     pub net_result_ticks: i64,
     pub round_trips: u64,
     pub fill_notional_ticks: i128,
+    /// Per-bar max drawdown, in `10^8` ratio ticks.
+    pub max_dd_ticks: i64,
+    pub accounting: WindowAccounting,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -480,7 +561,72 @@ pub fn window_result(initial: Cash, report: &Report) -> Result<WindowResult, Win
         net_result_ticks,
         round_trips,
         fill_notional_ticks: fill_notional,
+        max_dd_ticks: report.metrics.max_drawdown.ticks(),
+        accounting: {
+            let mut a = account_report(report);
+            a.equity_range = a
+                .equity_range
+                .map(|(lo, hi)| (lo.min(initial.0), hi.max(initial.0)));
+            a
+        },
     })
+}
+
+fn account_report(report: &Report) -> WindowAccounting {
+    let (position_us, hold_us_sum, window_us) = position_clock(report);
+    WindowAccounting {
+        equity_range: report.equity_curve.iter().map(|(_, cash)| cash.0).fold(
+            None,
+            |acc, value| {
+                Some(match acc {
+                    None => (value, value),
+                    Some((low, high)) => (low.min(value), high.max(value)),
+                })
+            },
+        ),
+        fees_paid_ticks: report.metrics.fees_paid.0,
+        funding_net_ticks: report.metrics.funding_net.0,
+        position_us,
+        window_us,
+        hold_us_sum,
+        n_refused_fills: report.n_refused_fills,
+        n_dropped_entries: 0,
+        slippage_cost_ticks: report.slippage_cost.0,
+        n_rebalances: report.n_rebalances,
+        n_sign_changes: report.n_sign_changes,
+        n_forced_exits: report.n_forced_exits,
+    }
+}
+
+fn position_clock(report: &Report) -> (i64, i64, i64) {
+    let Some((first, _)) = report.equity_curve.first() else {
+        return (0, 0, 0);
+    };
+    let Some((last, _)) = report.equity_curve.last() else {
+        return (0, 0, 0);
+    };
+    let window_us = last
+        .micros()
+        .saturating_sub(first.micros())
+        .saturating_add(ONE_MINUTE_US);
+    let start = first.micros();
+    let end = start.saturating_add(window_us);
+    let mut position_us = 0i64;
+    let mut hold_us_sum = 0i64;
+    for trade in &report.trades {
+        let open = trade.open_ts.micros();
+        let close = trade.close_ts.map(|ts| ts.micros()).unwrap_or(end);
+        let left = open.max(start);
+        let right = close.min(end);
+        if right > left {
+            let span = right - left;
+            position_us = position_us.saturating_add(span);
+            if trade.close_ts.is_some() {
+                hold_us_sum = hold_us_sum.saturating_add(span);
+            }
+        }
+    }
+    (position_us, hold_us_sum, window_us)
 }
 
 /// `days` is the number of UTC midnights in the scored window.
@@ -489,6 +635,18 @@ pub fn check_window_result(
     days: usize,
     result: &WindowResult,
 ) -> Result<(), WindowShape> {
+    if result.max_dd_ticks != 0 && result.accounting.equity_range.is_none() {
+        return Err(WindowShape::Equity);
+    }
+    if let Some((lo, hi)) = result.accounting.equity_range {
+        if lo > hi
+            || lo > initial_ticks
+            || hi < initial_ticks
+            || result.equity_ticks.iter().any(|v| *v < lo || *v > hi)
+        {
+            return Err(WindowShape::Equity);
+        }
+    }
     if result.equity_ticks.first().copied() != Some(initial_ticks) {
         return Err(WindowShape::Equity);
     }
@@ -537,6 +695,9 @@ pub struct SegmentRun {
     /// Annual Sharpe of this segment's equity, from [`sharpe_ticks`].
     pub sharpe_annual_ticks: Option<i64>,
     pub fill_notional_ticks: i128,
+    /// Per-bar drawdown of this window, including its opening equity.
+    pub max_dd_ticks: i64,
+    pub accounting: WindowAccounting,
 }
 
 /// One fee-grid or stress replay of a family's stitched test path.
@@ -556,19 +717,34 @@ pub struct FeeReplay {
     pub sharpe_annual_ticks: Option<i64>,
     /// `sum(|fill notional|) * 365 / sum(end-of-day equity)`, at `10^8`.
     pub turnover_ticks: i64,
+    /// Compounded per-bar drawdown across the selected folds, retaining earlier peaks.
+    pub max_dd_ticks: i64,
+    pub accounting: WindowAccounting,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WindowReplay {
+    pub segment: Segment,
+    pub fee_bps: u32,
+    pub slippage_bps: u32,
+    pub run: SegmentRun,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FoldOutcome {
+    pub cost_replays: Vec<WindowReplay>,
     pub fold_index: u32,
     pub train: Vec<SegmentRun>,
     pub test: Vec<SegmentRun>,
     pub selected_index: usize,
     pub selected_config_id: String,
+    /// `true` when stay-flat chose no config. `selected_config_id` is `FLAT`.
+    pub selected_flat: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FamilyOutput {
+    pub h2_member_sharpes: Vec<Option<i64>>,
     pub family: String,
     pub folds: Vec<FoldOutcome>,
     pub stitched_oos_daily_returns: Vec<i64>,
@@ -578,6 +754,15 @@ pub struct FamilyOutput {
     pub n_trials: u64,
     /// 2/4/5/6 bps at 2 bps slippage, then 5 bps fee at 5 bps slippage.
     pub fee_replays: Vec<FeeReplay>,
+    /// H2 only. Flat when the blend's own train Sharpe is `<= 0`. Not gated.
+    pub stay_flat_shadow: Option<StayFlatShadow>,
+}
+
+/// Reported H2 path with stay-flat applied and not used for the headline.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StayFlatShadow {
+    pub daily_returns: Vec<i64>,
+    pub fold_flat: Vec<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -707,6 +892,52 @@ where
     })
 }
 
+enum Choice {
+    Index(usize),
+    Flat,
+}
+
+fn stay_flat_enabled(family: &str) -> bool {
+    matches!(family, "H1" | "H3" | "H4" | "H5")
+}
+
+fn extend_flat_series<E>(
+    test: &[SegmentRun],
+    daily_returns: &mut Vec<i64>,
+    equity_ticks: &mut Vec<i64>,
+) -> Result<(), WalkError<E>> {
+    let sample = test.first().ok_or(WalkError::Overflow)?;
+    let days = sample.daily_returns.len();
+    let cash = *sample.equity_ticks.first().ok_or(WalkError::Overflow)?;
+    daily_returns.extend(std::iter::repeat_n(0, days));
+    equity_ticks.extend(std::iter::repeat_n(cash, days.saturating_add(1)));
+    Ok(())
+}
+
+fn stay_flat_shadow<E>(folds: &[FoldOutcome]) -> Result<StayFlatShadow, WalkError<E>> {
+    let mut daily_returns = Vec::new();
+    let mut fold_flat = Vec::with_capacity(folds.len());
+    for fold in folds {
+        let sharpe = fold
+            .train
+            .get(fold.selected_index)
+            .map(|row| row.sharpe_annual_ticks)
+            .unwrap_or(None);
+        let flat = sharpe.unwrap_or(0) <= 0;
+        fold_flat.push(flat);
+        if flat {
+            extend_flat_series(&fold.test, &mut daily_returns, &mut Vec::new())?;
+        } else {
+            let chosen = &fold.test[fold.selected_index];
+            daily_returns.extend_from_slice(&chosen.daily_returns);
+        }
+    }
+    Ok(StayFlatShadow {
+        daily_returns,
+        fold_flat,
+    })
+}
+
 struct Drive<'a, F> {
     ctx: &'a WalkContext<'a>,
     costs: &'a Costs,
@@ -746,7 +977,7 @@ impl<F> Drive<'_, F> {
                 trial_ids.insert(row.trial_id.clone());
                 train.push(row);
             }
-            let selected_index = Self::select_train(&train);
+            let choice = Self::select_train(&family.family, &train);
             let mut test = Vec::with_capacity(family.points.len());
             for (grid_index, point) in family.points.iter().enumerate() {
                 let row = self.segment(SegmentCall {
@@ -762,23 +993,73 @@ impl<F> Drive<'_, F> {
                 trial_ids.insert(row.trial_id.clone());
                 test.push(row);
             }
-            let chosen = &test[selected_index];
-            stitched_oos_daily_returns.extend_from_slice(&chosen.daily_returns);
-            stitched_oos_equity.extend_from_slice(&chosen.equity_ticks);
-            oos_round_trips = oos_round_trips
-                .checked_add(chosen.round_trips)
-                .ok_or(WalkError::Overflow)?;
+            let (selected_index, selected_flat, selected_config_id) = match choice {
+                Choice::Flat => (0, true, "FLAT".to_owned()),
+                Choice::Index(index) => (index, false, test[index].config_id.clone()),
+            };
+            if selected_flat {
+                extend_flat_series(
+                    &test,
+                    &mut stitched_oos_daily_returns,
+                    &mut stitched_oos_equity,
+                )?;
+            } else {
+                let chosen = &test[selected_index];
+                stitched_oos_daily_returns.extend_from_slice(&chosen.daily_returns);
+                stitched_oos_equity.extend_from_slice(&chosen.equity_ticks);
+                oos_round_trips = oos_round_trips
+                    .checked_add(chosen.round_trips)
+                    .ok_or(WalkError::Overflow)?;
+            }
+            let mut cost_replays = Vec::new();
+            for (fee_bps, slippage_bps) in replay_grid() {
+                if (fee_bps, slippage_bps) == (5, 2) {
+                    continue;
+                }
+                let costs = Costs {
+                    taker_fee: FeeBps(fee_bps),
+                    slippage: SlippageBps(slippage_bps),
+                };
+                for segment in [Segment::Train, Segment::Test] {
+                    for (grid_index, point) in family.points.iter().enumerate() {
+                        let run = self.segment(SegmentCall {
+                            family,
+                            fold,
+                            point,
+                            identity: &identities[grid_index],
+                            grid_index,
+                            segment,
+                            costs: &costs,
+                            trial: false,
+                        })?;
+                        cost_replays.push(WindowReplay {
+                            segment,
+                            fee_bps,
+                            slippage_bps,
+                            run,
+                        });
+                    }
+                }
+            }
             folds.push(FoldOutcome {
+                cost_replays,
                 fold_index: fold.index,
-                selected_config_id: chosen.config_id.clone(),
+                selected_config_id,
                 selected_index,
+                selected_flat,
                 train,
                 test,
             });
         }
         let fee_replays = self.fee_replays(family, &identities, &folds)?;
         let n_trials = u64::try_from(trial_ids.len()).map_err(|_| WalkError::Overflow)?;
+        let stay_flat_shadow = if family.family == "H2" {
+            Some(stay_flat_shadow(&folds)?)
+        } else {
+            None
+        };
         Ok(FamilyOutput {
+            h2_member_sharpes: Vec::new(),
             family: family.family.clone(),
             folds,
             stitched_oos_daily_returns,
@@ -786,25 +1067,52 @@ impl<F> Drive<'_, F> {
             oos_round_trips,
             n_trials,
             fee_replays,
+            stay_flat_shadow,
         })
     }
 
     /// Highest train annual Sharpe. An equal Sharpe keeps the earlier grid index.
     /// An undefined Sharpe loses to a defined one and ties with another undefined one.
-    fn select_train(train: &[SegmentRun]) -> usize {
-        let mut best = 0usize;
-        for (index, row) in train.iter().enumerate().skip(1) {
-            if sharpe_beats(row.sharpe_annual_ticks, train[best].sharpe_annual_ticks) {
-                best = index;
+    ///
+    /// Stay-flat families treat an undefined Sharpe as 0. If every score is `<= 0`,
+    /// the fold is flat.
+    fn select_train(family: &str, train: &[SegmentRun]) -> Choice {
+        if stay_flat_enabled(family) {
+            let mut best: Option<usize> = None;
+            for (index, row) in train.iter().enumerate() {
+                let score = row.sharpe_annual_ticks.unwrap_or(0);
+                if score <= 0 {
+                    continue;
+                }
+                match best {
+                    None => best = Some(index),
+                    Some(incumbent) => {
+                        let incumbent_score = train[incumbent].sharpe_annual_ticks.unwrap_or(0);
+                        if score > incumbent_score {
+                            best = Some(index);
+                        }
+                    }
+                }
             }
+            match best {
+                Some(index) => Choice::Index(index),
+                None => Choice::Flat,
+            }
+        } else {
+            let mut best = 0usize;
+            for (index, row) in train.iter().enumerate().skip(1) {
+                if sharpe_beats(row.sharpe_annual_ticks, train[best].sharpe_annual_ticks) {
+                    best = index;
+                }
+            }
+            Choice::Index(best)
         }
-        best
     }
 
     fn fee_replays<C, E>(
         &mut self,
-        family: &FamilyGrid<C>,
-        identities: &[Identity],
+        _family: &FamilyGrid<C>,
+        _identities: &[Identity],
         folds: &[FoldOutcome],
     ) -> Result<Vec<FeeReplay>, WalkError<E>>
     where
@@ -817,28 +1125,45 @@ impl<F> Drive<'_, F> {
                 out.push(replay_from_selection(fee_bps, slippage_bps, folds)?);
                 continue;
             }
-            let costs = Costs {
-                taker_fee: FeeBps(fee_bps),
-                slippage: SlippageBps(slippage_bps),
-            };
             let mut daily_returns = Vec::new();
             let mut equity_ticks = Vec::new();
             let mut scored_equity = Vec::new();
             let mut net_result_ticks = 0i64;
             let mut round_trips = 0u64;
             let mut fill_notional_ticks = 0i128;
-            for (fold, outcome) in family.folds.iter().zip(folds) {
+            let mut accounting = WindowAccounting::ZERO;
+            for outcome in folds {
+                if outcome.selected_flat {
+                    extend_flat_series(&outcome.test, &mut daily_returns, &mut equity_ticks)?;
+                    let days = outcome
+                        .test
+                        .first()
+                        .map(|row| row.daily_returns.len())
+                        .unwrap_or(0);
+                    let cash = outcome
+                        .test
+                        .first()
+                        .and_then(|row| row.equity_ticks.first().copied())
+                        .unwrap_or(0);
+                    scored_equity.extend(std::iter::repeat_n(cash, days));
+                    accounting = accounting
+                        .checked_add_flat_days(days)
+                        .ok_or(WalkError::Overflow)?;
+                    continue;
+                }
                 let index = outcome.selected_index;
-                let row = self.segment(SegmentCall {
-                    family,
-                    fold,
-                    point: &family.points[index],
-                    identity: &identities[index],
-                    grid_index: index,
-                    segment: Segment::Test,
-                    costs: &costs,
-                    trial: false,
-                })?;
+                let row = outcome
+                    .cost_replays
+                    .iter()
+                    .find(|r| {
+                        r.segment == Segment::Test
+                            && r.run.grid_index == index
+                            && r.fee_bps == fee_bps
+                            && r.slippage_bps == slippage_bps
+                    })
+                    .ok_or(WalkError::Overflow)?
+                    .run
+                    .clone();
                 daily_returns.extend_from_slice(&row.daily_returns);
                 equity_ticks.extend_from_slice(&row.equity_ticks);
                 scored_equity.extend(row.equity_ticks.iter().skip(1).copied());
@@ -851,6 +1176,9 @@ impl<F> Drive<'_, F> {
                 fill_notional_ticks = fill_notional_ticks
                     .checked_add(row.fill_notional_ticks)
                     .ok_or(WalkError::Overflow)?;
+                accounting = accounting
+                    .checked_add(row.accounting)
+                    .ok_or(WalkError::Overflow)?;
             }
             out.push(FeeReplay {
                 fee_bps,
@@ -861,6 +1189,21 @@ impl<F> Drive<'_, F> {
                 net_result_ticks,
                 round_trips,
                 turnover_ticks: turnover_of(fill_notional_ticks, &scored_equity)?,
+                max_dd_ticks: stitched_drawdown(folds.iter().filter(|f| !f.selected_flat).map(
+                    |f| {
+                        &f.cost_replays
+                            .iter()
+                            .find(|r| {
+                                r.segment == Segment::Test
+                                    && r.run.grid_index == f.selected_index
+                                    && r.fee_bps == fee_bps
+                                    && r.slippage_bps == slippage_bps
+                            })
+                            .expect("replay checked above")
+                            .run
+                    },
+                ))?,
+                accounting,
             });
         }
         Ok(out)
@@ -899,6 +1242,7 @@ impl<F> Drive<'_, F> {
                     trial_id: &identity.trial_id,
                     config_id: &identity.config_id,
                     pinned_root: self.ctx.pins.pinned_root(),
+                    prereg_sha256: &family.prereg_sha256,
                     attempt: point.attempt,
                     family: &family.family,
                     ts: start,
@@ -952,6 +1296,8 @@ impl<F> Drive<'_, F> {
                     round_trips: result.round_trips,
                     sharpe_annual_ticks,
                     fill_notional_ticks: result.fill_notional_ticks,
+                    max_dd_ticks: result.max_dd_ticks,
+                    accounting: result.accounting,
                 })
             }
             Ok(Err(source)) => {
@@ -1004,6 +1350,7 @@ fn config_identity<C>(
         run_id: String::new(),
         config_id: String::new(),
         family: family.family.clone(),
+        prereg_sha256: family.prereg_sha256.clone(),
         params: point.params.clone(),
         attempt: point.attempt,
         ts: bounds.start,
@@ -1038,7 +1385,7 @@ fn replay_grid() -> [(u32, u32); 5] {
     ]
 }
 
-fn replay_from_selection<E>(
+pub(crate) fn replay_from_selection<E>(
     fee_bps: u32,
     slippage_bps: u32,
     folds: &[FoldOutcome],
@@ -1049,7 +1396,26 @@ fn replay_from_selection<E>(
     let mut net_result_ticks = 0i64;
     let mut round_trips = 0u64;
     let mut fill_notional_ticks = 0i128;
+    let mut accounting = WindowAccounting::ZERO;
     for fold in folds {
+        if fold.selected_flat {
+            extend_flat_series(&fold.test, &mut daily_returns, &mut equity_ticks)?;
+            let days = fold
+                .test
+                .first()
+                .map(|row| row.daily_returns.len())
+                .unwrap_or(0);
+            let cash = fold
+                .test
+                .first()
+                .and_then(|row| row.equity_ticks.first().copied())
+                .unwrap_or(0);
+            scored_equity.extend(std::iter::repeat_n(cash, days));
+            accounting = accounting
+                .checked_add_flat_days(days)
+                .ok_or(WalkError::Overflow)?;
+            continue;
+        }
         let chosen = &fold.test[fold.selected_index];
         daily_returns.extend_from_slice(&chosen.daily_returns);
         equity_ticks.extend_from_slice(&chosen.equity_ticks);
@@ -1063,6 +1429,9 @@ fn replay_from_selection<E>(
         fill_notional_ticks = fill_notional_ticks
             .checked_add(chosen.fill_notional_ticks)
             .ok_or(WalkError::Overflow)?;
+        accounting = accounting
+            .checked_add(chosen.accounting)
+            .ok_or(WalkError::Overflow)?;
     }
     Ok(FeeReplay {
         fee_bps,
@@ -1073,7 +1442,66 @@ fn replay_from_selection<E>(
         net_result_ticks,
         round_trips,
         turnover_ticks: turnover_of(fill_notional_ticks, &scored_equity)?,
+        max_dd_ticks: stitched_drawdown(
+            folds
+                .iter()
+                .filter(|f| !f.selected_flat)
+                .map(|f| &f.test[f.selected_index]),
+        )?,
+        accounting,
     })
+}
+
+/// A fold's per-bar MDD covers peaks born inside that fold; its minimum covers
+/// drawdowns from any earlier fold's peak. Scale both extrema by chained equity.
+fn stitched_drawdown<'a, E>(
+    rows: impl Iterator<Item = &'a SegmentRun>,
+) -> Result<i64, WalkError<E>> {
+    let mut rows = rows.peekable();
+    let Some(first) = rows.peek() else {
+        return Ok(0);
+    };
+    let mut capital = i128::from(*first.equity_ticks.first().ok_or(WalkError::Overflow)?);
+    let mut peak = capital;
+    let mut dd = 0i64;
+    for row in rows {
+        let opening = i128::from(*row.equity_ticks.first().ok_or(WalkError::Overflow)?);
+        if opening <= 0 {
+            return Err(WalkError::Overflow);
+        }
+        let (lo, hi) = row.accounting.equity_range.unwrap_or_else(|| {
+            (
+                *row.equity_ticks.iter().min().unwrap_or(&0),
+                *row.equity_ticks.iter().max().unwrap_or(&0),
+            )
+        });
+        let low = capital
+            .checked_mul(i128::from(lo))
+            .ok_or(WalkError::Overflow)?
+            / opening;
+        let high = capital
+            .checked_mul(i128::from(hi))
+            .ok_or(WalkError::Overflow)?
+            / opening;
+        let numerator = (peak - low)
+            .max(0)
+            .checked_mul(SCALE)
+            .ok_or(WalkError::Overflow)?;
+        let cross = i64::try_from(
+            parangsae_sim::round_against_trader(numerator, peak, true)
+                .map_err(|_| WalkError::Overflow)?,
+        )
+        .map_err(|_| WalkError::Overflow)?;
+        dd = dd.max(cross).max(row.max_dd_ticks);
+        peak = peak.max(high);
+        capital = capital
+            .checked_mul(i128::from(
+                *row.equity_ticks.last().ok_or(WalkError::Overflow)?,
+            ))
+            .ok_or(WalkError::Overflow)?
+            / opening;
+    }
+    Ok(dd)
 }
 
 fn turnover_of<E>(notional: i128, scored_equity: &[i64]) -> Result<i64, WalkError<E>> {
@@ -1277,6 +1705,58 @@ mod tests {
         assert_eq!(oos, 1_016);
         assert_eq!(span_days(folds.last().unwrap().test), 116);
         assert_eq!(folds.len(), 11);
+    }
+
+    #[test]
+    fn second_batch_warmups_match_the_prereg_windows() {
+        let h1 = btcusdt_schedule(H1_WARMUP_DAYS).unwrap();
+        assert_eq!(h1.len(), 15);
+        assert_eq!(ymd(h1[0].train).0, "2021-02-16");
+        assert_eq!(ymd(h1[0].test).0, "2022-02-18");
+        assert_eq!(span_days(h1.last().unwrap().test), 61);
+        assert_eq!(
+            h1.iter().map(|fold| span_days(fold.test)).sum::<i64>(),
+            1_321
+        );
+
+        let h2 = btcusdt_schedule(WARMUP_DAYS).unwrap();
+        assert_eq!(h2.len(), 15);
+        assert_eq!(ymd(h2[0].train).0, "2021-01-17");
+        assert_eq!(ymd(h2[0].test).0, "2022-01-19");
+        assert_eq!(
+            h2.iter().map(|fold| span_days(fold.test)).sum::<i64>(),
+            1_351
+        );
+
+        let h3 = btcusdt_schedule(H3_WARMUP_DAYS).unwrap();
+        assert_eq!(h3.len(), 11);
+        assert_eq!(ymd(h3[0].train).0, "2021-12-26");
+        assert_eq!(ymd(h3[0].test).0, "2022-12-28");
+        assert_eq!(span_days(h3.last().unwrap().test), 108);
+        assert_eq!(
+            h3.iter().map(|fold| span_days(fold.test)).sum::<i64>(),
+            1_008
+        );
+
+        let h4 = btcusdt_schedule(H4_WARMUP_DAYS).unwrap();
+        assert_eq!(h4.len(), 11);
+        assert_eq!(ymd(h4[0].train).0, "2021-12-19");
+        assert_eq!(ymd(h4[0].test).0, "2022-12-21");
+        assert_eq!(span_days(h4.last().unwrap().test), 115);
+        assert_eq!(
+            h4.iter().map(|fold| span_days(fold.test)).sum::<i64>(),
+            1_015
+        );
+
+        let h5 = btcusdt_schedule(H5_WARMUP_DAYS).unwrap();
+        assert_eq!(h5.len(), 14);
+        assert_eq!(ymd(h5[0].train).0, "2021-03-19");
+        assert_eq!(ymd(h5[0].test).0, "2022-03-21");
+        assert_eq!(span_days(h5.last().unwrap().test), 120);
+        assert_eq!(
+            h5.iter().map(|fold| span_days(fold.test)).sum::<i64>(),
+            1_290
+        );
     }
 
     #[test]

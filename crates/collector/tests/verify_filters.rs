@@ -12,6 +12,8 @@ use parangsae_collector::run::{self, RunRequest, VerifyFilter, VerifyReport};
 use parangsae_collector::store;
 use parangsae_collector::vision::{download_url, list_url, sha256_bytes, Cadence, VisionDataset};
 use parangsae_core::{AvailableTs, EventTs, Ratio, ReceivedTs, Symbol, UtcMicros};
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
+use parquet::arrow::ArrowWriter;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
@@ -200,7 +202,7 @@ fn funding_archive(days: &[CivilDay]) -> Result<ArchiveFile, Box<dyn std::error:
     })
 }
 
-fn legacy_funding_scope(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn legacy_manifest_scope(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let path = dir.join("manifest/objects.jsonl");
     let legacy = std::fs::read_to_string(&path)?
         .lines()
@@ -228,7 +230,7 @@ fn funding_gap_day_injection_is_detected(legacy: bool) -> Result<(), Box<dyn std
         &[funding_archive(&[september1])?],
     )?;
     if legacy {
-        legacy_funding_scope(dir.path())?;
+        legacy_manifest_scope(dir.path())?;
     }
     let filter = VerifyFilter::parse(&["funding-rate"], Some("2026-09-02"), Some("2026-09-02"))?;
     let before = run::verify(dir.path(), &filter)?;
@@ -444,7 +446,7 @@ fn funding_parquet_legacy_scope_remains_conservative() -> Result<(), Box<dyn std
         september1,
         &files,
     )?;
-    legacy_funding_scope(dir.path())?;
+    legacy_manifest_scope(dir.path())?;
 
     for _ in 0..2 {
         let scoped = run::verify(
@@ -468,6 +470,339 @@ fn funding_parquet_legacy_scope_remains_conservative() -> Result<(), Box<dyn std
 
 fn conflict(open_us: i64) -> String {
     format!("conflict {open_us}")
+}
+
+#[test]
+fn kline_archive_calendar_mismatch_cannot_hide_extra_stored_rows(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let june1 = day(2021, 6, 1)?;
+    for (cadence, file_name, misplaced_day) in [
+        (Cadence::Monthly, "BTCUSDT-1m-2021-06.zip", day(2021, 7, 1)?),
+        (
+            Cadence::Daily,
+            "BTCUSDT-1m-2021-06-01.zip",
+            day(2021, 6, 2)?,
+        ),
+    ] {
+        let dir = tempfile::tempdir()?;
+        ingest(
+            dir.path(),
+            VisionDataset::UmKline,
+            june1,
+            june1,
+            &[ArchiveFile {
+                prefix: prefix(VisionDataset::UmKline, cadence)?,
+                file_name: file_name.to_owned(),
+                csv: day_csv(june1, 1),
+            }],
+        )?;
+        let mut manifest = parangsae_collector::manifest::ManifestLog::open(dir.path())?;
+        let mut object = manifest.active()[0].clone();
+        let previous = object.sha256;
+        let bytes = zip_csv("rows.csv", &day_csv(misplaced_day, 1))?;
+        let raw = dir.path().join("raw").join(&object.path);
+        std::fs::write(&raw, &bytes)?;
+        std::fs::write(
+            PathBuf::from(format!("{}.CHECKSUM", raw.display())),
+            checksum_bytes(file_name, &bytes),
+        )?;
+        object.sha256 = sha256_bytes(&bytes);
+        object.size_bytes = bytes.len() as u64;
+        object.materialized_days = Some(std::collections::BTreeSet::from([misplaced_day]));
+        manifest.record_stored(object, Some(previous))?;
+        let original = store::load_klines(dir.path(), "um-kline", "BTCUSDT", june1)?[0].clone();
+        let mut injected = Vec::new();
+        for minute in [0, 1] {
+            let mut row = original.clone();
+            row.open_time =
+                UtcMicros::from_micros(misplaced_day.start_us().micros() + minute * 60_000_000);
+            row.close_time = UtcMicros::from_micros(row.open_time.micros() + 59_999_000);
+            row.event_ts = EventTs::from_micros(row.open_time);
+            row.available_ts =
+                AvailableTs::from_micros(UtcMicros::from_micros(row.close_time.micros() + 1_000));
+            injected.push(row);
+        }
+        store::upsert_klines(dir.path(), "um-kline", injected)?;
+        let report = run::verify(dir.path(), &VerifyFilter::all())?;
+        assert!(
+            !report.ok(),
+            "misdated source hid an extra stored row: {report}"
+        );
+        assert!(
+            report
+                .fault_lines
+                .iter()
+                .any(|line| line.contains("archive_calendar")),
+            "{report}"
+        );
+        assert!(
+            report.partition_loads.is_empty(),
+            "invalid source reached the partition cache"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn kline_archive_calendar_mismatch_fails_before_parquet_write(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let june1 = day(2021, 6, 1)?;
+    for (cadence, file_name, misplaced_day) in [
+        (Cadence::Monthly, "BTCUSDT-1m-2021-06.zip", day(2021, 7, 1)?),
+        (
+            Cadence::Daily,
+            "BTCUSDT-1m-2021-06-01.zip",
+            day(2021, 6, 2)?,
+        ),
+    ] {
+        let dir = tempfile::tempdir()?;
+        let result = ingest(
+            dir.path(),
+            VisionDataset::UmKline,
+            june1,
+            misplaced_day,
+            &[ArchiveFile {
+                prefix: prefix(VisionDataset::UmKline, cadence)?,
+                file_name: file_name.to_owned(),
+                csv: day_csv(misplaced_day, 1),
+            }],
+        );
+        assert!(result.is_err(), "misdated source wrote Parquet");
+        assert!(result.unwrap_err().to_string().contains("archive_calendar"));
+        assert!(!store::fact_path(dir.path(), "um-kline", "BTCUSDT", misplaced_day).exists());
+        assert!(
+            parangsae_collector::manifest::ManifestLog::open(dir.path())?
+                .active()
+                .is_empty()
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn extra_stored_kline_minute_fails_verify() -> Result<(), Box<dyn std::error::Error>> {
+    for dataset in [
+        VisionDataset::UmKline,
+        VisionDataset::SpotKline,
+        VisionDataset::MarkPriceKline,
+        VisionDataset::IndexPriceKline,
+        VisionDataset::PremiumIndexKline,
+    ] {
+        let dir = tempfile::tempdir()?;
+        let june1 = day(2021, 6, 1)?;
+        ingest(
+            dir.path(),
+            dataset,
+            june1,
+            june1,
+            &[ArchiveFile {
+                prefix: prefix(dataset, Cadence::Daily)?,
+                file_name: "BTCUSDT-1m-2021-06-01.zip".to_owned(),
+                csv: day_csv(june1, 1),
+            }],
+        )?;
+        assert!(run::verify(dir.path(), &VerifyFilter::all())?.ok());
+        let mut extra =
+            store::load_klines(dir.path(), dataset.as_str(), "BTCUSDT", june1)?[0].clone();
+        extra.open_time = UtcMicros::from_micros(extra.open_time.micros() + 60_000_000);
+        extra.close_time = UtcMicros::from_micros(extra.close_time.micros() + 60_000_000);
+        extra.event_ts = EventTs::from_micros(extra.open_time);
+        extra.available_ts =
+            AvailableTs::from_micros(UtcMicros::from_micros(extra.close_time.micros() + 1_000));
+        store::upsert_klines(dir.path(), dataset.as_str(), vec![extra.clone()])?;
+        let report = run::verify(dir.path(), &VerifyFilter::all())?;
+        assert!(!report.ok(), "extra stored minute was accepted: {report}");
+        assert_eq!(
+            report.fault_lines,
+            [format!(
+                "unexpected parquet row {dataset}/BTCUSDT/2021-06-01 {}",
+                extra.open_time.micros()
+            )]
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn duplicate_stored_kline_keys_fail_verify() -> Result<(), Box<dyn std::error::Error>> {
+    for conflicting in [false, true] {
+        let dir = tempfile::tempdir()?;
+        let june1 = day(2021, 6, 1)?;
+        ingest(
+            dir.path(),
+            VisionDataset::UmKline,
+            june1,
+            june1,
+            &[ArchiveFile {
+                prefix: prefix(VisionDataset::UmKline, Cadence::Daily)?,
+                file_name: "BTCUSDT-1m-2021-06-01.zip".to_owned(),
+                csv: day_csv(june1, 1),
+            }],
+        )?;
+        let path = store::fact_path(dir.path(), "um-kline", "BTCUSDT", june1);
+        let builder = ParquetRecordBatchReaderBuilder::try_new(std::fs::File::open(&path)?)?;
+        let schema = builder.schema().clone();
+        let batches = builder.build()?.collect::<Result<Vec<_>, _>>()?;
+        let mut columns = batches[0].columns().to_vec();
+        if conflicting {
+            let index = schema.index_of("open_ticks")?;
+            columns[index] =
+                std::sync::Arc::new(arrow_array::Int64Array::from(vec![1_000_000_001]));
+        }
+        let duplicate = arrow_array::RecordBatch::try_new(schema.clone(), columns)?;
+        let mut writer = ArrowWriter::try_new(std::fs::File::create(&path)?, schema, None)?;
+        writer.write(&batches[0])?;
+        writer.write(&duplicate)?;
+        writer.close()?;
+        assert_eq!(
+            store::load_klines(dir.path(), "um-kline", "BTCUSDT", june1)?.len(),
+            2
+        );
+        let report = run::verify(dir.path(), &VerifyFilter::all())?;
+        assert!(!report.ok(), "duplicate stored key was accepted: {report}");
+        assert_eq!(
+            report.fault_lines,
+            [format!(
+                "duplicate parquet key um-kline/BTCUSDT/2021-06-01 {}",
+                june1.start_us().micros()
+            )]
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn kline_source_union_accepts_overlap_raw_duplicates_and_schema_equivalence(
+) -> Result<(), Box<dyn std::error::Error>> {
+    const HEADER: &str = "open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore\n";
+    let june1 = day(2021, 6, 1)?;
+    for daily_first in [false, true] {
+        let dir = tempfile::tempdir()?;
+        let first = day_csv(june1, 1);
+        let monthly = ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Monthly)?,
+            file_name: "BTCUSDT-1m-2021-06.zip".to_owned(),
+            csv: format!("{first}{first}"),
+        };
+        let daily = ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Daily)?,
+            file_name: "BTCUSDT-1m-2021-06-01.zip".to_owned(),
+            csv: format!("{HEADER}{}", day_csv(june1, 2)),
+        };
+        let archives = if daily_first {
+            [daily, monthly]
+        } else {
+            [monthly, daily]
+        };
+        for archive in &archives {
+            ingest(
+                dir.path(),
+                VisionDataset::UmKline,
+                june1,
+                june1,
+                std::slice::from_ref(archive),
+            )?;
+        }
+        let path = store::fact_path(dir.path(), "um-kline", "BTCUSDT", june1);
+        let bytes = std::fs::read(&path)?;
+        let report = run::verify(dir.path(), &VerifyFilter::all())?;
+        assert!(report.ok(), "{report}");
+        assert_eq!(report.partition_loads, ["um-kline/BTCUSDT/2021-06-01"]);
+        let rows = store::load_klines(dir.path(), "um-kline", "BTCUSDT", june1)?;
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].schema_version, if daily_first { 2 } else { 1 });
+        assert_eq!(
+            std::fs::read(path)?,
+            bytes,
+            "verify changed stored provenance"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn kline_set_verification_keeps_partial_month_and_filter_exclusions(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let june1 = day(2021, 6, 1)?;
+    let june2 = day(2021, 6, 2)?;
+    ingest(
+        dir.path(),
+        VisionDataset::UmKline,
+        june1,
+        june1,
+        &[ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Monthly)?,
+            file_name: "BTCUSDT-1m-2021-06.zip".to_owned(),
+            csv: format!("{}{}", day_csv(june1, 1), day_csv(june2, 1)),
+        }],
+    )?;
+    let mut outside = store::load_klines(dir.path(), "um-kline", "BTCUSDT", june1)?[0].clone();
+    let shift = june2.start_us().micros() - june1.start_us().micros();
+    outside.open_time = UtcMicros::from_micros(outside.open_time.micros() + shift + 60_000_000);
+    outside.close_time = UtcMicros::from_micros(outside.close_time.micros() + shift + 60_000_000);
+    store::upsert_klines(dir.path(), "um-kline", vec![outside])?;
+    for filter in [
+        VerifyFilter::all(),
+        VerifyFilter::parse(&["um-kline"], Some("2021-06-02"), Some("2021-06-02"))?,
+        VerifyFilter::parse(&["spot-kline"], None, None)?,
+    ] {
+        let report = run::verify(dir.path(), &filter)?;
+        assert!(
+            report.ok(),
+            "excluded date or dataset was checked: {report}"
+        );
+        assert!(!report
+            .partition_loads
+            .iter()
+            .any(|path| path.ends_with("2021-06-02")));
+    }
+    Ok(())
+}
+
+#[test]
+fn legacy_kline_scope_checks_extra_rows_on_raw_empty_days() -> Result<(), Box<dyn std::error::Error>>
+{
+    let dir = tempfile::tempdir()?;
+    let june1 = day(2021, 6, 1)?;
+    let june2 = day(2021, 6, 2)?;
+    ingest(
+        dir.path(),
+        VisionDataset::UmKline,
+        june1,
+        june1,
+        &[ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Monthly)?,
+            file_name: "BTCUSDT-1m-2021-06.zip".to_owned(),
+            csv: day_csv(june1, 1),
+        }],
+    )?;
+    legacy_manifest_scope(dir.path())?;
+    let mut extra = store::load_klines(dir.path(), "um-kline", "BTCUSDT", june1)?[0].clone();
+    extra.open_time = june2.start_us();
+    extra.close_time = UtcMicros::from_micros(june2.start_us().micros() + 59_999_000);
+    extra.event_ts = EventTs::from_micros(extra.open_time);
+    extra.available_ts =
+        AvailableTs::from_micros(UtcMicros::from_micros(extra.close_time.micros() + 1_000));
+    store::upsert_klines(dir.path(), "um-kline", vec![extra])?;
+    for filter in [
+        VerifyFilter::all(),
+        VerifyFilter::parse(&["um-kline"], Some("2021-06-02"), Some("2021-06-02"))?,
+    ] {
+        let report = run::verify(dir.path(), &filter)?;
+        assert!(
+            !report.ok(),
+            "extra row on a legacy raw-empty day was accepted: {report}"
+        );
+        assert_eq!(
+            report.fault_lines,
+            [format!(
+                "unexpected parquet row um-kline/BTCUSDT/2021-06-02 {}",
+                june2.start_us().micros()
+            )]
+        );
+    }
+    Ok(())
 }
 
 fn scope_contains(report: &VerifyReport, phrase: &str) {

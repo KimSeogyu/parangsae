@@ -576,3 +576,86 @@ pub fn delayed_funding_prefix(rate: i64) -> Script {
     .expect("delayed funding keeps a causal prefix")
     .1
 }
+
+pub fn delayed_target_report() -> Report {
+    use parangsae_backtest::{run_targets, BookState, FundingObs, SignalOutput, TargetSignal};
+    use parangsae_core::{Causal, ResampledBar};
+    struct Delayed(Script);
+    impl TargetSignal for Delayed {
+        fn decision_delay_us(&self) -> i64 {
+            1_000
+        }
+        fn on_bar(
+            &mut self,
+            b: Causal<'_, &[ResampledBar]>,
+            f: Causal<'_, &[FundingObs]>,
+            s: BookState,
+        ) -> Option<SignalOutput> {
+            let mut out = self.0.on_bar(b, f, s)?;
+            out.decision_ts = parangsae_core::DecisionTime::from_micros(
+                out.decision_ts.micros().checked_add_micros(1_000).unwrap(),
+            );
+            Some(out)
+        }
+    }
+    let bars = hours(at(12, 0), 3, 100);
+    let mut signal = Delayed(Script::new(vec![Some(tgt(1.0)); 3]));
+    run_targets(
+        &crate::support::tape_of(bars.clone()),
+        &mut signal,
+        &crate::support::costs(0, 0),
+        &crate::support::cfg(&bars, 10_000),
+    )
+    .unwrap()
+}
+
+pub fn canceled_pending_flip() -> Report {
+    let mut bars = hours(at(12, 0), 5, 100);
+    let marks = bars.clone();
+    for bar in &mut bars[120..240] {
+        filler(bar);
+    }
+    execute(
+        bars,
+        marks,
+        vec![stamp_at(at(16, 0), at(16, 1), 0)],
+        vec![
+            Some(tgt(0.5)),
+            Some(tgt(-0.5)),
+            Some(tgt(-0.5)),
+            Some(tgt(0.5)),
+            Some(tgt(0.5)),
+        ],
+        10_000,
+        Vec::new(),
+        Vec::new(),
+    )
+    .unwrap()
+    .0
+}
+
+pub fn same_lot_reaccept() -> Report {
+    struct Reaccept(Script, u64);
+    impl TargetSignal for Reaccept {
+        fn on_bar(
+            &mut self,
+            bars: Causal<'_, &[ResampledBar]>,
+            funding: Causal<'_, &[FundingObs]>,
+            book: BookState,
+        ) -> Option<SignalOutput> {
+            let mut output = self.0.on_bar(bars, funding, book)?;
+            self.1 += 1;
+            output.accept = self.1;
+            Some(output)
+        }
+    }
+    let bars = hours(at(12, 0), 3, 100);
+    let mut signal = Reaccept(Script::new(vec![Some(tgt(0.5)); 3]), 0);
+    run_targets(
+        &tape_of(bars.clone()),
+        &mut signal,
+        &costs(0, 0),
+        &cfg(&bars, 10_000),
+    )
+    .unwrap()
+}

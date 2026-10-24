@@ -29,6 +29,7 @@ struct EngineWorld {
     funding_hidden: bool,
     funding_visible: bool,
     funding_scripts: Option<(cases::Script, cases::Script)>,
+    probe_result: Option<Result<(), String>>,
 }
 
 impl EngineWorld {
@@ -386,4 +387,58 @@ async fn main() {
     let features = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../specs/features/backtest_engine.feature");
     EngineWorld::cucumber().run_and_exit(features).await;
+}
+
+#[when("a target waits for a decision one millisecond after the boundary")]
+fn qr_delayed_step(world: &mut EngineWorld) {
+    keep(world, cases::delayed_target_report());
+}
+#[then("the first fill is the 13:01 open")]
+fn qr_later_open(world: &mut EngineWorld) {
+    assert_eq!(world.report().fills[0].ts.micros(), at(13, 1));
+}
+#[when("the target is half equity and the fill price doubles")]
+fn qr_sizing_step(world: &mut EngineWorld) {
+    keep(world, cases::moving_price());
+}
+#[then("the filled quantity is 5000000 ticks")]
+fn qr_fill_qty(world: &mut EngineWorld) {
+    assert_eq!(world.report().fills[0].qty.ticks(), 5_000_000);
+}
+
+#[when("the fractional-tick drawdown cash curve is measured")]
+fn fractional_drawdown_step(world: &mut EngineWorld) {
+    let curve = [
+        Cash(100_000_000_000_000),
+        Cash(90_000_000_000_000),
+        Cash(71_999_999_999_999),
+        Cash(90_000_000_000_000),
+    ];
+    world.drawdown = Some(parangsae_backtest::max_drawdown(&curve).unwrap().ticks());
+}
+
+#[when("the H2 lookahead probe runs with an unreachable deadband")]
+fn inactive_probe(world: &mut EngineWorld) {
+    let params = std::collections::BTreeMap::from([
+        ("deadband".to_owned(), 200_000_001),
+        ("n_members".to_owned(), 12),
+    ]);
+    world.probe_result = Some(parangsae_strategies::truncation_probe("H2", &params));
+}
+
+#[then("the probe refuses to attest causality without an active decision")]
+fn inactive_probe_refused(world: &mut EngineWorld) {
+    let error = world.probe_result.as_ref().unwrap().as_ref().unwrap_err();
+    assert!(error.contains("no active comparison decision"), "{error}");
+}
+
+#[when("a pending position flip is canceled before a tradable minute")]
+fn canceled_flip_step(world: &mut EngineWorld) {
+    keep(world, cases::canceled_pending_flip());
+}
+
+#[then("only the initial realized rebalance counts toward the activity gate")]
+fn realized_activity_only(world: &mut EngineWorld) {
+    assert_eq!(world.report().n_rebalances, 1);
+    assert_eq!(world.report().n_sign_changes, 0);
 }

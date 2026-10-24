@@ -15,7 +15,7 @@ Prefer removing an invalid operation from an API over adding another checker for
 - **Keep effects and ownership narrow.** Accounting state belongs to its ledger; external data is parsed at the boundary. Dynamic conditions still require runtime validation.
 - **Use verification to test those boundaries.** TLC, Kani, Gherkin, and property tests cover particular models, harnesses, and examples. They do not prove the entire system correct or establish trading edge.
 
-Spec-derived transition APIs are a **next step**, tracked in [#25](https://github.com/KimSeogyu/parangsae/issues/25). The current lifecycle transitions are hand-written; the project does not yet generate their implementation from TLA+.
+The collector uses [generated partition merge code](spec/sgd/README.md) from checked Fact and control models. Execution lifecycle transitions are still written by hand. Parquet paths, file writes, and conflict logging remain application code.
 
 ## What is here
 
@@ -25,7 +25,7 @@ Spec-derived transition APIs are a **next step**, tracked in [#25](https://githu
 | [`crates/collector`](crates/collector) | Public Binance Vision archive ingestion, validation, and Parquet storage; REST/WS modules are boundaries, not working clients |
 | [`crates/signals`](crates/signals) · [`crates/strategies`](crates/strategies) | Causal signals, features, and initial strategy families |
 | [`crates/sim`](crates/sim) · [`crates/backtest`](crates/backtest) | Fixed-point accounting, event-driven backtesting, explicit fees/funding/slippage, and walk-forward tooling |
-| [`crates/execution`](crates/execution) | Offline order lifecycle and a sealed, reject-only paper venue stub |
+| [`crates/execution`](crates/execution) | Offline order lifecycle, a signed USD-M demo query and cancel codec, and a sealed paper venue that rejects all orders |
 | [`crates/regime`](crates/regime) | Permission-layer scaffold; no classifier implemented |
 | [`specs`](specs) · [`spec/arch`](spec/arch) · [`xtask`](xtask) | Behavioral models and scenarios, architecture policy, and supporting checks |
 
@@ -43,7 +43,9 @@ The collector downloads public `data.binance.vision` objects. No API key or orde
 
 `--dataset all` runs the eight Tier-1 datasets. `--dataset` also accepts the Vision folder names (`klines`, `markPriceKlines`, `fundingRate`, `metrics`, `bookDepth`). The default data directory is `./data`, which is gitignored. `verify` reads local files only.
 
-Detected checksum mismatches, row-level faults, conflicts, and gaps make the process exit 1. A successful verification is limited to the selected local artifacts; it does not establish source completeness or point-in-time correctness. See [#9](https://github.com/KimSeogyu/parangsae/issues/9) for the missing-partition regression and its resolution. The same key with the same payload is a no-op. The same key with a different payload is recorded and the stored row is left in place.
+Collection exits with status 1 for checksum mismatches, invalid rows, conflicts, and gaps outside the allowlist. A successful verification is limited to the selected local artifacts; it does not establish source completeness or point-in-time correctness. The [collector verification scenarios](specs/features/collector/collector_integrity.feature) cover deleted partitions and partial-month ingests. The same key with the same payload is a no-op. The same key with a different payload is recorded and the stored row is left in place.
+
+Stored metrics and book-depth payloads are not yet compared with their source archives ([#7](https://github.com/KimSeogyu/parangsae/issues/7)).
 
 ## Reading guide
 
@@ -52,9 +54,9 @@ Detected checksum mismatches, row-level faults, conflicts, and gaps make the pro
 - [Order lifecycle model and its verification limits](specs/tla/execution/README.md)
 - [Ingest model](specs/tla/IngestSegment.tla) · [Fact-write model](specs/tla/ManifestWrite.tla)
 - [Kline scenarios](specs/features/kline_integrity.feature) · [Vision scenarios](specs/features/collector/vision_integrity.feature)
-- [Research knowledge hub proposal — draft PR #13, not merged](https://github.com/KimSeogyu/parangsae/pull/13)
+- [Research knowledge hub](research/knowledge/README.md)
 
-The previous Python implementation is preserved at the [`python-legacy` tag](https://github.com/KimSeogyu/parangsae/tree/python-legacy) (commit `8713f024afa18bcb9fd8e7cae573acffab6bdb7e`). Do not run it or port it.
+The previous Python implementation is preserved at the [`python-legacy` tag](https://github.com/KimSeogyu/parangsae/tree/python-legacy). Do not run it or port it.
 
 ## Checks
 
@@ -64,4 +66,4 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-[CI](.github/workflows/ci.yml) also checks architecture policy and runs path-gated TLC and Kani jobs. Follow [AGENTS.md](AGENTS.md) for the full validation workflow. A green run means the checks that ran passed; path-skipped proof jobs were not executed. It is not a performance or live-readiness verdict.
+[CI](.github/workflows/ci.yml) also checks architecture policy and the [generated Fact pilot](spec/sgd/README.md), and runs path-gated TLC and Kani jobs. Follow [AGENTS.md](AGENTS.md) for the full validation workflow. A green run means the checks that ran passed; path-skipped proof jobs were not executed. It is not a performance or live-readiness verdict.
