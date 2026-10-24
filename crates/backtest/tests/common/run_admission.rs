@@ -243,6 +243,7 @@ fn synthetic_run(world: &mut AdmissionWorld) {
                 fill_notional_ticks: 0,
                 max_dd_ticks: 0,
                 accounting: WindowAccounting::ZERO,
+                h4: None,
             })
         },
     )

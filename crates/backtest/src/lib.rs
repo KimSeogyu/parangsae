@@ -23,6 +23,7 @@ mod date;
 mod engine;
 mod error;
 pub mod fixture;
+pub mod h4_report;
 mod metrics;
 pub mod offline_replay;
 mod report;

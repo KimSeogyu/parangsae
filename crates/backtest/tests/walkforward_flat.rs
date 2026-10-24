@@ -120,6 +120,7 @@ fn stitch(first_invested: bool) -> Vec<FeeReplay> {
                 fill_notional_ticks: 41,
                 max_dd_ticks: 0,
                 accounting: activity(),
+                h4: None,
             })
         },
     )
