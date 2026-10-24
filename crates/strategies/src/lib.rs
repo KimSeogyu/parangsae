@@ -1,6 +1,6 @@
 //! First-batch families S01, S02, S03, S05, and S06.
 //!
-//! Each family emits one [`parangsae_signals::SignalOutput`] per closed bar once
+//! Each family emits one [`StrategyOutput`] per closed bar once
 //! its lookback and the prereg warmup instant have both passed. Flat positions
 //! are [`parangsae_signals::Decision::Target`] of [`parangsae_signals::Target::FLAT`].
 //! [`parangsae_signals::Decision::Flat`] stays the funding-only reason from
@@ -61,6 +61,10 @@
 //!   `n_refused_fills`. The open of 2025-09-30 23:59 UTC force-flats, so the
 //!   final exit pays costs. A repeated target has delta quantity 0, so S06
 //!   does not re-trade a same-sign block.
+//! * **H4 execution.** H4 requires [`ExecutionPhase`] feedback and anchors its
+//!   hold to the actual entry. [`ExecutionDirective::Keep`] preserves pending
+//!   orders and held quantity. A bar-only caller uses [`Strategy::h4_opportunity`]
+//!   and drains raw observations; it does not simulate a position.
 
 #![forbid(unsafe_code)]
 
@@ -69,6 +73,7 @@ mod donchian;
 mod ensemble;
 mod er_gate;
 mod error;
+mod execution;
 mod fade;
 mod funding_fade;
 mod premium;
@@ -87,6 +92,10 @@ use parangsae_signals::SignalOutput;
 
 pub use aux::{FundingPrint, PremiumMinute};
 pub use error::StrategyError;
+pub use execution::{
+    ActualHold, ExecutionDirective, ExecutionPhase, H4Event, H4Observation, H4ObservationKind,
+    H4Opportunity, PositionSide, StrategyOutput, H4_OBSERVATIONS_PER_EVENT,
+};
 pub use probe::truncation_probe;
 pub use series::{DecisionBook, EARLIEST_US};
 
@@ -133,9 +142,8 @@ impl Strategy {
     /// Holds `Hold::arm` refused because they would end after 2025-09-30 23:59 UTC.
     pub fn dropped_entries(&self) -> u64 {
         match &self.inner {
-            Inner::S01(_) | Inner::H1(_) | Inner::H2(_) | Inner::S06(_) => 0,
+            Inner::S01(_) | Inner::H1(_) | Inner::H2(_) | Inner::H4(_) | Inner::S06(_) => 0,
             Inner::H3(strategy) => strategy.dropped_entries(),
-            Inner::H4(strategy) => strategy.dropped_entries(),
             Inner::H5(strategy) => strategy.dropped_entries(),
             Inner::S02(strategy) => strategy.dropped_entries(),
             Inner::S03(strategy) => strategy.dropped_entries(),
@@ -188,17 +196,45 @@ impl Strategy {
         &mut self,
         row: &Observation<ResampledBar>,
         book: Option<DecisionBook>,
-    ) -> Result<Option<SignalOutput>, StrategyError> {
-        match &mut self.inner {
+    ) -> Result<Option<StrategyOutput>, StrategyError> {
+        let signal = match &mut self.inner {
             Inner::S01(strategy) | Inner::H1(strategy) => strategy.push(row, book),
             Inner::H2(strategy) => strategy.push(row, book),
             Inner::H3(strategy) => strategy.push(row, book),
-            Inner::H4(strategy) => strategy.push(row, book),
+            Inner::H4(strategy) => return strategy.push(row, book),
             Inner::H5(strategy) => strategy.push(row, book),
             Inner::S02(strategy) => strategy.push(row, book),
             Inner::S03(strategy) => strategy.push(row, book),
             Inner::S05(strategy) => strategy.push(row, book),
             Inner::S06(strategy) => strategy.push(row, book),
+        }?;
+        Ok(signal.map(StrategyOutput::target))
+    }
+
+    /// Evaluate H4 features without inventing execution feedback or a hold timer.
+    /// Call this instead of `push` for a bar-only causal probe, once per bar.
+    pub fn h4_opportunity(
+        &mut self,
+        row: &Observation<ResampledBar>,
+    ) -> Result<Option<H4Opportunity>, StrategyError> {
+        match &mut self.inner {
+            Inner::H4(strategy) => strategy.opportunity(row),
+            _ => Err(StrategyError::Param("H4 opportunity family")),
+        }
+    }
+
+    /// Drain raw H4 observations after `observe`, `push` or `h4_opportunity`.
+    pub fn take_h4_observations(&mut self) -> Vec<H4Observation> {
+        match &mut self.inner {
+            Inner::H4(strategy) => strategy.take_observations(),
+            _ => Vec::new(),
+        }
+    }
+
+    pub fn h4_observation_capacity(&self) -> usize {
+        match &self.inner {
+            Inner::H4(strategy) => strategy.observation_capacity(),
+            _ => 0,
         }
     }
 
@@ -218,17 +254,21 @@ impl Strategy {
     }
 }
 
-/// Replay `bars` in order. A prefix replay matches the full replay up to that prefix.
+/// Replay bar-only families in order. H4 requires execution feedback and is refused;
+/// its causal feature callers use `h4_opportunity` instead.
 pub fn replay(
     family: &str,
     params: &BTreeMap<String, i64>,
     bars: &[Observation<ResampledBar>],
 ) -> Result<Vec<SignalOutput>, StrategyError> {
+    if family == "H4" {
+        return Err(StrategyError::MissingExecutionContext);
+    }
     let mut strategy = Strategy::from_params(family, params)?;
     let mut out = Vec::new();
     for bar in bars {
         if let Some(signal) = strategy.push(bar, None)? {
-            out.push(signal);
+            out.push(signal.signal);
         }
     }
     Ok(out)
