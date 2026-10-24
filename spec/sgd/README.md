@@ -72,7 +72,7 @@ The user approved this required-check change on 2026-10-24 under root `AGENTS.md
 
 The complete workspace tests passed after the direct source-action integration. Collector temporary-Parquet and Gherkin checks preserve first rows, raw schema and receipt time, all conflict observations, unchanged counts, and whole-partition rollback. Workspace Clippy with denied warnings and formatting passed. ArchitecturePolicy passed TLC, generation freshness, and source enforcement. Existing core and instrument Kani harnesses passed; those harnesses do not prove generated row ownership.
 
-Independent implementation and architecture review found no concrete behavior regression. The architecture change adds the pure generated crate and its collector dependency without adding effects, capabilities, or writer grants. Archive ObjectManifest and ManifestLog behavior is unchanged from the selected base. This branch depends on pending Kline schema PR #5; coverage PRs #3 and #6 remain separate integration work.
+Independent implementation and architecture review found no concrete behavior regression. The architecture change adds the pure generated crate and its collector dependency without adding effects, capabilities, or writer grants. The main integration includes Kline schema PR #5 and coverage PRs #3 and #6. It preserves their archive identity, coverage-before-write, legacy scope, and empty funding-date contracts.
 
 On 2026-10-24, the pinned Git dependency installed with its preparation step, and a subsequent `npm ci` succeeded using an empty task-local npm cache with SSH explicitly disabled. The installed SDK completed `update` and `verify` against this application. The verification command rejected a modified generated abstract owner with `TLC104`; after restoration it passed and preserved every managed artifact. The installed-SDK update preserved the existing v5 native code and stable artifacts. Pele rendered all four model views.
 
@@ -91,6 +91,8 @@ The installed pinned v6 SDK completed `update` and readonly `verify` against thi
 The new symbol and UTC-day baseline regression tests also ran against the prior committed collector, core types, and generated row authority in an isolated three-package workspace with a fresh Cargo target. Both failed because the old key-only fold accepted a new row and returned inserted one. Both pass with the generated closed fold, which refuses the mismatched supplied groups and preserves the actual target Parquet bytes without conflict-log writes. A shared-target attempt was discarded because Cargo reused current artifacts; only the fresh-target failure supports the before-and-after result.
 
 Independent source review confirmed that ObjectManifest, ManifestLog, Parquet codecs, and conflict-log formatting remain unchanged. Count conversion and checked cross-day addition now finish before writer or log effects. The user subsequently approved required-CI activation, and the existing `spec-arch` job now runs the pinned readonly pilot verifier.
+
+The integration with the merged collector fixes passed workspace tests, Clippy, formatting, and architecture checks. Pinned SDK regeneration refreshed the affected source inventories and derived receipts without changing generated Rust or TypeScript code. Readonly verification passed after that refresh; volatile TLC logs retain their earlier model run.
 
 ## Guarantee boundary
 
