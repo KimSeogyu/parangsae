@@ -1,0 +1,5 @@
+{
+  "profile": "partition-fold",
+  "className": "FactEnvelopeMachine",
+  "rustCrateMode": "workspace"
+}

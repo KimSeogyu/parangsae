@@ -1,0 +1,89 @@
+{
+  "kind": "equality-copy-orbits",
+  "states": [
+    {
+      "phase": {
+        "kind": "string",
+        "value": "absent"
+      },
+      "rejected": {
+        "kind": "string",
+        "value": "none"
+      },
+      "stored": {
+        "kind": "string",
+        "value": "none"
+      }
+    },
+    {
+      "phase": {
+        "kind": "string",
+        "value": "present"
+      },
+      "rejected": {
+        "kind": "string",
+        "value": "none"
+      },
+      "stored": {
+        "kind": "data",
+        "domain": "Values",
+        "value": "a0"
+      }
+    },
+    {
+      "phase": {
+        "kind": "string",
+        "value": "conflict"
+      },
+      "rejected": {
+        "kind": "data",
+        "domain": "Values",
+        "value": "a0"
+      },
+      "stored": {
+        "kind": "data",
+        "domain": "Values",
+        "value": "a1"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": 0,
+      "input": "a0",
+      "action": "Insert",
+      "to": 1
+    },
+    {
+      "from": 1,
+      "input": "a0",
+      "action": "Same",
+      "to": 1
+    },
+    {
+      "from": 1,
+      "input": "a1",
+      "action": "Clash",
+      "to": 2
+    },
+    {
+      "from": 2,
+      "input": "a0",
+      "action": "Clash",
+      "to": 2
+    },
+    {
+      "from": 2,
+      "input": "a1",
+      "action": "Same",
+      "to": 2
+    },
+    {
+      "from": 2,
+      "input": "a2",
+      "action": "Clash",
+      "to": 2
+    }
+  ],
+  "disabled": []
+}

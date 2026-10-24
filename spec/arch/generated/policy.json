@@ -31,6 +31,10 @@
       "parangsae-core"
     ],
     [
+      "parangsae-collector",
+      "sgd-symbolic-factwriteenvelope-281ebc3217c8"
+    ],
+    [
       "parangsae-execution",
       "parangsae-core"
     ],
@@ -155,6 +159,7 @@
     "parangsae-signals",
     "parangsae-sim",
     "parangsae-strategies",
+    "sgd-symbolic-factwriteenvelope-281ebc3217c8",
     "xtask"
   ],
   "owners": [
@@ -296,5 +301,5 @@
       "Ops/Release"
     ]
   ],
-  "spec_sha256": "005b76c98d1dc74a1f572ec5b224a08f2cfaa57735efec67e15860bcfd0d7ab4"
+  "spec_sha256": "2a3efb9df9db188fd9fb3f3c0e011d2325bd6db7fbf4df877f2dc69c773f62e4"
 }

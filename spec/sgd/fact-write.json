@@ -1,0 +1,70 @@
+{
+  "version": 5,
+  "profile": "row-owned",
+  "name": "FactWriteEnvelope",
+  "spec": "../../specs/tla/FactWriteEnvelope.tla",
+  "config": "../../specs/tla/FactWriteEnvelope.cfg",
+  "application": "../..",
+  "targets": [
+    "typescript",
+    "rust"
+  ],
+  "binding": {
+    "className": "FactEnvelopeMachine",
+    "rustCrateMode": "workspace",
+    "row": {
+      "version": 1,
+      "profile": "rust-whole-row-v1",
+      "source": {
+        "manifest": "crates/collector/Cargo.toml",
+        "module": "crate::vision::rows",
+        "facts": [
+          {
+            "name": "KlineFact",
+            "rustPath": "crate::vision::KlineFact",
+            "metadata": [
+              "received_ts"
+            ]
+          },
+          {
+            "name": "FundingFact",
+            "rustPath": "crate::vision::FundingFact",
+            "metadata": [
+              "received_ts"
+            ]
+          },
+          {
+            "name": "MetricsFact",
+            "rustPath": "crate::vision::MetricsFact",
+            "metadata": [
+              "received_ts"
+            ]
+          },
+          {
+            "name": "BookFact",
+            "rustPath": "crate::vision::BookFact",
+            "metadata": [
+              "received_ts"
+            ]
+          }
+        ]
+      },
+      "model": {
+        "payloadInput": "v",
+        "provenanceInput": "provenance",
+        "pairs": [
+          {
+            "name": "stored",
+            "payload": "stored",
+            "provenance": "storedProvenance"
+          },
+          {
+            "name": "rejected",
+            "payload": "rejected",
+            "provenance": "rejectedProvenance"
+          }
+        ]
+      }
+    }
+  }
+}

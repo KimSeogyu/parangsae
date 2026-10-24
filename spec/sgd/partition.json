@@ -1,0 +1,26 @@
+{
+  "version": 6,
+  "profile": "partition-fold",
+  "name": "FactPartition",
+  "application": "../..",
+  "targets": [
+    "typescript",
+    "rust"
+  ],
+  "models": {
+    "row": {
+      "project": "fact-write.json"
+    },
+    "control": {
+      "project": "partition-control.json"
+    },
+    "families": {
+      "spec": "PartitionFamilies.tla",
+      "operator": "PartitionFamilies"
+    }
+  },
+  "binding": {
+    "className": "FactEnvelopeMachine",
+    "rustCrateMode": "workspace"
+  }
+}

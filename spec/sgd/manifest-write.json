@@ -1,0 +1,11 @@
+{
+  "version": 3,
+  "profile": "symbolic-owned",
+  "name": "ManifestWrite",
+  "spec": "../../specs/tla/ManifestWrite.tla",
+  "config": "../../specs/tla/ManifestWrite.cfg",
+  "targets": ["typescript"],
+  "binding": {
+    "className": "FactMachine"
+  }
+}

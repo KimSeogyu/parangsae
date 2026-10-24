@@ -1471,6 +1471,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sgd-symbolic-factwriteenvelope-281ebc3217c8",
  "sha2",
  "tempfile",
  "tokio",
@@ -2072,6 +2073,13 @@ dependencies = [
  "form_urlencoded",
  "itoa",
  "ryu",
+ "serde",
+]
+
+[[package]]
+name = "sgd-symbolic-factwriteenvelope-281ebc3217c8"
+version = "0.1.0"
+dependencies = [
  "serde",
 ]
 

@@ -1,0 +1,24 @@
+strict digraph DiskGraph {
+nodesep=0.35;
+subgraph cluster_graph {
+color="white";
+8907493946686218759 [label="/\\ rejected = \"none\"\n/\\ stored = \"none\"\n/\\ phase = \"absent\"",style = filled]
+8907493946686218759 -> -6954692612993093992 [label="Insert",color="black",fontcolor="black"];
+-6954692612993093992 [label="/\\ rejected = \"none\"\n/\\ stored = v1\n/\\ phase = \"present\""];
+8907493946686218759 -> 5699732248203730303 [label="Insert",color="black",fontcolor="black"];
+5699732248203730303 [label="/\\ rejected = \"none\"\n/\\ stored = v2\n/\\ phase = \"present\""];
+-6954692612993093992 -> -6954692612993093992 [label="Same",color="black",fontcolor="black"];
+-6954692612993093992 -> 3004136559359572561 [label="Clash",color="black",fontcolor="black"];
+3004136559359572561 [label="/\\ rejected = v2\n/\\ stored = v1\n/\\ phase = \"conflict\""];
+5699732248203730303 -> -8007271391781931489 [label="Clash",color="black",fontcolor="black"];
+-8007271391781931489 [label="/\\ rejected = v1\n/\\ stored = v2\n/\\ phase = \"conflict\""];
+5699732248203730303 -> 5699732248203730303 [label="Same",color="black",fontcolor="black"];
+3004136559359572561 -> 3004136559359572561 [label="Same",color="black",fontcolor="black"];
+3004136559359572561 -> 3004136559359572561 [label="Clash",color="black",fontcolor="black"];
+-8007271391781931489 -> -8007271391781931489 [label="Clash",color="black",fontcolor="black"];
+-8007271391781931489 -> -8007271391781931489 [label="Same",color="black",fontcolor="black"];
+{rank = same; 8907493946686218759;}
+{rank = same; -6954692612993093992;5699732248203730303;}
+{rank = same; -8007271391781931489;3004136559359572561;}
+}
+}

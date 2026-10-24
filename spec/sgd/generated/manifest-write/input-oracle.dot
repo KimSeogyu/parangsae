@@ -1,0 +1,35 @@
+strict digraph DiskGraph {
+nodesep=0.35;
+subgraph cluster_graph {
+color="white";
+9195986992188822355 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = \"none\"\n/\\ stored = \"none\"\n/\\ SGDOracle0Input = v1\n/\\ phase = \"absent\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+7088897908753952300 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = \"none\"\n/\\ stored = \"none\"\n/\\ SGDOracle0Input = v2\n/\\ phase = \"absent\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+7103341105930356594 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = v1\n/\\ stored = v2\n/\\ SGDOracle0Input = v1\n/\\ phase = \"conflict\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+-6246843067633690988 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = v1\n/\\ stored = v2\n/\\ SGDOracle0Input = v2\n/\\ phase = \"conflict\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+3177861187083436611 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = v2\n/\\ stored = v1\n/\\ SGDOracle0Input = v1\n/\\ phase = \"conflict\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+-1747144164310395995 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = v2\n/\\ stored = v1\n/\\ SGDOracle0Input = v2\n/\\ phase = \"conflict\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+-4242604508158131417 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = \"none\"\n/\\ stored = v1\n/\\ SGDOracle0Input = v1\n/\\ phase = \"present\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+-6648831001027771849 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = \"none\"\n/\\ stored = v1\n/\\ SGDOracle0Input = v2\n/\\ phase = \"present\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+9210220872634949016 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = \"none\"\n/\\ stored = v2\n/\\ SGDOracle0Input = v1\n/\\ phase = \"present\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+1834339257966812296 [label="/\\ SGDOracle0Action = \"\"\n/\\ rejected = \"none\"\n/\\ stored = v2\n/\\ SGDOracle0Input = v2\n/\\ phase = \"present\"\n/\\ SGDOracle0Step = \"before\"",style = filled]
+9195986992188822355 -> 5767318469073813516 [label="SGDOracle0Next",color="black",fontcolor="black"];
+5767318469073813516 [label="/\\ SGDOracle0Action = \"Insert\"\n/\\ rejected = \"none\"\n/\\ stored = v1\n/\\ SGDOracle0Input = v1\n/\\ phase = \"present\"\n/\\ SGDOracle0Step = \"after\""];
+7088897908753952300 -> 1120507034713813461 [label="SGDOracle0Next",color="black",fontcolor="black"];
+1120507034713813461 [label="/\\ SGDOracle0Action = \"Insert\"\n/\\ rejected = \"none\"\n/\\ stored = v2\n/\\ SGDOracle0Input = v2\n/\\ phase = \"present\"\n/\\ SGDOracle0Step = \"after\""];
+7103341105930356594 -> 882497931601133415 [label="SGDOracle0Next",color="black",fontcolor="black"];
+882497931601133415 [label="/\\ SGDOracle0Action = \"Clash\"\n/\\ rejected = v1\n/\\ stored = v2\n/\\ SGDOracle0Input = v1\n/\\ phase = \"conflict\"\n/\\ SGDOracle0Step = \"after\""];
+-6246843067633690988 -> -5525878790235412996 [label="SGDOracle0Next",color="black",fontcolor="black"];
+-5525878790235412996 [label="/\\ SGDOracle0Action = \"Same\"\n/\\ rejected = v1\n/\\ stored = v2\n/\\ SGDOracle0Input = v2\n/\\ phase = \"conflict\"\n/\\ SGDOracle0Step = \"after\""];
+3177861187083436611 -> 2119934151207502658 [label="SGDOracle0Next",color="black",fontcolor="black"];
+2119934151207502658 [label="/\\ SGDOracle0Action = \"Same\"\n/\\ rejected = v2\n/\\ stored = v1\n/\\ SGDOracle0Input = v1\n/\\ phase = \"conflict\"\n/\\ SGDOracle0Step = \"after\""];
+-1747144164310395995 -> -6772035785990579751 [label="SGDOracle0Next",color="black",fontcolor="black"];
+-6772035785990579751 [label="/\\ SGDOracle0Action = \"Clash\"\n/\\ rejected = v2\n/\\ stored = v1\n/\\ SGDOracle0Input = v2\n/\\ phase = \"conflict\"\n/\\ SGDOracle0Step = \"after\""];
+-4242604508158131417 -> 2576690700690777926 [label="SGDOracle0Next",color="black",fontcolor="black"];
+2576690700690777926 [label="/\\ SGDOracle0Action = \"Same\"\n/\\ rejected = \"none\"\n/\\ stored = v1\n/\\ SGDOracle0Input = v1\n/\\ phase = \"present\"\n/\\ SGDOracle0Step = \"after\""];
+-6648831001027771849 -> -6772035785990579751 [label="SGDOracle0Next",color="black",fontcolor="black"];
+9210220872634949016 -> 882497931601133415 [label="SGDOracle0Next",color="black",fontcolor="black"];
+1834339257966812296 -> 8955205733662152351 [label="SGDOracle0Next",color="black",fontcolor="black"];
+8955205733662152351 [label="/\\ SGDOracle0Action = \"Same\"\n/\\ rejected = \"none\"\n/\\ stored = v2\n/\\ SGDOracle0Input = v2\n/\\ phase = \"present\"\n/\\ SGDOracle0Step = \"after\""];
+{rank = same; 1834339257966812296;-6648831001027771849;7088897908753952300;-4242604508158131417;7103341105930356594;-1747144164310395995;9210220872634949016;9195986992188822355;-6246843067633690988;3177861187083436611;}
+}
+}

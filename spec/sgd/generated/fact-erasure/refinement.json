@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "kind": "symbolic-enabled-input-erasure",
+  "scope": "admitted-equality-copy-orbits",
+  "abstract": {
+    "name": "ManifestWrite",
+    "semanticSha256": "5861db29aa488a59a0967058d3fcf00b95b3ce2e5dce772307a0810ef94f21a0"
+  },
+  "concrete": {
+    "name": "FactWriteEnvelope",
+    "semanticSha256": "dcc32c6c46d16abd4b90ee573974b59aec70e95315c296a18484a3ac089ac25d"
+  },
+  "binding": {
+    "version": 1,
+    "variables": {
+      "phase": "phase",
+      "stored": "stored",
+      "rejected": "rejected"
+    },
+    "inputs": {
+      "v": "v"
+    },
+    "actions": {
+      "Insert": "Insert",
+      "Same": "Same",
+      "Clash": "Clash"
+    }
+  },
+  "concreteOrbitCount": 4,
+  "checkedCases": 20,
+  "acceptedCases": 20,
+  "disabledCases": 0
+}

@@ -1,0 +1,74 @@
+strict digraph DiskGraph {
+nodesep=0.35;
+subgraph cluster_graph {
+color="white";
+7985898947800619035 [label="/\\ rejected = \"none\"\n/\\ rejectedProvenance = \"none\"\n/\\ stored = \"none\"\n/\\ phase = \"absent\"\n/\\ storedProvenance = \"none\"",style = filled]
+7985898947800619035 -> -8315718838154372253 [label="Insert",color="black",fontcolor="black"];
+-8315718838154372253 [label="/\\ rejected = \"none\"\n/\\ rejectedProvenance = \"none\"\n/\\ stored = v1\n/\\ phase = \"present\"\n/\\ storedProvenance = p1"];
+7985898947800619035 -> -1863515630338765867 [label="Insert",color="black",fontcolor="black"];
+-1863515630338765867 [label="/\\ rejected = \"none\"\n/\\ rejectedProvenance = \"none\"\n/\\ stored = v2\n/\\ phase = \"present\"\n/\\ storedProvenance = p1"];
+7985898947800619035 -> 8995345489222666483 [label="Insert",color="black",fontcolor="black"];
+8995345489222666483 [label="/\\ rejected = \"none\"\n/\\ rejectedProvenance = \"none\"\n/\\ stored = v1\n/\\ phase = \"present\"\n/\\ storedProvenance = p2"];
+7985898947800619035 -> 1616287307030747205 [label="Insert",color="black",fontcolor="black"];
+1616287307030747205 [label="/\\ rejected = \"none\"\n/\\ rejectedProvenance = \"none\"\n/\\ stored = v2\n/\\ phase = \"present\"\n/\\ storedProvenance = p2"];
+-8315718838154372253 -> -8315718838154372253 [label="Same",color="black",fontcolor="black"];
+-8315718838154372253 -> -7787033080725936590 [label="Clash",color="black",fontcolor="black"];
+-7787033080725936590 [label="/\\ rejected = v2\n/\\ rejectedProvenance = p1\n/\\ stored = v1\n/\\ phase = \"conflict\"\n/\\ storedProvenance = p1"];
+-8315718838154372253 -> -8315718838154372253 [label="Same",color="black",fontcolor="black"];
+-8315718838154372253 -> 8991095177095439586 [label="Clash",color="black",fontcolor="black"];
+8991095177095439586 [label="/\\ rejected = v2\n/\\ rejectedProvenance = p2\n/\\ stored = v1\n/\\ phase = \"conflict\"\n/\\ storedProvenance = p1"];
+-1863515630338765867 -> 6375515425056019785 [label="Clash",color="black",fontcolor="black"];
+6375515425056019785 [label="/\\ rejected = v1\n/\\ rejectedProvenance = p1\n/\\ stored = v2\n/\\ phase = \"conflict\"\n/\\ storedProvenance = p1"];
+-1863515630338765867 -> -1863515630338765867 [label="Same",color="black",fontcolor="black"];
+-1863515630338765867 -> -5237037351441410151 [label="Clash",color="black",fontcolor="black"];
+-5237037351441410151 [label="/\\ rejected = v1\n/\\ rejectedProvenance = p2\n/\\ stored = v2\n/\\ phase = \"conflict\"\n/\\ storedProvenance = p1"];
+-1863515630338765867 -> -1863515630338765867 [label="Same",color="black",fontcolor="black"];
+8995345489222666483 -> 8995345489222666483 [label="Same",color="black",fontcolor="black"];
+8995345489222666483 -> 7179763091961427362 [label="Clash",color="black",fontcolor="black"];
+7179763091961427362 [label="/\\ rejected = v2\n/\\ rejectedProvenance = p1\n/\\ stored = v1\n/\\ phase = \"conflict\"\n/\\ storedProvenance = p2"];
+8995345489222666483 -> 8995345489222666483 [label="Same",color="black",fontcolor="black"];
+8995345489222666483 -> -8319402249511028878 [label="Clash",color="black",fontcolor="black"];
+-8319402249511028878 [label="/\\ rejected = v2\n/\\ rejectedProvenance = p2\n/\\ stored = v1\n/\\ phase = \"conflict\"\n/\\ storedProvenance = p2"];
+1616287307030747205 -> -6325548297856252199 [label="Clash",color="black",fontcolor="black"];
+-6325548297856252199 [label="/\\ rejected = v1\n/\\ rejectedProvenance = p1\n/\\ stored = v2\n/\\ phase = \"conflict\"\n/\\ storedProvenance = p2"];
+1616287307030747205 -> 1616287307030747205 [label="Same",color="black",fontcolor="black"];
+1616287307030747205 -> 5124828717028115465 [label="Clash",color="black",fontcolor="black"];
+5124828717028115465 [label="/\\ rejected = v1\n/\\ rejectedProvenance = p2\n/\\ stored = v2\n/\\ phase = \"conflict\"\n/\\ storedProvenance = p2"];
+1616287307030747205 -> 1616287307030747205 [label="Same",color="black",fontcolor="black"];
+-7787033080725936590 -> -7787033080725936590 [label="Same",color="black",fontcolor="black"];
+-7787033080725936590 -> -7787033080725936590 [label="Clash",color="black",fontcolor="black"];
+-7787033080725936590 -> -7787033080725936590 [label="Same",color="black",fontcolor="black"];
+-7787033080725936590 -> 8991095177095439586 [label="Clash",color="black",fontcolor="black"];
+8991095177095439586 -> 8991095177095439586 [label="Same",color="black",fontcolor="black"];
+8991095177095439586 -> -7787033080725936590 [label="Clash",color="black",fontcolor="black"];
+8991095177095439586 -> 8991095177095439586 [label="Same",color="black",fontcolor="black"];
+8991095177095439586 -> 8991095177095439586 [label="Clash",color="black",fontcolor="black"];
+6375515425056019785 -> 6375515425056019785 [label="Clash",color="black",fontcolor="black"];
+6375515425056019785 -> 6375515425056019785 [label="Same",color="black",fontcolor="black"];
+6375515425056019785 -> -5237037351441410151 [label="Clash",color="black",fontcolor="black"];
+6375515425056019785 -> 6375515425056019785 [label="Same",color="black",fontcolor="black"];
+-5237037351441410151 -> 6375515425056019785 [label="Clash",color="black",fontcolor="black"];
+-5237037351441410151 -> -5237037351441410151 [label="Same",color="black",fontcolor="black"];
+-5237037351441410151 -> -5237037351441410151 [label="Clash",color="black",fontcolor="black"];
+-5237037351441410151 -> -5237037351441410151 [label="Same",color="black",fontcolor="black"];
+7179763091961427362 -> 7179763091961427362 [label="Same",color="black",fontcolor="black"];
+7179763091961427362 -> 7179763091961427362 [label="Clash",color="black",fontcolor="black"];
+7179763091961427362 -> 7179763091961427362 [label="Same",color="black",fontcolor="black"];
+7179763091961427362 -> -8319402249511028878 [label="Clash",color="black",fontcolor="black"];
+-8319402249511028878 -> -8319402249511028878 [label="Same",color="black",fontcolor="black"];
+-8319402249511028878 -> 7179763091961427362 [label="Clash",color="black",fontcolor="black"];
+-8319402249511028878 -> -8319402249511028878 [label="Same",color="black",fontcolor="black"];
+-8319402249511028878 -> -8319402249511028878 [label="Clash",color="black",fontcolor="black"];
+-6325548297856252199 -> -6325548297856252199 [label="Clash",color="black",fontcolor="black"];
+-6325548297856252199 -> -6325548297856252199 [label="Same",color="black",fontcolor="black"];
+-6325548297856252199 -> 5124828717028115465 [label="Clash",color="black",fontcolor="black"];
+-6325548297856252199 -> -6325548297856252199 [label="Same",color="black",fontcolor="black"];
+5124828717028115465 -> -6325548297856252199 [label="Clash",color="black",fontcolor="black"];
+5124828717028115465 -> 5124828717028115465 [label="Same",color="black",fontcolor="black"];
+5124828717028115465 -> 5124828717028115465 [label="Clash",color="black",fontcolor="black"];
+5124828717028115465 -> 5124828717028115465 [label="Same",color="black",fontcolor="black"];
+{rank = same; 7985898947800619035;}
+{rank = same; 8995345489222666483;-8315718838154372253;-1863515630338765867;1616287307030747205;}
+{rank = same; 5124828717028115465;8991095177095439586;-7787033080725936590;-6325548297856252199;-5237037351441410151;-8319402249511028878;7179763091961427362;6375515425056019785;}
+}
+}

@@ -1,0 +1,11 @@
+{
+  "name": "sgd-generated-symbolic-owner",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node node_modules/typescript/bin/tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

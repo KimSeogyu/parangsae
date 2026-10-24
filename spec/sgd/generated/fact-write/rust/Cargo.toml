@@ -1,0 +1,9 @@
+[package]
+name = "sgd-symbolic-factwriteenvelope-281ebc3217c8"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }

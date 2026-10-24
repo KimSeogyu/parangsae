@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "variables": {
+    "phase": "phase",
+    "stored": "stored",
+    "rejected": "rejected"
+  },
+  "inputs": { "v": "v" },
+  "actions": {
+    "Insert": "Insert",
+    "Same": "Same",
+    "Clash": "Clash"
+  }
+}

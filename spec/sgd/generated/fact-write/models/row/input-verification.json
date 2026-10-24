@@ -1,0 +1,88 @@
+{
+  "kind": "tlc-finite-input-oracle",
+  "scope": "configured-reachable-state-input-product",
+  "domains": {
+    "Values": [
+      "v1",
+      "v2"
+    ],
+    "Receipts": [
+      "p1",
+      "p2"
+    ]
+  },
+  "inputs": [
+    {
+      "parameter": "v",
+      "domain": "Values"
+    },
+    {
+      "parameter": "provenance",
+      "domain": "Receipts"
+    }
+  ],
+  "stateCount": 13,
+  "checkedCases": 52,
+  "acceptedCases": 52,
+  "disabledCases": 0,
+  "base": {
+    "kind": "tlc-symbolic-completed",
+    "profile": "symbolic-owned-v1",
+    "extractor": "SANY-XML-v1",
+    "xmlSha256": "0538ae97626d4f51d0799453aa9e7bc6050bc00305d1cb6adb09826eedfb184a",
+    "rootModule": "FactWriteEnvelope",
+    "moduleClosure": [
+      {
+        "name": "FactWriteEnvelope.tla",
+        "sha256": "08ae4e4aa2ad35b2e5645cff150ce41a3241ebbb081045f1292a041084b185e3"
+      }
+    ],
+    "standardModules": [
+      "Integers",
+      "Naturals"
+    ],
+    "configSha256": "c02c2079f898a261cb5b0880494c09f5c56d80f872b80077843aa08306306563",
+    "jarSha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "dotSha256": "9ff354362fa824c1224de46204c35c88aa0282a4be1e42da58fd5a57fe8aa88a",
+    "mode": {
+      "exploration": "breadth-first",
+      "workers": 1,
+      "fingerprint": 0,
+      "seed": 0,
+      "dump": "dot,actionlabels",
+      "source": "isolated-flat-module-snapshot"
+    }
+  },
+  "oracle": {
+    "kind": "tlc-symbolic-completed",
+    "profile": "symbolic-owned-v1",
+    "extractor": "SANY-XML-v1",
+    "xmlSha256": "43d6acfa32c7cc42cc5b412c904fc50cc76713bd15e29d40b4f0897ac7b7e9bb",
+    "rootModule": "SGDOracle0",
+    "moduleClosure": [
+      {
+        "name": "FactWriteEnvelope.tla",
+        "sha256": "08ae4e4aa2ad35b2e5645cff150ce41a3241ebbb081045f1292a041084b185e3"
+      },
+      {
+        "name": "SGDOracle0.tla",
+        "sha256": "21255078c829b53459a4d4dc1e55ca89e8d66cb1e88472f4dbdd09e87d0d07a2"
+      }
+    ],
+    "standardModules": [
+      "Integers",
+      "Naturals"
+    ],
+    "configSha256": "6b62962a1a3e00592e1d2ad3ef5ab256134e664926feda60ad8a57fa7b214f94",
+    "jarSha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "dotSha256": "9418178d756f70b8fd6a90fcad82b6e73bd1c64b569dcd25ad4ef73f6fae9bea",
+    "mode": {
+      "exploration": "breadth-first",
+      "workers": 1,
+      "fingerprint": 0,
+      "seed": 0,
+      "dump": "dot,actionlabels",
+      "source": "isolated-flat-module-snapshot"
+    }
+  }
+}

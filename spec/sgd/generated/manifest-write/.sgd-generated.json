@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "files": [
+    "automaton.json",
+    "binding.json",
+    "input-oracle.dot",
+    "input-oracle.log",
+    "input-verification.json",
+    "model.dot",
+    "orbit-proof.json",
+    "semantic.xml",
+    "symbolic-model.json",
+    "tlc.log",
+    "typescript/README.md",
+    "typescript/machine.ts",
+    "typescript/package.json",
+    "typescript/tsconfig.json",
+    "verification.json"
+  ]
+}

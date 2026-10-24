@@ -1,0 +1,42 @@
+strict digraph DiskGraph {
+nodesep=0.35;
+subgraph cluster_graph {
+color="white";
+5138699477445128338 [label="/\\ hasConflict = FALSE\n/\\ phase = \"Open\"\n/\\ hasInserted = FALSE",style = filled]
+5138699477445128338 -> -480488096560130633 [label="Insert",color="black",fontcolor="black"];
+-480488096560130633 [label="/\\ hasConflict = FALSE\n/\\ phase = \"Open\"\n/\\ hasInserted = TRUE"];
+5138699477445128338 -> 5138699477445128338 [label="Same",color="black",fontcolor="black"];
+5138699477445128338 -> -6619053254493368512 [label="Clash",color="black",fontcolor="black"];
+-6619053254493368512 [label="/\\ hasConflict = TRUE\n/\\ phase = \"Open\"\n/\\ hasInserted = FALSE"];
+5138699477445128338 -> -943147011390535142 [label="CloseNoop",color="black",fontcolor="black"];
+-943147011390535142 [label="/\\ hasConflict = FALSE\n/\\ phase = \"ReadyNoop\"\n/\\ hasInserted = FALSE"];
+-480488096560130633 -> -480488096560130633 [label="Insert",color="black",fontcolor="black"];
+-480488096560130633 -> -480488096560130633 [label="Same",color="black",fontcolor="black"];
+-480488096560130633 -> 1882719391358347877 [label="Clash",color="black",fontcolor="black"];
+1882719391358347877 [label="/\\ hasConflict = TRUE\n/\\ phase = \"Open\"\n/\\ hasInserted = TRUE"];
+-480488096560130633 -> 774198376024476656 [label="CloseWrite",color="black",fontcolor="black"];
+774198376024476656 [label="/\\ hasConflict = FALSE\n/\\ phase = \"ReadyWrite\"\n/\\ hasInserted = TRUE"];
+-6619053254493368512 -> 1882719391358347877 [label="Insert",color="black",fontcolor="black"];
+-6619053254493368512 -> -6619053254493368512 [label="Same",color="black",fontcolor="black"];
+-6619053254493368512 -> -6619053254493368512 [label="Clash",color="black",fontcolor="black"];
+-6619053254493368512 -> -5594779907247587814 [label="CloseRefused",color="black",fontcolor="black"];
+-5594779907247587814 [label="/\\ hasConflict = TRUE\n/\\ phase = \"ReadyRefused\"\n/\\ hasInserted = FALSE"];
+-943147011390535142 -> -2867969841166756826 [label="ConsumeNoop",color="black",fontcolor="black"];
+-2867969841166756826 [label="/\\ hasConflict = FALSE\n/\\ phase = \"Consumed\"\n/\\ hasInserted = FALSE"];
+1882719391358347877 -> 1882719391358347877 [label="Insert",color="black",fontcolor="black"];
+1882719391358347877 -> 1882719391358347877 [label="Same",color="black",fontcolor="black"];
+1882719391358347877 -> 1882719391358347877 [label="Clash",color="black",fontcolor="black"];
+1882719391358347877 -> 891708589312531263 [label="CloseRefused",color="black",fontcolor="black"];
+891708589312531263 [label="/\\ hasConflict = TRUE\n/\\ phase = \"ReadyRefused\"\n/\\ hasInserted = TRUE"];
+774198376024476656 -> 7365155545207550211 [label="ConsumeWrite",color="black",fontcolor="black"];
+7365155545207550211 [label="/\\ hasConflict = FALSE\n/\\ phase = \"Consumed\"\n/\\ hasInserted = TRUE"];
+-5594779907247587814 -> 3659347546530952696 [label="ConsumeRefused",color="black",fontcolor="black"];
+3659347546530952696 [label="/\\ hasConflict = TRUE\n/\\ phase = \"Consumed\"\n/\\ hasInserted = FALSE"];
+891708589312531263 -> -8301198057013489443 [label="ConsumeRefused",color="black",fontcolor="black"];
+-8301198057013489443 [label="/\\ hasConflict = TRUE\n/\\ phase = \"Consumed\"\n/\\ hasInserted = TRUE"];
+{rank = same; 5138699477445128338;}
+{rank = same; -6619053254493368512;-943147011390535142;-480488096560130633;}
+{rank = same; 774198376024476656;-5594779907247587814;1882719391358347877;}
+{rank = same; 891708589312531263;}
+}
+}

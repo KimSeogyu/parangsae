@@ -39,7 +39,7 @@ struct VisionWorld {
     faults: Vec<String>,
     level_schema: u32,
     names: Vec<(String, String)>,
-    data_dir: Option<PathBuf>,
+    data_dir: Option<tempfile::TempDir>,
     open_ticks: i64,
     unchanged: u64,
     conflicts: u64,
@@ -49,6 +49,10 @@ struct VisionWorld {
     verify_dir: Option<tempfile::TempDir>,
     verify_report: Option<VerifyReport>,
     verify_error: Option<String>,
+    merge_dir: Option<tempfile::TempDir>,
+    merge_counts: Option<store::WriteCounts>,
+    merge_original: Option<KlineFact>,
+    merge_original_bytes: Vec<u8>,
 }
 
 fn symbol() -> Symbol {
@@ -483,16 +487,16 @@ fn has_gap(world: &mut VisionWorld) {
 
 #[given("a stored BTCUSDT kline in a fresh data directory")]
 fn stored_kline(world: &mut VisionWorld) {
-    let dir = tempfile::tempdir().expect("temp").keep();
+    let dir = tempfile::tempdir().expect("temp");
     let row = bar(1_788_220_800_000_000, 1_788_220_859_999_000, 42);
     world.open_ticks = row.open_ticks;
-    store::upsert_klines(&dir, "um-kline", vec![row]).expect("insert");
+    store::upsert_klines(dir.path(), "um-kline", vec![row]).expect("insert");
     world.data_dir = Some(dir);
 }
 
 #[when("the same kline is written again")]
 fn write_same(world: &mut VisionWorld) {
-    let dir = world.data_dir.as_ref().expect("dir");
+    let dir = world.data_dir.as_ref().expect("dir").path();
     let counts = store::upsert_klines(
         dir,
         "um-kline",
@@ -515,7 +519,7 @@ fn unchanged(world: &mut VisionWorld) {
 
 #[when("the same normalized kline from a headed CSV is written")]
 fn write_same_headed(world: &mut VisionWorld) {
-    let dir = world.data_dir.as_ref().expect("dir");
+    let dir = world.data_dir.as_ref().expect("dir").path();
     let mut row = bar(
         1_788_220_800_000_000,
         1_788_220_859_999_000,
@@ -529,7 +533,7 @@ fn write_same_headed(world: &mut VisionWorld) {
 
 #[then("the stored kline keeps its headerless source schema")]
 fn stored_schema_is_unchanged(world: &mut VisionWorld) {
-    let dir = world.data_dir.as_ref().expect("dir");
+    let dir = world.data_dir.as_ref().expect("dir").path();
     let day = CivilDay::new(2026, 9, 1).unwrap();
     let rows = store::load_klines(dir, "um-kline", "BTCUSDT", day).expect("load");
     assert_eq!(
@@ -540,7 +544,7 @@ fn stored_schema_is_unchanged(world: &mut VisionWorld) {
 
 #[when("a different open is written for that key")]
 fn write_different(world: &mut VisionWorld) {
-    let dir = world.data_dir.as_ref().expect("dir");
+    let dir = world.data_dir.as_ref().expect("dir").path();
     let counts = store::upsert_klines(
         dir,
         "um-kline",
@@ -562,7 +566,7 @@ fn conflicted(world: &mut VisionWorld) {
 
 #[then("the stored open is unchanged")]
 fn stored_open(world: &mut VisionWorld) {
-    let dir = world.data_dir.as_ref().expect("dir");
+    let dir = world.data_dir.as_ref().expect("dir").path();
     let day = CivilDay::new(2026, 9, 1).unwrap();
     let rows = store::load_klines(dir, "um-kline", "BTCUSDT", day).expect("load");
     assert_eq!(rows.len(), 1);
@@ -968,6 +972,151 @@ fn then_verify_usage(world: &mut VisionWorld) {
         err.contains("unknown dataset") || err.contains("reversed"),
         "{err}"
     );
+}
+
+#[given("a generated-owned kline partition in a fresh data directory")]
+fn generated_owned_partition(world: &mut VisionWorld) {
+    let directory = tempfile::tempdir().expect("temporary partition");
+    let original = bar(1_788_220_800_000_000, 1_788_220_859_999_000, 42);
+    store::upsert_klines(directory.path(), "um-kline", vec![original.clone()]).expect("baseline");
+    let path = store::fact_path(
+        directory.path(),
+        "um-kline",
+        "BTCUSDT",
+        CivilDay::new(2026, 9, 1).unwrap(),
+    );
+    world.merge_original_bytes = std::fs::read(path).expect("baseline bytes");
+    world.merge_original = Some(original);
+    world.merge_dir = Some(directory);
+}
+
+#[when("a partition trial contains a new key, two conflicts, and an equal row")]
+fn generated_owned_trial(world: &mut VisionWorld) {
+    let directory = world.merge_dir.as_ref().expect("directory");
+    let mut equal = bar(1_788_220_800_000_000, 1_788_220_859_999_000, 42);
+    equal.schema_version = parangsae_collector::vision::SCHEMA_KLINE_HEADER;
+    equal.received_ts = ReceivedTs::from_micros(UtcMicros::from_micros(99));
+    world.merge_counts = Some(
+        store::upsert_klines(
+            directory.path(),
+            "um-kline",
+            vec![
+                bar(1_788_220_860_000_000, 1_788_220_919_999_000, 50),
+                bar(1_788_220_800_000_000, 1_788_220_859_999_000, 43),
+                bar(1_788_220_800_000_000, 1_788_220_859_999_000, 44),
+                equal,
+            ],
+        )
+        .expect("trial"),
+    );
+}
+
+#[then("the partition trial reports zero inserts, one unchanged row, and two conflicts")]
+fn generated_owned_counts(world: &mut VisionWorld) {
+    assert_eq!(
+        world.merge_counts,
+        Some(store::WriteCounts {
+            inserted: 0,
+            unchanged: 1,
+            conflicts: 2
+        })
+    );
+}
+
+#[then("the complete original kline and Parquet bytes remain unchanged")]
+fn generated_owned_original(world: &mut VisionWorld) {
+    let directory = world.merge_dir.as_ref().expect("directory");
+    let day = CivilDay::new(2026, 9, 1).unwrap();
+    let path = store::fact_path(directory.path(), "um-kline", "BTCUSDT", day);
+    assert_eq!(
+        std::fs::read(path).expect("current bytes"),
+        world.merge_original_bytes
+    );
+    let loaded = store::load_klines(directory.path(), "um-kline", "BTCUSDT", day).expect("read");
+    let original = world.merge_original.as_ref().expect("original");
+    assert_eq!(loaded, vec![original.clone()]);
+    assert_eq!(loaded[0].schema_version, original.schema_version);
+    assert_eq!(loaded[0].received_ts, original.received_ts);
+}
+
+#[then("both rejected payloads are recorded against the first stored row")]
+fn generated_owned_conflicts(world: &mut VisionWorld) {
+    let directory = world.merge_dir.as_ref().expect("directory");
+    let reports = std::fs::read_to_string(directory.path().join("conflicts/um-kline.jsonl"))
+        .expect("reports");
+    let rows: Vec<serde_json::Value> = reports
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("JSON report"))
+        .collect();
+    assert_eq!(rows.len(), 2);
+    assert!(rows
+        .iter()
+        .all(|row| row["stored"].as_str().expect("stored").contains("open=42")));
+    assert!(rows[0]["rejected"]
+        .as_str()
+        .expect("rejected")
+        .contains("open=43"));
+    assert!(rows[1]["rejected"]
+        .as_str()
+        .expect("rejected")
+        .contains("open=44"));
+}
+
+#[given("a BTCUSDT partition containing a copied ETHUSDT baseline row")]
+fn mismatched_baseline_symbol(world: &mut VisionWorld) {
+    let directory = tempfile::tempdir().expect("temporary partition");
+    let day = CivilDay::new(2026, 9, 1).unwrap();
+    let mut original = bar(1_788_220_800_000_000, 1_788_220_859_999_000, 42);
+    original.symbol = Symbol::new("ETHUSDT").unwrap();
+    store::upsert_klines(directory.path(), "um-kline", vec![original.clone()]).expect("baseline");
+    let source = store::fact_path(directory.path(), "um-kline", "ETHUSDT", day);
+    let target = store::fact_path(directory.path(), "um-kline", "BTCUSDT", day);
+    std::fs::create_dir_all(target.parent().expect("partition directory")).expect("directory");
+    std::fs::copy(source, &target).expect("copy baseline");
+    world.merge_original_bytes = std::fs::read(target).expect("baseline bytes");
+    world.merge_original = Some(original);
+    world.merge_dir = Some(directory);
+}
+
+#[when("a BTCUSDT new key is offered to that partition")]
+fn new_key_against_mismatched_baseline(world: &mut VisionWorld) {
+    let directory = world.merge_dir.as_ref().expect("directory");
+    let result = store::upsert_klines(
+        directory.path(),
+        "um-kline",
+        vec![bar(1_788_220_860_000_000, 1_788_220_919_999_000, 50)],
+    );
+    match result {
+        Ok(counts) => {
+            world.merge_counts = Some(counts);
+            world.check = None;
+        }
+        Err(error) => {
+            world.merge_counts = None;
+            world.check = error.check_name().map(str::to_owned);
+        }
+    }
+}
+
+#[then("the partition trial fails with fact_authority")]
+fn mismatched_baseline_failure(world: &mut VisionWorld) {
+    assert!(world.merge_counts.is_none(), "{:?}", world.merge_counts);
+    assert_eq!(world.check.as_deref(), Some("fact_authority"));
+}
+
+#[then("no new key or conflict log is created")]
+fn mismatched_baseline_has_no_effects(world: &mut VisionWorld) {
+    let directory = world.merge_dir.as_ref().expect("directory");
+    let rows = store::load_klines(
+        directory.path(),
+        "um-kline",
+        "BTCUSDT",
+        CivilDay::new(2026, 9, 1).unwrap(),
+    )
+    .expect("original rows");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].open_time.micros(), 1_788_220_800_000_000);
+    assert!(!directory.path().join("conflicts").exists());
 }
 
 fn bar(open: i64, close: i64, price: i64) -> KlineFact {

@@ -1,0 +1,702 @@
+{
+  "version": 2,
+  "kind": "symbolic-owned",
+  "name": "FactWriteEnvelope",
+  "checkDeadlock": true,
+  "variables": [
+    "phase",
+    "rejected",
+    "rejectedProvenance",
+    "stored",
+    "storedProvenance"
+  ],
+  "inputs": [
+    {
+      "parameter": "v",
+      "domain": "Values"
+    },
+    {
+      "parameter": "provenance",
+      "domain": "Receipts"
+    }
+  ],
+  "next": "Next",
+  "initial": {
+    "phase": {
+      "kind": "string",
+      "value": "absent"
+    },
+    "rejected": {
+      "kind": "string",
+      "value": "none"
+    },
+    "rejectedProvenance": {
+      "kind": "string",
+      "value": "none"
+    },
+    "stored": {
+      "kind": "string",
+      "value": "none"
+    },
+    "storedProvenance": {
+      "kind": "string",
+      "value": "none"
+    }
+  },
+  "branches": [
+    {
+      "action": "Insert",
+      "guard": {
+        "kind": "and",
+        "terms": [
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "v"
+            },
+            "domain": "Values"
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "provenance"
+            },
+            "domain": "Receipts"
+          },
+          {
+            "kind": "equal",
+            "left": {
+              "kind": "state",
+              "variable": "phase"
+            },
+            "right": {
+              "kind": "literal",
+              "value": {
+                "kind": "string",
+                "value": "absent"
+              }
+            }
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "v"
+            },
+            "domain": "Values"
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "provenance"
+            },
+            "domain": "Receipts"
+          }
+        ]
+      },
+      "updates": {
+        "phase": {
+          "kind": "literal",
+          "value": {
+            "kind": "string",
+            "value": "present"
+          }
+        },
+        "rejected": {
+          "kind": "literal",
+          "value": {
+            "kind": "string",
+            "value": "none"
+          }
+        },
+        "rejectedProvenance": {
+          "kind": "literal",
+          "value": {
+            "kind": "string",
+            "value": "none"
+          }
+        },
+        "stored": {
+          "kind": "input",
+          "parameter": "v"
+        },
+        "storedProvenance": {
+          "kind": "input",
+          "parameter": "provenance"
+        }
+      },
+      "source": {
+        "module": "FactWriteEnvelope",
+        "beginLine": 27,
+        "beginColumn": 1,
+        "endLine": 35,
+        "endColumn": 33
+      }
+    },
+    {
+      "action": "Same",
+      "guard": {
+        "kind": "and",
+        "terms": [
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "v"
+            },
+            "domain": "Values"
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "provenance"
+            },
+            "domain": "Receipts"
+          },
+          {
+            "kind": "member",
+            "value": {
+              "kind": "state",
+              "variable": "phase"
+            },
+            "elements": [
+              {
+                "kind": "string",
+                "value": "present"
+              },
+              {
+                "kind": "string",
+                "value": "conflict"
+              }
+            ]
+          },
+          {
+            "kind": "equal",
+            "left": {
+              "kind": "input",
+              "parameter": "v"
+            },
+            "right": {
+              "kind": "state",
+              "variable": "stored"
+            }
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "provenance"
+            },
+            "domain": "Receipts"
+          }
+        ]
+      },
+      "updates": {
+        "phase": {
+          "kind": "state",
+          "variable": "phase"
+        },
+        "rejected": {
+          "kind": "state",
+          "variable": "rejected"
+        },
+        "rejectedProvenance": {
+          "kind": "state",
+          "variable": "rejectedProvenance"
+        },
+        "stored": {
+          "kind": "state",
+          "variable": "stored"
+        },
+        "storedProvenance": {
+          "kind": "state",
+          "variable": "storedProvenance"
+        }
+      },
+      "source": {
+        "module": "FactWriteEnvelope",
+        "beginLine": 37,
+        "beginColumn": 1,
+        "endLine": 41,
+        "endColumn": 19
+      }
+    },
+    {
+      "action": "Clash",
+      "guard": {
+        "kind": "and",
+        "terms": [
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "v"
+            },
+            "domain": "Values"
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "provenance"
+            },
+            "domain": "Receipts"
+          },
+          {
+            "kind": "member",
+            "value": {
+              "kind": "state",
+              "variable": "phase"
+            },
+            "elements": [
+              {
+                "kind": "string",
+                "value": "present"
+              },
+              {
+                "kind": "string",
+                "value": "conflict"
+              }
+            ]
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "v"
+            },
+            "domain": "Values"
+          },
+          {
+            "kind": "not-equal",
+            "left": {
+              "kind": "input",
+              "parameter": "v"
+            },
+            "right": {
+              "kind": "state",
+              "variable": "stored"
+            }
+          },
+          {
+            "kind": "in-domain",
+            "value": {
+              "kind": "input",
+              "parameter": "provenance"
+            },
+            "domain": "Receipts"
+          }
+        ]
+      },
+      "updates": {
+        "phase": {
+          "kind": "literal",
+          "value": {
+            "kind": "string",
+            "value": "conflict"
+          }
+        },
+        "rejected": {
+          "kind": "input",
+          "parameter": "v"
+        },
+        "rejectedProvenance": {
+          "kind": "input",
+          "parameter": "provenance"
+        },
+        "stored": {
+          "kind": "state",
+          "variable": "stored"
+        },
+        "storedProvenance": {
+          "kind": "state",
+          "variable": "storedProvenance"
+        }
+      },
+      "source": {
+        "module": "FactWriteEnvelope",
+        "beginLine": 43,
+        "beginColumn": 1,
+        "endLine": 51,
+        "endColumn": 43
+      }
+    }
+  ],
+  "invariants": [
+    {
+      "name": "TypeOK",
+      "predicate": {
+        "kind": "and",
+        "terms": [
+          {
+            "kind": "member",
+            "value": {
+              "kind": "state",
+              "variable": "phase"
+            },
+            "elements": [
+              {
+                "kind": "string",
+                "value": "absent"
+              },
+              {
+                "kind": "string",
+                "value": "present"
+              },
+              {
+                "kind": "string",
+                "value": "conflict"
+              }
+            ]
+          },
+          {
+            "kind": "equivalent",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "absent"
+                }
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "stored"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "none"
+                }
+              }
+            }
+          },
+          {
+            "kind": "implies",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "conflict"
+                }
+              }
+            },
+            "right": {
+              "kind": "and",
+              "terms": [
+                {
+                  "kind": "in-domain",
+                  "value": {
+                    "kind": "state",
+                    "variable": "rejected"
+                  },
+                  "domain": "Values"
+                },
+                {
+                  "kind": "not-equal",
+                  "left": {
+                    "kind": "state",
+                    "variable": "rejected"
+                  },
+                  "right": {
+                    "kind": "state",
+                    "variable": "stored"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "kind": "implies",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "present"
+                }
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "rejected"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "none"
+                }
+              }
+            }
+          },
+          {
+            "kind": "implies",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "absent"
+                }
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "rejected"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "none"
+                }
+              }
+            }
+          },
+          {
+            "kind": "or",
+            "terms": [
+              {
+                "kind": "equal",
+                "left": {
+                  "kind": "state",
+                  "variable": "stored"
+                },
+                "right": {
+                  "kind": "literal",
+                  "value": {
+                    "kind": "string",
+                    "value": "none"
+                  }
+                }
+              },
+              {
+                "kind": "in-domain",
+                "value": {
+                  "kind": "state",
+                  "variable": "stored"
+                },
+                "domain": "Values"
+              }
+            ]
+          },
+          {
+            "kind": "equivalent",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "absent"
+                }
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "storedProvenance"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "none"
+                }
+              }
+            }
+          },
+          {
+            "kind": "implies",
+            "left": {
+              "kind": "not-equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "absent"
+                }
+              }
+            },
+            "right": {
+              "kind": "in-domain",
+              "value": {
+                "kind": "state",
+                "variable": "storedProvenance"
+              },
+              "domain": "Receipts"
+            }
+          },
+          {
+            "kind": "implies",
+            "left": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "conflict"
+                }
+              }
+            },
+            "right": {
+              "kind": "in-domain",
+              "value": {
+                "kind": "state",
+                "variable": "rejectedProvenance"
+              },
+              "domain": "Receipts"
+            }
+          },
+          {
+            "kind": "implies",
+            "left": {
+              "kind": "not-equal",
+              "left": {
+                "kind": "state",
+                "variable": "phase"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "conflict"
+                }
+              }
+            },
+            "right": {
+              "kind": "equal",
+              "left": {
+                "kind": "state",
+                "variable": "rejectedProvenance"
+              },
+              "right": {
+                "kind": "literal",
+                "value": {
+                  "kind": "string",
+                  "value": "none"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "actionProperties": [
+    {
+      "kind": "square-action",
+      "name": "StoredStable",
+      "predicate": {
+        "kind": "implies",
+        "left": {
+          "kind": "not-equal",
+          "left": {
+            "kind": "state",
+            "variable": "stored"
+          },
+          "right": {
+            "kind": "literal",
+            "value": {
+              "kind": "string",
+              "value": "none"
+            }
+          }
+        },
+        "right": {
+          "kind": "equal",
+          "left": {
+            "kind": "next-state",
+            "variable": "stored"
+          },
+          "right": {
+            "kind": "state",
+            "variable": "stored"
+          }
+        }
+      }
+    },
+    {
+      "kind": "square-action",
+      "name": "ProvenanceStable",
+      "predicate": {
+        "kind": "implies",
+        "left": {
+          "kind": "not-equal",
+          "left": {
+            "kind": "state",
+            "variable": "stored"
+          },
+          "right": {
+            "kind": "literal",
+            "value": {
+              "kind": "string",
+              "value": "none"
+            }
+          }
+        },
+        "right": {
+          "kind": "equal",
+          "left": {
+            "kind": "next-state",
+            "variable": "storedProvenance"
+          },
+          "right": {
+            "kind": "state",
+            "variable": "storedProvenance"
+          }
+        }
+      }
+    }
+  ],
+  "source": {
+    "semanticSha256": "dcc32c6c46d16abd4b90ee573974b59aec70e95315c296a18484a3ac089ac25d"
+  }
+}

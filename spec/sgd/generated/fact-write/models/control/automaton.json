@@ -1,0 +1,346 @@
+{
+  "version": 1,
+  "kind": "exact-finite",
+  "name": "PartitionMergeControl",
+  "variables": [
+    {
+      "name": "hasConflict",
+      "kind": "boolean"
+    },
+    {
+      "name": "hasInserted",
+      "kind": "boolean"
+    },
+    {
+      "name": "phase",
+      "kind": "string"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "s0",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": false
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": false
+        },
+        "phase": {
+          "kind": "string",
+          "value": "Consumed"
+        }
+      }
+    },
+    {
+      "id": "s1",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": false
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": false
+        },
+        "phase": {
+          "kind": "string",
+          "value": "Open"
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": false
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": false
+        },
+        "phase": {
+          "kind": "string",
+          "value": "ReadyNoop"
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": false
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": true
+        },
+        "phase": {
+          "kind": "string",
+          "value": "Consumed"
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": false
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": true
+        },
+        "phase": {
+          "kind": "string",
+          "value": "Open"
+        }
+      }
+    },
+    {
+      "id": "s5",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": false
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": true
+        },
+        "phase": {
+          "kind": "string",
+          "value": "ReadyWrite"
+        }
+      }
+    },
+    {
+      "id": "s6",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": true
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": false
+        },
+        "phase": {
+          "kind": "string",
+          "value": "Consumed"
+        }
+      }
+    },
+    {
+      "id": "s7",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": true
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": false
+        },
+        "phase": {
+          "kind": "string",
+          "value": "Open"
+        }
+      }
+    },
+    {
+      "id": "s8",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": true
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": false
+        },
+        "phase": {
+          "kind": "string",
+          "value": "ReadyRefused"
+        }
+      }
+    },
+    {
+      "id": "s9",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": true
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": true
+        },
+        "phase": {
+          "kind": "string",
+          "value": "Consumed"
+        }
+      }
+    },
+    {
+      "id": "s10",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": true
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": true
+        },
+        "phase": {
+          "kind": "string",
+          "value": "Open"
+        }
+      }
+    },
+    {
+      "id": "s11",
+      "values": {
+        "hasConflict": {
+          "kind": "boolean",
+          "value": true
+        },
+        "hasInserted": {
+          "kind": "boolean",
+          "value": true
+        },
+        "phase": {
+          "kind": "string",
+          "value": "ReadyRefused"
+        }
+      }
+    }
+  ],
+  "initial": [
+    "s1"
+  ],
+  "actions": [
+    "Clash",
+    "CloseNoop",
+    "CloseRefused",
+    "CloseWrite",
+    "ConsumeNoop",
+    "ConsumeRefused",
+    "ConsumeWrite",
+    "Insert",
+    "Same"
+  ],
+  "edges": [
+    {
+      "from": "s1",
+      "event": "Clash",
+      "to": "s7"
+    },
+    {
+      "from": "s1",
+      "event": "CloseNoop",
+      "to": "s2"
+    },
+    {
+      "from": "s1",
+      "event": "Insert",
+      "to": "s4"
+    },
+    {
+      "from": "s1",
+      "event": "Same",
+      "to": "s1"
+    },
+    {
+      "from": "s10",
+      "event": "Clash",
+      "to": "s10"
+    },
+    {
+      "from": "s10",
+      "event": "CloseRefused",
+      "to": "s11"
+    },
+    {
+      "from": "s10",
+      "event": "Insert",
+      "to": "s10"
+    },
+    {
+      "from": "s10",
+      "event": "Same",
+      "to": "s10"
+    },
+    {
+      "from": "s11",
+      "event": "ConsumeRefused",
+      "to": "s9"
+    },
+    {
+      "from": "s2",
+      "event": "ConsumeNoop",
+      "to": "s0"
+    },
+    {
+      "from": "s4",
+      "event": "Clash",
+      "to": "s10"
+    },
+    {
+      "from": "s4",
+      "event": "CloseWrite",
+      "to": "s5"
+    },
+    {
+      "from": "s4",
+      "event": "Insert",
+      "to": "s4"
+    },
+    {
+      "from": "s4",
+      "event": "Same",
+      "to": "s4"
+    },
+    {
+      "from": "s5",
+      "event": "ConsumeWrite",
+      "to": "s3"
+    },
+    {
+      "from": "s7",
+      "event": "Clash",
+      "to": "s7"
+    },
+    {
+      "from": "s7",
+      "event": "CloseRefused",
+      "to": "s8"
+    },
+    {
+      "from": "s7",
+      "event": "Insert",
+      "to": "s10"
+    },
+    {
+      "from": "s7",
+      "event": "Same",
+      "to": "s7"
+    },
+    {
+      "from": "s8",
+      "event": "ConsumeRefused",
+      "to": "s6"
+    }
+  ],
+  "source": {
+    "dotSha256": "030db4d6fef0c8de3dc20a42172a295a0aefd7693d3e83029b8a2343ef205cd0",
+    "stateCount": 12,
+    "edgeCount": 20
+  }
+}

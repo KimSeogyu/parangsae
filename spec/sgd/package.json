@@ -1,0 +1,17 @@
+{
+  "name": "parangsae-specification-guided-development",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "verify": "node verify.mjs verify",
+    "update": "node verify.mjs update",
+    "fetch-tlc": "node verify.mjs fetch-tlc"
+  },
+  "devDependencies": {
+    "specification-guided-development": "github:KimSeogyu/specification-guided-development#fcefb06e42da3b07d2e46ecd8eb787e14c210f1d"
+  }
+}
