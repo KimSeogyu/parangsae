@@ -2,6 +2,8 @@
 
 use parangsae_core::{Amount, AvailableTs, EventTs, Qty, Ratio, ReceivedTs, Symbol, UtcMicros};
 
+use super::{SCHEMA_KLINE_HEADER, SCHEMA_KLINE_HEADERLESS};
+
 /// OHLC domain. Premium bars are ratios. Trade, mark, index, and spot bars are prices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TickDomain {
@@ -44,6 +46,7 @@ pub struct KlineFact {
     pub event_ts: EventTs,
     pub available_ts: AvailableTs,
     pub received_ts: ReceivedTs,
+    /// Raw CSV layout. The two known header layouts normalize to the same fact.
     pub schema_version: u32,
     pub tick_domain: TickDomain,
 }
@@ -65,7 +68,12 @@ impl PartialEq for KlineFact {
             && self.taker_buy_quote_volume == other.taker_buy_quote_volume
             && self.event_ts == other.event_ts
             && self.available_ts == other.available_ts
-            && self.schema_version == other.schema_version
+            && (self.schema_version == other.schema_version
+                || matches!(
+                    (self.schema_version, other.schema_version),
+                    (SCHEMA_KLINE_HEADERLESS, SCHEMA_KLINE_HEADER)
+                        | (SCHEMA_KLINE_HEADER, SCHEMA_KLINE_HEADERLESS)
+                ))
             && self.tick_domain == other.tick_domain
     }
 }

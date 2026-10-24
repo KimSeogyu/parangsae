@@ -511,6 +511,31 @@ fn unchanged(world: &mut VisionWorld) {
     assert_eq!(world.conflicts, 0);
 }
 
+#[when("the same normalized kline from a headed CSV is written")]
+fn write_same_headed(world: &mut VisionWorld) {
+    let dir = world.data_dir.as_ref().expect("dir");
+    let mut row = bar(
+        1_788_220_800_000_000,
+        1_788_220_859_999_000,
+        world.open_ticks,
+    );
+    row.schema_version = parangsae_collector::vision::SCHEMA_KLINE_HEADER;
+    let counts = store::upsert_klines(dir, "um-kline", vec![row]).expect("headed rewrite");
+    world.unchanged = counts.unchanged;
+    world.conflicts = counts.conflicts;
+}
+
+#[then("the stored kline keeps its headerless source schema")]
+fn stored_schema_is_unchanged(world: &mut VisionWorld) {
+    let dir = world.data_dir.as_ref().expect("dir");
+    let day = CivilDay::new(2026, 9, 1).unwrap();
+    let rows = store::load_klines(dir, "um-kline", "BTCUSDT", day).expect("load");
+    assert_eq!(
+        rows[0].schema_version,
+        parangsae_collector::vision::SCHEMA_KLINE_HEADERLESS
+    );
+}
+
 #[when("a different open is written for that key")]
 fn write_different(world: &mut VisionWorld) {
     let dir = world.data_dir.as_ref().expect("dir");
