@@ -32,6 +32,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         return Err("paper fixture exceeds 64 MiB".into());
     }
     let fixture: PaperFixture = serde_json::from_slice(&bytes)?;
+    let limit = stop.unwrap_or(fixture.commands.len());
+    if limit > fixture.commands.len() {
+        return Err("stop count is outside the remaining fixture".into());
+    }
     let path = Path::new(&args[3]);
     let mut run = match args[1].as_str() {
         "run" => OfflineReplay::create(path, fixture.session.clone())?,
@@ -40,8 +44,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     run.validate_fixture(&fixture)?;
     let completed = run.command_count();
-    let limit = stop.unwrap_or(fixture.commands.len());
-    if limit < completed || limit > fixture.commands.len() {
+    if limit < completed {
         return Err("stop count is outside the remaining fixture".into());
     }
     for command in fixture.commands.iter().take(limit).skip(completed) {

@@ -6,7 +6,8 @@
 //! a run; concurrent writers and power-loss durability are outside this scope.
 
 use parangsae_execution::{
-    PaperAction, PaperCommand, PaperEngine, PaperError, PaperOutcome, PaperSession, PaperSnapshot,
+    PaperAction, PaperCommand, PaperEngine, PaperError, PaperInputError, PaperOutcome,
+    PaperSession, PaperSnapshot,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -37,6 +38,7 @@ pub enum ReplayError {
     Capacity,
     NeedsRecovery,
     Codec(serde_json::Error),
+    InvalidInput(PaperInputError),
     InvalidHeader,
     FixtureMismatch,
     Engine(PaperError),
@@ -53,6 +55,7 @@ impl std::fmt::Display for ReplayError {
                 write!(f, "paper replay must reopen its journal after failed I/O")
             }
             Self::Codec(error) => write!(f, "paper replay input: {error}"),
+            Self::InvalidInput(error) => write!(f, "paper replay input: {error}"),
             Self::InvalidHeader => write!(
                 f,
                 "paper replay requires one supported initial session header"
@@ -146,6 +149,7 @@ impl OfflineReplay {
         {
             return Err(ReplayError::Capacity);
         }
+        let command = command.admit().map_err(ReplayError::InvalidInput)?;
         self.journal.append(&Record::Input {
             command: command.clone(),
         })?;

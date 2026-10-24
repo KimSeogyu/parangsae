@@ -29,6 +29,6 @@ pub use lifecycle::{
 };
 pub use paper::{PaperEngine, PaperError, PaperOutcome, PaperSession, PaperSnapshot};
 pub use paper_event::{
-    PaperAction, PaperCommand, PaperFill, PaperOrderSnapshot, PaperReport, PaperTerminal,
-    PaperTerminalCut,
+    PaperAction, PaperCommand, PaperFill, PaperInputError, PaperOrderSnapshot, PaperReport,
+    PaperTerminal, PaperTerminalCut,
 };
