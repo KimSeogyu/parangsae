@@ -18,10 +18,12 @@
 mod bar;
 mod batch;
 mod canon;
+mod cash_view;
 mod date;
 mod engine;
 mod error;
 pub mod fixture;
+pub mod h4_report;
 mod metrics;
 pub mod offline_replay;
 mod report;
@@ -49,10 +51,14 @@ pub use date::UtcDate;
 pub use engine::{run, run_fee_grid, run_targets, MarkAbsence, RunConfig, UtcRange, FEE_GRID_BPS};
 pub use error::{EngineError, TapeError};
 pub use metrics::{max_drawdown, sharpe_ticks};
-pub use report::{Metrics, Report, RoundTrip};
+pub use report::{
+    ForcedExit, ForcedExitReason, H4EntryDrop, H4EntryDropReason, H4Trace, H4Trade, Metrics,
+    Report, RoundTrip,
+};
 pub use signal::{
-    funding_visible, BookState, Decision, FlatReason, FundingObs, SignalOutput, Target,
-    TargetSignal,
+    funding_visible, ActualHold, BookState, Decision, ExecutionDirective, ExecutionPhase,
+    FlatReason, FundingObs, H4Event, H4Observation, PositionSide, SignalOutput, StrategyOutput,
+    Target, TargetSignal,
 };
 pub use sizing::{abs_notional_ticks, target_qty};
 pub use sweep::{run_sweep, FoldRunner, SweepRequest, WindowConfig, WindowOutput};

@@ -6,7 +6,8 @@ use crate::support::{at, bar_at, btc, cfg, costs, px, series, stamp, tape_marked
 use parangsae_backtest::fixture::AlwaysFlat;
 use parangsae_backtest::{
     funding_visible, run, run_targets, BookState, Decision, EngineError, FlatReason, FundingObs,
-    FundingStamp, MarkAbsence, Report, SignalOutput, TargetSignal, UtcDate, UtcRange,
+    FundingStamp, MarkAbsence, Report, SignalOutput, StrategyOutput, TargetSignal, UtcDate,
+    UtcRange,
 };
 use parangsae_core::{Causal, DecisionTime, Qty, Ratio, ResampledBar, UtcMicros};
 use parangsae_signals::Target;
@@ -38,7 +39,7 @@ impl TargetSignal for Script {
         view: Causal<'_, &[ResampledBar]>,
         funding: Causal<'_, &[FundingObs]>,
         _book: BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         let bars = *view.value();
         let funding_rows = *funding.value();
         self.bars_seen
@@ -53,12 +54,14 @@ impl TargetSignal for Script {
         self.cursor += 1;
         let hour = bars.last()?;
         let decision_ts = hour.close_time().checked_add_micros(1_000)?;
-        step.map(|decision| SignalOutput {
-            decision_ts: DecisionTime::from_micros(decision_ts),
-            bar_close_time_us: hour.close_time(),
-            interval: hour.interval(),
-            decision,
-            accept: 0,
+        step.map(|decision| {
+            StrategyOutput::target(SignalOutput {
+                decision_ts: DecisionTime::from_micros(decision_ts),
+                bar_close_time_us: hour.close_time(),
+                interval: hour.interval(),
+                decision,
+                accept: 0,
+            })
         })
     }
 }
@@ -578,7 +581,7 @@ pub fn delayed_funding_prefix(rate: i64) -> Script {
 }
 
 pub fn delayed_target_report() -> Report {
-    use parangsae_backtest::{run_targets, BookState, FundingObs, SignalOutput, TargetSignal};
+    use parangsae_backtest::{run_targets, BookState, FundingObs, StrategyOutput, TargetSignal};
     use parangsae_core::{Causal, ResampledBar};
     struct Delayed(Script);
     impl TargetSignal for Delayed {
@@ -590,10 +593,14 @@ pub fn delayed_target_report() -> Report {
             b: Causal<'_, &[ResampledBar]>,
             f: Causal<'_, &[FundingObs]>,
             s: BookState,
-        ) -> Option<SignalOutput> {
+        ) -> Option<StrategyOutput> {
             let mut out = self.0.on_bar(b, f, s)?;
-            out.decision_ts = parangsae_core::DecisionTime::from_micros(
-                out.decision_ts.micros().checked_add_micros(1_000).unwrap(),
+            out.signal.decision_ts = parangsae_core::DecisionTime::from_micros(
+                out.signal
+                    .decision_ts
+                    .micros()
+                    .checked_add_micros(1_000)
+                    .unwrap(),
             );
             Some(out)
         }
@@ -642,10 +649,10 @@ pub fn same_lot_reaccept() -> Report {
             bars: Causal<'_, &[ResampledBar]>,
             funding: Causal<'_, &[FundingObs]>,
             book: BookState,
-        ) -> Option<SignalOutput> {
+        ) -> Option<StrategyOutput> {
             let mut output = self.0.on_bar(bars, funding, book)?;
             self.1 += 1;
-            output.accept = self.1;
+            output.signal.accept = self.1;
             Some(output)
         }
     }

@@ -269,13 +269,13 @@ fn e1_sample_end_flattens_at_2359() {
 }
 
 #[test]
-fn e1_zero_count_at_2359_flattens_on_the_previous_open() {
+fn e1_zero_count_at_fixed_2359_refuses_the_whole_run() {
     let start = on("2025-09-30", 22, 0);
     let mut bars = cases::hours(start, 2, 100);
     let last = bars.len() - 1;
     assert_eq!(bars[last].open_time.micros(), on("2025-09-30", 23, 59));
     bars[last].count = 0;
-    let report = cases::execute(
+    let error = cases::execute(
         bars.clone(),
         bars,
         Vec::new(),
@@ -284,11 +284,11 @@ fn e1_zero_count_at_2359_flattens_on_the_previous_open() {
         Vec::new(),
         Vec::new(),
     )
-    .expect("flat on the last tradable minute");
-    assert_eq!(report.0.fills.len(), 2);
-    assert_eq!(report.0.fills[1].ts.micros(), on("2025-09-30", 23, 58));
-    assert_eq!(report.0.fills[1].side, Side::Sell);
-    assert!(report.0.trades.iter().all(|trade| trade.close_ts.is_some()));
+    .expect_err("R3 cannot substitute an earlier open for the fixed terminal");
+    assert!(
+        matches!(error, EngineError::UnfilledBoundaryClose { boundary }
+        if boundary.micros() == on("2025-09-30", 23, 59))
+    );
 }
 
 #[test]

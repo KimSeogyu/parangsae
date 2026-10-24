@@ -880,6 +880,7 @@ mod tests {
                 n_forced_exits: 2,
                 ..WindowAccounting::ZERO
             },
+            h4: None,
         }
     }
 

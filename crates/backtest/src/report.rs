@@ -7,6 +7,7 @@ use std::path::Path;
 
 use parangsae_core::{Ratio, Side, UtcMicros};
 use parangsae_sim::{Cash, Costs, Fill, FundingEvent};
+use parangsae_strategies::{ActualHold, H4Event, H4Observation};
 
 use crate::date::UtcDate;
 use crate::engine::{MarkAbsence, UtcRange};
@@ -22,6 +23,51 @@ pub struct RoundTrip {
     pub side: Side,
     pub qty: parangsae_core::Qty,
     pub pnl: Cash,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ForcedExitReason {
+    Terminal,
+    Ruin,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ForcedExit {
+    pub trigger: UtcMicros,
+    pub filled_at: UtcMicros,
+    pub reason: ForcedExitReason,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct H4Trade {
+    pub trade: RoundTrip,
+    pub event: H4Event,
+    pub hold: ActualHold,
+    pub slippage_cost: Cash,
+    pub funding: Vec<FundingEvent>,
+    pub fills: Vec<Fill>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum H4EntryDropReason {
+    DevelopmentBoundary,
+    ZeroLots,
+    Terminal,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct H4EntryDrop {
+    pub event: H4Event,
+    pub at: UtcMicros,
+    pub reason: H4EntryDropReason,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct H4Trace {
+    pub scored: UtcRange,
+    pub observations: Vec<H4Observation>,
+    pub trades: Vec<H4Trade>,
+    pub entry_drops: Vec<H4EntryDrop>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -63,6 +109,8 @@ pub struct Report {
     pub n_sign_changes: u64,
     /// Realized forced closes at a fold/data end, forced-flat window, or ruin.
     pub n_forced_exits: u64,
+    pub forced_exits: Vec<ForcedExit>,
+    pub h4: Option<H4Trace>,
     pub signal_outputs: Vec<SignalOutput>,
     pub overlays: Vec<AppliedOverlay>,
     pub mark_gaps: Vec<MarkAbsence>,
