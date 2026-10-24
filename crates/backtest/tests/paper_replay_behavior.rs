@@ -385,6 +385,74 @@ fn future(world: &mut PaperWorld) {
     world.apply(deliver(world.now + 1, &fill(100, 1, 400_000)));
     assert_eq!(world.result, Some(Err(PaperError::FutureReport)));
 }
+#[given(
+    regex = "^an (acknowledged|unacknowledged partially filled) paper order awaiting cancellation$"
+)]
+fn cancellation_evidence(world: &mut PaperWorld, evidence: String) {
+    if evidence == "acknowledged" {
+        world.dispatched();
+    } else {
+        world.flat();
+        for command in prefix().into_iter().take(2) {
+            world.apply(command);
+            world.ok();
+        }
+        world.fill(1, 100_000);
+    }
+}
+
+#[when("cancellation is requested and denied")]
+fn cancel_denied(world: &mut PaperWorld) {
+    world.before = Some(world.state());
+    world.act(PaperAction::Cancel {
+        client_order_id: id(1),
+    });
+    world.ok();
+    world.act(PaperAction::Deliver(observation(
+        PaperReport::CancelDenied {
+            client_order_id: id(1),
+        },
+        world.now + 1,
+    )));
+    world.ok();
+}
+
+#[then("the full reservation is retained as Unknown")]
+fn unknown_reservation(world: &mut PaperWorld) {
+    let state = world.state();
+    assert_eq!(
+        state.risk.orders[0].phase,
+        parangsae_risk::ReservationPhase::Unknown
+    );
+    assert_eq!(state.risk.orders[0].remaining.ticks(), 400_000);
+    assert_eq!(state.risk.epoch.get(), 1);
+}
+
+#[then("the known order and its reservation remain unchanged")]
+fn denial_known(world: &mut PaperWorld) {
+    let after = world.state();
+    let before = world.before.as_ref().unwrap();
+    assert_eq!(after.orders, before.orders);
+    assert_eq!(after.risk.orders, before.risk.orders);
+    assert_eq!(after.risk.exposure, ExposureState::Known);
+    assert!(!after.risk.halted);
+    assert_eq!(after.risk.epoch, before.risk.epoch);
+}
+
+#[then("a new within-limit order can still paper-dispatch")]
+fn dispatch_after_known_denial(world: &mut PaperWorld) {
+    world.apply(plan(world.now + 1, 2));
+    world.ok();
+    world.act(PaperAction::Dispatch {
+        client_order_id: id(2),
+    });
+    world.ok();
+    assert!(matches!(
+        world.result,
+        Some(Ok(PaperOutcome::Dispatched(_)))
+    ));
+}
+
 #[when("cancellation is requested and confirmed")]
 fn cancel_confirm(world: &mut PaperWorld) {
     world.act(PaperAction::Cancel {
@@ -488,7 +556,7 @@ fn loss_resume(world: &mut PaperWorld) {
     );
 }
 #[when(
-    regex = "^the process stops at the (partial-fill|cancel-race|unknown|halt) boundary and resumes$"
+    regex = "^the process stops at the (partial-fill|cancel-race|unknown|halt|cancel-denied) boundary and resumes$"
 )]
 fn restart(world: &mut PaperWorld, boundary: String) {
     let ((initial, commands), split) = match boundary.as_str() {
@@ -496,6 +564,7 @@ fn restart(world: &mut PaperWorld, boundary: String) {
         "cancel-race" => (cancel_race(), 6),
         "unknown" => (unknown(), 4),
         "halt" => (halted(), 2),
+        "cancel-denied" => (cancel_denied_unknown(), 4),
         _ => unreachable!(),
     };
     let mut continuous = PaperEngine::new(initial.clone()).unwrap();
@@ -507,8 +576,15 @@ fn restart(world: &mut PaperWorld, boundary: String) {
     for command in &commands[..split] {
         run.apply(command.clone()).unwrap().outcome.unwrap();
     }
+    let stopped = run.snapshot();
+    if boundary == "cancel-denied" {
+        assert!(stopped.risk.halted);
+        assert_eq!(stopped.risk.exposure, ExposureState::Unknown);
+        assert_eq!(stopped.orders[0].progress.state(), OrderState::Unknown);
+    }
     drop(run);
     let mut resumed = OfflineReplay::resume(&path).unwrap();
+    assert_eq!(resumed.snapshot(), stopped);
     for command in &commands[split..] {
         resumed.apply(command.clone()).unwrap().outcome.unwrap();
     }
