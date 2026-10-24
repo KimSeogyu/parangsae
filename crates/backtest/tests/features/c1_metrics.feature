@@ -43,3 +43,8 @@ Feature: C1 metrics report completed continuous accounts
     When the metrics result is serialized
     Then the reported terminal_pairs is 1
     And the reported total_return_ticks is 0
+
+  Scenario: An internal fold cannot borrow the next fold's economic key
+    Given a completed C1 metrics fixture named foldedge
+    When the metrics result is serialized
+    Then the metrics refusal is window
