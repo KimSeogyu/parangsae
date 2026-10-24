@@ -10,6 +10,8 @@ use parangsae_signals::FundingRow;
 
 use crate::date::UtcDate;
 
+mod file_source;
+
 const MINUTE: i64 = 60_000_000;
 const HOUR: i64 = 3_600_000_000;
 const DAY: i64 = 24 * HOUR;
@@ -48,6 +50,10 @@ pub(crate) enum SourceError {
     Overflow,
     Clock,
     Invariant(&'static str),
+    Input {
+        path: String,
+        reason: String,
+    },
     Unavailable {
         source: PriceSource,
         key: UtcMicros,
@@ -199,6 +205,7 @@ pub(crate) struct C1SourceView {
     bars: BTreeMap<(PriceSource, i64), SourceBar>,
     statuses: BTreeMap<(PriceSource, i64), SourceHealth>,
     funding: BTreeMap<i64, SourceFunding>,
+    files: Option<file_source::FileSource>,
 }
 
 pub(crate) fn ceil_to_ms(value: UtcMicros) -> Result<UtcMicros, SourceError> {
@@ -301,19 +308,29 @@ enum PriceUse {
 }
 
 impl C1SourceView {
+    pub(crate) fn load_exact(manifest: &std::path::Path) -> Result<Self, SourceError> {
+        Ok(Self {
+            bars: BTreeMap::new(),
+            statuses: BTreeMap::new(),
+            funding: BTreeMap::new(),
+            files: Some(file_source::FileSource::load(manifest)?),
+        })
+    }
+
     #[cfg(test)]
     pub(crate) fn synthetic(
         bars: Vec<(PriceSource, Bar, SourceRef)>,
         statuses: Vec<(PriceSource, UtcMicros, SourceHealth)>,
         funding: Vec<(UtcMicros, Ratio, u8, SourceRef)>,
     ) -> Result<Self, SourceError> {
-        if bars.len() > 17_280 || statuses.len() > 17_280 || funding.len() > 16 {
+        if bars.len() > 18 * 1440 * 3 || statuses.len() > 18 * 1440 * 3 || funding.len() > 64 {
             return Err(SourceError::Invariant("synthetic source capacity"));
         }
         let mut view = Self {
             bars: BTreeMap::new(),
             statuses: BTreeMap::new(),
             funding: BTreeMap::new(),
+            files: None,
         };
         for (kind, bar, source) in bars {
             let key = bar.open_time.micros();
@@ -354,7 +371,7 @@ impl C1SourceView {
         source: PriceSource,
         key: i64,
         decision: DecisionTime,
-    ) -> Result<&SourceBar, SourceError> {
+    ) -> Result<SourceBar, SourceError> {
         decision_us(decision)?;
         in_sample(key)?;
         let until = ceil_to_ms(UtcMicros::from_micros(source_available(source, key)?))?;
@@ -364,6 +381,9 @@ impl C1SourceView {
                 key: UtcMicros::from_micros(key),
                 health: SourceHealth::Pending,
             });
+        }
+        if let Some(files) = &self.files {
+            return files.bar(source, key);
         }
         if let Some(health) = self.statuses.get(&(source, key)) {
             return Err(SourceError::Unavailable {
@@ -375,6 +395,7 @@ impl C1SourceView {
         let row = self
             .bars
             .get(&(source, key))
+            .cloned()
             .ok_or(SourceError::Unavailable {
                 source,
                 key: UtcMicros::from_micros(key),
@@ -554,12 +575,26 @@ impl C1SourceView {
         let oldest = expected
             .checked_sub(8 * SLOT)
             .ok_or(SourceError::Overflow)?
-            .max(SAMPLE);
-        for (_, row) in self.funding.range(oldest..=expected) {
-            let Some(admitted) = admitted_funding(row, decision)? else {
+            .max(self.files.as_ref().map_or(SAMPLE, |files| files.start()));
+        if oldest > expected {
+            return Ok(frame);
+        }
+        let mut slot = oldest;
+        while slot <= expected {
+            let row = if let Some(files) = &self.files {
+                Some(files.funding(slot)?)
+            } else {
+                self.funding.get(&slot).cloned()
+            };
+            let Some(row) = row else {
+                slot = slot.checked_add(SLOT).ok_or(SourceError::Overflow)?;
+                continue;
+            };
+            let Some(admitted) = admitted_funding(&row, decision)? else {
                 break;
             };
             frame.rows.push(admitted);
+            slot = slot.checked_add(SLOT).ok_or(SourceError::Overflow)?;
         }
         Ok(frame)
     }
@@ -569,11 +604,15 @@ impl C1SourceView {
         settlement: UtcMicros,
         decision: DecisionTime,
     ) -> Result<C1FundingEvidence, SourceError> {
-        let source = self
-            .funding
-            .get(&settlement.micros())
-            .ok_or(SourceError::Invariant("funding source missing"))?;
-        let admitted = admitted_funding(source, decision)?
+        let source = if let Some(files) = &self.files {
+            files.funding(settlement.micros())?
+        } else {
+            self.funding
+                .get(&settlement.micros())
+                .cloned()
+                .ok_or(SourceError::Invariant("funding source missing"))?
+        };
+        let admitted = admitted_funding(&source, decision)?
             .ok_or(SourceError::Invariant("funding rate unavailable"))?;
         let rate = admitted.observation;
         let mark_open_proxy = self.price_at(
@@ -676,6 +715,7 @@ mod tests {
             bars: BTreeMap::new(),
             statuses: BTreeMap::new(),
             funding: BTreeMap::new(),
+            files: None,
         }
     }
 
@@ -1058,6 +1098,26 @@ mod tests {
         assert!(C1SourceView::synthetic(vec![], vec![], funding).is_ok());
     }
 
+    #[test]
+    fn maximum_hold_synthetic_history_has_a_finite_sixty_four_row_boundary() {
+        let funding: Vec<_> = (0..65)
+            .map(|n| {
+                let slot = SAMPLE + n * SLOT;
+                (
+                    UtcMicros::from_micros(slot),
+                    Ratio::from_ticks(0),
+                    8,
+                    fixture(PriceSource::UmTrade, slot).source,
+                )
+            })
+            .collect();
+        assert!(matches!(
+            C1SourceView::synthetic(vec![], vec![], funding.clone()),
+            Err(SourceError::Invariant("synthetic source capacity"))
+        ));
+        assert!(C1SourceView::synthetic(vec![], vec![], funding[..64].to_vec()).is_ok());
+    }
+
     #[derive(Debug, Default, cucumber::World)]
     struct SourceWorld {
         view: Option<C1SourceView>,
@@ -1165,6 +1225,7 @@ mod tests {
     async fn source_contract_feature() {
         SourceWorld::cucumber()
             .with_default_cli()
+            .fail_on_skipped()
             .run_and_exit(concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/tests/features/c1_source.feature"
