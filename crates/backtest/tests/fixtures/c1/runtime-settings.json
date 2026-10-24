@@ -239,7 +239,7 @@
       "not_found_is_order_absence_or_zero_cancel_cut_evidence": false,
       "max_attempts_scope": "NATIVE_EXECUTION_MAXATTEMPTS_NOT_GLOBAL_TRIAL_OR_INVOCATION_COUNT"
     },
-    "funding_pending_exit_scope": "PENDING_FUNDING_DOES_NOT_BLOCK_SAFE_BEGINEXIT_ONLY_HEALTHY_CLOSED_AND_REARM_WAIT",
+    "funding_pending_exit_scope": "PENDING_FUNDING_DOES_NOT_BLOCK_SAFE_BEGINEXIT_ALL_CLOSED_SETTLED_CASH_RESOLVE_ALL_LIABILITIES_ONLY_REARM_REQUIRES_HEALTHY_IDLE",
     "new_order_at_window_end": false
   },
   "risk": {
