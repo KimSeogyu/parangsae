@@ -1,3 +1,6 @@
+#[path = "actor_risk_cases.rs"]
+mod risk_cases;
+
 use super::*;
 use crate::c1_source::{PriceSource, SourceRef};
 use cucumber::{given, then, when, World as _};
@@ -420,6 +423,12 @@ fn an_owned_required_mark_gap_refuses_and_retains_actual_money_prefix() {
         .unwrap()
         .run()
         .unwrap_err();
+    assert!(
+        failure.stop_error.is_none(),
+        "secondary Stop failure: {:?}",
+        failure.stop_error
+    );
+    assert_stopped_prefix(&failure.prefix);
     assert!(matches!(failure.error, ReplayError::Source {
         at,
         error: SourceError::Unavailable { source: PriceSource::UmMark, key, health: SourceHealth::Gap }
@@ -435,6 +444,261 @@ fn an_owned_required_mark_gap_refuses_and_retains_actual_money_prefix() {
         }
     )));
     assert_eq!(failure.prefix.daily.len(), 0);
+}
+
+const TERMINAL_FOLD_END: i64 = START + DAY;
+const TERMINAL_AT: i64 = TERMINAL_FOLD_END - LEGGING;
+const TERMINAL_REPLAY_END: i64 = START + 9 * DAY;
+
+fn terminal_fixture_source(zero_closing_window: bool) -> C1SourceView {
+    let mut bars = Vec::new();
+    let mut key = START - MINUTE;
+    while key < TERMINAL_REPLAY_END {
+        for source in [PriceSource::Spot, PriceSource::UmTrade, PriceSource::UmMark] {
+            let zero_count = zero_closing_window
+                && source == PriceSource::UmTrade
+                && (TERMINAL_AT..TERMINAL_FOLD_END).contains(&key);
+            let mut row = bar(source, key, 10_000_000_000);
+            if zero_count {
+                row.1.count = 0;
+            }
+            bars.push(row);
+        }
+        key += MINUTE;
+    }
+    let rates = (-8..27)
+        .map(|index| {
+            let key = START + index * SLOT;
+            let value = if matches!(index, 0 | 3) {
+                -1_000
+            } else {
+                50_000
+            };
+            (key, value, key + MINUTE)
+        })
+        .collect();
+    source_with_rates(rates, bars)
+}
+
+fn terminal_fixture_windows() -> Vec<PolicyWindow> {
+    vec![
+        PolicyWindow {
+            start: START,
+            end: TERMINAL_FOLD_END,
+            hold: C1MaxHold::Hours168,
+            enabled: true,
+        },
+        PolicyWindow {
+            start: TERMINAL_FOLD_END,
+            end: TERMINAL_REPLAY_END,
+            hold: C1MaxHold::Hours168,
+            enabled: false,
+        },
+    ]
+}
+
+fn run_terminal_fixture(zero_closing_window: bool) -> Result<ReplayResult, ReplayFailure> {
+    let source = terminal_fixture_source(zero_closing_window);
+    C1Replay::new(&source, Scenario::Headline, terminal_fixture_windows())
+        .unwrap()
+        .run()
+}
+
+fn record_clock(record: &ActorRecord) -> i64 {
+    match record {
+        ActorRecord::Control { at, .. }
+        | ActorRecord::Evaluation { at, .. }
+        | ActorRecord::Order { at, .. }
+        | ActorRecord::Fill { at, .. }
+        | ActorRecord::FundingBoundary { at, .. }
+        | ActorRecord::FundingReceipt { at, .. }
+        | ActorRecord::PairClosed { at, .. }
+        | ActorRecord::RiskStop { at, .. }
+        | ActorRecord::ZeroExposureBoundary { at } => *at,
+    }
+}
+
+fn assert_stopped_prefix(value: &ReplayResult) {
+    let values = &value.control.values;
+    assert!(matches!(values.get("mode"), Some(FiniteValue::String(mode)) if mode == "Stopped"));
+    assert!(matches!(
+        values.get("stoppedEver"),
+        Some(FiniteValue::Boolean(true))
+    ));
+    assert!(matches!(
+        values.get("healthy"),
+        Some(FiniteValue::Boolean(false))
+    ));
+    assert!(matches!(
+        values.get("armed"),
+        Some(FiniteValue::Boolean(false))
+    ));
+}
+
+fn assert_terminal_closed(value: &ReplayResult) {
+    assert_eq!(value.pairs.len(), 1);
+    let pair = &value.pairs[0];
+    assert_eq!(pair.observed_paired_at, Some(START + 9 * HOUR + 4 * MINUTE));
+    assert_eq!(pair.exit_reason, Some(ExitReason::Terminal));
+    assert_eq!(pair.exit_decision, Some(TERMINAL_AT));
+    assert_eq!(pair.closing_deadline, Some(TERMINAL_FOLD_END));
+    assert_eq!(pair.closed_observed_at, Some(TERMINAL_AT + 4 * MINUTE));
+    assert!(pair.closed_observed_at.unwrap() < TERMINAL_FOLD_END);
+    assert!(pair.max_exit_decision.unwrap() > TERMINAL_FOLD_END);
+    assert_dependent_decisions(value);
+    let snapshot = value.snapshot.as_ref().unwrap();
+    assert_eq!(snapshot.phase, CarryPhase::Closed);
+    assert!(snapshot.orders.iter().all(|order| order.complete_cut));
+    assert_eq!(snapshot.orders.len(), 4);
+    assert_eq!(snapshot.fills.len(), 4);
+    assert_eq!(snapshot.account.spot_btc.ticks(), 0);
+    assert_eq!(snapshot.account.perp_short.ticks(), 0);
+    assert_eq!(snapshot.account.spot_quote.0, 47_497_601_399_800);
+    assert_eq!(snapshot.account.perp_wallet.0, 47_499_100_900_000);
+    assert_eq!(snapshot.account.idle.0, 5_000_000_000_000);
+    assert_eq!(snapshot.account.spot_btc_fees.ticks(), 10_000_000);
+    assert_eq!(snapshot.account.spot_quote_fees.0, 998_800_200);
+    assert_eq!(snapshot.account.perp_fees.0, 999_000_000);
+    assert_eq!(snapshot.account.realized_perp.0, -399_600_000);
+    assert_eq!(snapshot.account.funding_net.0, 499_500_000);
+    assert_eq!(snapshot.funding.len(), 1);
+    assert_eq!(snapshot.funding[0].effective.micros(), START + 2 * SLOT);
+    assert_eq!(snapshot.funding[0].captured_short.ticks(), 9_990_000_000);
+    assert_eq!(snapshot.funding[0].cashflow, Some(Cash(499_500_000)));
+    assert!(snapshot.funding[0].receipt.is_some());
+    assert_eq!(value.final_equity, 99_996_702_299_800);
+    assert_eq!(value.daily.len(), 9);
+    assert_eq!(value.daily[0].day_start, START);
+    assert_eq!(value.daily[0].economic_end_exclusive, TERMINAL_FOLD_END);
+    assert_eq!(value.daily[0].known_at, TERMINAL_FOLD_END + MS);
+    assert_eq!(value.daily[0].equity, 99_996_702_299_800);
+    assert_eq!(value.daily[0].return_ticks, -3_297);
+    assert!(value.daily.iter().skip(1).all(|day| day.return_ticks == 0));
+    assert!(value.records.iter().any(|record| matches!(record,
+        ActorRecord::Order { at, stage: "perp_exit", deadline, .. }
+            if *at == TERMINAL_AT && *deadline == TERMINAL_FOLD_END)));
+}
+
+fn assert_terminal_blocked(failure: &ReplayFailure) {
+    assert!(matches!(&failure.error,
+        ReplayError::UnclosedBoundary { at } if *at == TERMINAL_FOLD_END));
+    assert!(
+        failure.stop_error.is_none(),
+        "secondary Stop failure: {:?}",
+        failure.stop_error
+    );
+    let value = &failure.prefix;
+    assert_stopped_prefix(value);
+    assert_eq!(value.pairs.len(), 1);
+    let pair = &value.pairs[0];
+    assert_eq!(pair.exit_reason, Some(ExitReason::Terminal));
+    assert_eq!(pair.exit_decision, Some(TERMINAL_AT));
+    assert_eq!(pair.closing_deadline, Some(TERMINAL_FOLD_END));
+    assert_eq!(pair.closed_observed_at, None);
+    assert!(pair.max_exit_decision.unwrap() > TERMINAL_FOLD_END);
+    let snapshot = value.snapshot.as_ref().unwrap();
+    assert!(!matches!(
+        snapshot.phase,
+        CarryPhase::Flat | CarryPhase::Closed
+    ));
+    assert_eq!(snapshot.account.spot_quote.0, 46_499_800_000_000);
+    assert_eq!(snapshot.account.perp_wallet.0, 47_500_000_099_900);
+    assert_eq!(snapshot.account.idle.0, 5_000_000_000_000);
+    assert_eq!(snapshot.account.spot_btc.ticks(), 9_990_000_000);
+    assert_eq!(snapshot.account.perp_short.ticks(), 9_990_000_000);
+    assert_eq!(snapshot.account.spot_btc_fees.ticks(), 10_000_000);
+    assert_eq!(snapshot.account.spot_quote_fees.0, 0);
+    assert_eq!(snapshot.account.perp_fees.0, 499_400_100);
+    assert_eq!(snapshot.account.funding_net.0, 499_500_000);
+    assert_eq!(snapshot.account.realized_perp.0, 0);
+    assert_eq!(snapshot.fills.len(), 2);
+    assert_eq!(snapshot.orders.len(), 3);
+    let actual_ids: BTreeSet<_> = snapshot
+        .orders
+        .iter()
+        .map(|order| (order.id.pair, order.id.stage, order.id.attempt))
+        .collect();
+    assert_eq!(
+        actual_ids,
+        BTreeSet::from([
+            (1, CarryStage::SpotEntry, 0),
+            (1, CarryStage::PerpEntry, 0),
+            (1, CarryStage::PerpExit, 0),
+        ])
+    );
+    assert!(snapshot
+        .orders
+        .iter()
+        .filter(|order| order.id.stage != CarryStage::PerpExit)
+        .all(|order| order.complete_cut));
+    let close_order = snapshot
+        .orders
+        .iter()
+        .find(|order| order.id.stage == CarryStage::PerpExit)
+        .unwrap();
+    assert_eq!(close_order.qty.ticks(), 9_990_000_000);
+    assert_eq!(close_order.progress.cum().ticks(), 0);
+    assert!(snapshot.perp_collateral_reserved.0 > 0);
+    let paid = snapshot
+        .funding
+        .iter()
+        .find(|funding| funding.effective.micros() == START + 2 * SLOT)
+        .unwrap();
+    assert_eq!(paid.captured_short.ticks(), 9_990_000_000);
+    assert_eq!(paid.cashflow, Some(Cash(499_500_000)));
+    assert!(paid.receipt.is_some());
+    for unpaid in snapshot
+        .funding
+        .iter()
+        .filter(|funding| funding.effective.micros() >= TERMINAL_FOLD_END)
+    {
+        assert_eq!(unpaid.effective.micros(), TERMINAL_FOLD_END);
+        assert_eq!(unpaid.captured_short.ticks(), 9_990_000_000);
+        assert!(unpaid.receipt.is_none());
+        assert!(unpaid.cashflow.is_none());
+    }
+    assert!(
+        value.daily.is_empty(),
+        "a technical prefix is not a zero-return day"
+    );
+    assert!(value.records.iter().any(|record| matches!(record,
+        ActorRecord::Order { at, stage: "perp_exit", deadline, .. }
+            if *at == TERMINAL_AT && *deadline == TERMINAL_FOLD_END)));
+    assert!(!value.records.iter().any(|record| matches!(
+        record,
+        ActorRecord::Fill {
+            stage: "perp_exit" | "spot_exit",
+            ..
+        }
+    )));
+    assert!(value
+        .records
+        .iter()
+        .all(|record| record_clock(record) <= TERMINAL_FOLD_END));
+    let healthy = run_terminal_fixture(false).unwrap();
+    let before_terminal = |result: &ReplayResult| {
+        result
+            .records
+            .iter()
+            .filter(|record| record_clock(record) < TERMINAL_AT)
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        before_terminal(value),
+        before_terminal(&healthy),
+        "future zero counts must not change an earlier financial prefix"
+    );
+}
+
+#[test]
+fn an_active_pair_closes_at_the_fixed_fold_terminal_with_all_costs() {
+    assert_terminal_closed(&run_terminal_fixture(false).unwrap());
+}
+
+#[test]
+fn zero_closing_liquidity_retains_a_technical_prefix_at_the_original_end() {
+    assert_terminal_blocked(&run_terminal_fixture(true).unwrap_err());
 }
 
 #[derive(Debug, Default, cucumber::World)]
@@ -687,6 +951,12 @@ fn cycles_result(world: &mut C1World) {
 #[then("the whole replay is technical with its actual financial prefix retained")]
 fn gap_result(world: &mut C1World) {
     let value = world.failure.as_ref().unwrap();
+    assert!(
+        value.stop_error.is_none(),
+        "secondary Stop failure: {:?}",
+        value.stop_error
+    );
+    assert_stopped_prefix(&value.prefix);
     assert!(matches!(
         value.error,
         ReplayError::Source {
@@ -714,4 +984,31 @@ async fn c1_actor_feature() {
             "/tests/features/c1_actor.feature"
         ))
         .await;
+}
+
+#[given("a paired position held until the predeclared fold Terminal")]
+fn terminal_case(world: &mut C1World) {
+    world.case = Some("terminal");
+}
+
+#[when("the Terminal source has positive count closing minutes")]
+fn terminal_liquid(world: &mut C1World) {
+    world.cycles = Some(run_terminal_fixture(false).unwrap());
+}
+
+#[when("the Terminal source has zero count closing minutes")]
+fn terminal_zero(world: &mut C1World) {
+    world.failure = Some(run_terminal_fixture(true).unwrap_err());
+}
+
+#[then("Terminal closes before the original fold end with all costs retained")]
+fn terminal_completed(world: &mut C1World) {
+    assert_terminal_closed(world.cycles.as_ref().unwrap());
+    assert!(world.failure.is_none());
+}
+
+#[then("the replay fails at the original fold end with its financial prefix retained")]
+fn terminal_failed(world: &mut C1World) {
+    assert_terminal_blocked(world.failure.as_ref().unwrap());
+    assert!(world.cycles.is_none());
 }

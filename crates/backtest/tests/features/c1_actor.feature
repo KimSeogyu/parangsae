@@ -53,3 +53,13 @@ Feature: C1 causal payloads and the single account actor
     Given a flat fold observed a negative key before a later active epoch
     When the actor sees the old key and then the first post activation key
     Then the old key changes no control or consumption and only the new false arms
+
+  Scenario: An active pair closes at the predeclared fold Terminal
+    Given a paired position held until the predeclared fold Terminal
+    When the Terminal source has positive count closing minutes
+    Then Terminal closes before the original fold end with all costs retained
+
+  Scenario: Zero closing liquidity cannot move the Terminal or extend its deadline
+    Given a paired position held until the predeclared fold Terminal
+    When the Terminal source has zero count closing minutes
+    Then the replay fails at the original fold end with its financial prefix retained
