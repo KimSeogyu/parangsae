@@ -323,6 +323,53 @@ fn selected_cost_paths_match_independent_full_account_oracles() {
 }
 
 #[test]
+fn paid_three_cost_actor_results_reach_actual_series_metrics() {
+    let policies = window();
+    let expected_range = crate::UtcRange {
+        start: UtcMicros::from_micros(policies.first().unwrap().start),
+        end: UtcMicros::from_micros(policies.last().unwrap().end),
+    };
+    for (name, return_ticks) in [
+        ("headline", -7_614),
+        ("higher-fee", -8_014),
+        ("stress", -10_012),
+    ] {
+        let expected = oracle(name);
+        let actual_run = run_cost(expected);
+        assert_cost(&actual_run, expected);
+        let measured = crate::c1::metrics::series_metrics(Ok(&actual_run), expected_range)
+            .expect("the real completed paid fixture must satisfy the metric contract");
+        assert_eq!(measured.calendar_days, 9);
+        assert_eq!(measured.initial_capital_ticks, 100_000_000_000_000);
+        assert_eq!(measured.final_equity_ticks, expected.total);
+        assert_eq!(
+            measured.net_cash_ticks,
+            expected.total - 100_000_000_000_000
+        );
+        // Independent exact end-wealth/C0 half-even return oracles, in 1e8 ticks.
+        assert_eq!(measured.total_return_ticks, return_ticks);
+        assert!(measured.annual_sharpe_ticks.is_some_and(|value| value < 0));
+        assert_eq!(measured.closed_pairs, 2);
+        assert_eq!(measured.normal_round_trips, 2);
+        assert_eq!(
+            (
+                measured.terminal_pairs,
+                measured.risk_pairs,
+                measured.hedge_unwind_pairs
+            ),
+            (0, 0, 0)
+        );
+        assert_eq!(measured.spot_quote_fees_ticks, expected.spot_sell_fee * 2);
+        assert_eq!(measured.spot_btc_fee_qty_ticks, 20_000_000);
+        assert_eq!(
+            measured.perp_fees_ticks,
+            (expected.entry_fee + expected.exit_fee) * 2
+        );
+        assert_eq!(measured.funding_net_ticks, -19_980_000);
+    }
+}
+
+#[test]
 fn a_paid_spot_leg_cannot_wait_for_liquidity_beyond_its_original_deadline() {
     assert_original_deadline(&run_no_liquidity());
 }
