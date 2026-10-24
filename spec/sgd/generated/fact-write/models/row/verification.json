@@ -31,7 +31,7 @@
   "inputProfile": "disjoint-input-product-v1",
   "rowBinding": {
     "profile": "rust-whole-row-v1",
-    "planSha256": "c9e4f40a0e644da821d29519118c27591ed59639d9d65b2e759e7630372459aa",
+    "planSha256": "bb2ccddbc04dd8062b8e8e64611a77c974221f8853f617f8024e7d12b9a1f800",
     "sourceScope": "production-library-and-audited-local-type-closure",
     "sources": [
       {
@@ -80,7 +80,7 @@
       },
       {
         "path": "crates/collector/src/run.rs",
-        "sha256": "8492d20f0d6382cddf31ad77d2ee0c33d4048abc52b832e0aceb44a2332b9b48"
+        "sha256": "3ec3847a508a11287228112a8dfbac1a76923d0bff0802f4bc77d0af1a485196"
       },
       {
         "path": "crates/collector/src/scale.rs",

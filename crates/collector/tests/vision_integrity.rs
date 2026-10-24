@@ -49,6 +49,7 @@ struct VisionWorld {
     verify_dir: Option<tempfile::TempDir>,
     verify_report: Option<VerifyReport>,
     verify_error: Option<String>,
+    ingest_error: Option<String>,
     merge_dir: Option<tempfile::TempDir>,
     merge_counts: Option<store::WriteCounts>,
     merge_original: Option<KlineFact>,
@@ -745,6 +746,64 @@ fn given_partial_month_store(world: &mut VisionWorld) {
 #[when("verify has no filters")]
 fn when_verify_all(world: &mut VisionWorld) {
     run_verify(world, Ok(VerifyFilter::all()));
+}
+
+#[when("an extra stored um-kline minute is injected on 2021-06-01")]
+fn inject_extra_stored_kline(world: &mut VisionWorld) {
+    let dir = world.verify_dir.as_ref().expect("store").path();
+    let day = CivilDay::new(2021, 6, 1).expect("day");
+    let mut row = store::load_klines(dir, "um-kline", "BTCUSDT", day)
+        .expect("rows")
+        .pop()
+        .expect("last row");
+    row.open_time = UtcMicros::from_micros(row.open_time.micros() + 60_000_000);
+    row.close_time = UtcMicros::from_micros(row.close_time.micros() + 60_000_000);
+    row.event_ts = EventTs::from_micros(row.open_time);
+    row.available_ts =
+        AvailableTs::from_micros(UtcMicros::from_micros(row.close_time.micros() + 1_000));
+    store::upsert_klines(dir, "um-kline", vec![row]).expect("inject extra minute");
+}
+
+#[then("verify reports an unexpected stored um-kline minute")]
+fn then_verify_extra_stored_kline(world: &mut VisionWorld) {
+    let report = world.verify_report.as_ref().expect("report");
+    assert!(!report.ok(), "{report}");
+    assert_eq!(report.summary.faults, 1);
+    assert!(
+        report.fault_lines[0].starts_with("unexpected parquet row um-kline/BTCUSDT/2021-06-01 ")
+    );
+}
+
+#[when("a June 2021 monthly kline archive containing a July 1 row is ingested")]
+fn ingest_misdated_kline(world: &mut VisionWorld) {
+    let dir = tempfile::tempdir().expect("temp");
+    let june1 = CivilDay::new(2021, 6, 1).expect("june");
+    let july1 = CivilDay::new(2021, 7, 1).expect("july");
+    let open = july1.start_us().micros() / 1_000;
+    let csv = format!("{open},10,10,10,10,0,{},0,0,0,0,0\n", open + 59_999);
+    world.ingest_error = verify_ingest(
+        dir.path(),
+        VisionDataset::UmKline,
+        june1,
+        july1,
+        &verify_prefix(VisionDataset::UmKline, Cadence::Monthly).expect("prefix"),
+        "BTCUSDT-1m-2021-06.zip",
+        &csv,
+    )
+    .err();
+    world.verify_dir = Some(dir);
+}
+
+#[then("the archive calendar mismatch is rejected before writing Parquet")]
+fn then_archive_calendar_rejected(world: &mut VisionWorld) {
+    assert!(world
+        .ingest_error
+        .as_ref()
+        .expect("ingest rejection")
+        .contains("archive_calendar"));
+    let dir = world.verify_dir.as_ref().expect("store").path();
+    let july1 = CivilDay::new(2021, 7, 1).expect("july");
+    assert!(!store::fact_path(dir, "um-kline", "BTCUSDT", july1).exists());
 }
 
 #[when("the stored um-kline partition on 2021-06-01 is deleted")]
