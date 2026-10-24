@@ -52,6 +52,31 @@ fn protective_close(world: &mut World) {
     assert!(gate.is_halted());
 }
 
+#[when("a held buy causes another buy to be refused")]
+fn refused_identity(world: &mut World) {
+    let cx = context(world.mark.as_ref().unwrap(), 0, 0);
+    let gate = world.gate.as_mut().unwrap();
+    world
+        .approvals
+        .push(gate.check(request(1, Side::Buy, UNIT, false), &cx).unwrap());
+    world.error = gate.check(request(2, Side::Buy, UNIT, false), &cx).err();
+    assert_eq!(world.error, Some(RiskError::PositionLimit));
+}
+
+#[then("changing the refused order to a sell halts without a fill")]
+fn cannot_rebind(world: &mut World) {
+    let cx = context(world.mark.as_ref().unwrap(), 0, 0);
+    let gate = world.gate.as_mut().unwrap();
+    assert_eq!(
+        gate.check(request(2, Side::Sell, UNIT, false), &cx)
+            .unwrap_err(),
+        RiskError::IdentityConflict
+    );
+    assert_eq!(gate.snapshot().position_ticks, 0);
+    assert_eq!(gate.snapshot().envelope.high_ticks, i128::from(UNIT));
+    assert!(gate.is_halted());
+}
+
 #[when("one BTC buy and one BTC sell are approved")]
 fn opposing(world: &mut World) {
     let gate = world.gate.as_mut().unwrap();

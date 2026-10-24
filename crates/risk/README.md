@@ -8,6 +8,13 @@ cannot replace the gate's position or reservations.
 `check` reserves an immutable `(intent, attempt, symbol, side, quantity,
 reduce_only)` request. Its approval binds a private issuer instance, issue time,
 ticket, and halt epoch. Approvals cannot be cloned or deserialized.
+An initial risk refusal also retains an immutable order identity. Capacity is a
+shared explicit bound for retained order identities (including refusals), unique
+priced receipts, settlement batch entries, terminal receipt keys, and a complete
+reconcile cut. Capacity exhaustion refuses new evidence without evicting old
+identities or releasing reservations. It cannot create a new refusal tombstone
+when identity storage is already full. Exact retained receipts remain no-ops at
+full capacity when the submitted batch itself stays within the configured bound.
 `prepare_dispatch` consumes the approval and rechecks the current gate and dated
 instrument rules. A legitimate unsafe approval yields a staged unsent refusal.
 The caller commits that refusal together with its lifecycle change. Dropping a

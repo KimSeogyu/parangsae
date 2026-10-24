@@ -221,10 +221,24 @@ impl RiskGate {
         cx: &RiskContext<'_>,
     ) -> Result<ApprovedOrder, RiskError> {
         self.observe(cx)?;
-        self.validate_request(&request)?;
-        check_retry(&self.portfolio, &request, self.limits.capacity)?;
-        allows(&self.portfolio, &request, *cx.mark.value(), self.limits)?;
-        instrument(&request, cx)?;
+        if let Err(error) = check_retry(&self.portfolio, &request, self.limits.capacity) {
+            if error == RiskError::IdentityConflict {
+                self.latch(HaltCause::PayloadError);
+            } else if !self.portfolio.orders.contains_key(&request.id())
+                && error != RiskError::Capacity
+            {
+                self.record_refusal(request)?;
+            }
+            return Err(error);
+        }
+        let decision = self
+            .validate_request(&request)
+            .and_then(|()| allows(&self.portfolio, &request, *cx.mark.value(), self.limits))
+            .and_then(|()| instrument(&request, cx));
+        if let Err(error) = decision {
+            self.record_refusal(request)?;
+            return Err(error);
+        }
         let ticket = self
             .portfolio
             .next_ticket
@@ -339,6 +353,11 @@ impl RiskGate {
         cx: &RiskContext<'_>,
         resulting: PortfolioSnapshot,
     ) -> Result<PreparedSettlement<'_>, RiskError> {
+        if settlements.len() > self.limits.capacity || settlements.iter().any(|entry| {
+            matches!(entry, Settlement::Terminal(cut) if cut.receipts.len() > self.limits.capacity)
+        }) {
+            return Err(RiskError::Capacity);
+        }
         let mut next = self.portfolio.clone();
         let result = (|| {
             observe_state(&mut next, self.limits, self.initial_equity, cx)?;
@@ -409,6 +428,9 @@ impl RiskGate {
         cut: &Reconciliation,
         cx: &RiskContext<'_>,
     ) -> Result<(), RiskError> {
+        if cut.orders.len() > self.limits.capacity {
+            return Err(RiskError::Capacity);
+        }
         self.observe(cx)?;
         let mut given = cut.orders.clone();
         given.sort_by_key(|row| row.order);
@@ -454,6 +476,27 @@ impl RiskGate {
 
     fn commit_prepared(&mut self, next: RiskState) {
         self.portfolio = next;
+    }
+
+    fn record_refusal(&mut self, request: OrderRequest) -> Result<(), RiskError> {
+        if !self.portfolio.orders.contains_key(&request.id())
+            && self.portfolio.orders.len() >= self.limits.capacity
+        {
+            return Err(RiskError::Capacity);
+        }
+        bump_version(&mut self.portfolio)?;
+        self.portfolio.orders.insert(
+            request.id(),
+            Reservation {
+                request,
+                remaining: 0,
+                cumulative: 0,
+                phase: ReservationPhase::Terminal,
+                ticket: 0,
+                terminal: None,
+            },
+        );
+        Ok(())
     }
 
     fn validate_request(&self, request: &OrderRequest) -> Result<(), RiskError> {
@@ -729,6 +772,14 @@ fn prepare_settlement_state(
     limits: Limits,
     cx: &RiskContext<'_>,
 ) -> Result<SettlementOutcome, RiskError> {
+    let settlement = match settlement {
+        Settlement::Terminal(mut cut) => {
+            cut.receipts.sort();
+            Settlement::Terminal(cut)
+        }
+        Settlement::Fill(fill) => Settlement::Fill(fill),
+        Settlement::Unknown(id) => Settlement::Unknown(id),
+    };
     if let Settlement::Fill(fill) = &settlement {
         if let Some(old) = state.fills.get(&fill.key) {
             return if old == fill {
