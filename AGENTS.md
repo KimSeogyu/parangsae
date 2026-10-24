@@ -81,7 +81,7 @@ cargo test --workspace
 cargo xtask spec validate --jar specs/tla/tla2tools.jar
 cargo xtask spec generate --check
 cargo xtask spec enforce
-# Pilot source/model freshness; required-CI activation is pending approval.
+# Pilot source/model freshness also runs in the required spec-arch job.
 npm --prefix spec/sgd ci
 npm --prefix spec/sgd run verify -- --jar specs/tla/tla2tools.jar
 # CI also runs `spec enforce --diff <merge-base with the default branch>..HEAD`

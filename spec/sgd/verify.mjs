@@ -117,7 +117,7 @@ async function main() {
     '--ir', join(concrete, 'automaton.json'), '--out', view]);
   process.stdout.write(`${command === 'verify' ? 'Verified existing' : 'Updated'} closed partition source/model bindings, original payload contract, erasure, and TypeScript output.\n`);
   process.stdout.write(`Fresh Pele view: ${join(view, 'index.html')}\n`);
-  process.stdout.write('Scope: closed unbound data fold with complete row roles and private finite control. Loaded-resource/writer authority, persistence, all-target coverage, and required-CI activation are separate.\n');
+  process.stdout.write('Scope: closed unbound data fold with complete row roles and private finite control. Loaded-resource/writer authority, persistence, and all-target coverage require separate contracts. This readonly check also runs in the required spec-arch CI job.\n');
 }
 
 main().catch(error => {
