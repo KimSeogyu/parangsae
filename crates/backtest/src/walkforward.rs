@@ -467,6 +467,14 @@ impl WindowAccounting {
             n_forced_exits: self.n_forced_exits.checked_add(other.n_forced_exits)?,
         })
     }
+
+    fn checked_add_flat_days(self, days: usize) -> Option<Self> {
+        let window_us = i64::try_from(days).ok()?.checked_mul(DAY_US)?;
+        self.checked_add(Self {
+            window_us,
+            ..Self::ZERO
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1138,6 +1146,9 @@ impl<F> Drive<'_, F> {
                         .and_then(|row| row.equity_ticks.first().copied())
                         .unwrap_or(0);
                     scored_equity.extend(std::iter::repeat_n(cash, days));
+                    accounting = accounting
+                        .checked_add_flat_days(days)
+                        .ok_or(WalkError::Overflow)?;
                     continue;
                 }
                 let index = outcome.selected_index;
@@ -1400,6 +1411,9 @@ pub(crate) fn replay_from_selection<E>(
                 .and_then(|row| row.equity_ticks.first().copied())
                 .unwrap_or(0);
             scored_equity.extend(std::iter::repeat_n(cash, days));
+            accounting = accounting
+                .checked_add_flat_days(days)
+                .ok_or(WalkError::Overflow)?;
             continue;
         }
         let chosen = &fold.test[fold.selected_index];
