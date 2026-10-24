@@ -1,5 +1,10 @@
 # parangsae research read path v0.4 (BTCUSDT USD-M) — 2026-10-23
 
+The completed 2026-10-24 H1/H2 diagnostic used a separately accepted
+[reconstructed snapshot contract](h1-h2-reconstructed-snapshot.md).
+The sections below retain the wider v0.4 contract and its historical source identities.
+Use the linked contract for that diagnostic's bounded inputs, native clocks, and custody.
+
 Research window starts 2020-01-01 (pre-2020 is out of scope).
 
 One way to load: DuckDB views in `/workspace/reports/research-read-path.sql`
