@@ -29,6 +29,7 @@ struct EngineWorld {
     funding_hidden: bool,
     funding_visible: bool,
     funding_scripts: Option<(cases::Script, cases::Script)>,
+    probe_result: Option<Result<(), String>>,
 }
 
 impl EngineWorld {
@@ -414,4 +415,19 @@ fn fractional_drawdown_step(world: &mut EngineWorld) {
         Cash(90_000_000_000_000),
     ];
     world.drawdown = Some(parangsae_backtest::max_drawdown(&curve).unwrap().ticks());
+}
+
+#[when("the H2 lookahead probe runs with an unreachable deadband")]
+fn inactive_probe(world: &mut EngineWorld) {
+    let params = std::collections::BTreeMap::from([
+        ("deadband".to_owned(), 200_000_001),
+        ("n_members".to_owned(), 12),
+    ]);
+    world.probe_result = Some(parangsae_strategies::truncation_probe("H2", &params));
+}
+
+#[then("the probe refuses to attest causality without an active decision")]
+fn inactive_probe_refused(world: &mut EngineWorld) {
+    let error = world.probe_result.as_ref().unwrap().as_ref().unwrap_err();
+    assert!(error.contains("no active comparison decision"), "{error}");
 }

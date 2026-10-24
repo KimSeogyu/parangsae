@@ -133,3 +133,7 @@ Feature: Backtest engine v0
   Scenario: Compounded drawdown rounds a fractional ratio tick upward
     When the fractional-tick drawdown cash curve is measured
     Then the max drawdown ticks are 28000001
+
+  Scenario: An inactive lookahead probe cannot attest causality
+    When the H2 lookahead probe runs with an unreachable deadband
+    Then the probe refuses to attest causality without an active decision

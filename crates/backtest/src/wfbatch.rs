@@ -298,13 +298,15 @@ fn write_run_log(
     let mut lookahead_ok = true;
     for family in families {
         for (index, point) in family.points.iter().enumerate() {
-            let passed = truncation_probe(&family.family, &point.params).is_ok();
+            let probe = truncation_probe(&family.family, &point.params);
+            let passed = probe.is_ok();
             if !passed {
                 lookahead_ok = false;
             }
             lines.push(format!(
-                "lookahead family={} grid_index={index} passed={passed}",
-                family.family
+                "lookahead family={} grid_index={index} passed={passed} evidence=active_synthetic_prefix detail={:?}",
+                family.family,
+                probe.err()
             ));
         }
     }
