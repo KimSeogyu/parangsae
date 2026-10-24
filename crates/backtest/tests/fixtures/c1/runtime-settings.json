@@ -513,7 +513,8 @@
     "SLIPPAGE_STRESS": {
       "perp_fee_bps": 5,
       "slippage_bps_each_fill": 5,
-      "necessary": false
+      "necessary": false,
+      "report_only_scope": "VALID_NUMERIC_STRESS_LOSS_NOT_HARD_GATE_TECHNICAL_EXECUTION_FAILURE_STILL_FAIL_FAST"
     },
     "shared_spot_fee_bps": 10,
     "shared_entry_estimator": "HEADLINE_5_FEE_2_SLIP_IN_ALL_SCENARIOS",
@@ -624,6 +625,11 @@
     "conservative_initial_charged_identities_max": 5,
     "native_invocations_max": 1,
     "automatic_retry": false,
-    "H4_counting_unchanged": true
+    "H4_counting_unchanged": true,
+    "technical_unit_policy": "FAIL_FAST_ON_ANY_TECHNICAL_UNIT_INCLUDING_REPORT_ONLY_STRESS",
+    "overall_technical_verdict": "INCONCLUSIVE_TECHNICAL",
+    "overall_technical_completion": "INCOMPLETE",
+    "completed_unit_metrics_and_actual_ledger_preserved": true,
+    "technical_failure_zero_padding": false
   }
 }
