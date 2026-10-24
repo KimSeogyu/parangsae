@@ -513,6 +513,513 @@ fn path_dep_outside_the_workspace_is_an_unknown_crate() {
     }));
 }
 
+struct ExcludedPathFixture {
+    directory: PathBuf,
+}
+
+impl ExcludedPathFixture {
+    fn new(name: &str) -> Self {
+        let directory =
+            std::env::temp_dir().join(format!("arch-excluded-{name}-{}", std::process::id()));
+        fs::create_dir(&directory).unwrap();
+        let fixture = Self { directory };
+        copy_dir(&crate::fixture("dep_direct_ok"), &fixture.root());
+        fs::write(
+            fixture.root().join("Cargo.toml"),
+            "[workspace]\nresolver = \"2\"\nmembers = [\"a\"]\nexclude = [\"b\"]\n",
+        )
+        .unwrap();
+        let manifest = fixture.root().join("b/Cargo.toml");
+        let text = fs::read_to_string(&manifest).unwrap();
+        fs::write(manifest, format!("{text}\n[workspace]\n")).unwrap();
+        fixture
+    }
+
+    fn root(&self) -> PathBuf {
+        self.directory.join("workspace")
+    }
+
+    fn policy_without_edge(&self) {
+        let path = self.root().join("spec/arch/ArchitecturePolicy.tla");
+        let policy = fs::read_to_string(&path).unwrap();
+        fs::write(path, policy.replace("  <<\"a\", \"b\">>\n", "")).unwrap();
+    }
+}
+
+impl Drop for ExcludedPathFixture {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.directory);
+    }
+}
+
+#[test]
+fn excluded_declared_in_repository_path_dependency_is_allowed() {
+    let fixture = ExcludedPathFixture::new("allowed");
+    let diags = enforce_at(&fixture.root());
+    assert!(diags.is_empty(), "{diags:#?}");
+}
+
+#[test]
+fn excluded_renamed_path_dependency_uses_resolved_package_identity() {
+    let fixture = ExcludedPathFixture::new("renamed");
+    let manifest = fixture.root().join("a/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(
+        manifest,
+        text.replace(
+            "b = { path = \"../b\" }",
+            "alias = { package = \"b\", path = \"../b\" }",
+        ),
+    )
+    .unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(diags.is_empty(), "{diags:#?}");
+}
+
+#[test]
+fn excluded_in_repository_package_still_requires_an_allowed_edge() {
+    let fixture = ExcludedPathFixture::new("unlisted-edge");
+    fixture.policy_without_edge();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"
+            && diag.symbol == "a -> b"
+            && diag.message.contains("is not allowed")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_in_repository_package_still_requires_a_declared_module() {
+    let fixture = ExcludedPathFixture::new("unknown-module");
+    fixture.policy_without_edge();
+    let path = fixture.root().join("spec/arch/ArchitecturePolicy.tla");
+    let policy = fs::read_to_string(&path).unwrap();
+    fs::write(
+        path,
+        policy.replace(
+            "Modules == {\n  \"a\",\n  \"b\"\n}",
+            "Modules == {\n  \"a\"\n}",
+        ),
+    )
+    .unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"
+            && diag.symbol == "a -> b"
+            && diag.message.contains("unknown")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_declared_package_capability_calls_are_scanned() {
+    let fixture = ExcludedPathFixture::new("source-coverage");
+    fs::write(
+        fixture.root().join("b/src/lib.rs"),
+        "pub fn network_order_submit() {}\npub fn call() { network_order_submit(); }\n",
+    )
+    .unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags
+            .iter()
+            .any(|diag| diag.rule_id == "ARCH-CALL-001" && diag.file.contains("b/src/lib.rs")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_declared_package_effect_and_float_checks_remain_active() {
+    let fixture = ExcludedPathFixture::new("effects");
+    fs::write(
+        fixture.root().join("b/src/lib.rs"),
+        "pub fn bad() -> f64 { let _ = std::env::var(\"UNUSED\"); 1.0 }\n",
+    )
+    .unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        !diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"),
+        "{diags:#?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|diag| diag.rule_id == "ARCH-EFFECT-001" && diag.file.contains("b/src/lib.rs")),
+        "{diags:#?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|diag| diag.rule_id == "ARCH-FLOAT-001" && diag.file.contains("b/src/lib.rs")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_in_repository_manifest_with_an_outside_target_is_unknown() {
+    let fixture = ExcludedPathFixture::new("outside-target");
+    let manifest = fixture.root().join("b/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(
+        manifest,
+        format!("{text}\n[lib]\npath = \"../../outside.rs\"\n"),
+    )
+    .unwrap();
+    fs::write(fixture.directory.join("outside.rs"), "").unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"
+            && diag.symbol == "a -> b"
+            && diag.message.contains("unknown")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_registry_patch_is_not_a_literal_path_dependency() {
+    let fixture = ExcludedPathFixture::new("registry-patch");
+    let root_manifest = fixture.root().join("Cargo.toml");
+    let text = fs::read_to_string(&root_manifest).unwrap();
+    fs::write(
+        root_manifest,
+        format!("{text}\n[patch.crates-io]\nb = {{ path = \"b\" }}\n"),
+    )
+    .unwrap();
+    let manifest = fixture.root().join("a/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(
+        manifest,
+        text.replace("b = { path = \"../b\" }", "b = \"=0.0.0\""),
+    )
+    .unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"
+            && diag.symbol == "a -> b"
+            && diag.message.contains("unknown")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_same_name_versions_cannot_mask_an_outside_declaration() {
+    let fixture = ExcludedPathFixture::new("same-name-outside");
+    let manifest = fixture.root().join("b/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(manifest, text.replace("0.0.0", "0.2.0")).unwrap();
+    let outside = fixture.directory.join("zz-outside");
+    fs::create_dir_all(outside.join("src")).unwrap();
+    fs::write(outside.join("src/lib.rs"), "").unwrap();
+    fs::write(
+        outside.join("Cargo.toml"),
+        "[package]\nname=\"b\"\nversion=\"0.1.0\"\nedition=\"2021\"\n[workspace]\n",
+    )
+    .unwrap();
+    let manifest = fixture.root().join("a/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(
+        manifest,
+        text.replace(
+            "b = { path = \"../b\" }",
+            "a_safe = { package=\"b\", path=\"../b\", version=\"=0.2.0\" }\nz_outside = { package=\"b\", path=\"../../zz-outside\", version=\"=0.1.0\" }",
+        ),
+    )
+    .unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"
+            && diag.symbol == "a -> b"
+            && diag.message.contains("unknown")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_multiple_local_identities_cannot_share_one_policy_module() {
+    let fixture = ExcludedPathFixture::new("ambiguous-local-module");
+    let other = fixture.root().join("b-other");
+    copy_dir(&fixture.root().join("b"), &other);
+    let manifest = other.join("Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(manifest, text.replace("0.0.0", "0.1.0")).unwrap();
+    let manifest = fixture.root().join("Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(manifest, text.replace("[\"b\"]", "[\"b\", \"b-other\"]")).unwrap();
+    let manifest = fixture.root().join("a/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(
+        manifest,
+        text.replace(
+            "b = { path = \"../b\" }",
+            "first = { package=\"b\", path=\"../b\" }\nsecond = { package=\"b\", path=\"../b-other\" }",
+        ),
+    )
+    .unwrap();
+    let error = enforce(&EnforceOptions {
+        manifest: &fixture.root().join("Cargo.toml"),
+        diff: None,
+        as_bot: None,
+        check_generated: false,
+    })
+    .unwrap_err();
+    assert!(error.message.contains("ambiguous local module"), "{error}");
+}
+
+#[test]
+fn excluded_declared_module_cannot_be_replaced_by_plain_registry_source() {
+    let fixture = ExcludedPathFixture::new("registry-only");
+    let manifest = fixture.root().join("a/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(
+        manifest,
+        text.replace("b = { path = \"../b\" }", "serde = \"=1.0.229\""),
+    )
+    .unwrap();
+    let policy = fixture.root().join("spec/arch/ArchitecturePolicy.tla");
+    let text = fs::read_to_string(&policy).unwrap();
+    fs::write(policy, text.replace("\"b\"", "\"serde\"")).unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"
+            && diag.symbol == "a -> serde"
+            && diag.message.contains("unknown")),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_declared_module_cannot_be_replaced_by_plain_git_source() {
+    let fixture = ExcludedPathFixture::new("git-only");
+    let upstream = fixture.directory.join("upstream");
+    fs::rename(fixture.root().join("b"), &upstream).unwrap();
+    git(&upstream, &["init"]);
+    git(&upstream, &["add", "--", "Cargo.toml", "src/lib.rs"]);
+    git(
+        &upstream,
+        &[
+            "-c",
+            "user.email=fixture@example.invalid",
+            "-c",
+            "user.name=Fixture",
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-m",
+            "fixture",
+        ],
+    );
+    let manifest = fixture.root().join("a/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(
+        manifest,
+        text.replace(
+            "b = { path = \"../b\" }",
+            &format!("b = {{ git = \"file://{}\" }}", upstream.display()),
+        ),
+    )
+    .unwrap();
+    let home = fixture.directory.join("cargo-home");
+    let lock = Command::new("cargo")
+        .args(["generate-lockfile", "--manifest-path"])
+        .arg(fixture.root().join("Cargo.toml"))
+        .env_remove("CARGO_NET_OFFLINE")
+        .env("CARGO_HOME", &home)
+        .output()
+        .unwrap();
+    assert!(
+        lock.status.success(),
+        "{}",
+        String::from_utf8_lossy(&lock.stderr)
+    );
+    let cli = env!("CARGO_BIN_EXE_xtask");
+    let generated = Command::new(cli)
+        .arg("--manifest")
+        .arg(fixture.root().join("Cargo.toml"))
+        .args(["spec", "generate"])
+        .env("CARGO_HOME", &home)
+        .output()
+        .unwrap();
+    assert!(
+        generated.status.success(),
+        "{}",
+        String::from_utf8_lossy(&generated.stderr)
+    );
+    let output = Command::new(cli)
+        .arg("--manifest")
+        .arg(fixture.root().join("Cargo.toml"))
+        .args(["spec", "enforce"])
+        .env("CARGO_HOME", home)
+        .output()
+        .unwrap();
+    let detail = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!output.status.success(), "{detail}");
+    assert!(
+        detail.contains("ARCH-DEP-001") && detail.contains("a -> b"),
+        "{detail}"
+    );
+}
+
+#[test]
+fn excluded_shared_target_effects_are_checked() {
+    let fixture = ExcludedPathFixture::new("shared-target");
+    let manifest = fixture.root().join("b/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(manifest, format!("{text}\n[lib]\npath=\"../shared.rs\"\n")).unwrap();
+    fs::write(
+        fixture.root().join("shared.rs"),
+        "pub fn bad() -> f64 { let _ = std::env::var(\"UNUSED\"); 1.0 }\n",
+    )
+    .unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        !diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"),
+        "{diags:#?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|diag| diag.rule_id == "ARCH-EFFECT-001" && diag.file == "shared.rs"),
+        "{diags:#?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|diag| diag.rule_id == "ARCH-FLOAT-001" && diag.file == "shared.rs"),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_recursive_shared_module_effects_are_checked() {
+    let fixture = ExcludedPathFixture::new("shared-module");
+    fs::write(
+        fixture.root().join("b/src/lib.rs"),
+        "#[path=\"../../shared.rs\"]\npub mod shared;\n",
+    )
+    .unwrap();
+    fs::write(
+        fixture.root().join("shared.rs"),
+        "pub fn bad() -> f64 { let _ = std::env::var(\"UNUSED\"); 1.0 }\n",
+    )
+    .unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags
+            .iter()
+            .any(|diag| diag.rule_id == "ARCH-EFFECT-001" && diag.file == "shared.rs"),
+        "{diags:#?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|diag| diag.rule_id == "ARCH-FLOAT-001" && diag.file == "shared.rs"),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_recursive_module_escape_is_rejected() {
+    let fixture = ExcludedPathFixture::new("recursive-escape");
+    fs::write(
+        fixture.root().join("b/src/lib.rs"),
+        "#[path=\"../../../outside.rs\"]\npub mod shared;\n",
+    )
+    .unwrap();
+    fs::write(fixture.directory.join("outside.rs"), "").unwrap();
+    let error = enforce(&EnforceOptions {
+        manifest: &fixture.root().join("Cargo.toml"),
+        diff: None,
+        as_bot: None,
+        check_generated: false,
+    })
+    .unwrap_err();
+    assert!(error.message.contains("outside repository"), "{error}");
+}
+
+#[test]
+fn excluded_inline_out_of_line_module_is_not_silently_omitted() {
+    let fixture = ExcludedPathFixture::new("inline-module");
+    fs::write(
+        fixture.root().join("b/src/lib.rs"),
+        "pub mod nested { mod shared; }\n",
+    )
+    .unwrap();
+    let error = enforce(&EnforceOptions {
+        manifest: &fixture.root().join("Cargo.toml"),
+        diff: None,
+        as_bot: None,
+        check_generated: false,
+    })
+    .unwrap_err();
+    assert!(
+        error
+            .message
+            .contains("out-of-line modules inside inline modules are unsupported"),
+        "{error}"
+    );
+}
+
+#[test]
+fn excluded_shared_build_target_is_scanned() {
+    let fixture = ExcludedPathFixture::new("shared-build-target");
+    let manifest = fixture.root().join("b/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(
+        manifest,
+        text.replace("[workspace]", "build=\"../shared.rs\"\n[workspace]"),
+    )
+    .unwrap();
+    fs::write(
+        fixture.root().join("shared.rs"),
+        "fn network_order_submit() {}\nfn main() { network_order_submit(); }\n",
+    )
+    .unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags
+            .iter()
+            .any(|diag| diag.rule_id == "ARCH-CALL-001" && diag.file == "shared.rs"),
+        "{diags:#?}"
+    );
+}
+
+#[test]
+fn excluded_declared_package_outside_repository_is_unknown() {
+    let fixture = ExcludedPathFixture::new("outside-repository");
+    fs::rename(fixture.root().join("b"), fixture.directory.join("b")).unwrap();
+    let manifest = fixture.root().join("a/Cargo.toml");
+    let text = fs::read_to_string(&manifest).unwrap();
+    fs::write(manifest, text.replace("../b", "../../b")).unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"
+            && diag.symbol == "a -> b"
+            && diag.message.contains("unknown")),
+        "{diags:#?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn excluded_symlink_package_escape_is_unknown() {
+    let fixture = ExcludedPathFixture::new("symlink-escape");
+    let outside = fixture.directory.join("b");
+    fs::rename(fixture.root().join("b"), &outside).unwrap();
+    std::os::unix::fs::symlink(outside, fixture.root().join("b")).unwrap();
+    let diags = enforce_at(&fixture.root());
+    assert!(
+        diags.iter().any(|diag| diag.rule_id == "ARCH-DEP-001"
+            && diag.symbol == "a -> b"
+            && diag.message.contains("unknown")),
+        "{diags:#?}"
+    );
+}
+
 #[test]
 fn rename_diff_lists_both_paths() {
     let dir = std::env::temp_dir().join(format!("arch-rename-{}", std::process::id()));
