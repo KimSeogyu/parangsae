@@ -1451,6 +1451,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "sgd-owned-c1opportunitycontrol-50dd0338899d",
  "sha2",
  "tempfile",
  "tokio",
@@ -2087,6 +2088,13 @@ dependencies = [
  "form_urlencoded",
  "itoa",
  "ryu",
+ "serde",
+]
+
+[[package]]
+name = "sgd-owned-c1opportunitycontrol-50dd0338899d"
+version = "0.1.0"
+dependencies = [
  "serde",
 ]
 
