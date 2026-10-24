@@ -47,6 +47,10 @@ harness = false
 name = "walkforward_flat"
 harness = false
 
+[[test]]
+name = "h4_timing"
+harness = false
+
 [[example]]
 name = "smoke"
 
