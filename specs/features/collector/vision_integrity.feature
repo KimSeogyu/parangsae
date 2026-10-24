@@ -152,6 +152,9 @@ Feature: Vision archive integrity
     Given a stored BTCUSDT kline in a fresh data directory
     When the same kline is written again
     Then the write counts as unchanged
+    When the same normalized kline from a headed CSV is written
+    Then the write counts as unchanged
+    And the stored kline keeps its headerless source schema
     When a different open is written for that key
     Then the write counts as a conflict
     And the stored open is unchanged
