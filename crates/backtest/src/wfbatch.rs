@@ -996,6 +996,9 @@ struct ReplayFile {
 
 #[cfg(test)]
 mod tests {
+    mod h4_reporting_observer {
+        include!("h4_reporting_test.rs");
+    }
     use std::collections::BTreeMap;
     use std::path::PathBuf;
 

@@ -550,7 +550,7 @@ pub fn reduce_window(
             i128::from(raw.slippage_cost.0),
             funding,
         )?;
-        let side = &mut sides[origin.crowded_side.index()];
+        let side: &mut SideTotals = &mut sides[origin.crowded_side.index()];
         increment(&mut side.entries)?;
         increment(&mut side.closed_round_trips)?;
         if reason.is_some() {
