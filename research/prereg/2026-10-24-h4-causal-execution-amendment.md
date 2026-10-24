@@ -11,6 +11,9 @@ contract receipt. Where the old source, clock, or history claims conflict with
 this document, this dated amendment defines the new study. It does not change
 the hypothesis, signal formulas, exact grid, evaluation schedule, or numeric gates.
 It does not revise the completed, sealed H1/H2 diagnostic or approve H5.
+The actual-fill, causal-solvency, and fixed-terminal-open execution corrections
+below are explicit pre-results changes to the new H4 study. They are not claims
+that the old engine already followed this contract.
 
 ## Unchanged experiment
 
@@ -136,7 +139,8 @@ at a minute open `T` is:
 3. Before processing the pending order, apply the ORIGINAL-mark-clock and
    admitted projected-money control due at `T`. A solvency trigger can cancel
    the pending order; its liquidation cannot reuse this processed open.
-4. Process an eligible surviving pending order at `T` using its frozen authority.
+4. Process an eligible surviving pending order at `T` using its frozen authority,
+   except where the predeclared terminal-open override below cancels it.
 5. The H4 callback at `T + 1 ms` follows, using only then-admitted information.
 
 The booked cashflow becomes decision-visible only at the later of effective
@@ -163,8 +167,29 @@ delayed entry is committed, refuse it if that scheduled exit decision is at or
 beyond the exclusive development end. Count the boundary drop. This test uses clocks,
 not future price/liquidity. A scheduled exit inside the boundary does not promise
 a tradable fill; preserve subsequent refusals and costs. Fold-end forced flatten
-is a separately counted override, not a new ban on entries in each fold's last
-`hold_h` hours. Keep no flips, pyramiding, or hold extensions.
+is separately counted under the fixed schedule below. Do not add a ban on entries
+in each fold's last `hold_h` hours. Keep no flips, pyramiding, or hold extensions.
+
+## Fixed terminal-open execution correction (R3)
+
+For each train/test window and the global development end, predeclare the LAST
+SCHEDULED one-minute open strictly before that window's exclusive end. This is
+the calendar key `end - 60 seconds`, regardless of future `count`. At that fixed
+key, cancel pending risk activity even when the book is flat, and prevent any
+new entry through window end. If a position is held, close its actual fixed lots
+with all execution costs only when that bar has `count > 0`. If flat, create no
+synthetic trade.
+
+An unfillable held close at that terminal key is a whole-trial TECHNICAL failure.
+Do not scan future counts to choose an earlier `last_tradable_open`, fall back to
+an earlier price, backdate a close, or cross the window/holdout boundary. This
+changes the old terminal execution convention before H4 outcomes; it does not
+extend purge, alter the eleven folds, or add an H-hour entry ban to each fold.
+The declared candle fill-eligibility proxy is not proof that a trader knew the
+completed minute's count at its open. Future count never chooses the order key.
+Keep all terminal costs and forced-exit counts, excluding these exits from the
+100 strategy-initiated round-trip gate. The sealed H1/H2 outputs keep their old
+convention and are not rerun or restated under R3.
 
 ## Causal solvency control and technical failures
 
