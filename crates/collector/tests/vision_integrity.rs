@@ -927,6 +927,120 @@ fn when_verify_dataset(world: &mut VisionWorld, name: String) {
     run_verify(world, VerifyFilter::parse(&[name], None, None));
 }
 
+#[given(regex = r#"^a stored "(metrics|book-depth)" daily fixture in a fresh data directory$"#)]
+fn stored_daily_fact_fixture(world: &mut VisionWorld, dataset: String) {
+    let (kind, date, file_name, csv_name) = match dataset.as_str() {
+        "metrics" => (
+            VisionDataset::Metrics,
+            CivilDay::new(2020, 9, 1).unwrap(),
+            "BTCUSDT-metrics-2020-09-01.zip",
+            "metrics_2020-09-01_duplicate.csv",
+        ),
+        "book-depth" => (
+            VisionDataset::BookDepth,
+            CivilDay::new(2023, 1, 1).unwrap(),
+            "BTCUSDT-bookDepth-2023-01-01.zip",
+            "book_2023-01-01_one_ts.csv",
+        ),
+        _ => unreachable!(),
+    };
+    let dir = tempfile::tempdir().expect("temporary fixture store");
+    let prefix = verify_prefix(kind, Cadence::Daily).expect("daily prefix");
+    verify_ingest(
+        dir.path(),
+        kind,
+        date,
+        date,
+        &prefix,
+        file_name,
+        &fixture(csv_name),
+    )
+    .expect("native fixture ingestion");
+    assert!(run::verify(dir.path(), &VerifyFilter::all())
+        .expect("verify baseline")
+        .ok());
+    world.verify_dir = Some(dir);
+}
+
+#[when(regex = r#"^the stored "(metrics|book-depth)" payload differs from the archive$"#)]
+fn corrupt_stored_daily_fact(world: &mut VisionWorld, dataset: String) {
+    let dir = world.verify_dir.as_ref().expect("fixture store").path();
+    match dataset.as_str() {
+        "metrics" => {
+            let date = CivilDay::new(2020, 9, 1).unwrap();
+            let mut rows =
+                store::load_metrics(dir, "metrics", "BTCUSDT", date).expect("stored metrics");
+            rows[0].sum_open_interest = Qty::from_ticks(rows[0].sum_open_interest.ticks() + 1)
+                .expect("small positive synthetic mutation");
+            std::fs::remove_file(store::fact_path(dir, "metrics", "BTCUSDT", date))
+                .expect("replace fixture");
+            store::upsert_metrics(dir, "metrics", rows).expect("write altered fixture");
+        }
+        "book-depth" => {
+            let date = CivilDay::new(2023, 1, 1).unwrap();
+            let mut rows =
+                store::load_book(dir, "book-depth", "BTCUSDT", date).expect("stored book");
+            rows[0].depth = Qty::from_ticks(rows[0].depth.ticks() + 1).expect("synthetic mutation");
+            std::fs::remove_file(store::fact_path(dir, "book-depth", "BTCUSDT", date))
+                .expect("replace fixture");
+            store::upsert_book(dir, "book-depth", rows).expect("write altered fixture");
+        }
+        _ => unreachable!(),
+    }
+}
+
+#[when(regex = r#"^a "(metrics|book-depth)" daily archive contains rows from another UTC day$"#)]
+fn ingest_misdated_daily_fact(world: &mut VisionWorld, dataset: String) {
+    let (kind, source, original_day) = match dataset.as_str() {
+        "metrics" => (
+            VisionDataset::Metrics,
+            "metrics_2020-09-01_duplicate.csv",
+            "2020-09-01",
+        ),
+        "book-depth" => (
+            VisionDataset::BookDepth,
+            "book_2023-01-01_one_ts.csv",
+            "2023-01-01",
+        ),
+        _ => unreachable!(),
+    };
+    let dir = tempfile::tempdir().expect("temporary calendar fixture");
+    let from = CivilDay::new(2023, 1, 1).unwrap();
+    let to = CivilDay::new(2023, 1, 2).unwrap();
+    let prefix = verify_prefix(kind, Cadence::Daily).expect("daily prefix");
+    let name = format!("BTCUSDT-{}-2023-01-01.zip", kind.file_token());
+    world.ingest_error = verify_ingest(
+        dir.path(),
+        kind,
+        from,
+        to,
+        &prefix,
+        &name,
+        &fixture(source).replace(original_day, "2023-01-02"),
+    )
+    .err();
+    world.verify_dir = Some(dir);
+}
+
+#[then("the archive calendar is refused before fact storage")]
+fn daily_calendar_refused_before_storage(world: &mut VisionWorld) {
+    assert!(
+        world
+            .ingest_error
+            .as_ref()
+            .is_some_and(|error| error.contains("archive_calendar")),
+        "{:?}",
+        world.ingest_error
+    );
+    let dir = world.verify_dir.as_ref().expect("calendar fixture").path();
+    assert!(!dir.join("parquet").exists());
+    assert!(!dir.join("conflicts").exists());
+    assert!(parangsae_collector::manifest::ManifestLog::open(dir)
+        .expect("manifest")
+        .active()
+        .is_empty());
+}
+
 #[when(
     regex = r#"^verify is limited to dataset "([^"]+)" from "(\d{4}-\d{2}-\d{2})" to "(\d{4}-\d{2}-\d{2})"$"#
 )]

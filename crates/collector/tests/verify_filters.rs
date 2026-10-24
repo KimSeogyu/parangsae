@@ -169,6 +169,453 @@ fn corrupt_open(
     Ok(())
 }
 
+fn rewrite_first_i64(path: &Path, column: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let builder = ParquetRecordBatchReaderBuilder::try_new(std::fs::File::open(path)?)?;
+    let schema = builder.schema().clone();
+    let batches = builder.build()?.collect::<Result<Vec<_>, _>>()?;
+    let index = schema.index_of(column)?;
+    let mut writer = ArrowWriter::try_new(std::fs::File::create(path)?, schema.clone(), None)?;
+    for (batch_index, batch) in batches.into_iter().enumerate() {
+        let mut columns = batch.columns().to_vec();
+        if batch_index == 0 {
+            let old = columns[index]
+                .as_any()
+                .downcast_ref::<arrow_array::Int64Array>()
+                .ok_or("column is not i64")?;
+            let mut values: Vec<_> = old.values().iter().copied().collect();
+            values[0] = values[0].checked_add(1).ok_or("mutation overflow")?;
+            columns[index] = std::sync::Arc::new(arrow_array::Int64Array::from(values));
+        }
+        writer.write(&arrow_array::RecordBatch::try_new(schema.clone(), columns)?)?;
+    }
+    writer.close()?;
+    Ok(())
+}
+
+#[test]
+fn stored_metrics_payload_mutation_fails_verify() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let date = day(2020, 9, 1)?;
+    ingest(
+        dir.path(),
+        VisionDataset::Metrics,
+        date,
+        date,
+        &[ArchiveFile {
+            prefix: prefix(VisionDataset::Metrics, Cadence::Daily)?,
+            file_name: "BTCUSDT-metrics-2020-09-01.zip".to_owned(),
+            csv: fixture("metrics_2020-09-01_duplicate.csv")?,
+        }],
+    )?;
+    assert!(run::verify(dir.path(), &VerifyFilter::all())?.ok());
+    rewrite_first_i64(
+        &store::fact_path(dir.path(), "metrics", "BTCUSDT", date),
+        "sum_open_interest_ticks",
+    )?;
+    let report = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert!(
+        !report.ok(),
+        "changed stored metrics payload was accepted: {report}"
+    );
+    Ok(())
+}
+
+#[test]
+fn stored_book_payload_mutation_fails_verify() -> Result<(), Box<dyn std::error::Error>> {
+    let dir = tempfile::tempdir()?;
+    let date = day(2023, 1, 1)?;
+    ingest(
+        dir.path(),
+        VisionDataset::BookDepth,
+        date,
+        date,
+        &[ArchiveFile {
+            prefix: prefix(VisionDataset::BookDepth, Cadence::Daily)?,
+            file_name: "BTCUSDT-bookDepth-2023-01-01.zip".to_owned(),
+            csv: fixture("book_2023-01-01_one_ts.csv")?,
+        }],
+    )?;
+    assert!(run::verify(dir.path(), &VerifyFilter::all())?.ok());
+    rewrite_first_i64(
+        &store::fact_path(dir.path(), "book-depth", "BTCUSDT", date),
+        "depth_ticks",
+    )?;
+    let report = run::verify(dir.path(), &VerifyFilter::all())?;
+    assert!(
+        !report.ok(),
+        "changed stored book payload was accepted: {report}"
+    );
+    Ok(())
+}
+
+#[test]
+fn daily_fact_calendar_mismatch_fails_before_parquet_write(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let named = day(2023, 1, 1)?;
+    let misplaced = day(2023, 1, 2)?;
+    let mut accepted = Vec::new();
+    for (dataset, source, source_date) in [
+        (
+            VisionDataset::Metrics,
+            "metrics_2020-09-01_duplicate.csv",
+            "2020-09-01",
+        ),
+        (
+            VisionDataset::BookDepth,
+            "book_2023-01-01_one_ts.csv",
+            "2023-01-01",
+        ),
+    ] {
+        let dir = tempfile::tempdir()?;
+        let result = ingest(
+            dir.path(),
+            dataset,
+            named,
+            misplaced,
+            &[ArchiveFile {
+                prefix: prefix(dataset, Cadence::Daily)?,
+                file_name: format!("BTCUSDT-{}-2023-01-01.zip", dataset.file_token()),
+                csv: fixture(source)?.replace(source_date, "2023-01-02"),
+            }],
+        );
+        if result.is_ok() {
+            accepted.push(format!(
+                "misdated {dataset} source was accepted; foreign partition exists={}",
+                store::fact_path(dir.path(), dataset.as_str(), "BTCUSDT", misplaced).exists()
+            ));
+            continue;
+        }
+        assert!(result.unwrap_err().to_string().contains("archive_calendar"));
+        for date in [named, misplaced] {
+            assert!(!store::fact_path(dir.path(), dataset.as_str(), "BTCUSDT", date).exists());
+        }
+        assert!(
+            parangsae_collector::manifest::ManifestLog::open(dir.path())?
+                .active()
+                .is_empty()
+        );
+    }
+    assert!(accepted.is_empty(), "{}", accepted.join("; "));
+    Ok(())
+}
+
+fn daily_fact_archive(
+    dataset: VisionDataset,
+) -> Result<(CivilDay, ArchiveFile), Box<dyn std::error::Error>> {
+    let (date, source) = match dataset {
+        VisionDataset::Metrics => (day(2020, 9, 1)?, "metrics_2020-09-01_duplicate.csv"),
+        VisionDataset::BookDepth => (day(2023, 1, 1)?, "book_2023-01-01_one_ts.csv"),
+        _ => return Err("not a daily fact fixture".into()),
+    };
+    Ok((
+        date,
+        ArchiveFile {
+            prefix: prefix(dataset, Cadence::Daily)?,
+            file_name: format!("BTCUSDT-{}-{date}.zip", dataset.file_token()),
+            csv: fixture(source)?,
+        },
+    ))
+}
+
+fn rewrite_verified_archive(
+    dir: &Path,
+    source: &parangsae_collector::manifest::ObjectManifest,
+    path: String,
+    csv: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let bytes = zip_csv("rows.csv", csv)?;
+    let raw = dir.join("raw").join(&path);
+    std::fs::create_dir_all(raw.parent().ok_or("raw parent")?)?;
+    std::fs::write(&raw, &bytes)?;
+    std::fs::write(
+        format!("{}.CHECKSUM", raw.display()),
+        checksum_bytes(
+            Path::new(&path)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or("archive basename")?,
+            &bytes,
+        ),
+    )?;
+    let mut object = source.clone();
+    object.path = path.clone();
+    object.url = download_url(&path);
+    object.sha256 = sha256_bytes(&bytes);
+    object.size_bytes = bytes.len() as u64;
+    object.row_count = csv.lines().count().saturating_sub(1) as u64;
+    parangsae_collector::manifest::ManifestLog::open(dir)?
+        .record_stored(object, (source.path == path).then_some(source.sha256))?;
+    Ok(())
+}
+
+#[test]
+fn daily_fact_stored_set_and_received_metadata_controls() -> Result<(), Box<dyn std::error::Error>>
+{
+    for dataset in [VisionDataset::Metrics, VisionDataset::BookDepth] {
+        for change in ["missing", "extra", "duplicate", "received"] {
+            let dir = tempfile::tempdir()?;
+            let (date, archive) = daily_fact_archive(dataset)?;
+            ingest(dir.path(), dataset, date, date, &[archive])?;
+            let path = store::fact_path(dir.path(), dataset.as_str(), "BTCUSDT", date);
+            match change {
+                "missing" => std::fs::remove_file(&path)?,
+                "received" => rewrite_first_i64(&path, "received_ts_us")?,
+                "extra" => match dataset {
+                    VisionDataset::Metrics => {
+                        let mut row =
+                            store::load_metrics(dir.path(), dataset.as_str(), "BTCUSDT", date)?[0]
+                                .clone();
+                        row.create_time =
+                            UtcMicros::from_micros(row.create_time.micros() + 300_000_000);
+                        row.event_ts = EventTs::from_micros(row.create_time);
+                        row.available_ts = AvailableTs::from_micros(UtcMicros::from_micros(
+                            row.create_time.micros() + 300_000_000,
+                        ));
+                        store::upsert_metrics(dir.path(), dataset.as_str(), vec![row])?;
+                    }
+                    VisionDataset::BookDepth => {
+                        let mut row =
+                            store::load_book(dir.path(), dataset.as_str(), "BTCUSDT", date)?[0]
+                                .clone();
+                        row.timestamp = UtcMicros::from_micros(row.timestamp.micros() + 1_000_000);
+                        row.event_ts = EventTs::from_micros(row.timestamp);
+                        row.available_ts = AvailableTs::from_micros(row.timestamp);
+                        store::upsert_book(dir.path(), dataset.as_str(), vec![row])?;
+                    }
+                    _ => unreachable!(),
+                },
+                "duplicate" => {
+                    let builder =
+                        ParquetRecordBatchReaderBuilder::try_new(std::fs::File::open(&path)?)?;
+                    let schema = builder.schema().clone();
+                    let batches = builder.build()?.collect::<Result<Vec<_>, _>>()?;
+                    let mut writer =
+                        ArrowWriter::try_new(std::fs::File::create(&path)?, schema, None)?;
+                    for batch in &batches {
+                        writer.write(batch)?;
+                    }
+                    writer.write(&batches[0].slice(0, 1))?;
+                    writer.close()?;
+                }
+                _ => unreachable!(),
+            }
+            let before = std::fs::read(&path).ok();
+            let report = run::verify(dir.path(), &VerifyFilter::all())?;
+            let prefix = match change {
+                "missing" => "missing parquet row ",
+                "extra" => "unexpected parquet row ",
+                "duplicate" => "duplicate parquet key ",
+                "received" => "",
+                _ => unreachable!(),
+            };
+            if change == "received" {
+                assert!(
+                    report.ok(),
+                    "excluded receipt metadata changed equality: {report}"
+                );
+            } else {
+                assert!(!report.ok(), "{dataset} {change} was accepted: {report}");
+                assert!(
+                    report
+                        .fault_lines
+                        .iter()
+                        .any(|line| line.starts_with(prefix)),
+                    "{:?}",
+                    report.fault_lines
+                );
+            }
+            assert_eq!(
+                std::fs::read(&path).ok(),
+                before,
+                "verification wrote fixture data"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn empty_daily_archive_scope_detects_injected_stored_rows() -> Result<(), Box<dyn std::error::Error>>
+{
+    for dataset in [VisionDataset::Metrics, VisionDataset::BookDepth] {
+        let dir = tempfile::tempdir()?;
+        let (date, mut archive) = daily_fact_archive(dataset)?;
+        let source = archive.csv.clone();
+        archive.csv = format!("{}\n", source.lines().next().ok_or("header")?);
+        // The fixture helper rejects zero inserted rows; native ingest itself
+        // succeeds and records the validated header-only archive.
+        assert!(ingest(dir.path(), dataset, date, date, &[archive])
+            .unwrap_err()
+            .to_string()
+            .contains("stored nothing"));
+        assert_eq!(
+            parangsae_collector::manifest::ManifestLog::open(dir.path())?
+                .active()
+                .len(),
+            1
+        );
+        assert!(run::verify(dir.path(), &VerifyFilter::all())?.ok());
+        match dataset {
+            VisionDataset::Metrics => {
+                let rows = parangsae_collector::vision::parse_metrics(
+                    &source,
+                    &Symbol::new("BTCUSDT").map_err(|error| error.to_string())?,
+                    ReceivedTs::from_micros(UtcMicros::from_micros(10)),
+                )?
+                .rows;
+                store::upsert_metrics(dir.path(), dataset.as_str(), rows)?;
+            }
+            VisionDataset::BookDepth => {
+                let mut rows = parangsae_collector::vision::parse_book(
+                    &source,
+                    &Symbol::new("BTCUSDT").map_err(|error| error.to_string())?,
+                    ReceivedTs::from_micros(UtcMicros::from_micros(10)),
+                )?
+                .rows;
+                assert!(parangsae_collector::vision::book_row_faults(&mut rows).is_empty());
+                store::upsert_book(dir.path(), dataset.as_str(), rows)?;
+            }
+            _ => unreachable!(),
+        }
+        let report = run::verify(dir.path(), &VerifyFilter::all())?;
+        assert!(
+            !report.ok(),
+            "header-only {dataset} scope hid injected rows"
+        );
+        assert!(report
+            .fault_lines
+            .iter()
+            .all(|line| line.starts_with("unexpected parquet row ")));
+    }
+    Ok(())
+}
+
+#[test]
+fn daily_fact_same_day_valid_contributors_form_one_union() -> Result<(), Box<dyn std::error::Error>>
+{
+    for dataset in [VisionDataset::Metrics, VisionDataset::BookDepth] {
+        let dir = tempfile::tempdir()?;
+        let (date, mut archive) = daily_fact_archive(dataset)?;
+        let first = archive.csv.clone();
+        let later = match dataset {
+            VisionDataset::Metrics => first.replace("00:00:00", "00:05:00"),
+            VisionDataset::BookDepth => first.replace("00:06:05", "00:07:05"),
+            _ => unreachable!(),
+        };
+        archive.csv = format!(
+            "{}\n{}\n",
+            first.trim(),
+            later.lines().skip(1).collect::<Vec<_>>().join("\n")
+        );
+        let filename = archive.file_name.clone();
+        ingest(dir.path(), dataset, date, date, &[archive])?;
+        let object =
+            parangsae_collector::manifest::ManifestLog::open(dir.path())?.active()[0].clone();
+        rewrite_verified_archive(dir.path(), &object, object.path.clone(), &first)?;
+        rewrite_verified_archive(
+            dir.path(),
+            &object,
+            format!("additional/{filename}"),
+            &later,
+        )?;
+        let path = store::fact_path(dir.path(), dataset.as_str(), "BTCUSDT", date);
+        let before = std::fs::read(&path)?;
+        let filter = VerifyFilter::parse(
+            &[dataset.as_str()],
+            Some(&date.to_string()),
+            Some(&date.to_string()),
+        )?;
+        let report = run::verify(dir.path(), &filter)?;
+        assert!(
+            report.ok(),
+            "valid {dataset} contributors were not unioned: {report}; {:?}",
+            report.fault_lines
+        );
+        assert_eq!(report.archives_in_scope, 2);
+        assert_eq!(std::fs::read(path)?, before);
+    }
+    Ok(())
+}
+
+#[test]
+fn selected_daily_archive_rejects_foreign_calendar_rows_during_verify(
+) -> Result<(), Box<dyn std::error::Error>> {
+    for dataset in [VisionDataset::Metrics, VisionDataset::BookDepth] {
+        let dir = tempfile::tempdir()?;
+        let (date, archive) = daily_fact_archive(dataset)?;
+        let source = archive
+            .csv
+            .replace(&date.to_string(), &date.next().to_string());
+        ingest(dir.path(), dataset, date, date, &[archive])?;
+        let object =
+            parangsae_collector::manifest::ManifestLog::open(dir.path())?.active()[0].clone();
+        rewrite_verified_archive(dir.path(), &object, object.path.clone(), &source)?;
+        let excluded = run::verify(
+            dir.path(),
+            &VerifyFilter::parse(
+                &[dataset.as_str()],
+                Some(&date.next().to_string()),
+                Some(&date.next().to_string()),
+            )?,
+        )?;
+        assert!(excluded.ok());
+        assert_eq!(
+            excluded.archives_in_scope, 0,
+            "archive admission remains filename-scoped"
+        );
+        let report = run::verify(
+            dir.path(),
+            &VerifyFilter::parse(
+                &[dataset.as_str()],
+                Some(&date.to_string()),
+                Some(&date.to_string()),
+            )?,
+        )?;
+        assert!(!report.ok());
+        assert!(
+            report
+                .fault_lines
+                .iter()
+                .any(|line| line.contains("archive_calendar")),
+            "{:?}",
+            report.fault_lines
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn book_verification_retains_each_valid_level_schema_in_narrow_scope(
+) -> Result<(), Box<dyn std::error::Error>> {
+    let date = day(2023, 1, 1)?;
+    for (source, original_date, schema) in [
+        ("book_2023-01-01_one_ts.csv", "2023-01-01", 1),
+        ("book_2026-10-20_one_ts.csv", "2026-10-20", 2),
+    ] {
+        let dir = tempfile::tempdir()?;
+        ingest(
+            dir.path(),
+            VisionDataset::BookDepth,
+            date,
+            date,
+            &[ArchiveFile {
+                prefix: prefix(VisionDataset::BookDepth, Cadence::Daily)?,
+                file_name: "BTCUSDT-bookDepth-2023-01-01.zip".into(),
+                csv: fixture(source)?.replace(original_date, "2023-01-01"),
+            }],
+        )?;
+        assert!(store::load_book(dir.path(), "book-depth", "BTCUSDT", date)?
+            .iter()
+            .all(|row| row.level_schema == schema));
+        let report = run::verify(
+            dir.path(),
+            &VerifyFilter::parse(&["book-depth"], Some("2023-01-01"), Some("2023-01-01"))?,
+        )?;
+        assert!(report.ok(), "normalized schema{schema} was lost: {report}");
+    }
+    Ok(())
+}
+
 fn corrupt_one_funding_gap(dir: &Path) -> Result<CivilDay, Box<dyn std::error::Error>> {
     let mut cursor = day(2026, 9, 1)?;
     for _ in 0..30 {

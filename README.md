@@ -46,7 +46,7 @@ The collector downloads public `data.binance.vision` objects. No API key or orde
 
 Collection exits with status 1 for checksum mismatches, invalid rows, conflicts, and gaps outside the allowlist. A successful verification is limited to the selected local artifacts; it does not establish source completeness or point-in-time correctness. The [collector verification scenarios](specs/features/collector/collector_integrity.feature) cover deleted partitions and partial-month ingests. The same key with the same payload is a no-op. The same key with a different payload is recorded and the stored row is left in place.
 
-Stored metrics and book-depth payloads are not yet compared with their source archives ([#7](https://github.com/KimSeogyu/parangsae/issues/7)).
+`verify` compares normalized metrics and book-depth stored keys and full canonical payloads with admitted source archives, ignoring only receipt provenance. Coverage is limited to the admitted archive filenames and partitions.
 
 ## Reading guide
 
