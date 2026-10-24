@@ -83,7 +83,7 @@ authorized here. Unknown historical search counts cap any favorable future
 development result at `INCONCLUSIVE_HISTORY`. The holdout from 2025-10-01 stays
 closed. This candidate does not revise H4, rescue H1/H2, or authorize paper or live use.
 
-The [PR 26 draft](https://github.com/KimSeogyu/parangsae/pull/26) covers bounded synthetic accounting and lifecycle work, not a C1 experiment.
+The [PR 26](https://github.com/KimSeogyu/parangsae/pull/26) implementation provides the bounded synthetic accounting and lifecycle foundation. C1 remains a design candidate without a preregistration or run from this phase.
 
 The [official funding mechanics](https://www.binance.com/en/support/faq/detail/360033525031) describe transfers between opposing holders. Current documentation does not prove historical receipt timing.
 
