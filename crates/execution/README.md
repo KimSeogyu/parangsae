@@ -12,6 +12,21 @@ mark, injected monotonic and UTC clocks, explicit costs, Risk limits, and
 Execution bounds. Initial equity remains the session loss anchor. Limits and
 costs remain frozen for that session. There is no automatic reset or day rollover.
 
+Active paper valuation requires event, availability and receipt times at or before
+the decision. Initial and command marks are checked before constructing authority
+or computing equity. Availability is checked first with `RiskError::FutureMark`;
+a later event returns `FutureMarkEvent`, and a later receipt returns
+`FutureMarkReceipt`. Command refusal latches once and preserves existing economic
+state and reservations. Normally delayed marks are usable after receipt. No
+ordering between the three source clocks is imposed. Their values remain
+unchanged. This boundary applies to active paper inputs; historical research Tape
+visibility remains separate.
+
+Every admitted command mark is an independent portfolio observation, including
+an exact receipt replay, an existing plan or a stale resume request. A duplicate
+fill changes no economics; its fresh valuation can still latch session loss or
+notional risk. A later recovered mark cannot clear a recorded session loss.
+
 The first scope supports one BTCUSDT market-order stream. `Plan` creates a real
 opaque approval and reservation. `Dispatch` consumes that approval through a
 fresh Risk check. CID intent and attempt remain lossless, and the attempt must
@@ -35,14 +50,20 @@ released. A definitive paper rejection releases its unfilled reservation.
 Timeout creates `Unknown`, unknown exposure and a halt. A terminal recovery cut
 must supply complete priced receipts; cumulative quantity alone cannot invent
 price, fee or cash. `ReconcilePortfolio` compares the engine's separately tracked
-orders and ledger with Risk. `Resume` requires that fresh matching cut and the
-current halt epoch. Session loss remains latched.
+orders and ledger with Risk. `Resume` must carry the caller's explicitly observed
+`expected_epoch`. A stale value returns `EpochMismatch` without resuming, even
+after a fresh matching reconciliation. Empty Resume records are refused by the
+unreleased journal codec. Session loss remains latched.
 
 The current lifecycle forbids late fills from `Expired`. A terminal Expired cut
 with unaccounted priced receipts returns `ExpiredReceiptRecoveryUnsupported`,
 retains conservative exposure and halts. Extending this boundary requires a
 lifecycle specification change. Existing known receipts can finalize an Expired
 cut.
+
+`ReconcilePortfolio` refuses terminal lifecycle orders without a complete
+finalized cut or definitive local refusal. An unsupported Expired recovery
+cannot use that command and `Resume` to discard its outstanding reservation.
 
 `Limits.capacity` bounds retained order identities, receipts, terminal evidence
 and settlement batches. A terminal batch needs capacity for every new receipt

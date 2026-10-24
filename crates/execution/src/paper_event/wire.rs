@@ -62,7 +62,9 @@ enum Action {
     Halt {
         cause: Cause,
     },
-    Resume,
+    Resume {
+        expected_epoch: u64,
+    },
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -221,7 +223,7 @@ impl From<PaperCommand> for Command {
             PaperAction::Halt(cause) => Action::Halt {
                 cause: cause.into(),
             },
-            PaperAction::Resume => Action::Resume,
+            PaperAction::Resume { expected_epoch } => Action::Resume { expected_epoch },
         };
         Self {
             mono_us: value.now.micros(),
@@ -269,7 +271,7 @@ impl TryFrom<Command> for PaperCommand {
             }
             Action::ReconcilePortfolio => PaperAction::ReconcilePortfolio,
             Action::Halt { cause } => PaperAction::Halt(cause.into()),
-            Action::Resume => PaperAction::Resume,
+            Action::Resume { expected_epoch } => PaperAction::Resume { expected_epoch },
         };
         Ok(Self {
             now: Mono::from_micros(value.mono_us),

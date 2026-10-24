@@ -41,7 +41,9 @@ pub enum PaperAction {
     Reconcile(Observation<PaperTerminalCut>),
     ReconcilePortfolio,
     Halt(HaltCause),
-    Resume,
+    Resume {
+        expected_epoch: u64,
+    },
 }
 
 /// A paper fill references the explicit source price before configured costs.

@@ -204,7 +204,7 @@ pub fn unknown() -> (PaperSession, Vec<PaperCommand>) {
         ),
         cut(10, PaperTerminal::Filled, vec![fill(5, 1, 400_000)]),
         command(11, PaperAction::ReconcilePortfolio),
-        command(12, PaperAction::Resume),
+        command(12, PaperAction::Resume { expected_epoch: 1 }),
     ]);
     (session(), commands)
 }
@@ -221,7 +221,7 @@ pub fn halted() -> (PaperSession, Vec<PaperCommand>) {
                 },
             ),
             command(4, PaperAction::ReconcilePortfolio),
-            command(5, PaperAction::Resume),
+            command(5, PaperAction::Resume { expected_epoch: 1 }),
         ],
     )
 }

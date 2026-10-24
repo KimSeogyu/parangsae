@@ -31,6 +31,25 @@ Feature: Risk-authorized offline paper execution and recovery
     When a future-received fill is presented before its delivery time
     Then no fill or fee is applied
 
+  Scenario: Active paper valuation requires an arrived mark
+    Given an accounted paper buy with a visible valuation
+    When the mark reports a receipt time after the paper decision
+    Then paper valuation is refused without applying session loss or changing economics
+    When a delayed mark has arrived by the paper decision
+    Then the arrived valuation is admitted
+
+  Scenario: Active paper valuation refuses a future exchange event
+    Given an accounted paper buy with a visible valuation
+    When the mark reports an event time after the paper decision
+    Then future-event valuation is refused without changing economics
+
+  Scenario: Exact receipt replay still observes portfolio marks
+    Given an accounted paper buy with a visible valuation
+    When a fresh loss-breaching mark accompanies an exact retained receipt
+    Then economics are unchanged and session loss is latched once
+    When the next visible mark recovers
+    Then session loss remains latched at the same halt epoch
+
   Scenario: A cancel race retains priced fills and conservative reservation
     Given a paper-dispatched buy of 0.004 BTC
     And paper fill 1 has settled 0.001 BTC at reference price 30000 USDT
@@ -87,6 +106,18 @@ Feature: Risk-authorized offline paper execution and recovery
     When a priced fill breaches the frozen initial-equity loss limit
     And a matching reconciliation is followed by resume
     Then the session loss halt remains latched
+
+  Scenario: Resume keeps the caller's observed halt epoch
+    Given a paper halt with a fresh matching reconciliation
+    When resume requests an older halt epoch
+    Then resume is refused and the current epoch stays halted
+    When resume requests the observed current halt epoch
+    Then execution resumes at that epoch
+
+  Scenario: Unsupported Expired recovery cannot be bypassed by portfolio resume
+    Given an expired paper order with an unaccounted priced receipt
+    When portfolio reconciliation and current-epoch resume are requested
+    Then the unresolved receipt keeps unknown exposure and conservative reservation
 
   Scenario Outline: Restart reconstructs the uninterrupted paper result
     Given the scripted paper session has a durable ingress journal

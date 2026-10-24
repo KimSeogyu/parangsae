@@ -8,7 +8,7 @@ use crate::{
     transition, CellContext, ClientOrderId, ExecutionConfig, HaltCause, HaltEpoch, Mono,
     OrderProgress, OrderState, ProgressError, TransitionError, ValidatedEvent,
 };
-use parangsae_core::{Amount, DecisionTime, Observation, Price, Qty, Symbol};
+use parangsae_core::{Amount, Causal, DecisionTime, Observation, Price, Qty, Symbol};
 use parangsae_risk::{
     ApprovedOrder, DispatchDecision, FillKey, FillReceipt, InitialPortfolio, Limits, OrderId,
     OrderRequest, PortfolioSnapshot, ReconciledOrder, Reconciliation, ReservationPhase,
@@ -70,6 +70,8 @@ pub enum PaperError {
     InvalidSession,
     ClockWentBackwards,
     FutureReport,
+    FutureMarkReceipt,
+    FutureMarkEvent,
     InvalidEvidence,
     ReceiptConflict,
     IncompleteCut,
@@ -135,10 +137,7 @@ impl PaperEngine {
         {
             return Err(PaperError::InvalidSession);
         }
-        let mark = session
-            .initial_mark
-            .causal_at(session.initial_decision)
-            .ok_or(PaperError::Risk(RiskError::FutureMark))?;
+        let mark = admitted_mark(&session.initial_mark, session.initial_decision)?;
         let ledger = Ledger::new(session.initial_cash);
         let risk = RiskGate::new(
             session.limits,
@@ -191,11 +190,15 @@ impl PaperEngine {
         }
         self.last_now = command.now;
         self.last_decision = command.decision;
-        let mark = match command.mark.causal_at(command.decision) {
-            Some(mark) if mark.value().ticks() > 0 => mark,
-            _ => {
+        let mark = match admitted_mark(&command.mark, command.decision) {
+            Ok(mark) if mark.value().ticks() > 0 => mark,
+            Ok(_) => {
                 self.risk.latch(HaltCause::PayloadError);
                 return Err(PaperError::Risk(RiskError::FutureMark));
+            }
+            Err(error) => {
+                self.risk.latch(HaltCause::PayloadError);
+                return Err(error);
             }
         };
         let equity = match self.ledger.equity(*mark.value()) {
@@ -212,6 +215,7 @@ impl PaperEngine {
             position_ticks: self.ledger.position().0,
             equity_ticks: equity.0,
         };
+        self.risk.observe(&cx).map_err(PaperError::Risk)?;
         let result = self.apply(&command.action, &cx);
         if matches!(
             &result,
@@ -307,6 +311,18 @@ impl PaperEngine {
             PaperAction::Timeout { client_order_id } => self.timeout(client_order_id, cx),
             PaperAction::Reconcile(cut) => self.terminal(cut, cx),
             PaperAction::ReconcilePortfolio => {
+                if self.orders.values().any(|order| {
+                    !finalized(order)
+                        && matches!(
+                            order.progress.state(),
+                            OrderState::Filled
+                                | OrderState::Canceled
+                                | OrderState::Expired
+                                | OrderState::Rejected
+                        )
+                }) {
+                    return Err(PaperError::IncompleteCut);
+                }
                 let orders = self
                     .orders
                     .values()
@@ -343,8 +359,11 @@ impl PaperEngine {
                 Ok(PaperOutcome::PortfolioReconciled)
             }
             PaperAction::Halt(cause) => Ok(PaperOutcome::Halted(self.risk.latch(*cause))),
-            PaperAction::Resume => {
+            PaperAction::Resume { expected_epoch } => {
                 let epoch = self.risk.snapshot().epoch;
+                if epoch.get() != *expected_epoch {
+                    return Err(PaperError::Risk(RiskError::EpochMismatch));
+                }
                 self.risk.resume(epoch, cx).map_err(PaperError::Risk)?;
                 Ok(PaperOutcome::Resumed(epoch))
             }
@@ -683,6 +702,22 @@ impl PaperEngine {
         order.terminal = Some(evidence);
         Ok(PaperOutcome::TerminalReconciled(id.clone()))
     }
+}
+
+fn admitted_mark(
+    mark: &Observation<Price>,
+    decision: DecisionTime,
+) -> Result<Causal<'_, Price>, PaperError> {
+    let view = mark
+        .causal_at(decision)
+        .ok_or(PaperError::Risk(RiskError::FutureMark))?;
+    if mark.timestamps().event_ts.micros() > decision.micros() {
+        return Err(PaperError::FutureMarkEvent);
+    }
+    if mark.timestamps().received_ts.micros() > decision.micros() {
+        return Err(PaperError::FutureMarkReceipt);
+    }
+    Ok(view)
 }
 
 fn order_id(id: &ClientOrderId) -> Result<OrderId, PaperError> {

@@ -257,4 +257,88 @@ mod tests {
             Err(ReplayError::FixtureMismatch)
         ));
     }
+
+    #[test]
+    fn replay_preserves_future_mark_receipt_refusal_without_future_valuation() {
+        use parangsae_core::{Observation, ReceivedTs, UtcMicros};
+        use parangsae_execution::PaperAction;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("paper.journal");
+        let (initial, commands) = paper_cases::full_fill();
+        let mut run = OfflineReplay::create(&path, initial).unwrap();
+        for command in commands {
+            run.apply(command).unwrap().outcome.unwrap();
+        }
+        let mut future = paper_cases::command(7, PaperAction::ReconcilePortfolio);
+        let mut clocks = future.mark.timestamps();
+        clocks.received_ts = ReceivedTs::from_micros(UtcMicros::from_micros(paper_cases::AT + 100));
+        future.mark = Observation::new(clocks, paper_cases::price(paper_cases::UNIT));
+        let observed = run.apply(future).unwrap();
+        assert_eq!(
+            observed.outcome,
+            Err(parangsae_execution::PaperError::FutureMarkReceipt)
+        );
+        assert!(!observed.snapshot.risk.loss_latched);
+        assert!(observed.snapshot.risk.halted);
+        drop(run);
+        let resumed = OfflineReplay::resume(&path).unwrap();
+        assert_eq!(resumed.snapshot(), observed.snapshot);
+    }
+
+    #[test]
+    fn replay_preserves_future_mark_event_clocks_and_refusal() {
+        use parangsae_core::{EventTs, Observation, UtcMicros};
+        use parangsae_execution::PaperAction;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("paper.journal");
+        let (initial, commands) = paper_cases::full_fill();
+        let mut run = OfflineReplay::create(&path, initial).unwrap();
+        for command in commands {
+            run.apply(command).unwrap().outcome.unwrap();
+        }
+        let mut future = paper_cases::command(7, PaperAction::ReconcilePortfolio);
+        let mut clocks = future.mark.timestamps();
+        clocks.event_ts = EventTs::from_micros(UtcMicros::from_micros(paper_cases::AT + 100));
+        future.mark = Observation::new(clocks, paper_cases::price(paper_cases::UNIT));
+        let observed = run.apply(future.clone()).unwrap();
+        assert_eq!(
+            observed.outcome,
+            Err(parangsae_execution::PaperError::FutureMarkEvent)
+        );
+        assert!(!observed.snapshot.risk.loss_latched);
+        drop(run);
+        let resumed = OfflineReplay::resume(&path).unwrap();
+        assert_eq!(resumed.snapshot(), observed.snapshot);
+        assert_eq!(resumed.inputs.last(), Some(&future));
+    }
+
+    #[test]
+    fn replay_keeps_the_loss_observed_on_a_duplicate_after_price_recovers() {
+        use parangsae_execution::PaperOutcome;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("paper.journal");
+        let (initial, commands) = paper_cases::full_fill();
+        let mut run = OfflineReplay::create(&path, initial).unwrap();
+        for command in commands {
+            run.apply(command).unwrap().outcome.unwrap();
+        }
+        let receipt = paper_cases::fill(4, 1, 400_000);
+        let mut loss = paper_cases::deliver(7, &receipt);
+        loss.mark = paper_cases::observation(paper_cases::price(paper_cases::UNIT), 7);
+        let latched = run.apply(loss).unwrap();
+        assert_eq!(latched.outcome, Ok(PaperOutcome::DuplicateReceipt));
+        assert!(latched.snapshot.risk.loss_latched);
+        let mut recovered = paper_cases::deliver(8, &receipt);
+        recovered.mark =
+            paper_cases::observation(paper_cases::price(30_000 * paper_cases::UNIT), 8);
+        let after = run.apply(recovered).unwrap();
+        assert_eq!(after.outcome, Ok(PaperOutcome::DuplicateReceipt));
+        assert!(after.snapshot.risk.loss_latched);
+        assert_eq!(after.snapshot.risk.epoch, latched.snapshot.risk.epoch);
+        drop(run);
+        assert_eq!(
+            OfflineReplay::resume(&path).unwrap().snapshot(),
+            after.snapshot
+        );
+    }
 }

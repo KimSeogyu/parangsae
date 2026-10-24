@@ -74,6 +74,158 @@ fn dispatched(world: &mut PaperWorld) {
     world.dispatched();
 }
 
+#[given("an accounted paper buy with a visible valuation")]
+fn accounted(world: &mut PaperWorld) {
+    let (initial, commands) = full_fill();
+    world.engine = Some(PaperEngine::new(initial.clone()).unwrap());
+    world.initial = Some(initial);
+    for command in commands {
+        world.apply(command);
+        world.ok();
+    }
+}
+
+#[when("the mark reports a receipt time after the paper decision")]
+fn future_mark(world: &mut PaperWorld) {
+    use parangsae_core::{ReceivedTs, UtcMicros};
+    world.before = Some(world.state());
+    let mut input = command(world.now + 1, PaperAction::ReconcilePortfolio);
+    let mut clocks = input.mark.timestamps();
+    clocks.received_ts = ReceivedTs::from_micros(UtcMicros::from_micros(AT + 100));
+    input.mark = Observation::new(clocks, price(UNIT));
+    world.apply(input);
+}
+
+#[then("paper valuation is refused without applying session loss or changing economics")]
+fn future_mark_refused(world: &mut PaperWorld) {
+    assert_eq!(world.result, Some(Err(PaperError::FutureMarkReceipt)));
+    unchanged(world);
+    let after = world.state();
+    let before = world.before.as_ref().unwrap();
+    assert_eq!(after.risk.orders, before.risk.orders);
+    assert_eq!(after.fills, before.fills);
+    assert!(!after.risk.loss_latched);
+    assert!(after.risk.halted);
+    assert_eq!(after.risk.epoch.get(), before.risk.epoch.get() + 1);
+}
+
+#[when("a delayed mark has arrived by the paper decision")]
+fn arrived_mark(world: &mut PaperWorld) {
+    use parangsae_core::{ReceivedTs, UtcMicros};
+    let mut input = command(world.now + 1, PaperAction::ReconcilePortfolio);
+    let mut clocks = input.mark.timestamps();
+    clocks.received_ts = ReceivedTs::from_micros(UtcMicros::from_micros(
+        AT + i64::try_from(world.now + 1).unwrap(),
+    ));
+    input.mark = Observation::new(clocks, *input.mark.value());
+    world.apply(input);
+}
+
+#[then("the arrived valuation is admitted")]
+fn admitted_mark(world: &mut PaperWorld) {
+    assert_eq!(world.result, Some(Ok(PaperOutcome::PortfolioReconciled)));
+    assert!(!world.state().risk.loss_latched);
+}
+
+#[when("the mark reports an event time after the paper decision")]
+fn future_event_mark(world: &mut PaperWorld) {
+    use parangsae_core::{EventTs, UtcMicros};
+    world.before = Some(world.state());
+    let mut input = command(world.now + 1, PaperAction::ReconcilePortfolio);
+    let mut clocks = input.mark.timestamps();
+    clocks.event_ts = EventTs::from_micros(UtcMicros::from_micros(AT + 100));
+    input.mark = Observation::new(clocks, price(UNIT));
+    world.apply(input);
+}
+
+#[then("future-event valuation is refused without changing economics")]
+fn future_event_refused(world: &mut PaperWorld) {
+    assert_eq!(world.result, Some(Err(PaperError::FutureMarkEvent)));
+    unchanged(world);
+    assert!(!world.state().risk.loss_latched);
+    assert!(world.state().risk.halted);
+    assert_eq!(
+        world.state().risk.epoch.get(),
+        world.before.as_ref().unwrap().risk.epoch.get() + 1
+    );
+}
+
+#[when("a fresh loss-breaching mark accompanies an exact retained receipt")]
+fn duplicate_loss_mark(world: &mut PaperWorld) {
+    world.before = Some(world.state());
+    let at = world.now + 1;
+    let mut input = deliver(at, &fill(4, 1, 400_000));
+    input.mark = observation(price(UNIT), at);
+    world.apply(input);
+    assert_eq!(world.result, Some(Ok(PaperOutcome::DuplicateReceipt)));
+}
+
+#[then("economics are unchanged and session loss is latched once")]
+fn duplicate_loss_latched(world: &mut PaperWorld) {
+    unchanged(world);
+    assert!(world.state().risk.loss_latched);
+    assert!(world.state().risk.halted);
+    assert_eq!(
+        world.state().risk.epoch.get(),
+        world.before.as_ref().unwrap().risk.epoch.get() + 1
+    );
+}
+
+#[when("the next visible mark recovers")]
+fn recovered_mark(world: &mut PaperWorld) {
+    let at = world.now + 1;
+    let mut input = deliver(at, &fill(4, 1, 400_000));
+    input.mark = observation(price(30_000 * UNIT), at);
+    world.apply(input);
+    assert_eq!(world.result, Some(Ok(PaperOutcome::DuplicateReceipt)));
+}
+
+#[then("session loss remains latched at the same halt epoch")]
+fn loss_stays_latched(world: &mut PaperWorld) {
+    duplicate_loss_latched(world);
+}
+
+#[given("an expired paper order with an unaccounted priced receipt")]
+fn unresolved_expired(world: &mut PaperWorld) {
+    world.dispatched();
+    world.act(PaperAction::Deliver(observation(
+        PaperReport::Expired {
+            client_order_id: id(1),
+        },
+        4,
+    )));
+    world.ok();
+    world.before = Some(world.state());
+    world.apply(cut(10, PaperTerminal::Expired, vec![fill(3, 1, 100_000)]));
+    assert_eq!(
+        world.result,
+        Some(Err(PaperError::ExpiredReceiptRecoveryUnsupported))
+    );
+}
+
+#[when("portfolio reconciliation and current-epoch resume are requested")]
+fn cannot_override_expired(world: &mut PaperWorld) {
+    world.act(PaperAction::ReconcilePortfolio);
+    assert_eq!(world.result, Some(Err(PaperError::IncompleteCut)));
+    let expected_epoch = world.state().risk.epoch.get();
+    world.act(PaperAction::Resume { expected_epoch });
+    assert_eq!(
+        world.result,
+        Some(Err(PaperError::Risk(
+            RiskError::ResetRequiresReconciliation
+        )))
+    );
+}
+
+#[then("the unresolved receipt keeps unknown exposure and conservative reservation")]
+fn expired_stays_unknown(world: &mut PaperWorld) {
+    unchanged(world);
+    let state = world.state();
+    assert!(state.risk.halted);
+    assert_eq!(state.risk.exposure, ExposureState::Unknown);
+    assert_eq!(state.risk.orders[0].remaining.ticks(), 400_000);
+}
+
 #[given("a paper-dispatched buy waiting for its first acknowledgment")]
 fn awaiting_ack(world: &mut PaperWorld) {
     world.flat();
@@ -134,6 +286,50 @@ fn loss_start(world: &mut PaperWorld) {
     .unwrap();
     world.engine = Some(PaperEngine::new(initial.clone()).unwrap());
     world.initial = Some(initial);
+}
+
+#[given("a paper halt with a fresh matching reconciliation")]
+fn fresh_halt(world: &mut PaperWorld) {
+    let (initial, commands) = halted();
+    world.engine = Some(PaperEngine::new(initial.clone()).unwrap());
+    world.initial = Some(initial);
+    for command in commands.into_iter().take(4) {
+        world.apply(command);
+        world.ok();
+    }
+    world.before = Some(world.state());
+}
+
+#[when("resume requests an older halt epoch")]
+fn stale_resume(world: &mut PaperWorld) {
+    let expected_epoch = world.before.as_ref().unwrap().risk.epoch.get() - 1;
+    world.act(PaperAction::Resume { expected_epoch });
+}
+
+#[then("resume is refused and the current epoch stays halted")]
+fn stale_resume_refused(world: &mut PaperWorld) {
+    assert_eq!(
+        world.result,
+        Some(Err(PaperError::Risk(RiskError::EpochMismatch)))
+    );
+    assert_eq!(world.state(), *world.before.as_ref().unwrap());
+    assert!(world.state().risk.halted);
+}
+
+#[when("resume requests the observed current halt epoch")]
+fn current_resume(world: &mut PaperWorld) {
+    let expected_epoch = world.before.as_ref().unwrap().risk.epoch.get();
+    world.act(PaperAction::Resume { expected_epoch });
+    world.ok();
+}
+
+#[then("execution resumes at that epoch")]
+fn current_resumed(world: &mut PaperWorld) {
+    assert!(!world.state().risk.halted);
+    assert_eq!(
+        world.state().risk.epoch,
+        world.before.as_ref().unwrap().risk.epoch
+    );
 }
 #[given("the scripted paper session has a durable ingress journal")]
 fn journal(world: &mut PaperWorld) {
@@ -284,7 +480,8 @@ fn loss_resume(world: &mut PaperWorld) {
     world.ok();
     world.act(PaperAction::ReconcilePortfolio);
     world.ok();
-    world.act(PaperAction::Resume);
+    let expected_epoch = world.state().risk.epoch.get();
+    world.act(PaperAction::Resume { expected_epoch });
     assert_eq!(
         world.result,
         Some(Err(PaperError::Risk(RiskError::LossLatched)))
