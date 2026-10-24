@@ -144,7 +144,6 @@
     "after_spot_opportunity_worsens": "FINISH_SAFE_HEDGE_WITH_NEW_CAUSAL_AUTHORITY_BEFORE_ORIGINAL_DEADLINE",
     "max_exit_poll_without_new_rate": true,
     "early_exit_latest_rate_lte_zero": true,
-    "post_captured_payment_before_economic_exit": true,
     "hold_anchor": "OBSERVED_HEDGED_AT",
     "report_physical_completion_and_lag": true,
     "C4_state_basis": "READ_ONLY_CURRENT_SCENARIO_HEALTHY_IDLE_ACCOUNT_REALIZED_PERP_SCALED_RESIDUE",
@@ -156,7 +155,10 @@
     "pre_epoch_unconsumed_seen": "KEEP_SUPPRESSED_WITH_NO_GENERATED_EVENT_NOT_REPLAY_NOT_NO_SIZE_NOT_FAKE_CONSUME",
     "pre_epoch_rate_history": "RETAIN_AS_CAUSAL_R9_HISTORY_EPOCH_GATE_ONLY_ENTRY_AND_REARM_NOT_CASH_OR_REQUIRED_EXIT",
     "NewEpoch_advances_consumed": false,
-    "midnight_S_equal_epoch": "ELIGIBLE_ONLY_AFTER_ACTUAL_RATE_AND_REQUIRED_INPUT_AVAILABILITY"
+    "midnight_S_equal_epoch": "ELIGIBLE_ONLY_AFTER_ACTUAL_RATE_AND_REQUIRED_INPUT_AVAILABILITY",
+    "drain_already_admitted_due_cash_before_funding_key_classification": true,
+    "safe_BeginExit_waits_for_unpublished_or_not_due_funding": false,
+    "Closed_and_rearm_require_all_captured_receipts": true
   },
   "capital": {
     "scale": 100000000,
@@ -236,7 +238,8 @@
       "scope": "STATIC_NO_NETWORK_MODEL_BUDGET_NOT_MEASURED_RTT_OR_BAR_FILL_RECEIPT_DEADLINE",
       "not_found_is_order_absence_or_zero_cancel_cut_evidence": false,
       "max_attempts_scope": "NATIVE_EXECUTION_MAXATTEMPTS_NOT_GLOBAL_TRIAL_OR_INVOCATION_COUNT"
-    }
+    },
+    "funding_pending_exit_scope": "PENDING_FUNDING_DOES_NOT_BLOCK_SAFE_BEGINEXIT_ONLY_HEALTHY_CLOSED_AND_REARM_WAIT"
   },
   "risk": {
     "initial_margin_bps": 10000,
@@ -560,15 +563,6 @@
     "technical_precedes_numeric_verdict": true,
     "valid_numeric_failure": "REJECT_ON_DECLARED_MODEL_SNAPSHOT",
     "coverage_only_failure": "INCONCLUSIVE_SPARSE_NO_PROMOTION",
-    "bootstrap": "SELECTED_SERIES_DESCRIPTIVE_CIRCULAR_MOVING_BLOCK_MEAN_ONLY",
-    "bootstrap_block_days": [
-      28,
-      56
-    ],
-    "bootstrap_resamples": 10000,
-    "bootstrap_seed": 20261024,
-    "bootstrap_percentile_quantile": "TYPE7_EQUAL_TAILED_95_PERCENT",
-    "bootstrap_hard_gate": false,
     "cross_config_variance_ddof": 1,
     "undefined_column_SR_for_variance_ticks": 0,
     "moments": "EXISTING_INTEGER_POPULATION_CENTRAL_MOMENTS_NONEXCESS_KURTOSIS",
@@ -582,7 +576,10 @@
     "CSCV_gap_helper": "EXPLICIT_PBO_TICKS_GAP16_NOT_LEGACY_FAMILY_DEFAULT",
     "CSCV_IS_trimming": "NATIVE_IS_DAYS_TRIM_FIRST16_ROWS_IF_LEFT_NEIGHBOR_IS_OOS_TRIM_LAST16_IF_RIGHT_NEIGHBOR_IS_OOS_SATURATE_BLOCK_KEEP_HALF_OPEN_RANGE",
     "CSCV_OOS_trimming": "NONE",
-    "CSCV_internal_adjacent_IS_boundary_trimming": "NONE"
+    "CSCV_internal_adjacent_IS_boundary_trimming": "NONE",
+    "block_diagnostics_status": "DEFERRED_NOT_COMPUTED",
+    "block_diagnostic_report_promised": false,
+    "block_diagnostic_deferral": "ROOT_PRE_OUTCOME_SCOPE_DECISION_NO_PRNG_POSTPROCESSOR_OR_INFERENCE_CLAIM"
   },
   "lifetime_bounds": {
     "source": "EXACT_CANONICAL_8H_SETTLEMENT_CALENDAR_NOT_OBSERVED_OPPORTUNITIES",
