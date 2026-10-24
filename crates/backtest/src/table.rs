@@ -536,6 +536,11 @@ fn gate_cell(
 }
 
 fn h2_member_median(output: &FamilyOutput) -> Option<i64> {
+    // Reporting keeps whole ratio ticks. The gate compares the exact sum below.
+    i64::try_from(h2_member_middle_sum(output)? / 2).ok()
+}
+
+fn h2_member_middle_sum(output: &FamilyOutput) -> Option<i128> {
     if output.h2_member_sharpes.len() != 12 {
         return None;
     }
@@ -545,11 +550,11 @@ fn h2_member_median(output: &FamilyOutput) -> Option<i64> {
         .copied()
         .collect::<Option<Vec<_>>>()?;
     values.sort_unstable();
-    i64::try_from((i128::from(values[5]) + i128::from(values[6])) / 2).ok()
+    Some(i128::from(values[5]) + i128::from(values[6]))
 }
 
 fn h2_gate2prime(output: &FamilyOutput) -> Result<bool, String> {
-    let Some(median) = h2_member_median(output) else {
+    let Some(middle_sum) = h2_member_middle_sum(output) else {
         return Ok(false);
     };
     if output.folds.len() != 15 {
@@ -575,7 +580,7 @@ fn h2_gate2prime(output: &FamilyOutput) -> Result<bool, String> {
     Ok(positive >= 9
         && total > 0
         && largest.checked_mul(2).ok_or("H2 concentration overflow")? <= total
-        && blend.is_some_and(|s| s >= median))
+        && blend.is_some_and(|s| 2 * i128::from(s) >= middle_sum))
 }
 
 fn selection_cells(fold: &FoldOutcome) -> (String, String) {
@@ -1326,6 +1331,44 @@ mod tests {
             ),
             (String::new(), String::new())
         );
+    }
+
+    #[when(
+        regex = r"^H2 is reported with middle members 200000001 and (\d+) and blend 200000001 ticks$"
+    )]
+    fn exact_median_diagnostics(world: &mut DiagnosticWorld, upper: i64) {
+        let (grid, mut output) = qr_fixture("H2");
+        let pair = vec![554_690, -447_936];
+        let returns = pair.repeat(15);
+        assert_eq!(annual_ticks(&returns).unwrap(), Some(200_000_001));
+        for (index, fold) in output.folds.iter_mut().enumerate() {
+            let run = &mut fold.test[0];
+            run.start_us += i64::try_from(index).unwrap() * 2 * DAY_US;
+            run.daily_returns = pair.clone();
+            run.equity_ticks = compound(run.equity_ticks[0], &pair).unwrap();
+            run.net_result_ticks = run.equity_ticks[2] - run.equity_ticks[0];
+            run.sharpe_annual_ticks = annual_ticks(&pair).unwrap();
+            run.accounting.window_us = 2 * DAY_US;
+        }
+        output.stitched_oos_daily_returns = returns.clone();
+        for replay in &mut output.fee_replays {
+            replay.daily_returns = returns.clone();
+            replay.equity_ticks = compound(replay.equity_ticks[0], &returns).unwrap();
+            replay.sharpe_annual_ticks = annual_ticks(&returns).unwrap();
+        }
+        output.h2_member_sharpes = [vec![Some(200_000_001); 6], vec![Some(upper); 6]].concat();
+        world.csv = report_csv(grid, output);
+    }
+
+    #[then(regex = r"^the reported H2 gate 2-prime is (true|false)$")]
+    fn exact_gate(world: &mut DiagnosticWorld, passes: String) {
+        assert_eq!(headline_cell(&world.csv, "h2_gate2prime"), passes);
+    }
+
+    #[then("the displayed blend Sharpe and member median are both 2.00000001")]
+    fn displayed_median(world: &mut DiagnosticWorld) {
+        assert_eq!(headline_cell(&world.csv, "sharpe_annual"), "2.00000001");
+        assert_eq!(headline_cell(&world.csv, "h2_member_median"), "2.00000001");
     }
 
     #[tokio::test]
