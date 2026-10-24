@@ -25,3 +25,21 @@ Feature: C1 metrics report completed continuous accounts
     Given a completed C1 metrics fixture named technical
     When the metrics result is serialized
     Then the metrics refusal is technical
+
+  Scenario: Undefined statistics without a numeric failure stay inconclusive
+    Given a completed C1 metrics fixture named undefined
+    When the metrics result is serialized
+    Then the final verdict is INCONCLUSIVE_SPARSE_NO_PROMOTION
+
+  Scenario: Mechanical PBO without finite rank evidence stays uninformative
+    Given a completed C1 metrics fixture named allzero
+    When the metrics result is serialized
+    Then the reported pbo_probability_ticks is 100000000
+    And the PBO evidence is UNDEFINED
+    And the final verdict is INCONCLUSIVE_SPARSE_NO_PROMOTION
+
+  Scenario: Terminal knowledge at the exact deadline is inclusive
+    Given a completed C1 metrics fixture named deadline
+    When the metrics result is serialized
+    Then the reported terminal_pairs is 1
+    And the reported total_return_ticks is 0

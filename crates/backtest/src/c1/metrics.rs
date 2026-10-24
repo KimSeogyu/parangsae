@@ -85,25 +85,46 @@ pub(super) enum Verdict {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub(super) enum StatisticGate {
+    Pass,
+    Fail,
+    Undefined,
+}
+
+impl StatisticGate {
+    fn observed(pass: bool) -> Self {
+        if pass {
+            Self::Pass
+        } else {
+            Self::Fail
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub(super) struct Gates {
-    pub headline_positive_return: bool,
-    pub headline_positive_sharpe: bool,
-    pub higher_fee_positive_sharpe: bool,
-    pub dsr_at_least_95: bool,
-    pub pbo_at_most_20: bool,
+    pub headline_positive_return: StatisticGate,
+    pub headline_positive_sharpe: StatisticGate,
+    pub higher_fee_positive_sharpe: StatisticGate,
+    pub dsr_at_least_95: StatisticGate,
+    pub pbo_at_most_20: StatisticGate,
     pub coverage_50_pairs_10_folds: bool,
 }
 
 impl Gates {
     fn verdict(self) -> Verdict {
-        if !(self.headline_positive_return
-            && self.headline_positive_sharpe
-            && self.higher_fee_positive_sharpe
-            && self.dsr_at_least_95
-            && self.pbo_at_most_20)
-        {
+        let numerical = [
+            self.headline_positive_return,
+            self.headline_positive_sharpe,
+            self.higher_fee_positive_sharpe,
+            self.dsr_at_least_95,
+            self.pbo_at_most_20,
+        ];
+        if numerical.contains(&StatisticGate::Fail) {
             Verdict::RejectOnDeclaredModelSnapshot
-        } else if !self.coverage_50_pairs_10_folds {
+        } else if numerical.contains(&StatisticGate::Undefined) || !self.coverage_50_pairs_10_folds
+        {
             Verdict::InconclusiveSparseNoPromotion
         } else {
             Verdict::InconclusiveHistory
@@ -128,6 +149,7 @@ pub(super) struct SelectionStatistics {
     pub cross_config_variance_ticks: i64,
     pub dsr_probability_ticks: Option<i64>,
     pub pbo_probability_ticks: Option<i64>,
+    pub defined_full_is_sharpe_columns: usize,
     pub active_test_folds: usize,
     pub gates: Gates,
     pub verdict: Verdict,
@@ -148,6 +170,7 @@ pub(super) fn series_metrics(
     if result.daily.len() != days {
         return Err(MetricError::Calendar);
     }
+    financial_clocks(result, start, end)?;
 
     let mut levels = Vec::with_capacity(days + 1);
     levels.push(Cash(C0));
@@ -328,7 +351,7 @@ fn count_pairs(
             || pair.opened_decision < previous_close
             || pair.opened_decision >= end
             || at < pair.opened_decision
-            || at >= end
+            || at > end
             || *record_at != at
             || pair.gross_spot <= 0
             || pair.net_btc <= 0
@@ -416,6 +439,16 @@ pub(super) fn selection_statistics(
         return Err(MetricError::Calendar);
     }
     let source_folds = matrix_source_folds(&dates, &columns, train_folds)?;
+    let mut defined_columns = 0;
+    for column in &columns {
+        if metrics::sharpe_of_return_ticks(column)
+            .map_err(|_| MetricError::Statistics)?
+            .1
+            .is_some()
+        {
+            defined_columns += 1;
+        }
+    }
     let variance = stats::sr_var_ann_ticks(&columns).map_err(|_| MetricError::Statistics)?;
     let dsr = match (
         headline.annual_sharpe_ticks,
@@ -435,13 +468,33 @@ pub(super) fn selection_statistics(
     };
     let pbo = stats::pbo_ticks(&columns, CSCV_GAP).map_err(|_| MetricError::Statistics)?;
     let gates = Gates {
-        headline_positive_return: headline.total_return_ticks > 0,
-        headline_positive_sharpe: headline.annual_sharpe_ticks.is_some_and(|value| value > 0),
+        // Idle cash has no observed strategy outcome. For actual closed pairs,
+        // the cash sign is exact even when the printed return rounds to zero.
+        headline_positive_return: if headline.closed_pairs == 0 {
+            StatisticGate::Undefined
+        } else {
+            StatisticGate::observed(headline.net_cash_ticks > 0)
+        },
+        headline_positive_sharpe: headline
+            .annual_sharpe_ticks
+            .map_or(StatisticGate::Undefined, |value| {
+                StatisticGate::observed(value > 0)
+            }),
         higher_fee_positive_sharpe: higher_fee
             .annual_sharpe_ticks
-            .is_some_and(|value| value > 0),
-        dsr_at_least_95: dsr.is_some_and(|value| value >= 95_000_000),
-        pbo_at_most_20: pbo.is_some_and(|value| value <= 20_000_000),
+            .map_or(StatisticGate::Undefined, |value| {
+                StatisticGate::observed(value > 0)
+            }),
+        dsr_at_least_95: dsr.map_or(StatisticGate::Undefined, |value| {
+            StatisticGate::observed(value >= 95_000_000)
+        }),
+        pbo_at_most_20: if defined_columns == 0 {
+            StatisticGate::Undefined
+        } else {
+            pbo.map_or(StatisticGate::Undefined, |value| {
+                StatisticGate::observed(value <= 20_000_000)
+            })
+        },
         coverage_50_pairs_10_folds: headline.normal_round_trips >= 50 && active_folds >= 10,
     };
     Ok(SelectionStatistics {
@@ -460,6 +513,7 @@ pub(super) fn selection_statistics(
         cross_config_variance_ticks: variance,
         dsr_probability_ticks: dsr,
         pbo_probability_ticks: pbo,
+        defined_full_is_sharpe_columns: defined_columns,
         active_test_folds: active_folds,
         gates,
         verdict: gates.verdict(),
@@ -471,7 +525,9 @@ fn active_test_folds(result: &ReplayResult) -> Result<usize, MetricError> {
     for pair in &result.pairs {
         let closed = pair.closed_observed_at.ok_or(MetricError::Pair)?;
         let open_fold = test_fold(pair.opened_decision)?;
-        let close_fold = test_fold(closed)?;
+        // Receipt knowledge at a terminal E belongs to the ending fold.
+        // Economic fills still precede E; E+1ms cannot finish the close.
+        let close_fold = test_fold(closed.checked_sub(1).ok_or(MetricError::Calendar)?)?;
         if open_fold != close_fold {
             return Err(MetricError::Pair);
         }
@@ -481,6 +537,57 @@ fn active_test_folds(result: &ReplayResult) -> Result<usize, MetricError> {
         }
     }
     Ok(active.iter().filter(|value| **value).count())
+}
+
+fn financial_clocks(result: &ReplayResult, start: i64, end: i64) -> Result<(), MetricError> {
+    let economic = |at| (start..end).contains(&at);
+    let known = |at| (start..=end).contains(&at);
+    for record in &result.records {
+        let valid = match record {
+            ActorRecord::Order { at, reference, .. } => {
+                economic(*at)
+                    && reference.original_event_us < end
+                    && reference.original_available_us <= *at
+            }
+            ActorRecord::Fill {
+                at,
+                physical,
+                source,
+                ..
+            } => {
+                economic(*physical)
+                    && known(*at)
+                    && physical <= at
+                    && source.original_event_us < end
+                    && source.original_available_us <= *at
+            }
+            ActorRecord::FundingBoundary { at, .. } => economic(*at),
+            ActorRecord::FundingReceipt {
+                at,
+                effective,
+                rate_source,
+                mark_source,
+                ..
+            } => {
+                economic(*effective)
+                    && known(*at)
+                    && effective <= at
+                    && rate_source.original_event_us < end
+                    && mark_source.original_event_us < end
+                    && rate_source.original_available_us <= *at
+                    && mark_source.original_available_us <= *at
+            }
+            ActorRecord::PairClosed { at, .. } => known(*at),
+            ActorRecord::Control { .. }
+            | ActorRecord::Evaluation { .. }
+            | ActorRecord::RiskStop { .. }
+            | ActorRecord::ZeroExposureBoundary { .. } => true,
+        };
+        if !valid {
+            return Err(MetricError::Window);
+        }
+    }
+    Ok(())
 }
 
 fn test_fold(at: i64) -> Result<usize, MetricError> {
