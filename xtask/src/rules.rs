@@ -317,8 +317,12 @@ fn tail(stdout: &[u8], stderr: &[u8]) -> String {
 }
 
 fn metadata(manifest: &Path) -> Result<cargo_metadata::Metadata, ToolError> {
+    // Cargo and every scan must use the same physical repository identity.
+    let manifest = manifest
+        .canonicalize()
+        .map_err(|err| ToolError::tool(format!("canonicalize {}: {err}", manifest.display())))?;
     let mut cmd = MetadataCommand::new();
-    cmd.manifest_path(manifest);
+    cmd.manifest_path(&manifest);
     cmd.features(CargoOpt::AllFeatures);
     cmd.other_options(["--offline".to_owned()]);
     match cmd.exec() {
