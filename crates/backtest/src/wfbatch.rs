@@ -26,7 +26,7 @@ use serde::Serialize;
 use crate::batch::{canonical_config_id, SweepPins, TrialSpec, HOLDOUT_START_US};
 use crate::engine::RunConfig;
 use crate::metrics::total_return;
-use crate::sweep::{load_configs, load_pinned_tape, ConfigRow};
+use crate::sweep::{load_configs, prepare_pinned_tape, ConfigRow};
 use crate::walkforward::{
     btcusdt_schedule, run_walk_forward, selection_costs, FamilyGrid, FamilyOutput, GridPoint,
     SegmentRun, WalkContext, WalkForward, WindowAccounting, H1_WARMUP_DAYS, H3_WARMUP_DAYS,
@@ -154,39 +154,30 @@ pub fn prepare_families(
 
 /// Run every family on `request.data_root` and write OOS files under `out_dir`.
 ///
-/// The ledger must be missing or empty. A second batch needs a new ledger,
-/// because run ids are the family, fold, segment, and grid index.
+/// Both the output directory and ledger must be absent, including empty paths.
+/// After config and pin validation, the directory is created atomically and
+/// the ledger is opened with `create_new` before tape decoding or any report
+/// or trial write. Claimed paths are kept on every later error.
+///
+/// Supported diagnostic runs use the checked launcher and require
+/// `pinned_root_expected` in the inputs. Source and binary identity are checked
+/// by Run Control outside this Rust API.
 ///
 /// `fold_daily_returns.csv` is written only when every trial finishes. An
 /// aborted trial, including a gate refusal or an engine error, returns here
 /// before that write, so the file is absent.
 pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
     let families = prepare_families(&request.inputs, request.attempt)?;
-    if request.ledger.exists() {
-        let text = fs::read_to_string(&request.ledger)
-            .map_err(|err| format!("read {}: {err}", request.ledger.display()))?;
-        if text.lines().any(|line| !line.is_empty()) {
-            return Err(format!(
-                "{} already has trials; choose a new ledger",
-                request.ledger.display()
-            ));
-        }
-    }
     let pins = SweepPins::load(&request.inputs).map_err(|err| err.to_string())?;
     let start_us = families[0].folds[0].train_warmup.start.micros();
     let end_us = families[0].folds.last().expect("folds").test.end.micros();
     let include_premium = families.iter().any(|family| family.family == "H5");
-    let tape = load_pinned_tape(&request.data_root, &pins, start_us, end_us, include_premium)?;
+    let tape_read =
+        prepare_pinned_tape(&request.data_root, &pins, start_us, end_us, include_premium)?;
+    claim_run_paths(request)?;
+    let tape = tape_read.load()?;
     write_run_log(&request.out_dir, &families, &tape)?;
     let cash = families[0].points[0].config.initial_cash;
-    fs::create_dir_all(&request.out_dir)
-        .map_err(|err| format!("create {}: {err}", request.out_dir.display()))?;
-    if let Some(parent) = request.ledger.parent() {
-        if !parent.as_os_str().is_empty() {
-            fs::create_dir_all(parent)
-                .map_err(|err| format!("create {}: {err}", parent.display()))?;
-        }
-    }
     let fold = crate::sweep::FoldRunner::new(&tape);
     let ctx = WalkContext {
         pins: &pins,
@@ -230,6 +221,33 @@ pub fn run_wf_batch(request: &WfBatchRequest) -> Result<(), String> {
     )?;
     Ok(())
 }
+
+fn claim_run_paths(request: &WfBatchRequest) -> Result<(), String> {
+    if let Some(parent) = request.out_dir.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)
+                .map_err(|err| format!("create {}: {err}", parent.display()))?;
+        }
+    }
+    fs::create_dir(&request.out_dir)
+        .map_err(|err| format!("claim fresh output {}: {err}", request.out_dir.display()))?;
+    if let Some(parent) = request.ledger.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)
+                .map_err(|err| format!("create {}: {err}", parent.display()))?;
+        }
+    }
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&request.ledger)
+        .map_err(|err| format!("claim fresh ledger {}: {err}", request.ledger.display()))?;
+    Ok(())
+}
+
+#[cfg(test)]
+#[path = "../tests/common/run_admission.rs"]
+mod admission_contract;
 
 /// Fixed member diagnostics use the blend's folds and headline costs. They do
 /// not call the trial ledger and cannot enter selection.
@@ -286,7 +304,6 @@ fn write_run_log(
     families: &[FamilyGrid<WindowConfig>],
     tape: &crate::Tape,
 ) -> Result<(), String> {
-    fs::create_dir_all(dir).map_err(|err| format!("create {}: {err}", dir.display()))?;
     let (min_us, max_us) = tape_bounds(tape);
     let holdout_ok = min_us >= EARLIEST_US && max_us < HOLDOUT_START_US;
     let mut lines = vec![

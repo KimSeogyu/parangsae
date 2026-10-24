@@ -176,6 +176,9 @@ impl SweepPins {
             .map(|(_, sha)| sha.as_str())
     }
 
+    /// Generic v2 callers may omit `pinned_root_expected`. Supported diagnostic
+    /// runs use the checked launcher, which requires this field. When present,
+    /// it must be the lowercase sha256 of the sorted pin metadata.
     pub fn load(path: &Path) -> Result<Self, BatchError> {
         let text = std::fs::read_to_string(path)
             .map_err(|err| BatchError::Pins(format!("{}: {err}", path.display())))?;
@@ -186,6 +189,15 @@ impl SweepPins {
                 "schema {} is not sweep-runner-inputs-v2",
                 file.schema
             )));
+        }
+        if file
+            .pinned_root_expected
+            .as_ref()
+            .is_some_and(|expected| !is_lower_hex64(expected))
+        {
+            return Err(BatchError::Pins(
+                "pinned_root_expected must be 64 lowercase hex characters".to_owned(),
+            ));
         }
         let base = path.parent().unwrap_or(Path::new("."));
         let mut objects = Vec::with_capacity(file.objects.len());
@@ -220,6 +232,13 @@ impl SweepPins {
             return Err(BatchError::Pins("duplicate pin path".to_owned()));
         }
         let pinned_root = sha256_hex(pin_preimage(&objects).as_bytes());
+        if let Some(expected) = file.pinned_root_expected {
+            if expected != pinned_root {
+                return Err(BatchError::Pins(format!(
+                    "pinned_root_expected mismatch: {pinned_root} != {expected}"
+                )));
+            }
+        }
         Ok(Self {
             pinned_root,
             objects: stored,
@@ -232,6 +251,17 @@ impl SweepPins {
 struct PinFile {
     schema: String,
     objects: Vec<PinObject>,
+    #[serde(default, deserialize_with = "expected_pin_root")]
+    pinned_root_expected: Option<String>,
+}
+
+fn expected_pin_root<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    String::deserialize(deserializer)
+        .map(Some)
+        .map_err(|_| serde::de::Error::custom("pinned_root_expected must be a string"))
 }
 
 #[derive(Deserialize)]

@@ -273,7 +273,7 @@ pub fn run_sweep(request: &SweepRequest) -> Result<Vec<ResultRow>, String> {
         return Err("configs do not share one window".to_owned());
     }
     let pins = SweepPins::load(&request.inputs).map_err(|err| err.to_string())?;
-    let tape = load_pinned_tape(&request.data_root, &pins, start_us, end_us, false)?;
+    let tape = prepare_pinned_tape(&request.data_root, &pins, start_us, end_us, false)?.load()?;
     let fold = FoldRunner::new(&tape);
     let ts = UtcMicros::from_micros(now_us()?);
     fs::create_dir_all(&request.out_dir)
@@ -439,13 +439,34 @@ fn trial_spec(row: &ConfigRow, ts: UtcMicros, attempt: u64) -> Result<TrialSpec,
     Ok(spec)
 }
 
-pub(crate) fn load_pinned_tape(
-    root: &Path,
+#[derive(Debug)]
+pub(crate) struct PinnedTapeRead<'a> {
+    root: &'a Path,
+    symbol: Symbol,
+    start: UtcDate,
+    end: UtcDate,
+    cfg: TapeConfig,
+    start_us: i64,
+    end_us: i64,
+}
+
+impl PinnedTapeRead<'_> {
+    pub(crate) fn load(self) -> Result<Tape, String> {
+        let tape = Tape::load(self.root, &self.symbol, self.start, self.end, &self.cfg)
+            .map_err(|err| err.to_string())?;
+        assert_inside(&tape, self.start_us, self.end_us)?;
+        Ok(tape)
+    }
+}
+
+/// Check the full read-path pin coverage before claiming any run output.
+pub(crate) fn prepare_pinned_tape<'a>(
+    root: &'a Path,
     pins: &SweepPins,
     start_us: i64,
     end_us: i64,
     include_premium: bool,
-) -> Result<Tape, String> {
+) -> Result<PinnedTapeRead<'a>, String> {
     let (start, end) = inclusive_days(start_us, end_us)?;
     let symbol = Symbol::new("BTCUSDT").map_err(|err| err.to_string())?;
     let cfg = tape_config(root, pins, include_premium)?;
@@ -455,9 +476,15 @@ pub(crate) fn load_pinned_tape(
             return Err(format!("{} is not in the pinned objects", path.display()));
         }
     }
-    let tape = Tape::load(root, &symbol, start, end, &cfg).map_err(|err| err.to_string())?;
-    assert_inside(&tape, start_us, end_us)?;
-    Ok(tape)
+    Ok(PinnedTapeRead {
+        root,
+        symbol,
+        start,
+        end,
+        cfg,
+        start_us,
+        end_us,
+    })
 }
 
 fn tape_config(root: &Path, pins: &SweepPins, include_premium: bool) -> Result<TapeConfig, String> {
@@ -1022,7 +1049,9 @@ mod tests {
         let pins = SweepPins::load(&pin_path).unwrap();
         let start = UtcDate::parse("2024-01-01").unwrap().start_us().micros();
         let end = UtcDate::parse("2024-01-02").unwrap().start_us().micros();
-        let err = load_pinned_tape(&root, &pins, start, end, false).unwrap_err();
+        let err = prepare_pinned_tape(&root, &pins, start, end, false)
+            .and_then(PinnedTapeRead::load)
+            .unwrap_err();
         assert!(err.contains("not in the pinned"), "{err}");
         assert!(!err.contains("missing parquet"), "{err}");
         assert!(!err.contains("notes.md"), "{err}");
@@ -1076,7 +1105,9 @@ mod tests {
         )
         .unwrap();
         let pins = SweepPins::load(&pin_path).unwrap();
-        let err = load_pinned_tape(&root, &pins, start, end, false).unwrap_err();
+        let err = prepare_pinned_tape(&root, &pins, start, end, false)
+            .and_then(PinnedTapeRead::load)
+            .unwrap_err();
         assert!(!err.contains("not in the pinned"), "{err}");
         assert!(!err.contains("notes.md"), "{err}");
     }

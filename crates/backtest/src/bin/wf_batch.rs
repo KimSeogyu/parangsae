@@ -10,6 +10,10 @@
 //! `--attempt` is required. `--data-root` defaults to `/workspace/data/parangsae`.
 //! The ledger defaults to `{out}/trials.jsonl`. Stdout names the files it wrote.
 //! It does not print returns.
+//! Both output and ledger paths must be absent, including empty paths. A failed
+//! run keeps its claimed paths. Supported diagnostic runs use the checked
+//! launcher, which requires `pinned_root_expected` in the inputs file and binds
+//! the source and binary identity outside this program.
 
 #![deny(clippy::float_arithmetic)]
 
