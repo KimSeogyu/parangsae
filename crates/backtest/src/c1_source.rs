@@ -301,6 +301,54 @@ enum PriceUse {
 }
 
 impl C1SourceView {
+    #[cfg(test)]
+    pub(crate) fn synthetic(
+        bars: Vec<(PriceSource, Bar, SourceRef)>,
+        statuses: Vec<(PriceSource, UtcMicros, SourceHealth)>,
+        funding: Vec<(UtcMicros, Ratio, u8, SourceRef)>,
+    ) -> Result<Self, SourceError> {
+        if bars.len() > 17_280 || statuses.len() > 17_280 || funding.len() > 12 {
+            return Err(SourceError::Invariant("synthetic source capacity"));
+        }
+        let mut view = Self {
+            bars: BTreeMap::new(),
+            statuses: BTreeMap::new(),
+            funding: BTreeMap::new(),
+        };
+        for (kind, bar, source) in bars {
+            let key = bar.open_time.micros();
+            let row = SourceBar::admit(kind, bar, source)?;
+            if view.bars.insert((kind, key), row).is_some() {
+                return Err(SourceError::Invariant("duplicate synthetic source key"));
+            }
+        }
+        for (kind, key, health) in statuses {
+            in_sample(key.micros())?;
+            if !matches!(health, SourceHealth::Gap | SourceHealth::Quarantined)
+                || view.bars.contains_key(&(kind, key.micros()))
+                || view.statuses.insert((kind, key.micros()), health).is_some()
+            {
+                return Err(SourceError::Invariant("synthetic source status"));
+            }
+        }
+        for (settlement, rate, interval_hours, source) in funding {
+            in_sample(settlement.micros())?;
+            if settlement.micros().rem_euclid(SLOT) != 0 || interval_hours != 8 {
+                return Err(SourceError::Invariant("synthetic funding cadence"));
+            }
+            let row = SourceFunding {
+                settlement,
+                rate,
+                interval_hours,
+                source,
+            };
+            if view.funding.insert(settlement.micros(), row).is_some() {
+                return Err(SourceError::Invariant("duplicate synthetic funding key"));
+            }
+        }
+        Ok(view)
+    }
+
     fn row(
         &self,
         source: PriceSource,
@@ -965,6 +1013,33 @@ mod tests {
             SourceBar::admit(PriceSource::Spot, early, source),
             Err(SourceError::Invariant("unsupported source close/clock"))
         ));
+    }
+
+    #[test]
+    fn synthetic_factory_validates_rows_and_does_not_expose_a_production_constructor() {
+        let row = fixture(PriceSource::Spot, SPOT_MICROS);
+        let view = C1SourceView::synthetic(
+            vec![(PriceSource::Spot, row.bar, row.source.clone())],
+            vec![],
+            vec![],
+        )
+        .unwrap();
+        assert!(matches!(
+            view.execution_at(
+                C1Instrument::Spot,
+                UtcMicros::from_micros(SPOT_MICROS),
+                at(SPOT_MICROS + MINUTE + 1_000)
+            ),
+            Ok(ExecutionState::Valid { .. })
+        ));
+        let mut invalid = row.bar;
+        invalid.available = UtcMicros::from_micros(SPOT_MICROS + MINUTE);
+        assert!(C1SourceView::synthetic(
+            vec![(PriceSource::Spot, invalid, row.source)],
+            vec![],
+            vec![]
+        )
+        .is_err());
     }
 
     #[derive(Debug, Default, cucumber::World)]
