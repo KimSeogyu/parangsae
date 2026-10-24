@@ -191,14 +191,23 @@ Keep all terminal costs and forced-exit counts, excluding these exits from the
 100 strategy-initiated round-trip gate. The sealed H1/H2 outputs keep their old
 convention and are not rerun or restated under R3.
 
+If admitted ruin co-triggers at this fixed key, the independently PREDECLARED
+Terminal intent still executes when eligible. Record exactly one actual close
+with reason Terminal and all costs, then cancel redundant Ruin pending state
+after actual flat. This is not a newly triggered or backdated Ruin order.
+Unknown/control divergence remains a whole-trial technical failure before any
+accepted action; the Terminal exception does not bypass that boundary.
+
 ## Causal solvency control and technical failures
 
 A retrospective mark-close label cannot trigger an earlier action. Evaluate
 solvency only when the mark's ORIGINAL stored/modelled `AvailableTs` use clock and the required
 projected money are admitted. At admitted nonpositive equity, latch the
-halted/liquidating state and cancel pending orders. Close the
-fixed held lot, with all costs, strictly AFTER the trigger at the next eligible
-venue open. Never reuse an already processed open. Continue signed funding while
+halted/liquidating state and cancel pending orders. A new Ruin-only liquidation
+closes the fixed held lot, with all costs, strictly AFTER the trigger at the next
+eligible venue open. The independently predeclared Terminal exception above is
+the only same-key case. Never backdate a Ruin order or reuse a processed open.
+Continue signed funding while
 the position remains held; freeze only after actual flat.
 
 Hidden-money/control divergence, unavailable required control, unrepresentable
