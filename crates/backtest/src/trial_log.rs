@@ -510,7 +510,7 @@ mod tests {
         assert_eq!(distinct_trial_count(path).unwrap(), 5);
         let rows = read_lines(path).unwrap();
         assert_eq!(rows.len(), 14);
-        for pair in rows.chunks_exact(2) {
+        for pair in rows.as_chunks::<2>().0 {
             let Line::Started {
                 run_id,
                 role: Some(expected),
