@@ -266,7 +266,7 @@ fn execute_unit(
         Ok(replay) => match replay.run() {
             Err(failure) => Outcome::Technical {
                 error: format!("{:?}", failure.error),
-                prefix: Some(failure.prefix),
+                prefix: Some(*failure.prefix),
                 stop_error: failure.stop_error.map(|error| format!("{error:?}")),
             },
             Ok(run) => match series_metrics(Ok(&run), range) {
@@ -451,6 +451,7 @@ fn write_outputs(
     let common = json!({"study_id":admitted.inputs.study_id.0,"attempt":4_u64,"pin":admitted.pin,"prereg":admitted.prereg_identity});
     let diagnostics: Vec<_> = units.iter().map(Unit::diagnostic).collect();
     let policy_windows = policy_windows(units)?;
+    let report_schedule = schedule().map_err(|error| C1BatchError(error.to_string()))?;
     let failed_role = units.iter().rev().find_map(|unit| {
         unit.complete()
             .is_err()
@@ -471,8 +472,8 @@ fn write_outputs(
         &admitted.out.join("C1-diagnostics.json"),
         &serde_json::to_vec_pretty(&raw).map_err(|error| C1BatchError(error.to_string()))?,
     )?;
-    let mut table=String::from("study_id,run_id,config_id,trial_id,role_kind,semantic_role,scenario,fold,start_us,end_exclusive_us,calendar_days,net_return_ticks,annual_sharpe_ticks,daily_close_mdd_ticks,normal_round_trips,status\n");
-    let mut daily=String::from("study_id,run_id,config_id,trial_id,role_kind,semantic_role,scenario,day_start_us,end_exclusive_us,known_at_us,equity_ticks,return_ticks,cash_only\n");
+    let mut table=String::from("study_id,run_id,config_id,trial_id,role_kind,semantic_role,scenario,fold,start_us,end_exclusive_us,calendar_days,net_return_ticks,annual_sharpe_ticks,daily_close_mdd_ticks,normal_round_trips,status,attempt,unit_kind,prereg_sha256,pinned_root\n");
+    let mut daily=String::from("study_id,run_id,config_id,trial_id,role_kind,semantic_role,scenario,day_start_us,end_exclusive_us,known_at_us,equity_ticks,return_ticks,cash_only,report_fold,attempt,unit_kind,prereg_sha256,pinned_root\n");
     let mut run_log = String::new();
     for unit in units {
         let id = &unit.identity;
@@ -506,7 +507,7 @@ fn write_outputs(
             ),
         };
         table.push_str(&format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
             id.study_id,
             id.run_id,
             id.config_id,
@@ -522,12 +523,29 @@ fn write_outputs(
             sr,
             dd,
             pairs,
-            status
+            status,
+            id.attempt,
+            id.unit_kind,
+            id.prereg_sha256,
+            id.pinned_root
         ));
         if let Ok((run, _)) = unit.complete() {
             for row in &run.daily {
+                let report_fold = match id.fold {
+                    Some(fold) => fold,
+                    None => report_schedule
+                        .iter()
+                        .find(|fold| {
+                            row.day_start >= fold.test.start.micros()
+                                && row.day_start < fold.test.end.micros()
+                        })
+                        .map(|fold| fold.index)
+                        .ok_or_else(|| {
+                            C1BatchError("daily policy row has no owning fold".to_owned())
+                        })?,
+                };
                 daily.push_str(&format!(
-                    "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                    "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
                     id.study_id,
                     id.run_id,
                     id.config_id,
@@ -540,7 +558,12 @@ fn write_outputs(
                     row.known_at,
                     row.equity,
                     row.return_ticks,
-                    row.cash_only
+                    row.cash_only,
+                    report_fold,
+                    id.attempt,
+                    id.unit_kind,
+                    id.prereg_sha256,
+                    id.pinned_root
                 ));
             }
         }
@@ -552,18 +575,34 @@ fn write_outputs(
     if let Some(error) = fatal {
         run_log.push_str(&format!("TECHNICAL_UNRESOLVED {error}\n"));
     }
-    let mut matrix =
-        String::from("study_id,date_us,source_train_fold,column_config_id,return_ticks\n");
+    let mut matrix = String::from("study_id,run_id,trial_id,column_config_id,role_kind,semantic_role,scenario,date_us,source_train_fold,return_ticks,attempt,prereg_sha256,pinned_root\n");
     if let Some(stats) = statistics {
         for (row, at) in stats.is_dates_us.iter().enumerate() {
             for (column, values) in stats.is_return_columns.iter().enumerate() {
+                let source_fold = u32::try_from(stats.is_source_folds[row])
+                    .map_err(|_| C1BatchError("IS source fold overflow".to_owned()))?;
+                let source_unit = units
+                    .iter()
+                    .find(|unit| {
+                        unit.identity.fold == Some(source_fold)
+                            && unit.identity.config_id == admitted.inputs.roles[column].config_id.0
+                    })
+                    .ok_or_else(|| C1BatchError("IS source unit is absent".to_owned()))?;
+                let id = &source_unit.identity;
                 matrix.push_str(&format!(
-                    "{},{},{},{},{}\n",
-                    admitted.inputs.study_id.0,
+                    "{},{},{},{},TrainingCandidate,{},{},{},{},{},{},{},{}\n",
+                    id.study_id,
+                    id.run_id,
+                    id.trial_id,
+                    id.config_id,
+                    id.role.semantic_role,
+                    id.scenario,
                     at,
-                    stats.is_source_folds[row],
-                    admitted.inputs.roles[column].config_id.0,
-                    values[row]
+                    source_fold,
+                    values[row],
+                    id.attempt,
+                    id.prereg_sha256,
+                    id.pinned_root
                 ));
             }
         }
