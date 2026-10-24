@@ -11,6 +11,8 @@ use parangsae_signals::FundingRow;
 use crate::date::UtcDate;
 
 mod file_source;
+mod profile;
+pub(crate) use profile::validate_source_profile;
 
 const MINUTE: i64 = 60_000_000;
 const HOUR: i64 = 3_600_000_000;
@@ -276,7 +278,7 @@ fn admitted_funding(
     let effective = row.source.original.available_ts.micros().micros().max(
         row.settlement
             .micros()
-            .checked_add(MINUTE)
+            .checked_add(profile::FUNDING_FLOOR_US)
             .ok_or(SourceError::Overflow)?,
     );
     if effective < row.source.original.event_ts.micros().micros() {
