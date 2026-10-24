@@ -474,7 +474,7 @@ fn fee_cells(replays: &[FeeReplay]) -> Result<(String, String), String> {
             6 => 3,
             _ => continue,
         };
-        sharpes[slot] = Some(annual_ticks(&replay.daily_returns)?.unwrap_or(0));
+        sharpes[slot] = annual_ticks(&replay.daily_returns)?;
     }
     let Some(plain) = sharpes
         .into_iter()
@@ -830,6 +830,8 @@ fn join_row(cells: &[&str]) -> String {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+
+    use cucumber::{then, when, World as _};
 
     use super::*;
     use crate::walkforward::{FoldOutcome, GridPoint, WindowAccounting};
@@ -1227,5 +1229,113 @@ mod tests {
             replay.max_dd_ticks,
             crate::metrics::max_drawdown(&curve).unwrap().ticks()
         );
+    }
+
+    #[derive(Debug, Default, cucumber::World)]
+    struct DiagnosticWorld {
+        csv: String,
+    }
+
+    fn report_csv(grid: FamilyGrid<()>, output: FamilyOutput) -> String {
+        let dir = tempfile::tempdir().unwrap();
+        let slug = grid_slug(&grid);
+        write_tables(
+            dir.path(),
+            &[grid],
+            &WalkForward {
+                families: vec![output],
+                n_trials: 1,
+            },
+            "synthetic-root",
+            "synthetic-readpath",
+            &dir.path().join("absent-ledger.jsonl"),
+        )
+        .unwrap();
+        fs::read_to_string(dir.path().join(format!("table_{slug}.csv"))).unwrap()
+    }
+
+    fn headline_cell(csv: &str, name: &str) -> String {
+        let mut lines = csv.lines();
+        let header: Vec<_> = lines.next().unwrap().split(',').collect();
+        let column = |key| header.iter().position(|value| *value == key).unwrap();
+        for row in lines.filter(|line| !line.is_empty()).map(parse_csv) {
+            if row[column("window")] == "OOS_stitched"
+                && row[column("fee_bps")] == "5"
+                && row[column("slip_bps")] == "2"
+            {
+                return row[column(name)].clone();
+            }
+        }
+        panic!("headline row is missing");
+    }
+
+    #[when("an all-FLAT fee grid is written to the report CSV")]
+    fn all_flat_diagnostics(world: &mut DiagnosticWorld) {
+        let (grid, mut output) = qr_fixture("H1");
+        for fold in &mut output.folds {
+            fold.selected_flat = true;
+            fold.selected_config_id = "FLAT".to_owned();
+            for run in fold
+                .train
+                .iter_mut()
+                .chain(&mut fold.test)
+                .chain(fold.cost_replays.iter_mut().map(|replay| &mut replay.run))
+            {
+                let initial = run.equity_ticks[0];
+                run.daily_returns.fill(0);
+                run.equity_ticks = vec![initial; run.daily_returns.len() + 1];
+                run.net_result_ticks = 0;
+                run.round_trips = 0;
+                run.sharpe_annual_ticks = None;
+                run.fill_notional_ticks = 0;
+                run.max_dd_ticks = 0;
+                run.accounting = WindowAccounting {
+                    window_us: i64::try_from(run.daily_returns.len()).unwrap() * DAY_US,
+                    ..WindowAccounting::ZERO
+                };
+            }
+        }
+        output.stitched_oos_daily_returns.fill(0);
+        output.oos_round_trips = 0;
+        for replay in &mut output.fee_replays {
+            replay.daily_returns.fill(0);
+            replay.net_result_ticks = 0;
+            replay.round_trips = 0;
+            replay.sharpe_annual_ticks = None;
+            replay.turnover_ticks = 0;
+            replay.max_dd_ticks = 0;
+            replay.accounting = WindowAccounting {
+                window_us: i64::try_from(replay.daily_returns.len()).unwrap() * DAY_US,
+                ..WindowAccounting::ZERO
+            };
+        }
+        world.csv = report_csv(grid, output);
+    }
+
+    #[then("the reported annual Sharpe is undefined")]
+    fn undefined_sharpe(world: &mut DiagnosticWorld) {
+        assert_eq!(headline_cell(&world.csv, "sharpe_annual"), "");
+    }
+
+    #[then("the reported fee sensitivity and breakeven fee are undefined")]
+    fn undefined_fee_diagnostics(world: &mut DiagnosticWorld) {
+        assert_eq!(
+            (
+                headline_cell(&world.csv, "fee_sens"),
+                headline_cell(&world.csv, "breakeven_fee_bps"),
+            ),
+            (String::new(), String::new())
+        );
+    }
+
+    #[tokio::test]
+    async fn report_diagnostic_behavior() {
+        DiagnosticWorld::cucumber()
+            .with_default_cli()
+            .fail_on_skipped()
+            .run_and_exit(
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/table_diagnostics.feature"),
+            )
+            .await;
     }
 }
