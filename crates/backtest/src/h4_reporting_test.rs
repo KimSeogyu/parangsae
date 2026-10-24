@@ -498,6 +498,7 @@ fn check_files(world: &mut H4OutputWorld, case: String) {
 #[tokio::test]
 async fn h4_reporting_gherkin() {
     H4OutputWorld::cucumber()
+        .with_default_cli()
         .run_and_exit(
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/h4_reporting.feature"),
         )
