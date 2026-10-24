@@ -66,6 +66,9 @@ pub struct TrialSpec {
     pub run_id: String,
     pub config_id: String,
     pub family: String,
+    /// Sha256 of the family's prereg file, hashed at run start. Empty when the
+    /// caller has no prereg file.
+    pub prereg_sha256: String,
     pub params: BTreeMap<String, i64>,
     pub attempt: u64,
     pub ts: UtcMicros,
@@ -165,6 +168,17 @@ impl SweepPins {
         self.sha256.get(path).map(String::as_str)
     }
 
+    /// Sha256 of the pinned object whose path ends in `suffix`.
+    pub fn sha_by_suffix(&self, suffix: &str) -> Option<&str> {
+        self.sha256
+            .iter()
+            .find(|(path, _)| path.ends_with(suffix))
+            .map(|(_, sha)| sha.as_str())
+    }
+
+    /// Generic v2 callers may omit `pinned_root_expected`. Supported diagnostic
+    /// runs use the checked launcher, which requires this field. When present,
+    /// it must be the lowercase sha256 of the sorted pin metadata.
     pub fn load(path: &Path) -> Result<Self, BatchError> {
         let text = std::fs::read_to_string(path)
             .map_err(|err| BatchError::Pins(format!("{}: {err}", path.display())))?;
@@ -175,6 +189,15 @@ impl SweepPins {
                 "schema {} is not sweep-runner-inputs-v2",
                 file.schema
             )));
+        }
+        if file
+            .pinned_root_expected
+            .as_ref()
+            .is_some_and(|expected| !is_lower_hex64(expected))
+        {
+            return Err(BatchError::Pins(
+                "pinned_root_expected must be 64 lowercase hex characters".to_owned(),
+            ));
         }
         let base = path.parent().unwrap_or(Path::new("."));
         let mut objects = Vec::with_capacity(file.objects.len());
@@ -209,6 +232,13 @@ impl SweepPins {
             return Err(BatchError::Pins("duplicate pin path".to_owned()));
         }
         let pinned_root = sha256_hex(pin_preimage(&objects).as_bytes());
+        if let Some(expected) = file.pinned_root_expected {
+            if expected != pinned_root {
+                return Err(BatchError::Pins(format!(
+                    "pinned_root_expected mismatch: {pinned_root} != {expected}"
+                )));
+            }
+        }
         Ok(Self {
             pinned_root,
             objects: stored,
@@ -221,6 +251,17 @@ impl SweepPins {
 struct PinFile {
     schema: String,
     objects: Vec<PinObject>,
+    #[serde(default, deserialize_with = "expected_pin_root")]
+    pinned_root_expected: Option<String>,
+}
+
+fn expected_pin_root<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    String::deserialize(deserializer)
+        .map(Some)
+        .map_err(|_| serde::de::Error::custom("pinned_root_expected must be a string"))
 }
 
 #[derive(Deserialize)]
@@ -634,6 +675,7 @@ fn drive<R: TargetRunner>(
         trial_id: &id,
         config_id: &spec.config_id,
         pinned_root: pins.pinned_root(),
+        prereg_sha256: &spec.prereg_sha256,
         attempt: spec.attempt,
         family: &spec.family,
         ts: spec.ts.micros(),
@@ -874,6 +916,7 @@ mod tests {
             run_id: "r".to_owned(),
             config_id: String::new(),
             family: "S01".to_owned(),
+            prereg_sha256: String::new(),
             params: BTreeMap::new(),
             attempt: 0,
             ts: UtcMicros::from_micros(1),

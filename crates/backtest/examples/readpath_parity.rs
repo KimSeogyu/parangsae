@@ -409,6 +409,7 @@ fn load(
             holdout_start: holdout,
             overlays: overlays.to_vec(),
             funding_root: funding.to_path_buf(),
+            include_premium: false,
         },
     )
     .map_err(|err| err.to_string())

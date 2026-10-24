@@ -43,6 +43,7 @@ fn run_smoke() -> Result<(), String> {
             holdout_start: holdout,
             overlays: Vec::new(),
             funding_root: args.root.clone(),
+            include_premium: false,
         },
     )
     .map_err(|err| err.to_string())?;

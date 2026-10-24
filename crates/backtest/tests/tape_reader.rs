@@ -8,13 +8,21 @@ use std::path::PathBuf;
 use std::fs;
 use std::path::Path;
 
+use std::collections::BTreeMap;
+
 use parangsae_backtest::fixture::AlwaysFlat;
 use parangsae_backtest::{
     funding_available, run, Overlay, RunConfig, Tape, TapeConfig, TapeError, UtcDate,
 };
-use parangsae_core::{Interval, Symbol, UtcMicros};
+use parangsae_core::{
+    AvailableTs, BarInterval, EventTs, Interval, Observation, Price, ReceivedTs, ResampledBar,
+    Symbol, Timestamps, UtcMicros,
+};
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
-use parquet_fix::{write_day, write_overlay, write_overlay_row, Day, OverlayRow, DAY, SYMBOL};
+use parangsae_strategies::{PremiumMinute as StrategyPremium, Strategy};
+use parquet_fix::{
+    write_day, write_overlay, write_overlay_row, write_premium, Day, OverlayRow, DAY, SYMBOL,
+};
 use sha2::{Digest, Sha256};
 
 fn symbol() -> Symbol {
@@ -26,6 +34,7 @@ fn load_cfg(root: &std::path::Path) -> TapeConfig {
         holdout_start: UtcDate::parse("2025-10-01").unwrap().start_us(),
         overlays: Vec::new(),
         funding_root: root.to_path_buf(),
+        include_premium: false,
     }
 }
 
@@ -98,6 +107,26 @@ fn tempdir_fixture_round_trips() {
     write_day(dir.path(), &Day::good()).unwrap();
     let tape = Tape::load(dir.path(), &symbol(), day(), day(), &load_cfg(dir.path())).unwrap();
     assert_three_bars(&tape);
+    assert!(tape.premium.is_empty());
+}
+
+#[test]
+fn premium_index_keeps_a_negative_close_and_a_zero_count() {
+    let dir = tempfile::tempdir().unwrap();
+    write_day(dir.path(), &Day::good()).unwrap();
+    write_premium(dir.path(), &[-50_000_000, 0], &[1, 0]).unwrap();
+    let mut cfg = load_cfg(dir.path());
+    cfg.include_premium = true;
+    let tape = Tape::load(dir.path(), &symbol(), day(), day(), &cfg).unwrap();
+    assert_eq!(tape.premium.len(), 2);
+    assert_eq!(tape.premium[0].close_ticks, -50_000_000);
+    assert_eq!(tape.premium[0].count, 1);
+    assert_eq!(
+        tape.premium[0].available.micros(),
+        tape.premium[0].open_time.micros() + 60_000_000
+    );
+    assert_eq!(tape.premium[1].close_ticks, 0);
+    assert_eq!(tape.premium[1].count, 0);
 }
 
 #[test]
@@ -574,6 +603,119 @@ fn o3_overlay_open_outside_the_grid_is_refused() {
     });
     let err = Tape::load(dir.path(), &symbol(), day(), day(), &cfg).unwrap_err();
     assert!(matches!(err, TapeError::OverlayShape { .. }), "{err:?}");
+}
+
+#[test]
+fn schema_1_count_zero_minutes_stay_out_of_the_h5_daily_mean() {
+    let shock = UtcDate::parse(DAY).unwrap().start_us().micros();
+    let day_us = 86_400_000_000i64;
+    let hour_us = 3_600_000_000i64;
+    let minute_us = 60_000_000i64;
+    let mut closes = vec![4_000_000i64; 1_379];
+    closes.push(0);
+    closes.extend(std::iter::repeat_n(-100_000_000, 60));
+    let mut counts = vec![1i64; 1_380];
+    counts.extend(std::iter::repeat_n(0, 60));
+    let dir = tempfile::tempdir().unwrap();
+    write_day(dir.path(), &Day::good()).unwrap();
+    write_premium(dir.path(), &closes, &counts).unwrap();
+    let mut cfg = load_cfg(dir.path());
+    cfg.include_premium = true;
+    let tape = Tape::load(dir.path(), &symbol(), day(), day(), &cfg).unwrap();
+    assert_eq!(tape.premium.len(), 1_440);
+    assert_eq!(tape.premium.iter().filter(|row| row.count == 0).count(), 60);
+    assert!(tape
+        .premium
+        .iter()
+        .any(|row| row.count > 0 && row.close_ticks == 0));
+    assert!(tape
+        .premium
+        .iter()
+        .all(|row| { row.available.micros() == row.open_time.micros() + minute_us }));
+
+    let loaded: Vec<StrategyPremium> = tape
+        .premium
+        .iter()
+        .map(|row| StrategyPremium {
+            open_us: row.open_time.micros(),
+            close_ticks: row.close_ticks,
+            count: row.count,
+            available_us: row.available.micros(),
+        })
+        .collect();
+    let history = baseline_premium(shock, 90, day_us, minute_us);
+    let params = h5_params();
+    let mut early = Strategy::from_params("H5", &params).unwrap();
+    early.ingest_premium(&history).unwrap();
+    early.ingest_premium(&loaded).unwrap();
+    let early_signal = early
+        .push(&h1_bar(shock - hour_us), None)
+        .unwrap()
+        .expect("the previous day is ready at this midnight");
+    assert_eq!(early_signal.decision.target_ticks(), 0);
+
+    let mut settled = Strategy::from_params("H5", &params).unwrap();
+    settled.ingest_premium(&history).unwrap();
+    settled.ingest_premium(&loaded).unwrap();
+    let at_midnight = settled
+        .push(&h1_bar(shock + day_us - hour_us), None)
+        .unwrap()
+        .expect("the next midnight can use the day");
+    assert_eq!(at_midnight.decision.target_ticks(), -100_000_000);
+}
+
+fn h5_params() -> BTreeMap<String, i64> {
+    BTreeMap::from([
+        ("k".to_owned(), 200_000_000),
+        ("hold_h".to_owned(), 72),
+        ("lookback_d".to_owned(), 90),
+    ])
+}
+
+fn baseline_premium(
+    shock_open: i64,
+    days: i64,
+    day_us: i64,
+    minute_us: i64,
+) -> Vec<StrategyPremium> {
+    let mut rows = Vec::new();
+    for day in 0..days {
+        let close = if day % 2 == 0 { 0 } else { 2_000_000 };
+        let day_open = shock_open - (days - day) * day_us;
+        for minute in 0..1_380 {
+            let open = day_open + minute * minute_us;
+            rows.push(StrategyPremium {
+                open_us: open,
+                close_ticks: close,
+                count: 1,
+                available_us: open + minute_us,
+            });
+        }
+    }
+    rows
+}
+
+fn h1_bar(open_us: i64) -> Observation<ResampledBar> {
+    let hour = 3_600_000_000i64;
+    let px = Price::from_ticks(4_000_000_000_000).unwrap();
+    let bar = ResampledBar::new(
+        UtcMicros::from_micros(open_us),
+        BarInterval::H1,
+        px,
+        px,
+        px,
+        px,
+    )
+    .unwrap();
+    let available = open_us + hour;
+    Observation::new(
+        Timestamps {
+            event_ts: EventTs::from_micros(UtcMicros::from_micros(open_us)),
+            available_ts: AvailableTs::from_micros(UtcMicros::from_micros(available)),
+            received_ts: ReceivedTs::from_micros(UtcMicros::from_micros(available)),
+        },
+        bar,
+    )
 }
 
 fn poison(root: &Path, dataset: &str, date: &str) {
