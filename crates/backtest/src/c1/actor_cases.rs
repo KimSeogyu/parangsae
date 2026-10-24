@@ -6,6 +6,9 @@ use crate::c1_source::{PriceSource, SourceRef};
 use cucumber::{given, then, when, World as _};
 use parangsae_core::{Bar, Price, Ratio, TimeUnit};
 
+#[path = "actor_boundary_equality_cases.rs"]
+mod boundary_equality_cases;
+
 const START: i64 = 1_704_326_400_000_000; // 2024-01-04, well inside the sample.
 
 fn rate_source(key: i64, available: i64) -> SourceRef {

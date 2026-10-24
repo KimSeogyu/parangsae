@@ -63,3 +63,13 @@ Feature: C1 causal payloads and the single account actor
     Given a paired position held until the predeclared fold Terminal
     When the Terminal source has zero count closing minutes
     Then the replay fails at the original fold end with its financial prefix retained
+
+  Scenario: A lawful final cut admitted at E completes the fold
+    Given the same predetermined closing spot liquidity at the last pre end minute
+    When the canonical pre 2025 spot clock is replayed
+    Then the admitted cut at E completes the fold using only pre E physical facts
+
+  Scenario: A pre end spot fact unpublished at E cannot rescue the fold
+    Given the same predetermined closing spot liquidity at the last pre end minute
+    When the canonical post 2025 spot clock is replayed
+    Then the unpublished E plus 1ms receipt leaves a technical failure at E
