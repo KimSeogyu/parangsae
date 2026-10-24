@@ -408,12 +408,215 @@ pub fn write_oos(
             .copied()
             .ok_or_else(|| format!("missing warmup for {}", family.family))?;
         let file = family_file(family, days, initial_cash)?;
+        let h4 = if family.family == "H4" {
+            Some(
+                serde_json::to_string_pretty(&h4_file(family, initial_cash)?)
+                    .map_err(|err| err.to_string())?,
+            )
+        } else {
+            None
+        };
         let path = dir.join(format!("{}.json", family.family));
         let text = serde_json::to_string_pretty(&file).map_err(|err| err.to_string())?;
         fs::write(&path, format!("{text}\n"))
             .map_err(|err| format!("write {}: {err}", path.display()))?;
+        if let Some(text) = h4 {
+            let path = dir.join("H4-diagnostics.json");
+            fs::write(&path, format!("{text}\n"))
+                .map_err(|err| format!("write {}: {err}", path.display()))?;
+        }
     }
     Ok(())
+}
+
+#[derive(Serialize)]
+struct H4WindowFile<'a> {
+    run_id: &'a str,
+    trial_id: &'a str,
+    config_id: &'a str,
+    grid_index: usize,
+    fold: u32,
+    segment: &'static str,
+    fee_bps: u32,
+    slippage_bps: u32,
+    selected_test: bool,
+    diagnostics: &'a crate::h4_report::H4WindowDiagnostics,
+}
+
+#[derive(Serialize)]
+struct H4ScenarioFile {
+    fee_bps: u32,
+    slippage_bps: u32,
+    selected: crate::h4_report::H4SelectedDiagnostics,
+}
+
+#[derive(Serialize)]
+struct H4File<'a> {
+    schema: &'static str,
+    family: &'static str,
+    claim: &'static str,
+    windows: Vec<H4WindowFile<'a>>,
+    selected_cost_scenarios: Vec<H4ScenarioFile>,
+}
+
+fn h4_window<'a>(
+    row: &'a SegmentRun,
+    fold: u32,
+    segment: &'static str,
+    fee_bps: u32,
+    slippage_bps: u32,
+    selected_test: bool,
+) -> Result<H4WindowFile<'a>, String> {
+    let diagnostics = row
+        .h4
+        .as_ref()
+        .ok_or_else(|| format!("{} missing H4 diagnostics", row.run_id))?;
+    if diagnostics.fee_bps != fee_bps
+        || diagnostics.slippage_bps != slippage_bps
+        || diagnostics.cash.net_ticks != i128::from(row.net_result_ticks)
+    {
+        return Err(format!("{} H4 diagnostics mismatch", row.run_id));
+    }
+    Ok(H4WindowFile {
+        run_id: &row.run_id,
+        trial_id: &row.trial_id,
+        config_id: &row.config_id,
+        grid_index: row.grid_index,
+        fold,
+        segment,
+        fee_bps,
+        slippage_bps,
+        selected_test,
+        diagnostics,
+    })
+}
+
+fn h4_file(family: &FamilyOutput, initial: i64) -> Result<H4File<'_>, String> {
+    use crate::h4_report::{aggregate_selected, SelectedFold};
+    use crate::walkforward::Segment;
+    let mut windows = Vec::new();
+    for fold in &family.folds {
+        for (segment, rows) in [("train", &fold.train), ("test", &fold.test)] {
+            for row in rows {
+                windows.push(h4_window(
+                    row,
+                    fold.fold_index,
+                    segment,
+                    5,
+                    2,
+                    segment == "test"
+                        && !fold.selected_flat
+                        && row.grid_index == fold.selected_index,
+                )?);
+            }
+        }
+        for replay in &fold.cost_replays {
+            let segment = match replay.segment {
+                Segment::Train => "train",
+                Segment::Test => "test",
+            };
+            windows.push(h4_window(
+                &replay.run,
+                fold.fold_index,
+                segment,
+                replay.fee_bps,
+                replay.slippage_bps,
+                segment == "test"
+                    && !fold.selected_flat
+                    && replay.run.grid_index == fold.selected_index,
+            )?);
+        }
+    }
+    let expected = std::collections::BTreeSet::from([(2, 2), (4, 2), (5, 2), (6, 2), (5, 5)]);
+    let actual: std::collections::BTreeSet<_> = family
+        .fee_replays
+        .iter()
+        .map(|r| (r.fee_bps, r.slippage_bps))
+        .collect();
+    if actual != expected || family.fee_replays.len() != expected.len() {
+        return Err("H4 diagnostic cost scenarios mismatch".to_owned());
+    }
+    let mut scenarios = Vec::new();
+    for scenario in &family.fee_replays {
+        let mut selected = Vec::new();
+        let mut returns = Vec::new();
+        for fold in &family.folds {
+            let days = fold
+                .test
+                .first()
+                .ok_or("H4 fold has no test row")?
+                .daily_returns
+                .len();
+            if fold.selected_flat {
+                returns.extend(std::iter::repeat_n(0, days));
+                selected.push(SelectedFold {
+                    fold: fold.fold_index,
+                    selected_config_id: &fold.selected_config_id,
+                    window: None,
+                    daily_returns: None,
+                    days,
+                });
+                continue;
+            }
+            let row = if (scenario.fee_bps, scenario.slippage_bps) == (5, 2) {
+                fold.test
+                    .get(fold.selected_index)
+                    .ok_or("H4 selected index missing")?
+            } else {
+                let mut rows = fold.cost_replays.iter().filter(|r| {
+                    r.segment == Segment::Test
+                        && r.fee_bps == scenario.fee_bps
+                        && r.slippage_bps == scenario.slippage_bps
+                        && r.run.grid_index == fold.selected_index
+                });
+                let row = &rows.next().ok_or("H4 selected cost replay missing")?.run;
+                if rows.next().is_some() {
+                    return Err("H4 selected cost replay duplicated".to_owned());
+                }
+                row
+            };
+            if row.config_id != fold.selected_config_id || row.daily_returns.len() != days {
+                return Err("H4 selection identity/calendar mismatch".to_owned());
+            }
+            returns.extend_from_slice(&row.daily_returns);
+            selected.push(SelectedFold {
+                fold: fold.fold_index,
+                selected_config_id: &row.config_id,
+                window: Some(row.h4.as_ref().ok_or("H4 selected diagnostics missing")?),
+                daily_returns: Some(&row.daily_returns),
+                days,
+            });
+        }
+        if returns != scenario.daily_returns {
+            return Err("H4 selected scenario return path mismatch".to_owned());
+        }
+        let out = aggregate_selected(Cash(initial), &selected).map_err(|err| err.to_string())?;
+        if out.cash.net_ticks != i128::from(scenario.net_result_ticks)
+            || out.cash.fees_ticks != i128::from(scenario.accounting.fees_paid_ticks)
+            || out.cash.funding_ticks != i128::from(scenario.accounting.funding_net_ticks)
+            || out.cash.slippage_ticks != i128::from(scenario.accounting.slippage_cost_ticks)
+            || out
+                .crowded_long_fades
+                .closed_round_trips
+                .checked_add(out.crowded_short_fades.closed_round_trips)
+                != Some(scenario.round_trips)
+        {
+            return Err("H4 selected scenario accounting mismatch".to_owned());
+        }
+        scenarios.push(H4ScenarioFile {
+            fee_bps: scenario.fee_bps,
+            slippage_bps: scenario.slippage_bps,
+            selected: out,
+        });
+    }
+    Ok(H4File {
+        schema: "parangsae-h4-diagnostics-v1",
+        family: "H4",
+        claim:
+            "Report-only frozen falsifiers; no episode independence or strategy acceptance implied",
+        windows,
+        selected_cost_scenarios: scenarios,
+    })
 }
 
 const FOLD_DAY_US: i64 = 86_400_000_000;
@@ -848,6 +1051,7 @@ mod tests {
             turnover_ticks: 25_000_000,
             max_dd_ticks: 0,
             accounting: crate::walkforward::WindowAccounting::ZERO,
+            h4: None,
         };
         let family = FamilyOutput {
             h2_member_sharpes: Vec::new(),
@@ -1028,6 +1232,7 @@ S01,cfg-b,trial-b,1,1,OOS_fold_1,2022-01-19,3
                 fill_notional_ticks: 0,
                 max_dd_ticks: 0,
                 accounting: crate::WindowAccounting::ZERO,
+                h4: None,
             })
         })
         .unwrap();
