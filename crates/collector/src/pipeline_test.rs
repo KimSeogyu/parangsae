@@ -375,6 +375,60 @@ fn sample_bar(minute: i64, price: i64, received: i64) -> crate::vision::KlineFac
     }
 }
 
+#[test]
+fn source_schema_equivalence_keeps_value_time_and_domain_conflicts() {
+    let dir = tempfile::tempdir().unwrap();
+    let original = sample_bar(0, 10, 1);
+    let day = CivilDay::new(2026, 9, 1).unwrap();
+    store::upsert_klines(dir.path(), "um-kline", vec![original.clone()]).unwrap();
+    let path = store::fact_path(dir.path(), "um-kline", "BTCUSDT", day);
+    let before = std::fs::read(&path).unwrap();
+    let mut headed = original.clone();
+    headed.schema_version = crate::vision::SCHEMA_KLINE_HEADER;
+    headed.received_ts = at(99);
+    let repeated = store::upsert_klines(dir.path(), "um-kline", vec![headed.clone()]).unwrap();
+    assert_eq!(repeated.unchanged, 1);
+    assert_eq!(repeated.conflicts, 0);
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+
+    macro_rules! rejects_change {
+        ($field:ident, $value:expr) => {{
+            let mut changed = headed.clone();
+            changed.$field = $value;
+            let result = store::upsert_klines(dir.path(), "um-kline", vec![changed]).unwrap();
+            assert_eq!(result.conflicts, 1, stringify!($field));
+            assert_eq!(result.inserted, 0);
+            assert_eq!(std::fs::read(&path).unwrap(), before);
+        }};
+    }
+    rejects_change!(interval_us, 120_000_000);
+    rejects_change!(
+        close_time,
+        original.close_time.checked_add_micros(1).unwrap()
+    );
+    rejects_change!(open_ticks, 11);
+    rejects_change!(high_ticks, 11);
+    rejects_change!(low_ticks, 9);
+    rejects_change!(close_ticks, 11);
+    rejects_change!(volume, Qty::from_ticks(1).unwrap());
+    rejects_change!(quote_volume, Amount::from_ticks(1).unwrap());
+    rejects_change!(count, 1);
+    rejects_change!(taker_buy_volume, Qty::from_ticks(1).unwrap());
+    rejects_change!(taker_buy_quote_volume, Amount::from_ticks(1).unwrap());
+    rejects_change!(
+        event_ts,
+        EventTs::from_micros(original.open_time.checked_add_micros(1).unwrap())
+    );
+    rejects_change!(
+        available_ts,
+        AvailableTs::from_micros(original.close_time.checked_add_micros(1_001).unwrap())
+    );
+    rejects_change!(tick_domain, crate::vision::TickDomain::Ratio);
+    for schema in [0, crate::vision::SCHEMA_FUNDING, 99, u32::MAX] {
+        rejects_change!(schema_version, schema);
+    }
+}
+
 proptest! {
     #[test]
     fn reingest_keeps_the_first_open_and_the_first_received_time(count in 1usize..24, price in 1i64..1_000_000i64) {
