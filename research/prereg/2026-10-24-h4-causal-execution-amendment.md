@@ -86,7 +86,8 @@ Any changed membership requires review; counts alone do not validate contents.
   minute. No interpolation or hidden exclusion is authorized.
 - Only the mark opens at 2024-08-12 10:02 and 10:03 UTC may carry the 10:01 source
   row, whose original availability is 10:02. Keep its original provenance and
-  publication clock. Add no stored row, interpolation, generic gap permission,
+  stored/modelled `AvailableTs` clock, which is not measured historical publication.
+  Add no stored row, interpolation, generic gap permission,
   whole-day exclusion, or forced-flat interval. Unregistered gaps fail.
 - All 5,244 expected eight-hour funding settlements are present. Effective rate
   availability is `max(stored_available, settlement + 60 seconds)`; the reviewed
@@ -152,7 +153,7 @@ is a separately counted override, not a new ban on entries in each fold's last
 ## Causal solvency control and technical failures
 
 A retrospective mark-close label cannot trigger an earlier action. Evaluate
-solvency only when the ORIGINAL mark publication/use clock and the required
+solvency only when the mark's ORIGINAL stored/modelled `AvailableTs` use clock and the required
 projected money are admitted. At admitted nonpositive equity, latch the
 halted/liquidating state and cancel pending orders. Close the
 fixed held lot, with all costs, strictly AFTER the trigger at the next eligible
@@ -212,8 +213,10 @@ variance-floor rule for DSR; report how the implemented conservative floor was
 used and the unknown-history limitation. Charge every actual new failed,
 aborted, or retried experiment; keep evaluation/replay records distinguishable
 from new config trials. A local preparation label `attempt3` is not proof of a
-global maximum. The two H4 configurations imply 44 train/test segment pairs
-across eleven folds, not 44 trials; any attempted extra start remains visible.
+global maximum. Two configurations across eleven folds imply 22 train/test pairs,
+or 44 individual segments. Each segment has one `RunStarted`/`RunFinished` record
+pair: 88 records if all finish, not 44 trials. Any attempted extra start remains
+visible.
 
 The Engineering Lead explicitly amended the earlier three-config design default
 before outcomes after the user requested funding-fee research. The phase may
