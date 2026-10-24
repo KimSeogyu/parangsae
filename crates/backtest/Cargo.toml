@@ -51,6 +51,10 @@ harness = false
 name = "h4_timing"
 harness = false
 
+[[test]]
+name = "h4_terminal_boundary"
+harness = false
+
 [[example]]
 name = "smoke"
 
