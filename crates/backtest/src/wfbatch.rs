@@ -1051,7 +1051,6 @@ mod tests {
             turnover_ticks: 25_000_000,
             max_dd_ticks: 0,
             accounting: crate::walkforward::WindowAccounting::ZERO,
-            h4: None,
         };
         let family = FamilyOutput {
             h2_member_sharpes: Vec::new(),
@@ -1207,6 +1206,7 @@ S01,cfg-b,trial-b,1,1,OOS_fold_1,2022-01-19,3
             fill_notional_ticks: 0,
             max_dd_ticks: 0,
             accounting: crate::walkforward::WindowAccounting::ZERO,
+            h4: None,
         }
     }
     #[test]
