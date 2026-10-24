@@ -4,9 +4,6 @@
     "automaton.json",
     "binding.json",
     "model.dot",
-    "rust/Cargo.toml",
-    "rust/README.md",
-    "rust/src/lib.rs",
     "tlc.log",
     "verification.json"
   ]
