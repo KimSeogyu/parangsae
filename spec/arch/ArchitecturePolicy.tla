@@ -60,12 +60,16 @@ FloatAllowed == {"parangsae-backtest", "parangsae-signals", "parangsae-strategie
 
 AllowedDependencies == {
   <<"parangsae-backtest", "parangsae-core">>,
+  <<"parangsae-backtest", "parangsae-execution">>,
+  <<"parangsae-backtest", "parangsae-risk">>,
   <<"parangsae-backtest", "parangsae-signals">>,
   <<"parangsae-backtest", "parangsae-sim">>,
   <<"parangsae-backtest", "parangsae-strategies">>,
   <<"parangsae-collector", "parangsae-core">>,
   <<"parangsae-collector", "sgd-symbolic-factwriteenvelope-281ebc3217c8">>,
   <<"parangsae-execution", "parangsae-core">>,
+  <<"parangsae-execution", "parangsae-risk">>,
+  <<"parangsae-execution", "parangsae-sim">>,
   <<"parangsae-risk", "parangsae-core">>,
   <<"parangsae-signals", "parangsae-core">>,
   <<"parangsae-sim", "parangsae-core">>,

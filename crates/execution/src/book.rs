@@ -11,40 +11,17 @@ use crate::lifecycle::{
 /// How many alerts the book retains. Further alerts still latch; they are not evicted.
 const MAX_ALERTS: usize = 64;
 
-/// Halt generation. The sink returns the new value. This crate does not reset it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct HaltEpoch(u64);
-
-impl HaltEpoch {
-    pub const ZERO: Self = Self(0);
-
-    pub const fn get(self) -> u64 {
-        self.0
-    }
-
-    pub const fn checked_next(self) -> Option<Self> {
-        match self.0.checked_add(1) {
-            Some(next) => Some(Self(next)),
-            None => None,
-        }
-    }
-}
-
-/// Causes the book can report. Commit 2 passes the same set to `RiskGate::latch`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum HaltCause {
-    ReconMismatch,
-    UnknownOrder,
-    Kill,
-    Ban,
-    RiskTrip,
-    IllegalTransition,
-    PayloadError,
-}
+pub use parangsae_risk::{HaltCause, HaltEpoch};
 
 /// Execution-local halt port. Commit 2 binds this to `RiskGate::latch`.
 pub trait HaltSink {
     fn latch(&mut self, cause: HaltCause) -> HaltEpoch;
+}
+
+impl HaltSink for parangsae_risk::RiskGate {
+    fn latch(&mut self, cause: HaltCause) -> HaltEpoch {
+        parangsae_risk::RiskGate::latch(self, cause)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

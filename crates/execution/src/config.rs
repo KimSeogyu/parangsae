@@ -91,8 +91,8 @@ impl ExecutionConfig {
         self.timing
     }
 
-    pub const fn authority(self) -> NotFoundAuthority {
-        self.authority
+    pub const fn authority(&self) -> &NotFoundAuthority {
+        &self.authority
     }
 
     pub const fn max_attempts(self) -> MaxAttempts {
