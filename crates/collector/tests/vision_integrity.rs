@@ -18,7 +18,9 @@ use parangsae_collector::vision::{
     BOOK_GAP_LIMIT_US,
 };
 use parangsae_collector::Error;
-use parangsae_core::{Amount, AvailableTs, EventTs, Qty, ReceivedTs, Symbol, TimeUnit, UtcMicros};
+use parangsae_core::{
+    Amount, AvailableTs, EventTs, Qty, Ratio, ReceivedTs, Symbol, TimeUnit, UtcMicros,
+};
 
 #[derive(Debug, Default)]
 enum Loaded {
@@ -749,6 +751,114 @@ fn delete_stored_um_partition(world: &mut VisionWorld) {
         .expect("remove partition");
 }
 
+#[given("a monthly September 2026 funding archive ingested only on 2026-09-01")]
+fn given_partial_funding_store(world: &mut VisionWorld) {
+    let dir = tempfile::tempdir().expect("temp");
+    let september1 = CivilDay::new(2026, 9, 1).expect("day");
+    let september2 = CivilDay::new(2026, 9, 2).expect("day");
+    let mut csv = String::from("calc_time,funding_interval_hours,last_funding_rate\n");
+    for day in [september1, september2] {
+        for hour in [0, 8, 16] {
+            let millis = day.start_us().micros() / 1_000 + hour * 3_600_000;
+            csv.push_str(&format!("{millis},8,0.00010000\n"));
+        }
+    }
+    verify_ingest(
+        dir.path(),
+        VisionDataset::FundingRate,
+        september1,
+        september1,
+        &verify_prefix(VisionDataset::FundingRate, Cadence::Monthly).expect("prefix"),
+        "BTCUSDT-fundingRate-2026-09.zip",
+        &csv,
+    )
+    .expect("partial funding ingest");
+    world.verify_dir = Some(dir);
+}
+
+#[when(regex = r#"^the stored funding "([^"]+)" on 2026-09-01 differs from the archive$"#)]
+fn corrupt_stored_funding(world: &mut VisionWorld, field: String) {
+    let dir = world.verify_dir.as_ref().expect("store").path();
+    let day = CivilDay::new(2026, 9, 1).expect("day");
+    let mut rows = store::load_funding(dir, "funding-rate", "BTCUSDT", day).expect("rows");
+    let row = rows.first_mut().expect("funding row");
+    match field.as_str() {
+        "rate" => row.rate = Ratio::from_ticks(row.rate.ticks() + 1),
+        "available_ts" => {
+            row.available_ts = AvailableTs::from_micros(UtcMicros::from_micros(
+                row.available_ts.micros().micros() + 1,
+            ))
+        }
+        "event_ts" => {
+            row.event_ts =
+                EventTs::from_micros(UtcMicros::from_micros(row.event_ts.micros().micros() + 1))
+        }
+        "schema_version" => row.schema_version += 1,
+        _ => panic!("unknown funding field {field}"),
+    }
+    std::fs::remove_file(store::fact_path(dir, "funding-rate", "BTCUSDT", day))
+        .expect("remove partition");
+    store::upsert_funding(dir, "funding-rate", rows).expect("rewrite");
+}
+
+#[given(regex = r"^a requested empty funding day with (recorded|legacy) scope$")]
+fn given_empty_funding_day(world: &mut VisionWorld, scope: String) {
+    let dir = tempfile::tempdir().expect("temp");
+    let september1 = CivilDay::new(2026, 9, 1).expect("day");
+    let september2 = CivilDay::new(2026, 9, 2).expect("day");
+    verify_ingest(
+        dir.path(),
+        VisionDataset::FundingRate,
+        september1,
+        september2,
+        &verify_prefix(VisionDataset::FundingRate, Cadence::Monthly).expect("prefix"),
+        "BTCUSDT-fundingRate-2026-09.zip",
+        &fixture("funding_2026-09-01.csv"),
+    )
+    .expect("funding ingest");
+    if scope == "legacy" {
+        let mut manifest =
+            parangsae_collector::manifest::ManifestLog::open(dir.path()).expect("manifest");
+        let mut object = manifest.active()[0].clone();
+        object.materialized_days = None;
+        manifest.record_stored(object, None).expect("legacy scope");
+    }
+    world.verify_dir = Some(dir);
+}
+
+#[when("a funding row is injected into the empty day 2026-09-02")]
+fn inject_empty_day_funding(world: &mut VisionWorld) {
+    let dir = world.verify_dir.as_ref().expect("store").path();
+    let september1 = CivilDay::new(2026, 9, 1).expect("day");
+    let september2 = CivilDay::new(2026, 9, 2).expect("day");
+    let mut row =
+        store::load_funding(dir, "funding-rate", "BTCUSDT", september1).expect("rows")[0].clone();
+    row.raw_calc_time = september2.start_us();
+    row.funding_time = september2.start_us();
+    row.event_ts = EventTs::from_micros(september2.start_us());
+    row.available_ts = AvailableTs::from_micros(september2.start_us());
+    store::upsert_funding(dir, "funding-rate", vec![row]).expect("inject row");
+}
+
+#[when("the stored funding partition on 2026-09-01 is deleted")]
+fn delete_funding_partition(world: &mut VisionWorld) {
+    let dir = world.verify_dir.as_ref().expect("store").path();
+    let day = CivilDay::new(2026, 9, 1).expect("day");
+    std::fs::remove_file(store::fact_path(dir, "funding-rate", "BTCUSDT", day))
+        .expect("remove partition");
+}
+
+#[when("the first stored funding row on 2026-09-01 is deleted")]
+fn delete_funding_row(world: &mut VisionWorld) {
+    let dir = world.verify_dir.as_ref().expect("store").path();
+    let day = CivilDay::new(2026, 9, 1).expect("day");
+    let mut rows = store::load_funding(dir, "funding-rate", "BTCUSDT", day).expect("rows");
+    rows.remove(0);
+    std::fs::remove_file(store::fact_path(dir, "funding-rate", "BTCUSDT", day))
+        .expect("remove partition");
+    store::upsert_funding(dir, "funding-rate", rows).expect("rewrite");
+}
+
 #[when(regex = r#"^verify is limited to dataset "([^"]+)"$"#)]
 fn when_verify_dataset(world: &mut VisionWorld, name: String) {
     run_verify(world, VerifyFilter::parse(&[name], None, None));
@@ -829,6 +939,25 @@ fn then_verify_missing_rows(world: &mut VisionWorld) {
         .fault_lines
         .iter()
         .all(|line| line.starts_with("missing parquet row ")));
+}
+
+#[then("verify reports one missing parquet row")]
+fn then_verify_one_missing_row(world: &mut VisionWorld) {
+    let report = world.verify_report.as_ref().expect("report");
+    assert!(!report.ok(), "{report}");
+    assert_eq!(report.summary.faults, 1);
+    assert_eq!(report.fault_lines.len(), 1);
+    assert!(report.fault_lines[0].starts_with("missing parquet row "));
+}
+
+#[then("verify reports an unexpected funding row on 2026-09-02")]
+fn then_verify_unexpected_funding_row(world: &mut VisionWorld) {
+    let report = world.verify_report.as_ref().expect("report");
+    assert!(!report.ok(), "{report}");
+    assert_eq!(
+        report.fault_lines,
+        ["unexpected funding parquet rows 2026-09-02"]
+    );
 }
 
 #[then("verify rejects the request as usage")]

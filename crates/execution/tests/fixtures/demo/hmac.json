@@ -1,0 +1,16 @@
+[
+  {
+    "source": "RFC 4231 test case 1 (public test vector)",
+    "key_byte": 11,
+    "key_length": 20,
+    "message": "Hi There",
+    "sha256": "b0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7"
+  },
+  {
+    "source": "RFC 4231 test case 6 (public test vector)",
+    "key_byte": 170,
+    "key_length": 131,
+    "message": "Test Using Larger Than Block-Size Key - Hash Key First",
+    "sha256": "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54"
+  }
+]
