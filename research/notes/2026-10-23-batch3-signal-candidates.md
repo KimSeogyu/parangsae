@@ -7,23 +7,24 @@ estimates from returns. None has evidence of edge.
 
 ## Evidence and scope
 
-Repository baseline: `973cff653cde011b6fd7a5a58496a8802e2918f3`.
-`research/knowledge/` is absent on that baseline. I read the locally available
-research branch at `a6c6ced48cbb1f8d42108bcb2183a566c2846df8`, without merging it:
+This design note was written on 2026-10-23. Evidence links were repaired on
+2026-10-24 to point to the knowledge hub now present in this repository.
+Link maintenance does not rerun or independently revalidate the designs below:
 
-- [Hub and handoff](https://github.com/KimSeogyu/parangsae/blob/a6c6ced48cbb1f8d42108bcb2183a566c2846df8/research/knowledge/developer-handoff.md): distinguish mechanisms, input availability, and demonstrated results.
-- [DNP synthesis, R02–R05](https://github.com/KimSeogyu/parangsae/blob/a6c6ced48cbb1f8d42108bcb2183a566c2846df8/research/knowledge/investor-dnpquant/research-synthesis.md): exhaustion need not cause a rebound; funding carry and delayed news reaction need separate input and cost evidence.
-- [Alternative signals](https://github.com/KimSeogyu/parangsae/blob/a6c6ced48cbb1f8d42108bcb2183a566c2846df8/research/knowledge/alternative-signals.md), [community map](https://github.com/KimSeogyu/parangsae/blob/a6c6ced48cbb1f8d42108bcb2183a566c2846df8/research/knowledge/community-map.md), and [PIT validation](https://github.com/KimSeogyu/parangsae/blob/a6c6ced48cbb1f8d42108bcb2183a566c2846df8/research/knowledge/public-data-pit-validation.md): discovery, publication, reception, and later revisions are different events.
+- [Hub and handoff](../knowledge/developer-handoff.md): distinguish mechanisms, input availability, and demonstrated results.
+- [DNP synthesis, R02–R05](../knowledge/investor-dnpquant/research-synthesis.md): exhaustion need not cause a rebound; funding carry and delayed news reaction need separate input and cost evidence.
+- [Alternative signals](../knowledge/alternative-signals.md), [community map](../knowledge/community-map.md), and [PIT validation](../knowledge/public-data-pit-validation.md): discovery, publication, reception, and later revisions are different events.
 
 These are idea and data-contract sources, not independently reproduced trading
 results. [Queue v2](../strategy-queue-v2.md), the
 [H4 preregistration](../prereg/2026-10-23-h4-funding-crowding-fade.md),
 [H5 preregistration](../prereg/2026-10-23-h5-premium-reversal.md), and
 [premium dataset sign-off](2026-10-23-h5-premium-dataset-signoff.md) supply the
-local input contracts and overlap checks. Issue
-[#24](https://github.com/KimSeogyu/parangsae/issues/24) is addressed separately
-below; its full issue body was unavailable offline. The task's description and
-the hub's reference establish the limited premise used here.
+local input contracts and overlap checks. The contingent official-correction
+hypothesis is stated below without claiming a migrated issue number.
+The later [funding/attention source boundary](../knowledge/funding-attention-source-boundaries.md)
+adds source-access/PIT limitations; it does not amend these formulas, grids,
+trial budget, authorization, or original verification results.
 
 ## Shared point-in-time and trading contract
 
@@ -224,7 +225,7 @@ as testable; do not loosen thresholds to obtain trades.
 and premium minute closes/count. Warmup is at least 90 d for the 270-rate scale
 and 24 h for price confirmation, inside the development interval.
 
-## Issue #24: official-correction residual reversal is contingent
+## Official-correction residual reversal is contingent
 
 The hypothesis is that some BTC price displacement caused by a false rumour
 remains after an authoritative denial/correction, leaving a delayed reversal
@@ -296,7 +297,7 @@ schema-1 premium day, without changing an earlier output. Test the explicit
 buffer caps and restart/event deduplication. These are proposed acceptance
 requirements, not executable specs supplied by this documentation change.
 
-Verification for this note: TLC **not run** (local `tla2tools.jar` absent);
+Original verification for this design note (2026-10-23): TLC **not run** (local `tla2tools.jar` absent);
 Kani **blocked before proofs** (`cargo kani -p parangsae-core`, verifier 0.68.0,
 cannot resolve offline Cargo metadata); cucumber/proptest **not executed**
 (`cargo test --workspace` blocked before tests). `spec inspect` was attempted

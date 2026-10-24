@@ -13,8 +13,9 @@
 7. [Dnpquant 발췌자료 검토](investor-dnpquant/README.md): 175파일 전수, 173식별본문, 개별 노트·손실 반례·연구 후보.
 8. [출처별 검토 명세](user-source-coverage.md): 권리·접근·누락과 진행 범위.
 9. [nomore_bet 개별 노트와 매체 검토](naver-nomore-post-notes/README.md): 714편과 선별 시각자료의 상태·한계.
-10. [검색 인프라·채용 링크](infrastructure-and-job.md): AWS 원문과 현재 사양 차이, 확인 불가 공고.
+10. [검색 인프라](infrastructure-and-job.md): AWS 원문과 현재 사양 차이.
 11. [공개 데이터의 PIT 검증 보완](public-data-pit-validation.md): Wikimedia 소급 정정, GDELT 시각 의미, mempool 관측 조건의 출처별 확인 범위.
+12. [Funding·검색 관심도의 제품/PIT 경계](funding-attention-source-boundaries.md): 현재 metadata와 과거 regime, Google Trends 제품별 시점·접근 조건 및 6개 공식 출처 coverage.
 
 ## 수집 상태: 공개 범위 검토 및 남은 접근 제한
 
@@ -46,4 +47,4 @@
 
 ## 이 문서 묶음의 검토 범위
 
-지식 문서 78개와 연구 진입 링크를 제공한다. 원출처 검토일과 읽기 제한은 출처별 ledger를 따른다. 문서 이관은 원문 재독해·데이터 재현·전략 검증이 아니며, 현재 저장소에서 확인하지 않은 과거 이슈 번호나 코드 결함 주장을 연결하지 않는다. 공개 원천의 정본 링크와 실제 읽기·매체·접근 제한은 유지한다.
+초기 이관은 지식 문서 78개와 연구 진입 링크였으며, 이후 source-contract 보완은 위 읽기 목록과 각 문서의 coverage ledger에 따로 기록한다. 원출처 검토일과 읽기 제한은 출처별 ledger를 따른다. 문서 이관은 원문 재독해·데이터 재현·전략 검증이 아니며, 현재 저장소에서 확인하지 않은 과거 이슈 번호나 코드 결함 주장을 연결하지 않는다. 공개 원천의 정본 링크와 실제 읽기·매체·접근 제한은 유지한다.
