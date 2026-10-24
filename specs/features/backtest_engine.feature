@@ -137,3 +137,7 @@ Feature: Backtest engine v0
   Scenario: An inactive lookahead probe cannot attest causality
     When the H2 lookahead probe runs with an unreachable deadband
     Then the probe refuses to attest causality without an active decision
+
+  Scenario: An unfilled position flip cannot satisfy the activity gate
+    When a pending position flip is canceled before a tradable minute
+    Then only the initial realized rebalance counts toward the activity gate

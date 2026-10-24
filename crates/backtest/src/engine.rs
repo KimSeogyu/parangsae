@@ -285,7 +285,6 @@ pub fn run_targets<S: TargetSignal>(
             }
             continue;
         }
-        let mut flattened_here = false;
         if ruined.is_none() {
             funding_i = settle_funding(
                 &FundingPass {
@@ -299,16 +298,15 @@ pub fn run_targets<S: TargetSignal>(
                 window,
                 index,
             )?;
+            let before_settlement = ledger.position().0;
+            let mut forced_exit = false;
             if window_flat == Some(bar.open_time)
                 || end_open == Some(bar.open_time)
                 || forced_opens.contains(&bar.open_time)
             {
                 if let Some(order) = flatten_order(&ledger)? {
                     pending = Some(HeldOrder::new(order));
-                    n_forced_exits = n_forced_exits
-                        .checked_add(1)
-                        .ok_or(EngineError::Sim(SimError::Overflow))?;
-                    flattened_here = true;
+                    forced_exit = true;
                 }
             }
             if let Some(resolved) = settle_pending(
@@ -325,6 +323,14 @@ pub fn run_targets<S: TargetSignal>(
             )? {
                 sized = Some(resolved);
             }
+            note_settlement(
+                &mut n_rebalances,
+                &mut n_sign_changes,
+                &mut n_forced_exits,
+                forced_exit,
+                before_settlement,
+                ledger.position().0,
+            )?;
         }
 
         for before_close in [true, false] {
@@ -336,6 +342,7 @@ pub fn run_targets<S: TargetSignal>(
                 }
                 let equity = ledger.equity(mark.close).map_err(EngineError::Sim)?;
                 if equity.0 <= 0 {
+                    let before_flatten = ledger.position().0;
                     force_flat(
                         &mut ledger,
                         &mut book,
@@ -344,6 +351,14 @@ pub fn run_targets<S: TargetSignal>(
                         mark.close,
                         costs,
                         bar.close_time,
+                    )?;
+                    note_settlement(
+                        &mut n_rebalances,
+                        &mut n_sign_changes,
+                        &mut n_forced_exits,
+                        true,
+                        before_flatten,
+                        ledger.position().0,
                     )?;
                     let after = ledger.equity(mark.close).map_err(EngineError::Sim)?;
                     ruined = Some(bar.close_time);
@@ -463,16 +478,6 @@ pub fn run_targets<S: TargetSignal>(
                                 }
                                 pending = Some(held);
                             }
-                            if !flattened_here {
-                                note_target_change(
-                                    &mut n_rebalances,
-                                    &mut n_sign_changes,
-                                    &mut n_forced_exits,
-                                    inside,
-                                    ledger.position().0,
-                                    lots,
-                                )?;
-                            }
                         } else {
                             pending = None;
                             dropped_orders += 1;
@@ -512,15 +517,19 @@ pub fn run_targets<S: TargetSignal>(
     )
 }
 
-fn note_target_change(
+/// Count realized position changes once per settled order, after both fill legs.
+fn note_settlement(
     n_rebalances: &mut u64,
     n_sign_changes: &mut u64,
     n_forced_exits: &mut u64,
-    inside_forced: bool,
+    forced_exit: bool,
     old_lots: i64,
     new_lots: i64,
 ) -> Result<(), EngineError> {
-    if inside_forced {
+    if old_lots == new_lots {
+        return Ok(());
+    }
+    if forced_exit {
         *n_forced_exits = n_forced_exits
             .checked_add(1)
             .ok_or(EngineError::Sim(SimError::Overflow))?;

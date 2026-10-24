@@ -431,3 +431,14 @@ fn inactive_probe_refused(world: &mut EngineWorld) {
     let error = world.probe_result.as_ref().unwrap().as_ref().unwrap_err();
     assert!(error.contains("no active comparison decision"), "{error}");
 }
+
+#[when("a pending position flip is canceled before a tradable minute")]
+fn canceled_flip_step(world: &mut EngineWorld) {
+    keep(world, cases::canceled_pending_flip());
+}
+
+#[then("only the initial realized rebalance counts toward the activity gate")]
+fn realized_activity_only(world: &mut EngineWorld) {
+    assert_eq!(world.report().n_rebalances, 1);
+    assert_eq!(world.report().n_sign_changes, 0);
+}

@@ -448,3 +448,57 @@ fn qr4_frozen_decision_equity_is_divided_by_the_slipped_fill_quote() {
     assert_eq!(report.fills[0].price, px(125));
     assert_eq!(report.fills[0].qty.ticks(), 8_000_000_000);
 }
+
+#[test]
+fn gate4_repeated_pending_decisions_count_one_realized_rebalance() {
+    let report = cases::filler_hour_targets(vec![Some(cases::tgt(0.5)); 4], 2);
+    assert_eq!(report.fills.len(), 1);
+    assert_eq!(report.fills[0].ts.micros(), at(15, 0));
+    assert_eq!(report.n_rebalances, 1);
+    assert_eq!(report.n_sign_changes, 0);
+}
+
+#[test]
+fn gate4_a_canceled_pending_flip_is_not_a_held_position_sign_change() {
+    let report = cases::canceled_pending_flip();
+    assert_eq!(report.fills.len(), 1);
+    assert_eq!(report.fills[0].side, Side::Buy);
+    assert_eq!(report.n_sign_changes, 0);
+    assert_eq!(report.n_rebalances, 1);
+}
+
+#[test]
+fn gate4_same_lot_reacceptance_does_not_count_without_a_fill() {
+    let report = cases::same_lot_reaccept();
+    assert_eq!(report.fills.len(), 1);
+    assert_eq!(report.n_rebalances, 1);
+    assert_eq!(report.n_sign_changes, 0);
+}
+
+#[test]
+fn gate4_a_realized_flip_counts_once_across_its_two_fill_legs() {
+    let report = cases::t1_flip();
+    assert_eq!(report.fills.len(), 3);
+    assert_eq!(report.n_rebalances, 2);
+    assert_eq!(report.n_sign_changes, 1);
+    assert_eq!(report.n_forced_exits, 0);
+}
+
+#[test]
+fn gate4_a_realized_forced_close_does_not_count_as_a_strategy_rebalance() {
+    let bars = cases::hours(at(12, 0), 3, 100);
+    let mut cfg = support::cfg(&bars, 10_000);
+    cfg.flatten_before = Some(UtcMicros::from_micros(at(14, 0)));
+    let mut signal = cases::Script::new(vec![Some(cases::tgt(0.5)); 3]);
+    let report = parangsae_backtest::run_targets(
+        &support::tape_of(bars),
+        &mut signal,
+        &support::costs(0, 0),
+        &cfg,
+    )
+    .unwrap();
+    assert_eq!(report.fills.len(), 2);
+    assert_eq!(report.n_rebalances, 1);
+    assert_eq!(report.n_sign_changes, 0);
+    assert_eq!(report.n_forced_exits, 1);
+}

@@ -608,3 +608,54 @@ pub fn delayed_target_report() -> Report {
     )
     .unwrap()
 }
+
+pub fn canceled_pending_flip() -> Report {
+    let mut bars = hours(at(12, 0), 5, 100);
+    let marks = bars.clone();
+    for bar in &mut bars[120..240] {
+        filler(bar);
+    }
+    execute(
+        bars,
+        marks,
+        vec![stamp_at(at(16, 0), at(16, 1), 0)],
+        vec![
+            Some(tgt(0.5)),
+            Some(tgt(-0.5)),
+            Some(tgt(-0.5)),
+            Some(tgt(0.5)),
+            Some(tgt(0.5)),
+        ],
+        10_000,
+        Vec::new(),
+        Vec::new(),
+    )
+    .unwrap()
+    .0
+}
+
+pub fn same_lot_reaccept() -> Report {
+    struct Reaccept(Script, u64);
+    impl TargetSignal for Reaccept {
+        fn on_bar(
+            &mut self,
+            bars: Causal<'_, &[ResampledBar]>,
+            funding: Causal<'_, &[FundingObs]>,
+            book: BookState,
+        ) -> Option<SignalOutput> {
+            let mut output = self.0.on_bar(bars, funding, book)?;
+            self.1 += 1;
+            output.accept = self.1;
+            Some(output)
+        }
+    }
+    let bars = hours(at(12, 0), 3, 100);
+    let mut signal = Reaccept(Script::new(vec![Some(tgt(0.5)); 3]), 0);
+    run_targets(
+        &tape_of(bars.clone()),
+        &mut signal,
+        &costs(0, 0),
+        &cfg(&bars, 10_000),
+    )
+    .unwrap()
+}
