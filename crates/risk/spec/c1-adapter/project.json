@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "profile": "finite-owned",
+  "name": "C1AdapterObligations",
+  "spec": "C1AdapterObligations.tla",
+  "config": "C1AdapterObligations.cfg",
+  "targets": ["rust"],
+  "binding": {
+    "className": "C1AdapterObligationsWitness"
+  }
+}

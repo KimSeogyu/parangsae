@@ -1,0 +1,13 @@
+{
+  "schema": "parangsae-evidence-lifetime-ci-registration-proposal-v1",
+  "status": "PROPOSAL_ONLY_NO_WORKFLOW_CHANGE",
+  "target_existing_job": "tla",
+  "change_filter_proposal": "Changes under crates/risk/spec/evidence-lifecycle/** should select the existing tla job.",
+  "step_proposal": "python3 crates/risk/spec/evidence-lifecycle/verify.py --jar specs/tla/tla2tools.jar --out \"$RUNNER_TEMP/evidence-lifetime-check\"",
+  "constraints": [
+    "Use existing pinned jar and serial512MiB heap lane; keep all baseline and bad-control invariants.",
+    "Do not add/change required checks or weaken branch protection.",
+    "No SDK generation/emitter/state-owner registration.",
+    "Root/Ops own exact integration with current workflow/source freshness; no workflow was edited in this handoff."
+  ]
+}

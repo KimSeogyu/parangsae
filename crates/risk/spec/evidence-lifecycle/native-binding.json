@@ -1,0 +1,110 @@
+{
+  "schema": "parangsae-evidence-lifetime-native-binding-v1",
+  "status": "BOUNDED_MODEL_CHECKED_CONCRETE_COMPONENT_EVIDENCE_SEPARATE_NOT_FINAL_INTEGRATION",
+  "owner": "Risk/Portfolio model; Backtest study and Run Control wrapper remain separate concrete owners",
+  "model": {
+    "source_sha256": "aae414790a126e078ddca825d16fc9065098f7976e959fa4e86cd507d36f7c2d",
+    "jar_sha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+    "ordinary_TLC": true,
+    "SDK_v2_scalar_IR_or_owner": false,
+    "bounds": "Two units; SameTrial A/A or A/B projection; one process attempt; finite tag/sets",
+    "actual_receipt": "private phase/evidence-lifecycle-native-v3/result.json",
+    "prior_failed_representation_receipt": "private phase/evidence-lifecycle-native/result.json",
+    "cases": [
+      {
+        "case": "same-trial",
+        "exit": 0,
+        "expected_invariant_failure": false,
+        "accepted_expected_result": true,
+        "cfg_sha256": "6e210829035d70bb8b927d82b231d49ffe08777f3c87b30a337a85e2b42bb727",
+        "summary": [
+          "Model checking completed. No error has been found.",
+          "3770 states generated, 1297 distinct states found, 0 states left on queue."
+        ]
+      },
+      {
+        "case": "distinct-trials",
+        "exit": 0,
+        "expected_invariant_failure": false,
+        "accepted_expected_result": true,
+        "cfg_sha256": "e1867bbc8a7346c2cef8a54cd88253791074faf7149d0c0e88d7eb90586e955c",
+        "summary": [
+          "Model checking completed. No error has been found.",
+          "3770 states generated, 1297 distinct states found, 0 states left on queue."
+        ]
+      },
+      {
+        "case": "bad-fallback",
+        "exit": 12,
+        "expected_invariant_failure": true,
+        "accepted_expected_result": true,
+        "cfg_sha256": "9c9da91a327c94fbd71402ba8c50a0fa7307697db715e56d9b75f19de3c286e3",
+        "summary": [
+          "Error: Invariant KnownEntryCannotBecomePreSpawn is violated.",
+          "38 states generated, 29 distinct states found, 19 states left on queue."
+        ]
+      }
+    ]
+  },
+  "mapping": [
+    {
+      "abstract": "Enter/ObserveOutcome and resident payload",
+      "rust": "Native unit Complete/Technical outcome retained independently of ledger persistence before fallible terminal append. Earlier completed units survive later start failure.",
+      "python": "Same Invocation owns attempt, observed PID, exit and result/streams; evidence failures are sticky."
+    },
+    {
+      "abstract": "RecordDurableUnitStart(u), TrialOf(u)",
+      "rust": "Actual unique run_id/unit start plus actual trial_id. Multiple durable units may share one charged trial.",
+      "python": "Actual readable newline-complete shared RunStarted rows; unreadable/corrupt totals remain unknown with separate readable-prefix lower bounds."
+    },
+    {
+      "abstract": "IOFailure/FinalizeFailure",
+      "rust": "Start/finish/abort/report errors retain typed evidence and uncertainty.",
+      "python": "Stream/result/fsync errors render the same monotone Invocation; never rebuild pre-spawn state or retry."
+    }
+  ],
+  "rust_component": {
+    "tested_head": "150732f0d8338df1f2b698fa10db1ed2efc15258",
+    "current_author_head": "693b97d1fa111a84f8b47b58b49868cc3f1df51e",
+    "current_head_relation": "Read-only git diff independently confirms only lib.rs use-order formatting differs between the tested head and current author head; study.rs diff is empty. Final assembled union review remains separate.",
+    "native_tests": [
+      "c1::study::tests::ledger_start_io_failure_keeps_prior_unit_evidence_without_executing_the_next_unit",
+      "c1::study::tests::a_failed_terminal_append_retains_the_actual_completed_execution_and_metrics",
+      "c1_assembly_feature"
+    ],
+    "red_receipt": "private phase/study-ledger-io-original-behavior-red2.json",
+    "green_receipts": [
+      "private phase/final-backtest-package-functional.json",
+      "private phase/final-study-report-native.log"
+    ],
+    "actual_fault": "Synthetic EISDIR/terminal append obstruction; native outcome/persistence/full output evidence checks. Not a real market driver fault."
+  },
+  "python_component": {
+    "source_sha256": "843ce4b6235504e3063806b0bb9685b7f16e3cc1e646c2cbe72e0477861ab90f",
+    "state_owner": "Invocation",
+    "truth_order": [
+      "BEFORE_CLAIMS",
+      "CLAIMED_NO_OBSERVED_CHILD",
+      "SPAWN_ATTEMPTED_NO_PID",
+      "PID_OBSERVED",
+      "EXIT_OBSERVED"
+    ],
+    "actual_failed_v1": "private phase/run-control/guard-evidence/rgg02-v1-observed-prefix.json",
+    "corrected_guard_receipt": "private phase/run-control/guard-evidence/guards-v2-final.json",
+    "immutable_handoff": "private phase/run-control/guard-evidence/frozen-handoff-v2.json",
+    "actual_faults": [
+      "real child exit0 then missing stream",
+      "result write failure",
+      "result fsync failure",
+      "stream fsync failure",
+      "unreadable ledger audit",
+      "claim fsync prefix"
+    ],
+    "scope": "Synthetic custody guards, actual child/filesystem faults. No launch grant/control/market authority; final independent release review separate."
+  },
+  "trust_boundary": [
+    "Unit-to-Trial projection and durable-start observations must be truthful native facts; model does not validate trial hash preimage/role schedule or whole ledger parser.",
+    "EvidenceAcknowledged abstracts an actual successful custody event, not proof of physical durability.",
+    "No formal refinement, fsync/crash/liveness guarantee, money/clock/source/strategy proof or final study readiness."
+  ]
+}
