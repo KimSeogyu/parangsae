@@ -1097,8 +1097,9 @@ pub(crate) mod tests {
         report.trades.clear();
         report.fills.clear();
         report.funding.clear();
-        report.metrics.fees_paid = Cash(0);
-        report.metrics.funding_net = Cash(0);
+        let metrics: &mut crate::report::Metrics = &mut report.metrics;
+        metrics.fees_paid = Cash(0);
+        metrics.funding_net = Cash(0);
         report.slippage_cost = Cash(0);
         for (_, value) in &mut report.equity_curve {
             *value = initial;

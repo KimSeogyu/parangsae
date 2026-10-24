@@ -109,8 +109,9 @@ fn synthetic_window(case: &str, fold: usize, fee: u32, slip: u32) -> WindowResul
     report.fills = raw.fills.clone();
     report.funding = raw.funding.clone();
     report.costs = costs;
-    report.metrics.fees_paid = ledger.fees_paid();
-    report.metrics.funding_net = ledger.funding_net();
+    let metrics: &mut crate::report::Metrics = &mut report.metrics;
+    metrics.fees_paid = ledger.fees_paid();
+    metrics.funding_net = ledger.funding_net();
     report.slippage_cost = Cash(slip_ticks);
     for forced in &mut report.forced_exits {
         forced.trigger = ts(forced.trigger.micros());
