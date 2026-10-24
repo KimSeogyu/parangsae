@@ -1,0 +1,19 @@
+[package]
+name = "parangsae-risk"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+description = "Pure paper risk authority, reservations, and checked settlements."
+
+[dependencies]
+parangsae-core = { path = "../core" }
+
+[dev-dependencies]
+proptest = "1.6"
+cucumber = "=0.22.1"
+futures = "0.3"
+
+[[test]]
+name = "risk_behavior"
+harness = false

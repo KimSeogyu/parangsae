@@ -38,6 +38,20 @@ Feature: Collector verify scope
     When verify has no filters
     Then verify reports a conflict fault
 
+  Scenario: verify rejects a stored minute absent from every applicable raw archive
+    Given a monthly June 2021 um-kline archive ingested only on 2021-06-01
+    When an extra stored um-kline minute is injected on 2021-06-01
+    And verify is limited to dataset "funding-rate"
+    Then verify reports no faults
+    When verify is limited to dataset "um-kline" from "2021-06-02" to "2021-06-02"
+    Then verify reports no faults
+    When verify has no filters
+    Then verify reports an unexpected stored um-kline minute
+
+  Scenario: an archive cannot admit rows outside its named calendar coverage
+    When a June 2021 monthly kline archive containing a July 1 row is ingested
+    Then the archive calendar mismatch is rejected before writing Parquet
+
   Scenario Outline: funding payload changes fail inside the selected scope
     Given a temp store with the 2021-06-01 um-kline fixture and the September 2026 funding fixture
     When the stored funding "<field>" on 2026-09-01 differs from the archive

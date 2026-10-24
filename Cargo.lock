@@ -1506,6 +1506,16 @@ name = "parangsae-regime"
 version = "0.0.0"
 
 [[package]]
+name = "parangsae-risk"
+version = "0.0.0"
+dependencies = [
+ "cucumber",
+ "futures",
+ "parangsae-core",
+ "proptest",
+]
+
+[[package]]
 name = "parangsae-signals"
 version = "0.0.0"
 dependencies = [
