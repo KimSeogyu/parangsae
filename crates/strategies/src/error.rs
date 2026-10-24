@@ -14,6 +14,9 @@ pub enum StrategyError {
     BeforeEarliest,
     Overflow,
     Price,
+    MissingExecutionContext,
+    AdjustingExecutionPhase,
+    H4ObservationCapacity,
 }
 
 impl fmt::Display for StrategyError {
@@ -29,6 +32,12 @@ impl fmt::Display for StrategyError {
             Self::BeforeEarliest => write!(f, "bar opens before 2020-12-18 00:00 UTC"),
             Self::Overflow => write!(f, "timestamp arithmetic overflowed"),
             Self::Price => write!(f, "price is not a positive exact f64"),
+            Self::MissingExecutionContext => write!(f, "H4 requires actual execution feedback"),
+            Self::AdjustingExecutionPhase => write!(f, "H4 cannot adjust an existing position"),
+            Self::H4ObservationCapacity => write!(
+                f,
+                "H4 observations must be drained before the declared capacity"
+            ),
         }
     }
 }

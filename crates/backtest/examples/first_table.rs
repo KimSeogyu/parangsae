@@ -12,16 +12,15 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use parangsae_backtest::{
-    run_targets, BookState, FundingObs, MarkAbsence, Overlay, Report, RunConfig, Tape, TapeConfig,
-    TargetSignal, UtcDate, FEE_GRID_BPS,
+    run_targets, BookState, FundingObs, MarkAbsence, Overlay, Report, RunConfig, StrategyOutput,
+    Tape, TapeConfig, TargetSignal, UtcDate, FEE_GRID_BPS,
 };
 use parangsae_core::{
     AvailableTs, BarInterval, Causal, DecisionTime, EventTs, Interval, Observation, ReceivedTs,
     ResampledBar, Symbol, Timestamps,
 };
 use parangsae_signals::{
-    drive, drive_funding_z, CausalSignal, FundingRow, FundingZ, SignalOutput, Tsmom,
-    PROD_MAX_AGE_US,
+    drive, drive_funding_z, CausalSignal, FundingRow, FundingZ, Tsmom, PROD_MAX_AGE_US,
 };
 use parangsae_sim::{Cash, Costs, FeeBps, SlippageBps};
 
@@ -249,7 +248,7 @@ impl<const N: u16> TargetSignal for TsmomAdapter<N> {
         bars: Causal<'_, &[ResampledBar]>,
         _funding: Causal<'_, &[FundingObs]>,
         _book: BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         if self.error.is_some() {
             return None;
         }
@@ -262,7 +261,7 @@ impl<const N: u16> TargetSignal for TsmomAdapter<N> {
             }
         };
         match drive(&self.signal, &rows, decision) {
-            Ok(output) => output,
+            Ok(output) => output.map(StrategyOutput::target),
             Err(err) => {
                 self.error = Some(format!("tsmom<{N}>: {err}"));
                 None
@@ -295,7 +294,7 @@ impl<const M: u16> TargetSignal for FundingAdapter<M> {
         bars: Causal<'_, &[ResampledBar]>,
         funding: Causal<'_, &[FundingObs]>,
         _book: BookState,
-    ) -> Option<SignalOutput> {
+    ) -> Option<StrategyOutput> {
         if self.error.is_some() {
             return None;
         }
@@ -319,7 +318,7 @@ impl<const M: u16> TargetSignal for FundingAdapter<M> {
             }
         };
         match drive_funding_z(&self.signal, &bar_rows, &fund_rows, decision) {
-            Ok(output) => output,
+            Ok(output) => output.map(StrategyOutput::target),
             Err(err) => {
                 self.error = Some(format!("funding_z<{M}>: {err}"));
                 None

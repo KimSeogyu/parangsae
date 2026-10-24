@@ -243,9 +243,13 @@ fn run_funding(
         strategy
             .ingest_funding(&visible)
             .map_err(|err| err.to_string())?;
-        if let Some(signal) = strategy.push(bar, None).map_err(|err| err.to_string())? {
-            out.push(signal);
+        if let Some(opportunity) = strategy
+            .h4_opportunity(bar)
+            .map_err(|err| err.to_string())?
+        {
+            out.push(opportunity.signal().map_err(|err| err.to_string())?);
         }
+        let _observations = strategy.take_h4_observations();
     }
     Ok(out)
 }
@@ -335,7 +339,7 @@ fn run_premium(
             .ingest_premium(&visible)
             .map_err(|err| err.to_string())?;
         if let Some(signal) = strategy.push(bar, None).map_err(|err| err.to_string())? {
-            out.push(signal);
+            out.push(signal.signal);
         }
     }
     Ok(out)
@@ -440,6 +444,63 @@ mod tests {
             "the future funding mutation must reach a decision"
         );
         truncation_probe("H4", &params).unwrap();
+    }
+
+    #[test]
+    fn funding_observation_prefix_is_causal_and_the_later_trace_is_discriminating() {
+        let params = BTreeMap::from([
+            ("q".to_owned(), 10_000_000),
+            ("sum_settlements".to_owned(), 3),
+            ("confirm_h".to_owned(), 24),
+            ("hold_h".to_owned(), 72),
+        ]);
+        let probe = funding_inputs(&params).unwrap();
+        let mut changed = probe.rows.clone();
+        changed
+            .iter_mut()
+            .find(|row| row.funding_time_us == probe.mutation_at)
+            .unwrap()
+            .rate_ticks = -100_000_000;
+        let original = funding_trace(&params, &probe.bars, &probe.rows);
+        let mutated = funding_trace(&params, &probe.bars, &changed);
+        let prefix = |rows: &[crate::H4Observation]| {
+            rows.iter()
+                .filter(|row| row.observed_at.micros().micros() <= probe.prior)
+                .copied()
+                .collect::<Vec<_>>()
+        };
+        assert!(prefix(&original)
+            .iter()
+            .any(|row| row.kind == crate::H4ObservationKind::Confirmation { confirmed: true }));
+        assert_eq!(prefix(&original), prefix(&mutated));
+        assert_ne!(
+            original, mutated,
+            "future funding never reached the raw observation trace"
+        );
+    }
+
+    fn funding_trace(
+        params: &BTreeMap<String, i64>,
+        bars: &[Observation<ResampledBar>],
+        funding: &[FundingPrint],
+    ) -> Vec<crate::H4Observation> {
+        let mut strategy =
+            crate::Strategy::from_params("H4", params).expect("H4 fixture parameters");
+        let mut observations = Vec::new();
+        for bar in bars {
+            let decision = decision_us(bar) + 1_000;
+            let visible: Vec<_> = funding
+                .iter()
+                .copied()
+                .filter(|row| row.available_us <= decision)
+                .collect();
+            strategy
+                .ingest_funding(&visible)
+                .expect("causal funding fixture");
+            strategy.h4_opportunity(bar).expect("closed probe bar");
+            observations.extend(strategy.take_h4_observations());
+        }
+        observations
     }
 
     #[test]

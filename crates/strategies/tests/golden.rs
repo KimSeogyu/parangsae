@@ -261,6 +261,7 @@ fn s01_deadband_uses_notional_over_equity() {
         equity_ticks: 1_000_000 * SCALE,
         position_lots: 0,
         mark_ticks: usdt(40_000),
+        execution: parangsae_strategies::ExecutionPhase::Flat,
     };
     let mut flat_weight = Strategy::from_params("S01", &spec).unwrap();
     let mut drifted = Vec::new();
@@ -268,7 +269,7 @@ fn s01_deadband_uses_notional_over_equity() {
         let mut book = flat_book;
         book.mark_ticks = bar.value().close().ticks();
         if let Some(signal) = flat_weight.push(bar, Some(book)).unwrap() {
-            drifted.push(signal);
+            drifted.push(signal.signal);
         }
     }
     assert_eq!(ticks(&drifted[0]), 39_605_254);
@@ -294,16 +295,21 @@ fn s01_deadband_uses_notional_over_equity() {
                 equity_ticks: equity,
                 position_lots: position,
                 mark_ticks: mark,
+                execution: parangsae_strategies::ExecutionPhase::Open {
+                    side: parangsae_strategies::PositionSide::Long,
+                    entered_at: parangsae_core::UtcMicros::from_micros(T0),
+                },
             }
         } else {
             DecisionBook {
                 equity_ticks: equity,
                 position_lots: 0,
                 mark_ticks: bar.value().close().ticks(),
+                execution: parangsae_strategies::ExecutionPhase::Flat,
             }
         };
         if let Some(signal) = held.push(bar, Some(book)).unwrap() {
-            outputs.push(signal);
+            outputs.push(signal.signal);
         }
     }
     assert_eq!(ticks(&outputs[1]), 39_605_254);

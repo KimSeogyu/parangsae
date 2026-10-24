@@ -47,6 +47,14 @@ harness = false
 name = "walkforward_flat"
 harness = false
 
+[[test]]
+name = "h4_timing"
+harness = false
+
+[[test]]
+name = "h4_terminal_boundary"
+harness = false
+
 [[example]]
 name = "smoke"
 
@@ -56,3 +64,7 @@ name = "first_table"
 [[example]]
 name = "readpath_parity"
 test = true
+
+[[test]]
+name = "h4_admission_extra"
+harness = false

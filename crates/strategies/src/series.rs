@@ -46,6 +46,7 @@ pub struct DecisionBook {
     pub equity_ticks: i64,
     pub position_lots: i64,
     pub mark_ticks: i64,
+    pub execution: crate::ExecutionPhase,
 }
 
 /// One position in `{-1, 0, +1}` with a fixed hold. Same-side signals do not extend it.
