@@ -285,6 +285,7 @@ pub struct TradeRecord {
     pub requested_hold_us: i64,
     pub scheduled_exit_decision_us: i64,
     pub forced_reason: Option<ForcedReason>,
+    pub forced_trigger_us: Option<i64>,
     pub cash: CashTotals,
     pub fills: Vec<FillRecord>,
     pub funding: Vec<FundingRecord>,
@@ -449,9 +450,7 @@ pub fn reduce_window(
         if invalid_time
             || !scored(exit.filled_at.micros())
             || exit.trigger > exit.filled_at
-            || forced
-                .insert(exit.filled_at.micros(), exit.reason)
-                .is_some()
+            || forced.insert(exit.filled_at.micros(), *exit).is_some()
         {
             return Err(H4ReportError::ForcedExit);
         }
@@ -489,7 +488,8 @@ pub fn reduce_window(
             .map_err(|_| H4ReportError::Overflow)?
             .micros()
             .micros();
-        let reason = forced.remove(&close.micros()).map(|reason| match reason {
+        let forced_exit = forced.remove(&close.micros());
+        let reason = forced_exit.map(|exit| match exit.reason {
             ForcedExitReason::Terminal => ForcedReason::Terminal,
             ForcedExitReason::Ruin => ForcedReason::Ruin,
         });
@@ -573,6 +573,7 @@ pub fn reduce_window(
             requested_hold_us: raw.hold.micros(),
             scheduled_exit_decision_us: scheduled,
             forced_reason: reason,
+            forced_trigger_us: forced_exit.map(|exit| exit.trigger.micros()),
             cash: totals,
             fills: raw.fills.iter().map(FillRecord::from).collect(),
             funding: raw
@@ -618,11 +619,15 @@ pub fn reduce_window(
         return Err(H4ReportError::Reconciliation);
     }
     let mut entry_drops = Vec::new();
+    let mut dropped_events = BTreeSet::new();
     for drop in &trace.entry_drops {
         if !scored(drop.at.micros()) {
             return Err(H4ReportError::Scope);
         }
-        event_record(&mut events, drop.event)?;
+        let event = event_record(&mut events, drop.event)?;
+        if event.scored_entries > 0 || !dropped_events.insert(event.origin.settlement_us) {
+            return Err(H4ReportError::Origin);
+        }
         entry_drops.push(DropRecord {
             origin: Origin::from(drop.event),
             at_us: drop.at.micros(),
@@ -1046,6 +1051,10 @@ pub(crate) mod tests {
             assert_eq!(forced.crowded_long_fades.strategy_round_trips, 0);
             assert_eq!(forced.crowded_long_fades.forced_round_trips, 1);
             assert_eq!(forced.cash, out.cash);
+            assert_eq!(
+                forced.trades[0].forced_trigger_us,
+                Some(report.forced_exits[0].trigger.micros())
+            );
         }
     }
 
@@ -1075,6 +1084,27 @@ pub(crate) mod tests {
             reduce_window(initial, &report),
             Err(H4ReportError::OpenTrade)
         );
+        let (initial, mut report) = raw_fixture(None);
+        let trace = report.h4.as_mut().unwrap();
+        let drop = crate::report::H4EntryDrop {
+            event: trace.trades[0].event,
+            at: trace.trades[0].trade.open_ts,
+            reason: H4EntryDropReason::ZeroLots,
+        };
+        trace.entry_drops.push(drop);
+        assert_eq!(reduce_window(initial, &report), Err(H4ReportError::Origin));
+        report.h4.as_mut().unwrap().trades.clear();
+        report.trades.clear();
+        report.fills.clear();
+        report.funding.clear();
+        report.metrics.fees_paid = Cash(0);
+        report.metrics.funding_net = Cash(0);
+        report.slippage_cost = Cash(0);
+        for (_, value) in &mut report.equity_curve {
+            *value = initial;
+        }
+        report.h4.as_mut().unwrap().entry_drops.push(drop);
+        assert_eq!(reduce_window(initial, &report), Err(H4ReportError::Origin));
     }
 
     #[test]
