@@ -143,12 +143,10 @@ pub(super) fn quote_entry(
         let perp_fee = taker_fee(perp_band.upper, net, actual.perp_bps)
             .map_err(|_| SizingError::Overflow)?
             .0;
-        let perp_requirement = checked_add(
-            checked_add(perp_principal, perp_fee)?,
-            PERP_CLOSE_AND_FUNDING,
-        )?;
+        let perp_entry = checked_add(perp_principal, perp_fee)?;
+        let perp_requirement = checked_add(perp_entry, PERP_CLOSE_AND_FUNDING)?;
         if spot_principal > EACH_CAP
-            || perp_principal > EACH_CAP
+            || perp_entry > EACH_CAP
             || spot_requirement > account.spot_quote.0
             || perp_requirement > account.perp_wallet.0
         {
@@ -156,8 +154,10 @@ pub(super) fn quote_entry(
         }
         if [
             amount(refs.spot_reference, gross, false)?,
+            amount(refs.spot_reference, net, false)?,
             amount(refs.perp_reference, net, false)?,
             amount(refs.spot_risk, gross, false)?,
+            amount(refs.spot_risk, net, false)?,
             amount(refs.perp_risk, net, false)?,
         ]
         .into_iter()
@@ -452,5 +452,11 @@ mod tests {
             forecast_above_cost(qty, price, i128::MAX, 1, Cash(0)),
             Err(SizingError::Overflow)
         );
+    }
+    mod admission_cases {
+        include!("sizing_admission_cases.rs");
+    }
+    mod admission_steps {
+        include!("sizing_admission_steps.rs");
     }
 }
