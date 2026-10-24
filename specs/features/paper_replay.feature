@@ -77,6 +77,25 @@ Feature: Risk-authorized offline paper execution and recovery
     And cash is 9879.915988 USDT and fees are 0.060012 USDT
     And execution remains halted until explicit matching reconciliation and resume
 
+  Scenario: Cancel denial before acknowledgment halts owned Risk authority
+    Given a paper-dispatched buy waiting for its first acknowledgment
+    When cancellation is requested and denied
+    Then the order is Unknown and exposure is unknown
+    And execution remains halted
+    And the full reservation is retained as Unknown
+    And a second exposure-increasing signal cannot dispatch
+
+  Scenario Outline: Cancel denial after evidence preserves known authority
+    Given an <evidence> paper order awaiting cancellation
+    When cancellation is requested and denied
+    Then the known order and its reservation remain unchanged
+    And a new within-limit order can still paper-dispatch
+
+    Examples:
+      | evidence                       |
+      | acknowledged                   |
+      | unacknowledged partially filled |
+
   Scenario: An approval expires before dispatch
     Given a planned buy with the explicit approval lifetime
     When dispatch occurs strictly after that lifetime
@@ -132,6 +151,7 @@ Feature: Risk-authorized offline paper execution and recovery
       | cancel-race    |
       | unknown        |
       | halt           |
+      | cancel-denied  |
 
   Scenario: A damaged complete journal record prevents recovery
     Given the scripted paper session has a durable ingress journal
