@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use cucumber::{then, when, World as _};
 use parangsae_backtest::{
-    run_targets, Bar, BookState, EngineError, ForcedExitReason, FundingObs, FundingStamp, Report,
-    RunConfig, SignalOutput, Tape, Target, TargetSignal, UtcDate, UtcRange,
+    run_targets, Bar, BookState, EngineError, ForcedExitReason, FundingObs, FundingStamp,
+    MarkAbsence, Report, RunConfig, SignalOutput, Tape, Target, TargetSignal, UtcDate, UtcRange,
 };
 use parangsae_core::{
     BarInterval, Causal, DecisionTime, Interval, Price, Qty, Ratio, ResampledBar, Side, UtcMicros,
@@ -53,6 +53,8 @@ struct Case {
 }
 
 fn run_case(scope: &str, zero_tail: i64, shock: bool, unknown: bool) -> Case {
+    let published = scope.starts_with("published ");
+    let scope = scope.strip_prefix("published ").unwrap_or(scope);
     let pending_entry = scope.starts_with("pending ");
     let scope = scope.strip_prefix("pending ").unwrap_or(scope);
     let (start, end) = match scope {
@@ -121,7 +123,7 @@ fn run_case(scope: &str, zero_tail: i64, shock: bool, unknown: bool) -> Case {
     {
         row.count = 0;
     }
-    let config = RunConfig {
+    let mut config = RunConfig {
         initial_cash: Cash(10_000 * SCALE),
         warmup_start: ts(start),
         start: ts(start),
@@ -144,16 +146,30 @@ fn run_case(scope: &str, zero_tail: i64, shock: bool, unknown: bool) -> Case {
         interval: Interval::ONE_HOUR,
         lot_ticks: 100_000,
     };
-    let funding = if unknown {
+    let funding = if unknown || published {
         vec![FundingStamp {
             funding_time: ts(boundary),
-            available: ts(boundary + MINUTE),
+            available: ts(if published {
+                boundary
+            } else {
+                boundary + MINUTE
+            }),
             rate: Ratio::from_ticks(2 * SCALE),
             interval_hours: 8,
         }]
     } else {
         Vec::new()
     };
+    if published {
+        // A registered synthetic carry makes the funding's original mark fully
+        // published at T. The native T-row's full minute is still unpublished.
+        marks.retain(|row| row.open_time.micros() != boundary);
+        config.mark_gaps.push(MarkAbsence {
+            first_open: ts(boundary),
+            last_open: ts(boundary),
+            known_source_absence: true,
+        });
+    }
     let tape = Tape::from_parts(bars, marks, funding);
     let mut target = FixedTarget(if shock { -SCALE } else { SCALE });
     let result = run_targets(
@@ -327,6 +343,36 @@ fn unknown(world: &mut BoundaryWorld) {
         "unknown control must refuse before Terminal with exact use clock: {:?}",
         case.result
     );
+}
+
+#[when("a zero-delay prevenue ruin precedes a hidden receipt at the same Terminal open")]
+fn same_boundary_receipt(world: &mut BoundaryWorld) {
+    world.case = Some(run_case("funding", 0, true, true));
+}
+
+#[when("both postbooking predicates recover from a generic due-open published receipt")]
+fn published_same_boundary_receipt(world: &mut BoundaryWorld) {
+    // Generic native domain only. Canonical H4 still requires slot+60s.
+    world.case = Some(run_case("published funding", 0, true, false));
+}
+
+#[then("the negative prevenue callback stays blocked without a new final Ruin latch")]
+fn published_recovery(world: &mut BoundaryWorld) {
+    let case = world.case.as_ref().unwrap();
+    let report = case
+        .result
+        .as_ref()
+        .expect("both admitted postbooking predicates are positive");
+    assert_eq!(report.ruined, None);
+    assert!(report.funding[0].amount.0 > 0);
+    assert!(report.equity_end().unwrap().0 > 10_000 * SCALE);
+    assert!(report
+        .signal_outputs
+        .iter()
+        .all(|row| row.decision_ts.micros() != ts(case.boundary)));
+    assert_eq!(report.forced_exits.len(), 1);
+    assert_eq!(report.forced_exits[0].reason, ForcedExitReason::Terminal);
+    assert_eq!(report.forced_exits[0].filled_at, ts(case.boundary));
 }
 
 #[tokio::main]

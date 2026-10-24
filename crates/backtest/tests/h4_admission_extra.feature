@@ -52,3 +52,7 @@ Feature: H4 full dependency admission and causal liquidation
   Scenario: Ruin without a future eligible close is a technical failure
     When no tradable close remains after the admitted short mark shock
     Then unfilled liquidation fails with the actual trigger and no invented report
+
+  Scenario: Later receipts do not thaw an earlier final liquidation
+    When a later unpublished receipt restores positive economic cash during established liquidation
+    Then the earlier final Ruin still closes its fixed lots once without another strategy decision

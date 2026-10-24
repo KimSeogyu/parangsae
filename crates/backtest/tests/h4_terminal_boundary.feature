@@ -43,3 +43,11 @@ Feature: Terminal execution is fixed before future liquidity is observed
   Scenario: Hidden control divergence precedes even a predeclared Terminal action
     When unknown funding makes economic and admitted solvency disagree at Terminal
     Then the whole trial refuses before accepting a terminal action
+
+  Scenario: A same-boundary funding receipt cannot bypass final money control
+    When a zero-delay prevenue ruin precedes a hidden receipt at the same Terminal open
+    Then the whole trial refuses before accepting a terminal action
+
+  Scenario: A provisional prevenue block does not become a final postbooking halt
+    When both postbooking predicates recover from a generic due-open published receipt
+    Then the negative prevenue callback stays blocked without a new final Ruin latch

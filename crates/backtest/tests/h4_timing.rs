@@ -471,6 +471,15 @@ fn hold_construction(world: &mut TimingWorld) {
     assert_eq!(case.report.fills[1].side, Side::Buy);
     assert_eq!(case.report.n_forced_exits, 0);
     assert_eq!(case.report.n_refused_fills, u64::from(case.fillers > 0));
+    let window = parangsae_backtest::window_result(Cash(10_000 * SCALE), &case.report)
+        .expect("actual H4 report reduces into a window");
+    let diagnostics = window.h4.expect("actual H4 diagnostics are retained");
+    assert_eq!(diagnostics.trades.len(), 1);
+    assert_eq!(diagnostics.crowded_long_fades.strategy_round_trips, 1);
+    assert_eq!(
+        diagnostics.cash.net_ticks,
+        i128::from(window.net_result_ticks)
+    );
 }
 
 #[then("the first exit decision is the first hourly decision at or after actual entry plus hold")]
@@ -534,6 +543,16 @@ fn fold_control(world: &mut TimingWorld) {
     let case = world.hold.as_ref().unwrap();
     assert_eq!(case.report.fills.len(), 2);
     assert_eq!(case.report.n_forced_exits, 1);
+    let window = parangsae_backtest::window_result(Cash(10_000 * SCALE), &case.report)
+        .expect("forced actual H4 report reduces");
+    assert_eq!(
+        window
+            .h4
+            .expect("forced H4 diagnostics")
+            .crowded_long_fades
+            .forced_round_trips,
+        1
+    );
     assert!(case.report.fills[1].ts.micros() < case.report.fills[0].ts.micros() + HOLD);
     assert!(case
         .report
