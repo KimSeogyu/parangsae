@@ -86,6 +86,7 @@ fn from_levels(levels: Vec<i64>, round_trips: u64) -> WindowResult {
         fill_notional_ticks: 0,
         max_dd_ticks: 0,
         accounting: parangsae_backtest::WindowAccounting::ZERO,
+        h4: None,
     }
 }
 
@@ -105,6 +106,7 @@ fn shaped(initial: i64, days: usize, extra: i64, round_trips: u64) -> WindowResu
         fill_notional_ticks: 0,
         max_dd_ticks: 0,
         accounting: parangsae_backtest::WindowAccounting::ZERO,
+        h4: None,
     }
 }
 
