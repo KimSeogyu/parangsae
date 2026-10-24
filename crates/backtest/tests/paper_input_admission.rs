@@ -275,12 +275,13 @@ fn valid_recovered(world: &mut InputWorld) {
 }
 
 #[when(
-    regex = r"^the (partial|cancel race|unknown|halt) script is replayed through native admission$"
+    regex = r"^the (partial|cancel race|cancel denial|unknown|halt) script is replayed through native admission$"
 )]
 fn existing_script(world: &mut InputWorld, kind: String) {
     let (initial, commands) = match kind.as_str() {
         "partial" => partial(),
         "cancel race" => cancel_race(),
+        "cancel denial" => cancel_denied_unknown(),
         "unknown" => unknown(),
         "halt" => halted(),
         _ => unreachable!(),

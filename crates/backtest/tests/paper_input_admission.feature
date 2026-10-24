@@ -45,6 +45,7 @@ Feature: Native paper input admission before durable observation
       | case        |
       | partial     |
       | cancel race |
+      | cancel denial |
       | unknown     |
       | halt        |
 
