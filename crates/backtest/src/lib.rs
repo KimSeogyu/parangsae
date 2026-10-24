@@ -44,6 +44,7 @@ mod wfbatch;
 pub mod paper_cases;
 
 pub use bar::{Bar, BarView, FundingStamp, PremiumMinute, Strategy, Tape};
+pub use c1::{run_c1_batch, C1BatchError, C1BatchRequest};
 pub use batch::{
     annual_sharpe_ticks, canonical_config_id, metrics_digest, metrics_from_grid, run_batch,
     turnover_ratio, BatchError, FeeGridRunner, FlatBars, ResultRow, SweepPins, TargetEngine,

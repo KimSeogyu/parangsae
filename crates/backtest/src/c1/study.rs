@@ -2,7 +2,583 @@
 
 use serde_json::{json, Value};
 
-use super::admission::C1AdmissionError;
+use super::actor::{C1Replay, PolicyWindow};
+use super::admission::{
+    admit, AdmittedC1, C1AdmissionError, C1BatchRequest, C1RoleConfig, ChargedRole,
+};
+use super::metrics::{selection_statistics, series_metrics, SelectionStatistics, SeriesMetrics};
+use super::report::{replay_diagnostic, ReplayResult};
+use super::sizing::Scenario;
+use crate::c1_source::C1SourceView;
+use crate::canon::{json_string, sha256_hex};
+use crate::trial_log::{trial_id, StartRecord, TrialLog, TrialRoleKind, TrialRoleMetadata};
+use crate::UtcRange;
+use parangsae_core::UtcMicros;
+use parangsae_strategies::c1::C1MaxHold;
+use serde::Serialize;
+use std::{
+    fs::{File, OpenOptions},
+    io::Write,
+    path::Path,
+};
+
+#[derive(Debug)]
+pub struct C1BatchError(pub String);
+
+impl std::fmt::Display for C1BatchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl std::error::Error for C1BatchError {}
+
+#[derive(Clone, Debug, Serialize)]
+struct Identity {
+    study_id: String,
+    attempt: u64,
+    config_id: String,
+    trial_id: String,
+    run_id: String,
+    role: TrialRoleMetadata,
+    scenario: &'static str,
+    unit_kind: &'static str,
+    fold: Option<u32>,
+    prereg_sha256: String,
+    pinned_root: String,
+}
+
+#[derive(Debug)]
+enum Outcome {
+    Complete {
+        run: ReplayResult,
+        metrics: SeriesMetrics,
+    },
+    Technical {
+        error: String,
+        prefix: Option<ReplayResult>,
+        stop_error: Option<String>,
+    },
+}
+
+#[derive(Debug)]
+struct Unit {
+    identity: Identity,
+    range: UtcRange,
+    outcome: Outcome,
+}
+
+impl Unit {
+    fn complete(&self) -> Result<(&ReplayResult, &SeriesMetrics), C1BatchError> {
+        match &self.outcome {
+            Outcome::Complete { run, metrics } => Ok((run, metrics)),
+            Outcome::Technical { error, .. } => Err(C1BatchError(error.clone())),
+        }
+    }
+    fn diagnostic(&self) -> Value {
+        match &self.outcome {
+            Outcome::Complete { run, metrics } => {
+                json!({"identity":self.identity,"status":"COMPLETE",
+                "metrics":metrics,"raw":replay_diagnostic(run)})
+            }
+            Outcome::Technical {
+                error,
+                prefix,
+                stop_error,
+            } => json!({"identity":self.identity,
+                "status":"TECHNICAL_UNRESOLVED","error":error,"control_stop_error":stop_error,
+                "metrics":null,"raw_partial":prefix.as_ref().map(replay_diagnostic)}),
+        }
+    }
+}
+
+fn scenario(role: ChargedRole) -> (Scenario, &'static str, TrialRoleMetadata) {
+    let (actual, name, kind, label) = match role {
+        ChargedRole::TrainMax168 => (
+            Scenario::Headline,
+            "HEADLINE",
+            TrialRoleKind::TrainingCandidate,
+            "TRAIN_MAX168",
+        ),
+        ChargedRole::TrainMax336 => (
+            Scenario::Headline,
+            "HEADLINE",
+            TrialRoleKind::TrainingCandidate,
+            "TRAIN_MAX336",
+        ),
+        ChargedRole::OosHeadline => (
+            Scenario::Headline,
+            "HEADLINE",
+            TrialRoleKind::ContinuousPolicy,
+            "OOS_HEADLINE",
+        ),
+        ChargedRole::OosHigherPerpFee => (
+            Scenario::HigherPerpFee,
+            "HIGHER_PERP_FEE",
+            TrialRoleKind::ContinuousPolicy,
+            "OOS_HIGHER_PERP_FEE",
+        ),
+        ChargedRole::OosSlippageStress => (
+            Scenario::SlippageStress,
+            "SLIPPAGE_STRESS",
+            TrialRoleKind::ContinuousPolicy,
+            "OOS_SLIPPAGE_STRESS",
+        ),
+    };
+    (
+        actual,
+        name,
+        TrialRoleMetadata {
+            role_kind: kind,
+            semantic_role: label.to_owned(),
+            scenario: name.to_owned(),
+        },
+    )
+}
+
+fn identity(
+    admitted: &AdmittedC1,
+    request: &C1BatchRequest,
+    role: &C1RoleConfig,
+    fold: Option<u32>,
+) -> Identity {
+    let (_, name, metadata) = scenario(role.role);
+    let kind = if fold.is_some() {
+        "train"
+    } else {
+        "continuous_oos"
+    };
+    Identity {
+        study_id: admitted.inputs.study_id.0.clone(),
+        attempt: request.attempt,
+        config_id: role.config_id.0.clone(),
+        trial_id: trial_id(&role.config_id.0, &admitted.pin, request.attempt),
+        run_id: run_unit_id(
+            &admitted.inputs.study_id.0,
+            &role.config_id.0,
+            request.attempt,
+            fold,
+        ),
+        role: metadata,
+        scenario: name,
+        unit_kind: kind,
+        fold,
+        prereg_sha256: admitted.prereg_identity.sha256.0.clone(),
+        pinned_root: admitted.pin.clone(),
+    }
+}
+
+fn run_unit_id(study: &str, config: &str, attempt: u64, fold: Option<u32>) -> String {
+    let kind = if fold.is_some() {
+        "train"
+    } else {
+        "continuous_oos"
+    };
+    let fold_json = fold.map_or_else(|| "null".to_owned(), |fold| fold.to_string());
+    let preimage = format!("{{\"attempt\":{},\"config_id\":{},\"fold\":{},\"schema\":\"parangsae-c1-run-unit-v1\",\"study_id\":{},\"unit_kind\":{}}}",
+        attempt,json_string(config),fold_json,json_string(study),json_string(kind));
+    sha256_hex(preimage.as_bytes())
+}
+
+fn run_unit(
+    source: &C1SourceView,
+    log: &TrialLog,
+    identity: Identity,
+    actual: Scenario,
+    policies: Vec<PolicyWindow>,
+) -> Result<Unit, C1BatchError> {
+    let range = UtcRange {
+        start: UtcMicros::from_micros(
+            policies
+                .first()
+                .ok_or_else(|| C1BatchError("empty policy schedule".to_owned()))?
+                .start,
+        ),
+        end: UtcMicros::from_micros(
+            policies
+                .last()
+                .ok_or_else(|| C1BatchError("empty policy schedule".to_owned()))?
+                .end,
+        ),
+    };
+    log.begin(StartRecord {
+        run_id: &identity.run_id,
+        trial_id: &identity.trial_id,
+        config_id: &identity.config_id,
+        pinned_root: &identity.pinned_root,
+        prereg_sha256: &identity.prereg_sha256,
+        attempt: identity.attempt,
+        family: "C1",
+        ts: range.start.micros(),
+        fold: identity.fold,
+        segment: Some(identity.unit_kind),
+        role: Some(&identity.role),
+    })
+    .map_err(|error| C1BatchError(error.to_string()))?;
+    let outcome = match C1Replay::new(source, actual, policies) {
+        Err(error) => Outcome::Technical {
+            error: format!("replay setup: {error:?}"),
+            prefix: None,
+            stop_error: None,
+        },
+        Ok(replay) => match replay.run() {
+            Err(failure) => Outcome::Technical {
+                error: format!("{:?}", failure.error),
+                prefix: Some(failure.prefix),
+                stop_error: failure.stop_error.map(|error| format!("{error:?}")),
+            },
+            Ok(run) => match series_metrics(Ok(&run), range) {
+                Ok(metrics) => Outcome::Complete { run, metrics },
+                Err(error) => Outcome::Technical {
+                    error: error.to_string(),
+                    prefix: Some(run),
+                    stop_error: None,
+                },
+            },
+        },
+    };
+    match &outcome {
+        Outcome::Complete { metrics, .. } => {
+            let bytes =
+                serde_json::to_vec(metrics).map_err(|error| C1BatchError(error.to_string()))?;
+            log.finish(&identity.run_id, &sha256_hex(&bytes))
+                .map_err(|error| C1BatchError(error.to_string()))?;
+        }
+        Outcome::Technical { error, .. } => log
+            .abort(&identity.run_id, error)
+            .map_err(|error| C1BatchError(error.to_string()))?,
+    }
+    Ok(Unit {
+        identity,
+        range,
+        outcome,
+    })
+}
+
+pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
+    let admitted = admit(request).map_err(|error| C1BatchError(error.to_string()))?;
+    let _exclusive_ledger = &admitted.ledger_file;
+    let source = match C1SourceView::load_exact(&admitted.source_manifest) {
+        Ok(source) => source,
+        Err(error) => {
+            let message = format!("source admission: {error:?}");
+            write_outputs(&admitted, &[], &[], None, Some(&message))?;
+            return Err(C1BatchError(message));
+        }
+    };
+    let folds = schedule().map_err(|error| C1BatchError(error.to_string()))?;
+    let log = TrialLog::new(&admitted.ledger);
+    let mut units = Vec::with_capacity(33);
+    let mut training = Vec::with_capacity(15);
+    let mut selected = Vec::with_capacity(15);
+    for fold in &folds {
+        let mut columns = Vec::with_capacity(2);
+        let mut scores = [None, None];
+        for (grid, hold) in [C1MaxHold::Hours168, C1MaxHold::Hours336]
+            .into_iter()
+            .enumerate()
+        {
+            let id = identity(
+                &admitted,
+                request,
+                &admitted.inputs.roles[grid],
+                Some(fold.index),
+            );
+            let unit = run_unit(
+                &source,
+                &log,
+                id,
+                Scenario::Headline,
+                vec![PolicyWindow {
+                    start: fold.train.start.micros(),
+                    end: fold.train.end.micros(),
+                    hold,
+                    enabled: true,
+                }],
+            )?;
+            units.push(unit);
+            let (run, metrics) = match units
+                .last()
+                .ok_or_else(|| C1BatchError("missing completed unit".to_owned()))?
+                .complete()
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    write_outputs(&admitted, &units, &selected, None, Some(&error.0))?;
+                    return Err(error);
+                }
+            };
+            columns.push((
+                fold.train.start.micros(),
+                run.daily.iter().map(|day| day.return_ticks).collect(),
+            ));
+            scores[grid] = metrics.annual_sharpe_ticks;
+        }
+        training.push(columns);
+        selected.push(select_hold(scores));
+    }
+    for role in &admitted.inputs.roles[2..] {
+        let (actual, _, _) = scenario(role.role);
+        let policies = folds
+            .iter()
+            .zip(&selected)
+            .map(|(fold, chosen)| PolicyWindow {
+                start: fold.test.start.micros(),
+                end: fold.test.end.micros(),
+                hold: chosen.unwrap_or(C1MaxHold::Hours168),
+                enabled: chosen.is_some(),
+            })
+            .collect();
+        let unit = run_unit(
+            &source,
+            &log,
+            identity(&admitted, request, role, None),
+            actual,
+            policies,
+        )?;
+        units.push(unit);
+        if let Err(error) = units
+            .last()
+            .ok_or_else(|| C1BatchError("missing policy unit".to_owned()))?
+            .complete()
+        {
+            write_outputs(&admitted, &units, &selected, None, Some(&error.0))?;
+            return Err(error);
+        }
+    }
+    let headline = units[30].complete()?.0;
+    let higher = units[31].complete()?.0;
+    let statistics = match selection_statistics(&training, Ok(headline), Ok(higher), 202) {
+        Ok(value) => value,
+        Err(error) => {
+            let message = error.to_string();
+            write_outputs(&admitted, &units, &selected, None, Some(&message))?;
+            return Err(C1BatchError(message));
+        }
+    };
+    write_outputs(&admitted, &units, &selected, Some(&statistics), None)
+}
+
+fn select_hold(scores: [Option<i64>; 2]) -> Option<C1MaxHold> {
+    let mut selected = None;
+    for (score, hold) in scores
+        .into_iter()
+        .zip([C1MaxHold::Hours168, C1MaxHold::Hours336])
+    {
+        if let Some(score) = score.filter(|value| *value > 0) {
+            if selected.is_none_or(|(previous, _)| score > previous) {
+                selected = Some((score, hold));
+            }
+        }
+    }
+    selected.map(|(_, hold)| hold)
+}
+
+fn create_output(path: &Path, bytes: &[u8]) -> Result<(), C1BatchError> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .map_err(|error| C1BatchError(error.to_string()))?;
+    file.write_all(bytes)
+        .and_then(|()| file.sync_all())
+        .map_err(|error| C1BatchError(error.to_string()))
+}
+
+fn write_outputs(
+    admitted: &AdmittedC1,
+    units: &[Unit],
+    selected: &[Option<C1MaxHold>],
+    statistics: Option<&SelectionStatistics>,
+    fatal: Option<&str>,
+) -> Result<(), C1BatchError> {
+    let common = json!({"study_id":admitted.inputs.study_id.0,"attempt":4_u64,"pin":admitted.pin,"prereg":admitted.prereg_identity});
+    let diagnostics: Vec<_> = units.iter().map(Unit::diagnostic).collect();
+    let policy_windows = policy_windows(units)?;
+    let failed_role = units.iter().rev().find_map(|unit| match unit.outcome {
+        Outcome::Technical { .. } => Some(unit.identity.role.semantic_role.as_str()),
+        Outcome::Complete { .. } => None,
+    });
+    let summary = json!({"schema":"parangsae-c1-summary-v1","identity":common,
+        "status":if fatal.is_some(){"INCONCLUSIVE_TECHNICAL"}else{"COMPLETED_DECLARED_MODEL"},
+        "completion":if fatal.is_some(){"INCOMPLETE"}else{"COMPLETE"},"failed_role":failed_role,
+        "error":fatal,"actual_started_units":units.len(),"declared_unit_cap":33,"declared_charge_cap":5,
+        "statistics":statistics,"policy_fold_windows":policy_windows,
+        "selection":selected.iter().map(|value|value.map(C1MaxHold::hours)).collect::<Vec<_>>(),
+        "block_diagnostics_status":"DEFERRED_NOT_COMPUTED","trading_readiness_claim":false});
+    let raw = json!({"schema":"parangsae-c1-diagnostics-v1","identity":common,"units":diagnostics});
+    create_output(
+        &admitted.out.join("C1-diagnostics.json"),
+        &serde_json::to_vec_pretty(&raw).map_err(|error| C1BatchError(error.to_string()))?,
+    )?;
+    let mut table=String::from("study_id,run_id,config_id,trial_id,role_kind,semantic_role,scenario,fold,start_us,end_exclusive_us,calendar_days,net_return_ticks,annual_sharpe_ticks,daily_close_mdd_ticks,normal_round_trips,status\n");
+    let mut daily=String::from("study_id,run_id,config_id,trial_id,role_kind,semantic_role,scenario,day_start_us,end_exclusive_us,known_at_us,equity_ticks,return_ticks,cash_only\n");
+    let mut run_log = String::new();
+    for unit in units {
+        let id = &unit.identity;
+        let kind = match id.role.role_kind {
+            TrialRoleKind::TrainingCandidate => "TrainingCandidate",
+            TrialRoleKind::ContinuousPolicy => "ContinuousPolicy",
+        };
+        let (days, ret, sr, dd, pairs, status) = match &unit.outcome {
+            Outcome::Complete { metrics, .. } => (
+                metrics.calendar_days.to_string(),
+                metrics.total_return_ticks.to_string(),
+                metrics
+                    .annual_sharpe_ticks
+                    .map(|v| v.to_string())
+                    .unwrap_or_default(),
+                metrics.daily_close_max_drawdown_ticks.to_string(),
+                metrics.normal_round_trips.to_string(),
+                "COMPLETE",
+            ),
+            Outcome::Technical { .. } => (
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                String::new(),
+                "TECHNICAL_UNRESOLVED",
+            ),
+        };
+        table.push_str(&format!(
+            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+            id.study_id,
+            id.run_id,
+            id.config_id,
+            id.trial_id,
+            kind,
+            id.role.semantic_role,
+            id.scenario,
+            id.fold.map(|v| v.to_string()).unwrap_or_default(),
+            unit.range.start.micros(),
+            unit.range.end.micros(),
+            days,
+            ret,
+            sr,
+            dd,
+            pairs,
+            status
+        ));
+        if let Outcome::Complete { run, .. } = &unit.outcome {
+            for row in &run.daily {
+                daily.push_str(&format!(
+                    "{},{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                    id.study_id,
+                    id.run_id,
+                    id.config_id,
+                    id.trial_id,
+                    kind,
+                    id.role.semantic_role,
+                    id.scenario,
+                    row.day_start,
+                    row.economic_end_exclusive,
+                    row.known_at,
+                    row.equity,
+                    row.return_ticks,
+                    row.cash_only
+                ));
+            }
+        }
+        run_log.push_str(&format!(
+            "{} {} {} {}\n",
+            id.run_id, id.role.semantic_role, id.scenario, status
+        ));
+    }
+    if let Some(error) = fatal {
+        run_log.push_str(&format!("TECHNICAL_UNRESOLVED {error}\n"));
+    }
+    let mut matrix =
+        String::from("study_id,date_us,source_train_fold,column_config_id,return_ticks\n");
+    if let Some(stats) = statistics {
+        for (row, at) in stats.is_dates_us.iter().enumerate() {
+            for (column, values) in stats.is_return_columns.iter().enumerate() {
+                matrix.push_str(&format!(
+                    "{},{},{},{},{}\n",
+                    admitted.inputs.study_id.0,
+                    at,
+                    stats.is_source_folds[row],
+                    admitted.inputs.roles[column].config_id.0,
+                    values[row]
+                ));
+            }
+        }
+    }
+    for (name, value) in [
+        ("table_C1.csv", table),
+        ("fold_daily_returns.csv", daily),
+        ("cscv_is_C1.csv", matrix),
+        ("run_log.txt", run_log),
+    ] {
+        create_output(&admitted.out.join(name), value.as_bytes())?;
+    }
+    create_output(
+        &admitted.out.join("C1.json"),
+        &serde_json::to_vec_pretty(&summary).map_err(|error| C1BatchError(error.to_string()))?,
+    )?;
+    File::open(&admitted.out)
+        .and_then(|file| file.sync_all())
+        .map_err(|error| C1BatchError(error.to_string()))
+}
+
+fn policy_windows(units: &[Unit]) -> Result<Vec<Value>, C1BatchError> {
+    use parangsae_sim::Cash;
+    let folds = schedule().map_err(|error| C1BatchError(error.to_string()))?;
+    let mut rows = Vec::new();
+    for unit in units
+        .iter()
+        .filter(|unit| unit.identity.role.role_kind == TrialRoleKind::ContinuousPolicy)
+    {
+        let Outcome::Complete { run, .. } = &unit.outcome else {
+            continue;
+        };
+        for fold in &folds {
+            let from = usize::try_from(
+                (fold.test.start.micros() - unit.range.start.micros()) / 86_400_000_000_i64,
+            )
+            .map_err(|_| {
+                C1BatchError("policy report window starts before its continuous run".to_owned())
+            })?;
+            let count = usize::try_from(
+                (fold.test.end.micros() - fold.test.start.micros()) / 86_400_000_000_i64,
+            )
+            .map_err(|_| C1BatchError("policy report window length".to_owned()))?;
+            let end = from
+                .checked_add(count)
+                .ok_or_else(|| C1BatchError("policy report window overflow".to_owned()))?;
+            let days = run
+                .daily
+                .get(from..end)
+                .ok_or_else(|| C1BatchError("policy report window is incomplete".to_owned()))?;
+            let opening = if from == 0 {
+                100_000_000_000_000_i64
+            } else {
+                run.daily[from - 1].equity
+            };
+            let final_equity = days
+                .last()
+                .ok_or_else(|| C1BatchError("empty policy report window".to_owned()))?
+                .equity;
+            let returns: Vec<_> = days.iter().map(|day| day.return_ticks).collect();
+            let annual = crate::metrics::sharpe_of_return_ticks(&returns)
+                .map_err(|error| C1BatchError(error.to_string()))?
+                .1;
+            let window_return = crate::metrics::total_return(Cash(opening), Cash(final_equity))
+                .map_err(|error| C1BatchError(error.to_string()))?;
+            let mut equity = Vec::with_capacity(count + 1);
+            equity.push(Cash(opening));
+            equity.extend(days.iter().map(|day| Cash(day.equity)));
+            let dd = crate::metrics::max_drawdown(&equity)
+                .map_err(|error| C1BatchError(error.to_string()))?;
+            rows.push(json!({"identity":unit.identity,"report_fold":fold.index,"is_new_run":false,
+                "start_us":fold.test.start.micros(),"end_exclusive_us":fold.test.end.micros(),
+                "calendar_days":count,"opening_equity_ticks":opening,"final_equity_ticks":final_equity,
+                "cash_delta_ticks":final_equity.checked_sub(opening).ok_or_else(||C1BatchError("window cash overflow".to_owned()))?,
+                "window_return_ticks":window_return.ticks(),"annual_sharpe_ticks":annual.map(|value|value.ticks()),
+                "daily_close_max_drawdown_ticks":dd.ticks(),"account_reset":false}));
+        }
+    }
+    Ok(rows)
+}
 use crate::{fold_schedule, Fold, ScheduleSpec, UtcDate};
 
 pub(super) fn schedule() -> Result<Vec<Fold>, C1AdmissionError> {
@@ -88,6 +664,163 @@ pub(super) fn validate_runtime_settings(actual: &Value) -> Result<(), C1Admissio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn isolated_cash_unit(path: &Path) -> Unit {
+        let source = C1SourceView::synthetic(Vec::new(), Vec::new(), Vec::new()).unwrap();
+        let start = UtcDate::parse("2024-01-04").unwrap().start_us().micros();
+        run_unit(
+            &source,
+            &TrialLog::new(path),
+            Identity {
+                study_id: "synthetic-study".to_owned(),
+                attempt: 4,
+                config_id: "synthetic-config".to_owned(),
+                trial_id: "synthetic-trial".to_owned(),
+                run_id: "synthetic-unit".to_owned(),
+                role: TrialRoleMetadata {
+                    role_kind: TrialRoleKind::ContinuousPolicy,
+                    semantic_role: "OOS_HEADLINE".to_owned(),
+                    scenario: "HEADLINE".to_owned(),
+                },
+                scenario: "HEADLINE",
+                unit_kind: "continuous_oos",
+                fold: None,
+                prereg_sha256: "synthetic-prereg".to_owned(),
+                pinned_root: "synthetic-pin".to_owned(),
+            },
+            Scenario::Headline,
+            vec![PolicyWindow {
+                start,
+                end: start + 86_400_000_000_i64,
+                hold: C1MaxHold::Hours168,
+                enabled: false,
+            }],
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn undefined_or_nonpositive_selection_is_flat_and_ties_keep_the_shorter_horizon() {
+        assert_eq!(select_hold([None, None]), None);
+        assert_eq!(select_hold([Some(0), Some(-1)]), None);
+        assert_eq!(select_hold([Some(1), Some(1)]), Some(C1MaxHold::Hours168));
+        assert_eq!(select_hold([Some(1), Some(2)]), Some(C1MaxHold::Hours336));
+    }
+
+    #[test]
+    fn thirty_three_unit_keys_preserve_only_five_distinct_charged_configurations() {
+        use std::collections::BTreeSet;
+        let mut units = BTreeSet::new();
+        let mut trials = BTreeSet::new();
+        for config in ["train168", "train336"] {
+            for fold in 1..=15 {
+                assert!(units.insert(run_unit_id("synthetic-study", config, 4, Some(fold))));
+                trials.insert(trial_id(config, "synthetic-pin", 4));
+            }
+        }
+        for config in ["headline-policy", "higher-fee-policy", "stress-policy"] {
+            assert!(units.insert(run_unit_id("synthetic-study", config, 4, None)));
+            trials.insert(trial_id(config, "synthetic-pin", 4));
+        }
+        assert_eq!(units.len(), 33);
+        assert_eq!(trials.len(), 5);
+        assert_ne!(
+            run_unit_id("a", "c", 4, None),
+            run_unit_id("b", "c", 4, None)
+        );
+    }
+
+    #[test]
+    fn a_real_synthetic_cash_unit_writes_one_start_and_one_role_bound_finish() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("trials.jsonl");
+        let unit = isolated_cash_unit(&path);
+        let (run, metrics) = unit.complete().unwrap();
+        assert_eq!(run.daily.len(), 1);
+        assert_eq!(metrics.final_equity_ticks, 100_000_000_000_000);
+        assert_eq!(metrics.annual_sharpe_ticks, None);
+        let rows: Vec<Value> = std::fs::read_to_string(&path)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0]["kind"], "RunStarted");
+        assert_eq!(rows[1]["kind"], "RunFinished");
+        assert_eq!(rows[0]["role"], rows[1]["role"]);
+        assert_eq!(crate::distinct_trial_count(&path).unwrap(), 1);
+        assert!(run.pairs.is_empty() && run.snapshot.is_none());
+    }
+
+    #[derive(Debug, Default, cucumber::World)]
+    struct AssemblyWorld {
+        directory: Option<tempfile::TempDir>,
+        unit: Option<Unit>,
+    }
+
+    #[cucumber::when("a real isolated cash only C1 unit is assembled with an explicit flat policy")]
+    fn assemble_cash(world: &mut AssemblyWorld) {
+        let directory = tempfile::tempdir().unwrap();
+        world.unit = Some(isolated_cash_unit(&directory.path().join("trials.jsonl")));
+        world.directory = Some(directory);
+    }
+
+    #[cucumber::then(
+        "its full capital day is retained and the shared ledger has one matched role bound finish"
+    )]
+    fn assembled_cash(world: &mut AssemblyWorld) {
+        let unit = world.unit.as_ref().unwrap();
+        let (run, metrics) = unit.complete().unwrap();
+        assert_eq!(run.daily.len(), 1);
+        assert_eq!(run.daily[0].return_ticks, 0);
+        assert_eq!(metrics.final_equity_ticks, 100_000_000_000_000);
+        assert!(metrics.annual_sharpe_ticks.is_none());
+        let path = world
+            .directory
+            .as_ref()
+            .unwrap()
+            .path()
+            .join("trials.jsonl");
+        let rows: Vec<Value> = std::fs::read_to_string(path)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1]["kind"], "RunFinished");
+        assert_eq!(rows[0]["role"], rows[1]["role"]);
+    }
+
+    #[tokio::test]
+    async fn c1_assembly_feature() {
+        use cucumber::World as _;
+        AssemblyWorld::cucumber()
+            .with_default_cli()
+            .fail_on_skipped()
+            .run_and_exit(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/features/c1_assembly.feature"
+            ))
+            .await;
+    }
+
+    #[test]
+    fn fixed_mark_registry_keys_match_the_declared_utc_day() {
+        let value: Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/c1/runtime-settings.json"
+        ))
+        .unwrap();
+        crate::c1_source::validate_source_settings(&value["sources"]).unwrap();
+        for key in value["sources"]["perp_mark_gap_keys_us"]
+            .as_array()
+            .unwrap()
+        {
+            assert_eq!(
+                UtcDate::from_micros(UtcMicros::from_micros(key.as_i64().unwrap())).to_string(),
+                "2024-08-12"
+            );
+        }
+    }
 
     #[test]
     fn actual_selected_settings_and_calendar_match_the_native_binding() {

@@ -205,3 +205,60 @@ pub(super) struct ReplayResult {
     pub final_equity: i64,
     pub control: sgd_owned_c1opportunitycontrol_50dd0338899d::Snapshot,
 }
+
+pub(super) fn replay_diagnostic(result: &ReplayResult) -> serde_json::Value {
+    use parangsae_execution::carry::CarryStage;
+    use parangsae_sim::carry::FeeCharge;
+    use serde_json::json;
+
+    let snapshot = result.snapshot.as_ref().map(|snapshot| {
+        let orders: Vec<_> = snapshot.orders.iter().map(|order| json!({
+            "pair": order.id.pair.to_string(), "stage": stage(order.id.stage),
+            "attempt": order.id.attempt, "qty_ticks": order.qty.ticks(),
+            "executed_upper_ticks": order.max_price.ticks(),
+            "state": order.progress.state().name(), "sent": order.progress.sent(),
+            "cumulative_ticks": order.progress.cum().ticks(), "complete_cut": order.complete_cut,
+        })).collect();
+        let fills: Vec<_> = snapshot.fills.iter().map(|fill| {
+            let source = fill.source.value();
+            let (asset, fee) = match fill.fee {
+                FeeCharge::Usdt(amount) => ("USDT", amount.0),
+                FeeCharge::Btc(amount) => ("BTC", amount.ticks()),
+            };
+            json!({"pair": source.order.pair.to_string(), "stage": stage(source.order.stage),
+                "fill_id":source.fill_id, "qty_ticks":source.qty.ticks(),
+                "raw_reference_ticks":source.reference_price.ticks(), "executed_price_ticks":fill.price.ticks(),
+                "fee_asset":asset,"fee_ticks":fee,"clocks":clocks(fill.source.timestamps())})
+        }).collect();
+        let funding: Vec<_> = snapshot.funding.iter().map(|funding| json!({
+            "key":funding.key,"effective_us":funding.effective.micros(),
+            "captured_short_ticks":funding.captured_short.ticks(),
+            "cashflow_ticks":funding.cashflow.map(|amount|amount.0),
+            "receipt":funding.receipt.as_ref().map(|receipt|json!({
+                "effective_us":receipt.value().effective.micros(),"rate_ticks":receipt.value().rate.ticks(),
+                "charge_mark_proxy_ticks":receipt.value().charge_mark.ticks(),"clocks":clocks(receipt.timestamps())
+            }))
+        })).collect();
+        let physical_flat = snapshot.account.spot_btc.ticks()==0 && snapshot.account.perp_short.ticks()==0;
+        json!({"account":AccountRecord::from(&snapshot.account),"phase":format!("{:?}",snapshot.phase),
+            "observed_quantity_flat":physical_flat,"halted":snapshot.halted,"loss_latched":snapshot.loss_latched,
+            "margin_latched":snapshot.margin_latched,"halt_epoch":snapshot.epoch.get(),
+            "spot_quote_reserved_ticks":snapshot.spot_quote_reserved.0,
+            "perp_collateral_reserved_ticks":snapshot.perp_collateral_reserved.0,
+            "unsupported_evidence_debug":snapshot.unsupported.as_ref().map(|value|format!("{value:?}")),
+            "orders":orders,"fills":fills,"funding":funding,
+            "hedged_at_us":snapshot.hedged_at.map(|at|at.micros().micros()),
+            "current_pair":snapshot.pair.as_ref().map(|pair|pair.pair.to_string()),
+            "normal_stage_order":[stage(CarryStage::SpotEntry),stage(CarryStage::PerpEntry),stage(CarryStage::PerpExit),stage(CarryStage::SpotExit)]})
+    });
+    json!({"records":result.records,"pairs":result.pairs,"daily_capital":result.daily,
+        "last_observed_daily_equity_ticks":result.final_equity,"sampled_risk_ticks":result.risk_ticks,
+        "engine":snapshot,"control_snapshot_data":result.control,
+        "snapshot_is_authority_or_restart_checkpoint":false})
+}
+
+fn clocks(value: parangsae_core::Timestamps) -> serde_json::Value {
+    serde_json::json!({"event_us":value.event_ts.micros().micros(),
+        "available_us":value.available_ts.micros().micros(),
+        "modeled_received_us":value.received_ts.micros().micros()})
+}

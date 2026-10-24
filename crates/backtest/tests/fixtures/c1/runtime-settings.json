@@ -239,7 +239,8 @@
       "not_found_is_order_absence_or_zero_cancel_cut_evidence": false,
       "max_attempts_scope": "NATIVE_EXECUTION_MAXATTEMPTS_NOT_GLOBAL_TRIAL_OR_INVOCATION_COUNT"
     },
-    "funding_pending_exit_scope": "PENDING_FUNDING_DOES_NOT_BLOCK_SAFE_BEGINEXIT_ONLY_HEALTHY_CLOSED_AND_REARM_WAIT"
+    "funding_pending_exit_scope": "PENDING_FUNDING_DOES_NOT_BLOCK_SAFE_BEGINEXIT_ONLY_HEALTHY_CLOSED_AND_REARM_WAIT",
+    "new_order_at_window_end": false
   },
   "risk": {
     "initial_margin_bps": 10000,
@@ -266,7 +267,7 @@
     "train_accounts": "INDEPENDENT_C0_RESET_PER_WINDOW_CONFIG",
     "OOS_accounts": "ONE_CONTINUOUS_ACCOUNT_PER_COST_SCENARIO",
     "terminal_intent_before_end_us": 600000000,
-    "terminal_requires_closed": "STRICTLY_BEFORE_FOLD_END_WITH_ALL_LIABILITIES_SETTLED",
+    "terminal_requires_closed": "KNOWLEDGE_BY_FOLD_END_INCLUSIVE_AFTER_DRAIN_R_LE_END_ECONOMIC_SOURCE_FILL_KEYS_STRICTLY_BEFORE_END",
     "per_fold_H_entry_ban": false,
     "global_entry_remaining_support_us": "OPENING_600_SECONDS_PLUS_H_PLUS_3600_SECONDS_PLUS_CLOSING_600_SECONDS_BEFORE_GLOBAL_TERMINAL",
     "account_reset_at_OOS_fold": false,
@@ -482,7 +483,8 @@
         "test_terminal_intent_us": 1759276200000000
       }
     ],
-    "remainder_merge_threshold_days": 45
+    "remainder_merge_threshold_days": 45,
+    "end_flush": "END_PLUS1MS_VALUATION_AND_EVIDENCE_ONLY_NO_UNFINISHED_CLOSE_EXTENSION"
   },
   "selection": {
     "contract_id": "TRAIN_HEADLINE_POSITIVE_NET_SR_THEN_SHORTER_ELSE_FLAT_V1",
@@ -579,7 +581,14 @@
     "CSCV_internal_adjacent_IS_boundary_trimming": "NONE",
     "block_diagnostics_status": "DEFERRED_NOT_COMPUTED",
     "block_diagnostic_report_promised": false,
-    "block_diagnostic_deferral": "ROOT_PRE_OUTCOME_SCOPE_DECISION_NO_PRNG_POSTPROCESSOR_OR_INFERENCE_CLAIM"
+    "block_diagnostic_deferral": "ROOT_PRE_OUTCOME_SCOPE_DECISION_NO_PRNG_POSTPROCESSOR_OR_INFERENCE_CLAIM",
+    "undefined_statistic_is_valid_numeric_failure": false,
+    "idle_no_exposure_return_gate": "UNDEFINED_NO_OBSERVED_STRATEGY_OUTCOME",
+    "observed_return_gate_basis": "EXACT_NET_CASH_SIGN_FOR_COMPLETED_OBSERVED_PAIRS",
+    "pbo_gate_rank_evidence": "ANY_COMPLETE_IS_CANDIDATE_COLUMN_HAS_DEFINED_NATIVE_FULL_COLUMN_SHARPE",
+    "pbo_no_rank_evidence": "PRESERVE_RAW_MECHANICAL_PBO_BUT_GATE_UNDEFINED",
+    "valid_numeric_fail_precedes_undefined_or_sparse": true,
+    "undefined_or_coverage_only_verdict": "INCONCLUSIVE_SPARSE_NO_PROMOTION"
   },
   "lifetime_bounds": {
     "source": "EXACT_CANONICAL_8H_SETTLEMENT_CALENDAR_NOT_OBSERVED_OPPORTUNITIES",
