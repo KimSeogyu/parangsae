@@ -825,7 +825,7 @@
         },
         {
           "path": "Cargo.toml",
-          "sha256": "488fdad003ff7bf2b641cba1ef2392caf584cf3af12f15b01df226faece1bf54"
+          "sha256": "2d22e4362f4999b5cb07d7472bbca74ab147d158db7e3275af36a20101cff089"
         },
         {
           "path": "crates/collector/Cargo.toml",

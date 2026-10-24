@@ -17,6 +17,7 @@
 
 mod bar;
 mod batch;
+mod c1;
 mod c1_source;
 mod canon;
 mod cash_view;

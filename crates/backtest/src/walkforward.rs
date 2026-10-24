@@ -1253,6 +1253,7 @@ impl<F> Drive<'_, F> {
                     ts: start,
                     fold: Some(fold.index),
                     segment: Some(segment.as_str()),
+                    role: None,
                 })
                 .map_err(map_trial)?;
         }

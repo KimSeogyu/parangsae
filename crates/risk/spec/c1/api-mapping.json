@@ -1,0 +1,269 @@
+{
+  "schema": "parangsae-c1-control-api-mapping-v1",
+  "status": "ROOT_REVIEWED_MODEL_LOCAL_EXECUTABLE_READY_APPLICATION_INTEGRATION_PENDING",
+  "selected_contract": "Root selected C1 implementation contract on2026-10-24. This control unit is not the final preregistration, data admission or study authorization.",
+  "profile": {
+    "version": 2,
+    "profile": "finite-owned",
+    "targets": [
+      "rust"
+    ],
+    "class_name": "C1ControlMachine",
+    "generated_crate_name": "sgd-owned-c1opportunitycontrol-50dd0338899d",
+    "rust_import": "sgd_owned_c1opportunitycontrol_50dd0338899d"
+  },
+  "state_owner": "ONE generated C1ControlMachine privately retained by the continuous backtest actor. No Armed/mode copy in Signal or handwritten actor state. Signal provides causal payload/key classification/economic terms only.",
+  "state": [
+    {
+      "name": "mode",
+      "values": [
+        "Idle",
+        "Reserved",
+        "Busy",
+        "Disabled",
+        "Stopped"
+      ],
+      "meaning": "Reserved is a pending control permission, not a cash asset or a successful venue/order effect. Busy includes owned/contingent exposure and unsettled pair state."
+    },
+    {
+      "name": "armed",
+      "values": [
+        false,
+        true
+      ],
+      "meaning": "Only generated EvaluateFalse arms; eligible proposal/NewEpoch/closed cycle/stop disarm."
+    },
+    {
+      "name": "evaluation",
+      "values": [
+        "Pending",
+        "Consumed"
+      ],
+      "meaning": "Finite current-slot admission/consumption. Actual chronological source keys and durable watermarks stay in the tested native boundary."
+    },
+    {
+      "name": "settledIdle",
+      "values": [
+        false,
+        true
+      ],
+      "meaning": "Trusted native bridge confirms actual Engine Flat/Closed plus every order cut and funding receipt complete, not merely zero quantities."
+    },
+    {
+      "name": "fundingPending",
+      "values": [
+        false,
+        true
+      ],
+      "meaning": "Observed retained settlement liability. AllSettledIdle is disabled while true."
+    },
+    {
+      "name": "healthy",
+      "values": [
+        false,
+        true
+      ],
+      "meaning": "Native classification of actual engine/control risk; Stop makes false. Observed does not imply healthy."
+    },
+    {
+      "name": "epochPending",
+      "values": [
+        false,
+        true
+      ],
+      "meaning": "A prospective fold policy waits while active. NewEpoch only disarms after healthy fully settled idle."
+    },
+    {
+      "name": "stoppedEver",
+      "values": [
+        false,
+        true
+      ],
+      "meaning": "Sticky finite-control history for StoppedCannotRestart. This is not a claim about factory lifetime, persisted cash or restart correctness."
+    }
+  ],
+  "public_api_contract": {
+    "expected_shape": "Generated Rust C1ControlMachine::new/read/send(Event), no mutable state/restore/arbitrary-state constructor. Confirm exact package/API from actual output before integration.",
+    "event_names": "Exact TLA action IDs, not relabeled outcomes. The actor must use before/after receipt state to distinguish EvaluateEligible while unarmed from a Reserved transition.",
+    "new_candidate": "Only successful EvaluateEligible with before.mode=Idle,before.armed=true and after.mode=Reserved authorizes ONE attempt to call native CarryEngine Plan. Actual money/order authority is still checked and minted by CarryEngine.",
+    "economic_prepare": "Native source/key/clock and checked numeric evaluation must finish before consuming the control transition. Commit native watermarks/pending immutable terms without a fallible second phase. A failed economic calculation is not EvaluateFalse.",
+    "repeat": "No pair/cycle counter appears in TLA or generated state. Busy→settled idle→known false→eligible may repeat indefinitely in the finite graph. A two-cycle native witness is an integration test, not a runtime cap."
+  },
+  "native_event_mapping": [
+    {
+      "events": [
+        "FreshIdle"
+      ],
+      "fact": "Latest admitted settlement key above the retained consumed watermark while native actor is fully settled idle. The key may already be pending incomplete history/refs. FreshIdle prepares Pending and keeps the consumed watermark; evaluate once when the view becomes complete."
+    },
+    {
+      "events": [
+        "FreshOccupied"
+      ],
+      "fact": "A newly admitted key while Reserved/Busy is consumed for entry. It must never be replayed as fresh after the pair closes."
+    },
+    {
+      "events": [
+        "Replay"
+      ],
+      "fact": "Already consumed actual key. No new candidate and no key rewind."
+    },
+    {
+      "events": [
+        "EvaluateFalse"
+      ],
+      "fact": "Current pending fresh view is complete and the exact financing/cost/basis predicate is known false. Capital/grid refusal or missing data is not this event."
+    },
+    {
+      "events": [
+        "EvaluateEligible"
+      ],
+      "fact": "Current pending fresh view is complete and native exact eligibility/budget/grid terms are valid. Generated state decides whether prior arming permits reservation."
+    },
+    {
+      "events": [
+        "EvaluateNoSize"
+      ],
+      "fact": "Known pretrade capital/grid refusal with no money effect. Consume the evaluation; preserve prior arming rather than fabricate a false financing signal."
+    },
+    {
+      "events": [
+        "DisableIdle",
+        "EnableIdle"
+      ],
+      "fact": "Pending visibility preserves arming. Genuine Gap/Quarantined at healthy settled idle first uses guarded source-epoch RequestEpoch/NewEpoch to disarm, then DisableIdle. Neither sequence erases actual keys or financial history. Enable cannot clear Stopped."
+    },
+    {
+      "events": [
+        "IntentAccepted"
+      ],
+      "fact": "CarryEngine successfully creates/dispatches the private native order path. Actor is no longer settled idle."
+    },
+    {
+      "events": [
+        "IntentRefused"
+      ],
+      "fact": "Native ordinary refusal left actual engine healthy fully settled idle, no funds/pending order/cash liability. Do not classify a latched/unsupported error this way."
+    },
+    {
+      "events": [
+        "RecordPendingFunding",
+        "RecordFundingSettled"
+      ],
+      "fact": "Read the complete actual retained funding map. RecordPendingFunding reflects ANY unpaid boundary; RecordFundingSettled occurs only after the whole map is paid. A receipt clearing one of several boundaries does not clear this boolean."
+    },
+    {
+      "events": [
+        "AllSettledIdle"
+      ],
+      "fact": "Actual complete cuts, quantities zero, all funding received and no contingent liability. From Stopped it records drain only and keeps Stopped."
+    },
+    {
+      "events": [
+        "RequestEpoch",
+        "NewEpoch"
+      ],
+      "fact": "Fold policy request is deferred while active. NewEpoch leaves native wallets/receipts/latches/source/consumed-key watermarks untouched; it does not enable Disabled or reset Stopped."
+    },
+    {
+      "events": [
+        "Stop"
+      ],
+      "fact": "Native risk-observing command latched/unsupported/deadline/data-required failure. Includes CarryOutcome::Observed with a halted/loss/margin/delta snapshot."
+    },
+    {
+      "events": [
+        "StoppedWait"
+      ],
+      "fact": "Absorbing stopped control may retain later native accounting evidence outside this owner; never new exposure."
+    }
+  ],
+  "invariants": [
+    "TypeOK",
+    "ReservedBusyDisarmed",
+    "StoppedCannotRestart",
+    "IdleHasNoLiability",
+    "BusyHasNotBeenDeclaredFlat",
+    "ArmedOnlyInIdleControl",
+    "ReservedConsumesEvaluation",
+    "StoppedHasNoEntryPermission"
+  ],
+  "negative_controls": [
+    {
+      "project": "project-bad-disarm.json",
+      "changed_constant": "OmitDisarm=TRUE",
+      "expected": "ReservedBusyDisarmed fails after FreshIdle/EvaluateFalse/FreshIdle/EvaluateEligible. Removing disarm leaves Reserved with armed=true."
+    },
+    {
+      "project": "project-bad-restart.json",
+      "changed_constant": "AllowStoppedRestart=TRUE",
+      "expected": "StoppedCannotRestart fails after Stop/RestartStopped. Sticky stoppedEver is preserved to reveal the incorrect reset."
+    }
+  ],
+  "limits": [
+    "Root has actually parsed/explored/built/inspected this identical finite model privately. Repo-path generation and actual backtest actor integration remain separate evidence.",
+    "Truthful named native events are a trust/integration boundary. The model does not prove arbitrary chronological key ordering, source availability, cost/margin arithmetic, price-band calculation or actual Engine cut truth.",
+    "No claim of financial accounting, full runtime/refinement, production persistence, reset prevention, liveness/fairness or exchange behavior.",
+    "Factory new() can create another Init object. The actual actor must create one control for continuous OOS and preserve its identity across cycles/folds; a native test must catch accidental per-fold reconstruction.",
+    "Replay/StoppedWait are explicit accepted self loops. Generated successful-send revision may advance even when modeled values stutter; native key/financial idempotency is separate.",
+    "All eight modeled scalar variables must be retained in the exact finite owner. Do not project away healthy/settled/funding/epoch guards."
+  ],
+  "next_authorized_action": "Ops reviews the actual generated manifest/module and sole Backtest edge. The actor then privately integrates this owner and separately verifies native key/clock/economic/funding-map truth. Root performs build --check on the stable committed output.",
+  "resource": {
+    "approved_heap_mib": 512,
+    "workers": 1,
+    "default_timeout_ms": 120000,
+    "source": "Root ratified actual native runner budget in plan.json; no inherited JVM bypass."
+  },
+  "source_files": [
+    "C1OpportunityControl.tla",
+    "C1OpportunityControl.cfg",
+    "project.json",
+    "C1OpportunityControlBadDisarm.cfg",
+    "project-bad-disarm.json",
+    "C1OpportunityControlBadRestart.cfg",
+    "project-bad-restart.json"
+  ],
+  "native_watermark_commit": {
+    "Keep": [
+      "FreshIdle admitting or reopening an unconsumed pending latest key",
+      "DisableIdle/EnableIdle",
+      "Replay",
+      "RequestEpoch/NewEpoch",
+      "Actor evidence/risk-only feedback"
+    ],
+    "Advance": [
+      "EvaluateFalse",
+      "EvaluateEligible, including unarmed skip",
+      "EvaluateNoSize",
+      "FreshOccupied, including occupied/superseded latest evaluations"
+    ],
+    "rule": "FreshIdle means latest key above the committed consumed watermark, possibly received earlier but still pending complete history/refs. It does not require re-receiving that key. PreparedC1Event binds Keep/Advance; after generated success apply that prevalidated choice infallibly. NewEpoch preserves actual keys. Generated error never advances."
+  },
+  "funding_pending_whole_map_rule": "fundingPending means ANY retained boundary with receipt=None, including zero-quantity or economically flat late cash. RecordFundingSettled is emitted only when the ENTIRE actual CarryEngine funding map has no unpaid boundary, not once per received payment. Only then may a later verified AllSettledIdle event grant idle state.",
+  "source_gap_and_pending_rule": {
+    "Pending": "Not-yet-available input preserves arming and consumed watermark. FreshIdle/DisableIdle keep the evaluation pending; EnableIdle does not arm.",
+    "GapOrQuarantinedWhileIdle": "A genuine admitted source discontinuity invalidates the prior episode's arming. Prepare RequestEpoch and NewEpoch only after actual healthy fully settled idle is verified, then DisableIdle. Keep all actual keys, wallet/financial identity maps and latches. No prior consumed key becomes Fresh.",
+    "ActiveGap": "Missing indispensable active context is technical Stop, not an idle disable or an epoch reset.",
+    "policy_epoch": "Same guarded RequestEpoch/NewEpoch sequence handles prospective selected-fold activation. Stopped cannot reset; Busy/Reserved must defer. Temporary Disabled stays Disabled until current input is valid."
+  },
+  "local_evidence": {
+    "source": "Root native MCP model/build/inspect on the identical private source",
+    "variables": 8,
+    "nodes": 25,
+    "edges": 129,
+    "positive": "Completed breadth-first exploration, no errors, empty queue",
+    "bad_disarm": "Actual invariant ReservedBusyDisarmed violated",
+    "bad_restart": "Actual invariant StoppedCannotRestart violated",
+    "native_rust": "Independent public-API harness passed all25reachable nodes*17events and edge-expanded canonical prefixes, full8scalar/node/model/revision/rejection checks,8repeatcycles/Stop/funding/epoch; real bridge classification and unbounded histories are excluded.",
+    "resource": "Actual controlled native512MiB/workers1; no JVM override",
+    "revision_exhaustion": "Generated crate internal revision-exhaustion unit passed on an isolated byte-identical copy; not claimed by the independent public harness. No generated byte changed.",
+    "repository_generation": "Root regenerated the unchanged reviewed model into nonmember spec/sgd/generated/c1-control after reproducing nested Cargo workspace failure. Cargo.toml/lib.rs remain byte-identical to the independently checked private crate. The old local executable was removed through controlled model-only regeneration."
+  },
+  "publication_layout": {
+    "authority_output": "spec/sgd/generated/c1-control",
+    "model_only_review": "crates/risk/spec/c1/generated",
+    "root_workspace_exclude": "spec/sgd/generated/c1-control/rust",
+    "generator_bodies_edited": false
+  }
+}
