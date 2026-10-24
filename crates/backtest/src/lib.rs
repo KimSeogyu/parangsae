@@ -44,12 +44,12 @@ mod wfbatch;
 pub mod paper_cases;
 
 pub use bar::{Bar, BarView, FundingStamp, PremiumMinute, Strategy, Tape};
-pub use c1::{run_c1_batch, C1BatchError, C1BatchRequest};
 pub use batch::{
     annual_sharpe_ticks, canonical_config_id, metrics_digest, metrics_from_grid, run_batch,
     turnover_ratio, BatchError, FeeGridRunner, FlatBars, ResultRow, SweepPins, TargetEngine,
     TargetRunner, TrialMetrics, TrialSpec, HOLDOUT_START_US,
 };
+pub use c1::{run_c1_batch, C1BatchError, C1BatchRequest};
 pub use date::UtcDate;
 pub use engine::{run, run_fee_grid, run_targets, MarkAbsence, RunConfig, UtcRange, FEE_GRID_BPS};
 pub use error::{EngineError, TapeError};
