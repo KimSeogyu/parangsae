@@ -79,6 +79,7 @@ AllowedDependencies == {
 
 AllowedStateWriters == {
   <<"parangsae-risk", "RiskGate.portfolio">>,
+  <<"parangsae-sim", "CarryLedger.account_state">>,
   <<"parangsae-sim", "Ledger.cash">>,
   <<"parangsae-sim", "Ledger.fees_paid">>,
   <<"parangsae-sim", "Ledger.funding_net">>,
