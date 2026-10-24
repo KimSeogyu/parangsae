@@ -364,7 +364,7 @@ impl<'a> C1Replay<'a> {
             && self
                 .pairs
                 .last()
-                .is_none_or(|pair| pair.closed_observed_at.is_some_and(|at| at < boundary))
+                .is_none_or(|pair| pair.closed_observed_at.is_some_and(|at| at <= boundary))
     }
 
     fn ensure_engine(&mut self, at: i64) -> Result<(), ReplayError> {
