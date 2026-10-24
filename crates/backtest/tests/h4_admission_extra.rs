@@ -377,7 +377,7 @@ fn hold_run(fillers: i64) -> Report {
     run_targets(&tape, &mut ActualH4::new(), &costs(5, 2), &config).unwrap()
 }
 
-fn ruin_run(unfillable: bool) -> Run {
+fn ruin_run(unfillable: bool, recovery: bool) -> Run {
     let t = date("2024-06-02");
     let r = t + 6 * HOUR;
     let start = t + 4 * HOUR;
@@ -405,7 +405,11 @@ fn ruin_run(unfillable: bool) -> Run {
         }
     }
     let config = cfg(&bars);
-    let funding = vec![stamp(t + 8 * HOUR, t + 8 * HOUR + MINUTE, 1_000_000)];
+    let funding = vec![stamp(
+        t + 8 * HOUR,
+        t + 8 * HOUR + MINUTE,
+        if recovery { 2 * SCALE } else { 1_000_000 },
+    )];
     let tape = Tape::from_parts(bars, marks, funding);
     let mut recorder = Recorder {
         slot: r,
@@ -459,6 +463,18 @@ fn check_hold(world: &mut ExtraWorld) {
     assert!(report.fills[1].ts.micros() > exit);
     assert!(report.fills.iter().all(|fill| fill.fee.0 > 0));
     assert!(report.slippage_cost.0 > 0);
+    let window = parangsae_backtest::window_result(Cash(10_000 * SCALE), report)
+        .expect("actual 168-hour H4 reduces");
+    let diagnostics = window.h4.expect("168-hour H4 diagnostics");
+    assert_eq!(diagnostics.trades.len(), 1);
+    assert_eq!(
+        diagnostics.cash.fees_ticks,
+        i128::from(report.metrics.fees_paid.0)
+    );
+    assert_eq!(
+        diagnostics.cash.slippage_ticks,
+        i128::from(report.slippage_cost.0)
+    );
 }
 
 #[when("two signed delayed earlier rates accompany a later rate available at the first probe")]
@@ -672,7 +688,7 @@ fn check_known_overflow(world: &mut ExtraWorld) {
 
 #[when("an admitted short mark shock waits through filler minutes and a funding settlement")]
 fn run_ruin(world: &mut ExtraWorld) {
-    world.ruin = Some(ruin_run(false));
+    world.ruin = Some(ruin_run(false, false));
 }
 #[then("its Ruin close is costed strictly after the original mark publication")]
 fn check_ruin(world: &mut ExtraWorld) {
@@ -784,7 +800,7 @@ fn check_liquidating_funding(world: &mut ExtraWorld) {
 }
 #[when("no tradable close remains after the admitted short mark shock")]
 fn run_unfillable(world: &mut ExtraWorld) {
-    world.ruin = Some(ruin_run(true));
+    world.ruin = Some(ruin_run(true, false));
 }
 #[then("unfilled liquidation fails with the actual trigger and no invented report")]
 fn check_unfillable(world: &mut ExtraWorld) {
@@ -794,6 +810,36 @@ fn check_unfillable(world: &mut ExtraWorld) {
         "expected typed unfilled-liquidation failure, got {:?}",
         run.result
     );
+}
+
+#[when(
+    "a later unpublished receipt restores positive economic cash during established liquidation"
+)]
+fn established_recovery(world: &mut ExtraWorld) {
+    world.ruin = Some(ruin_run(false, true));
+}
+
+#[then("the earlier final Ruin still closes its fixed lots once without another strategy decision")]
+fn sticky_earlier_ruin(world: &mut ExtraWorld) {
+    let run = world.ruin.as_ref().unwrap();
+    let report = run.report();
+    let trigger = ts(run.slot + MINUTE);
+    assert_eq!(report.ruined, Some(trigger));
+    assert_eq!(report.fills.len(), 2);
+    assert_eq!(report.fills[0].qty, report.fills[1].qty);
+    assert_eq!(report.forced_exits.len(), 1);
+    assert_eq!(report.forced_exits[0].reason, ForcedExitReason::Ruin);
+    assert_eq!(report.forced_exits[0].trigger, trigger);
+    assert!(report.funding[0].ts > trigger);
+    assert!(report.funding[0].ts < report.fills[1].ts);
+    assert!(
+        report.equity_end().unwrap().0 > 10_000 * SCALE,
+        "receipt must actually restore positive cash"
+    );
+    assert!(report
+        .signal_outputs
+        .iter()
+        .all(|row| row.decision_ts.micros() < trigger));
 }
 
 #[tokio::main]

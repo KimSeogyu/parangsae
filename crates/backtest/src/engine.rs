@@ -476,6 +476,13 @@ pub fn run_targets<S: TargetSignal>(
                 },
                 &cfg.mark_gaps,
             )? {
+                // A zero-delay callback is the prevenue phase at the next open.
+                // Its failed admission withholds this callback only. Pending and
+                // final liquidation state stay unchanged until funding is booked
+                // and the normal boundary control admits the complete money view.
+                if delay == 0 {
+                    continue;
+                }
                 start_liquidation(&ledger, &mut pending, &mut ruined, &mut frozen, decision)?;
                 continue;
             }
