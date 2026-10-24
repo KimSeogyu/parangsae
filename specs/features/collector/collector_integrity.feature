@@ -3,6 +3,30 @@ Feature: Collector verify scope
   It does not weaken a check inside that scope. An unknown dataset
   name or a reversed date range is a usage error.
 
+  Scenario Outline: verify refuses changed stored metrics and book payloads only inside its scope
+    Given a stored "<dataset>" daily fixture in a fresh data directory
+    When the stored "<dataset>" payload differs from the archive
+    And verify is limited to dataset "um-kline"
+    Then verify reports no faults
+    When verify is limited from "2024-01-01" to "2024-01-01"
+    Then verify reports no faults
+    When verify is limited to dataset "<dataset>"
+    Then verify reports a conflict fault
+
+    Examples:
+      | dataset    |
+      | metrics    |
+      | book-depth |
+
+  Scenario Outline: a daily fact archive cannot write rows outside its filename calendar
+    When a "<dataset>" daily archive contains rows from another UTC day
+    Then the archive calendar is refused before fact storage
+
+    Examples:
+      | dataset    |
+      | metrics    |
+      | book-depth |
+
   Scenario: verify can be limited to one dataset and a date range
     Given a temp store with the 2021-06-01 um-kline fixture and the September 2026 funding fixture
     And the stored um-kline open on 2021-06-01 differs from the archive

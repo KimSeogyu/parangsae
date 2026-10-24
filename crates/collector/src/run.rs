@@ -22,8 +22,8 @@ use crate::vision::{
     archive_clock_day, book_day_gaps, book_row_faults, classify, collapse_by, download_url,
     funding_window, kline_day_gaps, kline_row_faults, metrics_day_gaps, metrics_row_faults,
     missing_coverage, parse_book, parse_checksum, parse_funding, parse_klines, parse_metrics,
-    require_sha256, sha256_bytes, unzip_csv, ArchiveName, Cadence, Classified, FaultReport, Gap,
-    KlineFact, VisionDataset,
+    require_sha256, sha256_bytes, unzip_csv, ArchiveName, BookFact, Cadence, Classified,
+    FaultReport, Gap, KlineFact, MetricsFact, VisionDataset,
 };
 use crate::Error;
 
@@ -590,12 +590,24 @@ fn ingest_one(
             summary,
             funding_gaps,
         )?,
-        VisionDataset::Metrics => {
-            ingest_metrics(request, &csv, object, fetched.previous, manifest, summary)?
-        }
-        VisionDataset::BookDepth => {
-            ingest_book(request, &csv, object, fetched.previous, manifest, summary)?
-        }
+        VisionDataset::Metrics => ingest_metrics(
+            request,
+            &item.name,
+            &csv,
+            object,
+            fetched.previous,
+            manifest,
+            summary,
+        )?,
+        VisionDataset::BookDepth => ingest_book(
+            request,
+            &item.name,
+            &csv,
+            object,
+            fetched.previous,
+            manifest,
+            summary,
+        )?,
     };
     Ok(accepted)
 }
@@ -629,7 +641,9 @@ fn ingest_klines(
     };
     object.schema_version = parsed.schema_version;
     object.row_count = parsed.rows.len() as u64;
-    if let Err(err) = check_kline_archive_calendar(&parsed.rows, &item.name) {
+    if let Err(err) =
+        check_archive_calendar(parsed.rows.iter().map(|row| row.open_time), &item.name)
+    {
         reject(
             request, &item.key, object, previous, manifest, summary, &err,
         )?;
@@ -748,6 +762,7 @@ fn ingest_funding(
 
 fn ingest_metrics(
     request: &RunRequest,
+    name: &ArchiveName,
     csv: &str,
     mut object: ObjectManifest,
     previous: Option<[u8; 32]>,
@@ -762,6 +777,11 @@ fn ingest_metrics(
             return Ok(false);
         }
     };
+    if let Err(err) = check_archive_calendar(parsed.rows.iter().map(|row| row.create_time), name) {
+        let path = object.path.clone();
+        reject(request, &path, object, previous, manifest, summary, &err)?;
+        return Ok(false);
+    }
     object.schema_version = parsed.schema_version;
     object.row_count = parsed.rows.len() as u64;
     let faults = metrics_row_faults(&parsed.rows);
@@ -801,6 +821,7 @@ fn ingest_metrics(
 
 fn ingest_book(
     request: &RunRequest,
+    name: &ArchiveName,
     csv: &str,
     mut object: ObjectManifest,
     previous: Option<[u8; 32]>,
@@ -815,6 +836,11 @@ fn ingest_book(
             return Ok(false);
         }
     };
+    if let Err(err) = check_archive_calendar(parsed.rows.iter().map(|row| row.timestamp), name) {
+        let path = object.path.clone();
+        reject(request, &path, object, previous, manifest, summary, &err)?;
+        return Ok(false);
+    }
     object.schema_version = parsed.schema_version;
     object.row_count = parsed.rows.len() as u64;
     let faults = book_row_faults(&mut parsed.rows);
@@ -961,20 +987,20 @@ fn in_range(ts: UtcMicros, range: DayRange) -> bool {
     ts >= range.start_us() && ts < range.end_us()
 }
 
-fn check_kline_archive_calendar(rows: &[KlineFact], name: &ArchiveName) -> Result<(), Error> {
+fn check_archive_calendar(
+    mut times: impl Iterator<Item = UtcMicros>,
+    name: &ArchiveName,
+) -> Result<(), Error> {
     let (start, end) = match name.day {
         Some(day) => (day.start_us(), day.end_us()),
         None => (name.month.first().start_us(), name.month.last().end_us()),
     };
-    if let Some(row) = rows
-        .iter()
-        .find(|row| row.open_time < start || row.open_time >= end)
-    {
+    if let Some(timestamp) = times.find(|timestamp| *timestamp < start || *timestamp >= end) {
         return Err(Error::check(
             "archive_calendar",
             format!(
-                "{} open_time {} is outside [{start}, {end})",
-                name.file_name, row.open_time
+                "{} timestamp {timestamp} is outside [{start}, {end})",
+                name.file_name
             ),
         ));
     }
@@ -1167,6 +1193,8 @@ struct PartitionKey {
 struct PartitionCache {
     pending: BTreeMap<PartitionKey, u32>,
     loaded: BTreeMap<PartitionKey, Option<KlinePartition>>,
+    metrics: BTreeMap<PartitionKey, StoredFacts<i64, MetricsFact>>,
+    book: BTreeMap<PartitionKey, StoredFacts<(i64, i64), BookFact>>,
     loads: Vec<String>,
 }
 
@@ -1174,6 +1202,77 @@ struct KlinePartition {
     rows: BTreeMap<i64, KlineFact>,
     unmatched: BTreeSet<i64>,
     duplicates: BTreeSet<i64>,
+}
+
+struct StoredFacts<K, T> {
+    rows: BTreeMap<K, T>,
+    unmatched: BTreeSet<K>,
+    duplicates: BTreeSet<K>,
+}
+
+fn compare_stored_facts<K: Ord + Copy + std::fmt::Debug, T: Eq>(
+    cache: &mut BTreeMap<PartitionKey, StoredFacts<K, T>>,
+    key: PartitionKey,
+    expected: &[T],
+    load: impl FnOnce() -> Result<Vec<T>, Error>,
+    row_key: impl Fn(&T) -> K,
+    out: &mut VerifyOut<'_>,
+) -> Result<(), Error> {
+    if let std::collections::btree_map::Entry::Vacant(slot) = cache.entry(key.clone()) {
+        let mut rows = BTreeMap::new();
+        let mut duplicates = BTreeSet::new();
+        for row in load()? {
+            let id = row_key(&row);
+            if let std::collections::btree_map::Entry::Vacant(entry) = rows.entry(id) {
+                entry.insert(row);
+            } else {
+                duplicates.insert(id);
+            }
+        }
+        let unmatched = rows.keys().copied().collect();
+        slot.insert(StoredFacts {
+            rows,
+            unmatched,
+            duplicates,
+        });
+    }
+    let partition = cache.get_mut(&key).expect("loaded daily partition");
+    for row in expected {
+        let id = row_key(row);
+        partition.unmatched.remove(&id);
+        match partition.rows.get(&id) {
+            Some(kept) if kept == row => {}
+            Some(_) => out.fault(format!(
+                "conflict {}/{}/{} {id:?}",
+                key.dataset, key.symbol, key.day
+            )),
+            None => out.fault(format!(
+                "missing parquet row {}/{}/{} {id:?}",
+                key.dataset, key.symbol, key.day
+            )),
+        }
+    }
+    Ok(())
+}
+
+fn report_unmatched<K: std::fmt::Debug>(
+    key: &PartitionKey,
+    duplicates: BTreeSet<K>,
+    unmatched: BTreeSet<K>,
+    out: &mut VerifyOut<'_>,
+) {
+    for id in duplicates {
+        out.fault(format!(
+            "duplicate parquet key {}/{}/{} {id:?}",
+            key.dataset, key.symbol, key.day
+        ));
+    }
+    for id in unmatched {
+        out.fault(format!(
+            "unexpected parquet row {}/{}/{} {id:?}",
+            key.dataset, key.symbol, key.day
+        ));
+    }
 }
 
 enum StoredRow {
@@ -1250,7 +1349,7 @@ impl PartitionCache {
         filter: &VerifyFilter,
         out: &mut VerifyOut<'_>,
     ) {
-        if !loads_kline_facts(dataset) {
+        if !tracks_partition_facts(dataset) {
             return;
         }
         for day in covered_days(name, filter) {
@@ -1275,18 +1374,13 @@ impl PartitionCache {
                 if let Some(Some(partition)) = self.loaded.remove(&key) {
                     // Monthly and daily archives contribute one union. Only the
                     // last applicable archive can establish that a key is extra.
-                    for open in partition.duplicates {
-                        out.fault(format!(
-                            "duplicate parquet key {}/{}/{} {open}",
-                            key.dataset, key.symbol, key.day
-                        ));
-                    }
-                    for open in partition.unmatched {
-                        out.fault(format!(
-                            "unexpected parquet row {}/{}/{} {open}",
-                            key.dataset, key.symbol, key.day
-                        ));
-                    }
+                    report_unmatched(&key, partition.duplicates, partition.unmatched, out);
+                }
+                if let Some(partition) = self.metrics.remove(&key) {
+                    report_unmatched(&key, partition.duplicates, partition.unmatched, out);
+                }
+                if let Some(partition) = self.book.remove(&key) {
+                    report_unmatched(&key, partition.duplicates, partition.unmatched, out);
                 }
             }
         }
@@ -1327,7 +1421,7 @@ pub fn verify(data_dir: &Path, filter: &VerifyFilter) -> Result<VerifyReport, Er
     for object in manifest.active() {
         let decision = decide(object, filter)?;
         if let Some((dataset, name)) = &decision.archive {
-            if loads_kline_facts(*dataset) {
+            if tracks_partition_facts(*dataset) {
                 for day in covered_days(name, filter) {
                     let key = PartitionKey {
                         dataset: dataset.as_str().to_owned(),
@@ -1464,8 +1558,8 @@ fn verify_archive(
         | VisionDataset::PremiumIndexKline
         | VisionDataset::SpotKline => verify_kline_archive(ctx, dataset, symbol, name, csv, object),
         VisionDataset::FundingRate => verify_funding_archive(ctx, symbol, name, csv, object),
-        VisionDataset::Metrics => verify_metrics_archive(ctx, symbol, csv, object),
-        VisionDataset::BookDepth => verify_book_archive(ctx, symbol, csv, object),
+        VisionDataset::Metrics => verify_metrics_archive(ctx, symbol, name, csv, object),
+        VisionDataset::BookDepth => verify_book_archive(ctx, symbol, name, csv, object),
     }
 }
 
@@ -1487,7 +1581,7 @@ fn verify_kline_archive(
     if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
-    if let Err(err) = check_kline_archive_calendar(&parsed.rows, name) {
+    if let Err(err) = check_archive_calendar(parsed.rows.iter().map(|row| row.open_time), name) {
         ctx.out.fault(format!("{} {err}", object.path));
         return Ok(());
     }
@@ -1629,12 +1723,17 @@ fn verify_funding_archive(
 fn verify_metrics_archive(
     ctx: &mut VerifyCtx<'_>,
     symbol: &Symbol,
+    name: &ArchiveName,
     csv: &str,
     object: &ObjectManifest,
 ) -> Result<(), Error> {
     let parsed = parse_metrics(csv, symbol, object.fetched_at)?;
     if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
+    }
+    if let Err(err) = check_archive_calendar(parsed.rows.iter().map(|row| row.create_time), name) {
+        ctx.out.fault(format!("{} {err}", object.path));
+        return Ok(());
     }
     let faults = if ctx.filter.limits_days() {
         let mut scoped = Vec::new();
@@ -1649,6 +1748,28 @@ fn verify_metrics_archive(
     };
     if !faults.is_empty() {
         ctx.out.fault(format!("{} {}", object.path, faults[0].name));
+        return Ok(());
+    }
+    let rows = match collapse_by(parsed.rows, |row| row.create_time.micros()) {
+        Ok(rows) => rows,
+        Err(fault) => {
+            ctx.out.fault(format!("{} {}", object.path, fault.name));
+            return Ok(());
+        }
+    };
+    for day in covered_days(name, ctx.filter) {
+        compare_stored_facts(
+            &mut ctx.cache.metrics,
+            PartitionKey {
+                dataset: "metrics".into(),
+                symbol: symbol.as_str().into(),
+                day,
+            },
+            &rows,
+            || store::load_metrics(ctx.data_dir, "metrics", symbol.as_str(), day),
+            |row| row.create_time.micros(),
+            &mut ctx.out,
+        )?;
     }
     Ok(())
 }
@@ -1656,6 +1777,7 @@ fn verify_metrics_archive(
 fn verify_book_archive(
     ctx: &mut VerifyCtx<'_>,
     symbol: &Symbol,
+    name: &ArchiveName,
     csv: &str,
     object: &ObjectManifest,
 ) -> Result<(), Error> {
@@ -1663,19 +1785,37 @@ fn verify_book_archive(
     if parsed.rows.len() as u64 != object.row_count {
         ctx.out.fault(format!("manifest_row_count {}", object.path));
     }
-    let faults = if ctx.filter.limits_days() {
-        let mut scoped = Vec::new();
-        for row in &parsed.rows {
-            if ctx.filter.contains_day(day_of(row.timestamp)?) {
-                scoped.push(row.clone());
-            }
-        }
-        book_row_faults(&mut scoped)
-    } else {
-        book_row_faults(&mut parsed.rows)
-    };
+    if let Err(err) = check_archive_calendar(parsed.rows.iter().map(|row| row.timestamp), name) {
+        ctx.out.fault(format!("{} {err}", object.path));
+        return Ok(());
+    }
+    let faults = book_row_faults(&mut parsed.rows);
     if !faults.is_empty() {
         ctx.out.fault(format!("{} {}", object.path, faults[0].name));
+        return Ok(());
+    }
+    let rows = match collapse_by(parsed.rows, |row| {
+        (row.timestamp.micros(), row.percentage.ticks())
+    }) {
+        Ok(rows) => rows,
+        Err(fault) => {
+            ctx.out.fault(format!("{} {}", object.path, fault.name));
+            return Ok(());
+        }
+    };
+    for day in covered_days(name, ctx.filter) {
+        compare_stored_facts(
+            &mut ctx.cache.book,
+            PartitionKey {
+                dataset: "book-depth".into(),
+                symbol: symbol.as_str().into(),
+                day,
+            },
+            &rows,
+            || store::load_book(ctx.data_dir, "book-depth", symbol.as_str(), day),
+            |row| (row.timestamp.micros(), row.percentage.ticks()),
+            &mut ctx.out,
+        )?;
     }
     Ok(())
 }
@@ -1776,14 +1916,16 @@ fn covered_days(name: &ArchiveName, filter: &VerifyFilter) -> Vec<CivilDay> {
     }
 }
 
-fn loads_kline_facts(dataset: VisionDataset) -> bool {
+fn tracks_partition_facts(dataset: VisionDataset) -> bool {
     match dataset {
         VisionDataset::UmKline
         | VisionDataset::MarkPriceKline
         | VisionDataset::IndexPriceKline
         | VisionDataset::PremiumIndexKline
-        | VisionDataset::SpotKline => true,
-        VisionDataset::FundingRate | VisionDataset::Metrics | VisionDataset::BookDepth => false,
+        | VisionDataset::SpotKline
+        | VisionDataset::Metrics
+        | VisionDataset::BookDepth => true,
+        VisionDataset::FundingRate => false,
     }
 }
 
