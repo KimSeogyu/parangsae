@@ -12,12 +12,12 @@ use crate::date::UtcDate;
 
 mod file_source;
 mod profile;
-pub(crate) use profile::validate_source_profile;
+pub(crate) use profile::{validate_source_profile, validate_source_settings};
 
-const MINUTE: i64 = 60_000_000;
+const MINUTE: i64 = profile::BAR_INTERVAL_US;
 const HOUR: i64 = 3_600_000_000;
 const DAY: i64 = 24 * HOUR;
-const SLOT: i64 = 8 * HOUR;
+const SLOT: i64 = profile::FUNDING_CADENCE_US;
 const SAMPLE: i64 = 1_608_249_600_000_000;
 const END: i64 = 1_759_276_800_000_000;
 const SPOT_MICROS: i64 = 1_735_689_600_000_000;
