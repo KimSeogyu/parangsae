@@ -272,6 +272,7 @@ impl CarryEngine {
 
     fn act(&mut self, command: &CarryCommand) -> Result<CarryOutcome, CarryError> {
         match &command.action {
+            CarryAction::Observe => Ok(CarryOutcome::Observed),
             CarryAction::Plan(plan) => self.plan(plan, command),
             CarryAction::PlanHedge { pair } => {
                 self.may_plan(*pair)?;
