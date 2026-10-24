@@ -194,6 +194,54 @@ fn scope_contains(report: &VerifyReport, phrase: &str) {
 }
 
 #[test]
+fn headed_and_headerless_archives_ingest_and_verify_as_the_same_market_facts(
+) -> Result<(), Box<dyn std::error::Error>> {
+    const HEADER: &str = "open_time,open,high,low,close,volume,close_time,quote_volume,count,taker_buy_volume,taker_buy_quote_volume,ignore\n";
+    let june1 = day(2021, 6, 1)?;
+    let bare = day_csv(june1, 1);
+    let headed = format!("{HEADER}{bare}");
+    for (monthly_csv, daily_csv, first_schema) in [(&bare, &headed, 1), (&headed, &bare, 2)] {
+        let dir = tempfile::tempdir()?;
+        let monthly = [ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Monthly)?,
+            file_name: "BTCUSDT-1m-2021-06.zip".to_owned(),
+            csv: monthly_csv.clone(),
+        }];
+        let mut daily = [ArchiveFile {
+            prefix: prefix(VisionDataset::UmKline, Cadence::Daily)?,
+            file_name: "BTCUSDT-1m-2021-06-01.zip".to_owned(),
+            csv: daily_csv.clone(),
+        }];
+        ingest(dir.path(), VisionDataset::UmKline, june1, june1, &monthly)?;
+        let path = store::fact_path(dir.path(), "um-kline", "BTCUSDT", june1);
+        let original = std::fs::read(&path)?;
+        ingest(dir.path(), VisionDataset::UmKline, june1, june1, &daily)?;
+        let report = run::verify(dir.path(), &VerifyFilter::all())?;
+        assert!(report.ok(), "{report}");
+        assert_eq!(report.summary.archives, 2);
+        assert_eq!(std::fs::read(&path)?, original, "stored provenance changed");
+        let stored = store::load_klines(dir.path(), "um-kline", "BTCUSDT", june1)?;
+        assert_eq!(stored[0].schema_version, first_schema);
+        let manifest = parangsae_collector::manifest::ManifestLog::open(dir.path())?;
+        let mut source_schemas: Vec<_> =
+            manifest.active().iter().map(|o| o.schema_version).collect();
+        source_schemas.sort_unstable();
+        assert_eq!(source_schemas, [1, 2]);
+
+        daily[0].csv = daily_csv.replace(",10,10,10,10,", ",11,11,11,11,");
+        let changed = ingest(dir.path(), VisionDataset::UmKline, june1, june1, &daily);
+        assert!(changed.unwrap_err().to_string().contains("conflicts=1"));
+        assert!(!run::verify(dir.path(), &VerifyFilter::all())?.ok());
+        assert_eq!(
+            std::fs::read(&path)?,
+            original,
+            "conflict overwrote stored facts"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn dataset_filter_skips_other_datasets_and_still_fails_the_selected_one(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dir = tempfile::tempdir()?;
