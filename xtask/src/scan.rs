@@ -69,25 +69,35 @@ pub fn scan_ast(
     targets: &[(String, String, String, bool, PathBuf)],
     policy: &Policy,
     diags: &mut Vec<Diagnostic>,
-) -> Result<Vec<PathBuf>, ToolError> {
+) -> Result<Vec<(String, PathBuf)>, ToolError> {
+    let boundary = root
+        .canonicalize()
+        .map_err(|err| ToolError::tool(format!("canonicalize {}: {err}", root.display())))?;
     let mut reached = Vec::new();
     let mut loaded = Vec::new();
     for (package, target_name, rust_name, is_lib, src) in targets {
         let key = format!("{package}\u{0}{target_name}");
         let rel = rel_path(root, src);
         let mut batch = Vec::new();
+        let mut target_reached = Vec::new();
         load_file(
             &mut LoadOut {
                 root,
+                boundary: &boundary,
                 target_key: &key,
                 out: &mut batch,
-                reached: &mut reached,
+                reached: &mut target_reached,
             },
             src,
             &rel,
             Vec::new(),
             true,
         )?;
+        reached.extend(
+            target_reached
+                .into_iter()
+                .map(|path| (package.clone(), path)),
+        );
         loaded.push((package.clone(), key, rust_name.clone(), *is_lib, batch));
     }
     let mut uses = Vec::new();
@@ -138,6 +148,7 @@ pub fn scan_ast(
 
 struct LoadOut<'a> {
     root: &'a Path,
+    boundary: &'a Path,
     target_key: &'a str,
     out: &'a mut Vec<SourceFile>,
     reached: &'a mut Vec<PathBuf>,
@@ -150,6 +161,16 @@ fn load_file(
     module: Vec<String>,
     crate_root: bool,
 ) -> Result<(), ToolError> {
+    let canonical = path
+        .canonicalize()
+        .map_err(|err| ToolError::tool(format!("canonicalize {}: {err}", path.display())))?;
+    if !canonical.starts_with(files.boundary) {
+        return Err(ToolError::tool(format!(
+            "Rust source {} is outside repository {}",
+            path.display(),
+            files.boundary.display()
+        )));
+    }
     let text = std::fs::read_to_string(path)
         .map_err(|err| ToolError::tool(format!("read {}: {err}", path.display())))?;
     let ast = syn::parse_file(&text).map_err(|err| {
@@ -159,11 +180,7 @@ fn load_file(
             format!("unsupported Rust syntax: {err}"),
         )
     })?;
-    if let Ok(canon) = path.canonicalize() {
-        files.reached.push(canon);
-    } else {
-        files.reached.push(path.to_path_buf());
-    }
+    files.reached.push(canonical);
     let file_module = module.clone();
     let target_key = files.target_key.to_owned();
     files.out.push(SourceFile {
@@ -176,7 +193,8 @@ fn load_file(
         let Item::Mod(item_mod) = item else {
             continue;
         };
-        if item_mod.content.is_some() {
+        if let Some((_, items)) = &item_mod.content {
+            reject_unloaded_inline_modules(items, rel)?;
             continue;
         }
         let child_path = child_file(
@@ -189,6 +207,23 @@ fn load_file(
         let mut child_mod = module.clone();
         child_mod.push(item_mod.ident.to_string());
         load_file(files, &child_path, &child_rel, child_mod, false)?;
+    }
+    Ok(())
+}
+
+fn reject_unloaded_inline_modules(items: &[Item], rel: &str) -> Result<(), ToolError> {
+    for item in items {
+        if let Item::Mod(module) = item {
+            if let Some((_, children)) = &module.content {
+                reject_unloaded_inline_modules(children, rel)?;
+            } else {
+                return Err(ToolError::parse(
+                    rel,
+                    module.span().start().line as u32,
+                    "out-of-line modules inside inline modules are unsupported",
+                ));
+            }
+        }
     }
     Ok(())
 }
