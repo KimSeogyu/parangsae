@@ -227,7 +227,7 @@ fn failed_prefix_and_missing_or_changed_days_never_supply_returns() {
     let failure = ReplayFailure {
         error: ReplayError::UnknownDailyLiability { at: START + DAY },
         stop_error: None,
-        prefix: report(&[C0; 4], &[]),
+        prefix: Box::new(report(&[C0; 4], &[])),
     };
     assert_eq!(
         series_metrics(Err(&failure), range(4)),
@@ -637,7 +637,7 @@ fn serialize_result(world: &mut MetricWorld) {
             let failure = ReplayFailure {
                 error: ReplayError::UnknownDailyLiability { at: START + DAY },
                 stop_error: None,
-                prefix: report(&[C0; 4], &[]),
+                prefix: Box::new(report(&[C0; 4], &[])),
             };
             series_metrics(Err(&failure), range(4))
         }
