@@ -27,7 +27,10 @@ fn script() -> PathBuf {
 }
 
 fn digest(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 fn run(args: &[String]) -> Output {
@@ -239,6 +242,7 @@ fn preserves(world: &mut InferenceWorld) {
 async fn main() {
     InferenceWorld::cucumber()
         .with_default_cli()
+        .fail_on_skipped()
         .run_and_exit(
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/astra_inference.feature"),
         )
