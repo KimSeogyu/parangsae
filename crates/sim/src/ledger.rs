@@ -1,6 +1,8 @@
 //! Position, cash, fees, and funding. State changes only after every check fits.
 
-use parangsae_core::{Price, Qty, Ratio, Side, UtcMicros, SCALE};
+use std::sync::Arc;
+
+use parangsae_core::{Causal, DecisionTime, Price, Qty, Ratio, Side, UtcMicros, SCALE};
 
 use crate::round::{div_floor, fit_i64, round_against_trader};
 use crate::types::{Cash, Costs, FeeBps, MarketOrder, PositionQty, SimError, SlippageBps};
@@ -27,8 +29,103 @@ pub struct FundingEvent {
     pub amount: Cash,
 }
 
+/// A rate source bound to one economic settlement. Source provenance remains the caller's duty.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FundingRate {
+    pub settlement: UtcMicros,
+    pub rate: Ratio,
+}
+
+/// An explicit settlement-mark proxy, not a certificate of an actual venue charge mark.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SettlementMark {
+    pub source_open: UtcMicros,
+    pub price: Price,
+}
+
+/// One retained position issued only by its ledger at the caller-declared boundary.
+/// This is live in-process authority with no serialization interface.
+/// It is not a general restart checkpoint.
+///
+/// It cannot be cloned (and therefore cannot implement Copy):
+/// ```compile_fail
+/// use parangsae_core::UtcMicros;
+/// use parangsae_sim::{Cash, Ledger};
+/// let mut ledger = Ledger::new(Cash(0));
+/// let capture = ledger.capture_funding(UtcMicros::from_micros(0)).unwrap();
+/// let duplicate = capture.clone();
+/// ```
+#[derive(Debug)]
+#[must_use = "an outstanding funding capture retains a settlement liability"]
+pub struct FundingCapture {
+    issuer: Arc<()>,
+    reservation: Arc<()>,
+    settlement: UtcMicros,
+    position: PositionQty,
+}
+
+impl FundingCapture {
+    pub const fn settlement(&self) -> UtcMicros {
+        self.settlement
+    }
+    pub const fn position(&self) -> PositionQty {
+        self.position
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FundingCaptureError {
+    NonIncreasingSlot {
+        last: UtcMicros,
+        requested: UtcMicros,
+    },
+    PendingCapture {
+        settlement: UtcMicros,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CapturedFundingError {
+    WrongIssuer,
+    WrongCapture,
+    BeforeSettlement,
+    RateSlotMismatch,
+    MarkSlotMismatch,
+    RateUnavailable,
+    MarkUnavailable,
+    InvalidMark,
+    Arithmetic(SimError),
+}
+
+/// Every refusal returns the original, still-unspent handle and its cause.
+#[derive(Debug)]
+#[must_use = "retain both the funding capture and the settlement failure"]
+pub struct CapturedFundingFailure {
+    pub capture: FundingCapture,
+    pub error: CapturedFundingError,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CaptureClock {
+    Empty,
+    Pending {
+        reservation: Arc<()>,
+        settlement: UtcMicros,
+        captured_position: PositionQty,
+    },
+    Settled {
+        settlement: UtcMicros,
+    },
+}
+
+/// A clone is a staged snapshot of the SAME logical account and reservation.
+/// Use Ledger::new for a distinct financial account. Arbitrary clone publication
+/// and mixing legacy funding with this capability are not globally prevented.
+/// Derived equality compares values, not Arc identity; capture guards use ptr_eq.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Ledger {
+    issuer: Arc<()>,
+    capture_clock: CaptureClock,
     cash: Cash,
     position: PositionQty,
     fees_paid: Cash,
@@ -38,6 +135,8 @@ pub struct Ledger {
 impl Ledger {
     pub fn new(initial: Cash) -> Self {
         Self {
+            issuer: Arc::new(()),
+            capture_clock: CaptureClock::Empty,
             cash: initial,
             position: PositionQty(0),
             fees_paid: Cash(0),
@@ -112,7 +211,16 @@ impl Ledger {
         mark: Price,
         ts: UtcMicros,
     ) -> Result<FundingEvent, SimError> {
-        let position = self.position;
+        self.apply_funding_position(self.position, rate, mark, ts)
+    }
+
+    fn apply_funding_position(
+        &mut self,
+        position: PositionQty,
+        rate: Ratio,
+        mark: Price,
+        ts: UtcMicros,
+    ) -> Result<FundingEvent, SimError> {
         let amount = funding_amount(position.0, mark.ticks(), rate.ticks())?;
         let new_cash = self.cash.0.checked_add(amount).ok_or(SimError::Overflow)?;
         let new_net = self
@@ -129,6 +237,137 @@ impl Ledger {
             position,
             amount: Cash(amount),
         })
+    }
+
+    /// Capture the actual position without posting money. Only one slot may be pending.
+    /// The caller must admit the economic boundary clock; this method does not observe a venue.
+    pub fn capture_funding(
+        &mut self,
+        settlement: UtcMicros,
+    ) -> Result<FundingCapture, FundingCaptureError> {
+        let last = match &self.capture_clock {
+            CaptureClock::Empty => None,
+            CaptureClock::Pending { settlement, .. } | CaptureClock::Settled { settlement } => {
+                Some(*settlement)
+            }
+        };
+        if let Some(last) = last {
+            if settlement <= last {
+                return Err(FundingCaptureError::NonIncreasingSlot {
+                    last,
+                    requested: settlement,
+                });
+            }
+        }
+        if let CaptureClock::Pending { settlement, .. } = self.capture_clock {
+            return Err(FundingCaptureError::PendingCapture { settlement });
+        }
+        let reservation = Arc::new(());
+        let capture = FundingCapture {
+            issuer: Arc::clone(&self.issuer),
+            reservation: Arc::clone(&reservation),
+            settlement,
+            position: self.position,
+        };
+        self.capture_clock = CaptureClock::Pending {
+            reservation,
+            settlement,
+            captured_position: self.position,
+        };
+        Ok(capture)
+    }
+
+    /// Atomically settle one retained position, consuming its handle only on success.
+    ///
+    /// This immediate operation MUST be the caller's last fallible step before
+    /// infallible publication of a staged ledger. It does not make later caller
+    /// rollback safe. Every refusal returns the original handle and changes nothing.
+    /// The successful handle cannot be spent again:
+    /// ```compile_fail
+    /// use parangsae_core::{AvailableTs, DecisionTime, EventTs, Observation, Price, Ratio,
+    ///     ReceivedTs, Timestamps, UtcMicros};
+    /// use parangsae_sim::{Cash, FundingRate, Ledger, SettlementMark};
+    /// let s = UtcMicros::from_micros(0);
+    /// let d = DecisionTime::from_micros(s);
+    /// let clocks = Timestamps { event_ts: EventTs::from_micros(s),
+    ///     available_ts: AvailableTs::from_micros(s), received_ts: ReceivedTs::from_micros(s) };
+    /// let rate = Observation::new(clocks, FundingRate { settlement: s, rate: Ratio::from_ticks(0) });
+    /// let mark = Observation::new(clocks, SettlementMark { source_open: s, price: Price::from_ticks(1).unwrap() });
+    /// let mut ledger = Ledger::new(Cash(0));
+    /// let capture = ledger.capture_funding(s).unwrap();
+    /// ledger.apply_captured_funding(capture, rate.causal_at(d).unwrap(), mark.causal_at(d).unwrap(), d).unwrap();
+    /// ledger.apply_captured_funding(capture, rate.causal_at(d).unwrap(), mark.causal_at(d).unwrap(), d).unwrap();
+    /// ```
+    ///
+    /// Causal views are rechecked at `at`; they do not certify EventTs, ReceivedTs,
+    /// symbol/source identity, historical arrival or the truth of a charge mark.
+    pub fn apply_captured_funding(
+        &mut self,
+        capture: FundingCapture,
+        rate: Causal<'_, FundingRate>,
+        mark: Causal<'_, SettlementMark>,
+        at: DecisionTime,
+    ) -> Result<FundingEvent, CapturedFundingFailure> {
+        let checked = self.check_capture(&capture, &rate, &mark, at);
+        let result = checked.and_then(|()| {
+            self.apply_funding_position(
+                capture.position,
+                rate.value().rate,
+                mark.value().price,
+                capture.settlement,
+            )
+            .map_err(CapturedFundingError::Arithmetic)
+        });
+        match result {
+            Ok(event) => {
+                self.capture_clock = CaptureClock::Settled {
+                    settlement: capture.settlement,
+                };
+                Ok(event)
+            }
+            Err(error) => Err(CapturedFundingFailure { capture, error }),
+        }
+    }
+
+    fn check_capture(
+        &self,
+        capture: &FundingCapture,
+        rate: &Causal<'_, FundingRate>,
+        mark: &Causal<'_, SettlementMark>,
+        at: DecisionTime,
+    ) -> Result<(), CapturedFundingError> {
+        if !Arc::ptr_eq(&self.issuer, &capture.issuer) {
+            return Err(CapturedFundingError::WrongIssuer);
+        }
+        match &self.capture_clock {
+            CaptureClock::Pending {
+                reservation,
+                settlement,
+                captured_position,
+            } if Arc::ptr_eq(reservation, &capture.reservation)
+                && *settlement == capture.settlement
+                && *captured_position == capture.position => {}
+            _ => return Err(CapturedFundingError::WrongCapture),
+        }
+        if at.micros() < capture.settlement {
+            return Err(CapturedFundingError::BeforeSettlement);
+        }
+        if rate.available_ts().micros() > at.micros() {
+            return Err(CapturedFundingError::RateUnavailable);
+        }
+        if mark.available_ts().micros() > at.micros() {
+            return Err(CapturedFundingError::MarkUnavailable);
+        }
+        if rate.value().settlement != capture.settlement {
+            return Err(CapturedFundingError::RateSlotMismatch);
+        }
+        if mark.value().source_open != capture.settlement {
+            return Err(CapturedFundingError::MarkSlotMismatch);
+        }
+        if mark.value().price.ticks() <= 0 {
+            return Err(CapturedFundingError::InvalidMark);
+        }
+        Ok(())
     }
 
     /// `cash + floor(position * mark / 1e8)` toward −∞.
