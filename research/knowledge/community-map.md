@@ -23,6 +23,8 @@
 
 2026-10-24 추가: [Funding·검색 관심도 source-contract](funding-attention-source-boundaries.md)에서 Binance metadata와 Google Trends API/Explore/Trending Now를 구분한다. 공식 문서 6개의 열람 범위·접근/PIT 한계를 기록했으며, 데이터 수집이나 예측력 확인은 아니다.
 
+2026-10-25 추가: [장애 자료 source-contract](outage-source-boundaries.md)는 기존 거래소 장애 후보의 공지·엔진·연결 관측을 분리한다. 원출처별 범위와 미실행 acceptance 제안이며 새 성과 주장이 아니다.
+
 ## 2. 반례를 먼저 찾는 읽기
 
 [Flashbots의 예측시장 연구 소개](https://collective.flashbots.net/t/public-and-private-signals-in-prediction-markets/6082)는 성공/실패 거래를 함께 살펴보면 '거의 확정된 결과 매수'와 '큰 지갑 따라가기'의 성과 해석이 달라질 수 있다고 보고한다. 이는 연구자의 주장이지 이 프로젝트가 독립 재현한 결과는 아니다. 개발자는 승리한 지갑만 선택하지 말고 전체 모집단, 드문 큰 손실, 체결·수수료, 사건별 집중도를 검증해야 한다.

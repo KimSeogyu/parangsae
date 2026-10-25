@@ -16,6 +16,7 @@
 10. [검색 인프라](infrastructure-and-job.md): AWS 원문과 현재 사양 차이.
 11. [공개 데이터의 PIT 검증 보완](public-data-pit-validation.md): Wikimedia 소급 정정, GDELT 시각 의미, mempool 관측 조건의 출처별 확인 범위.
 12. [Funding·검색 관심도의 제품/PIT 경계](funding-attention-source-boundaries.md): 현재 metadata와 과거 regime, Google Trends 제품별 시점·접근 조건 및 6개 공식 출처 coverage.
+13. [장애 공지·엔진·연결의 PIT 경계](outage-source-boundaries.md): 기존 장애 POC의 입력 계약, 6개 공식 출처 coverage와 실행하지 않은 acceptance 사례.
 
 ## 수집 상태: 공개 범위 검토 및 남은 접근 제한
 

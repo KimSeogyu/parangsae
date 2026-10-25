@@ -38,6 +38,8 @@
 
 ### 1) 거래소·서비스 장애 최초 공지
 
+2026-10-25 보완: [장애 자료의 출처/PIT 계약](outage-source-boundaries.md)을 함께 읽는다. 아래 초기 검토 범위는 유지하며, 새 검증이나 collector 구현 완료로 해석하지 않는다.
+
 - **원천:** [Coinbase Status API](https://status.coinbase.com/api), [Kraken Status API](https://status.kraken.com/api). 실제 [Kraken incidents JSON](https://status.kraken.com/api/v2/incidents.json)을 열어 `created_at`, `started_at`, `updated_at`, 개별 업데이트와 영향 컴포넌트가 있음을 확인했다. Coinbase JSON은 이번 브라우징 도구에서 직접 열리지 않아 문서 확인 수준이다.
 - **가설 → 자산:** 매칭/API 장애, 입금 지연, 출금 지연을 분리한다. 영향을 받는 자산·거래소의 스프레드/가격괴리·거래량·향후 변동성이 정상 상태와 다를 수 있다. 출금장애가 곧 시장 전체 하락이라는 가정은 하지 않는다.
 - **시차·역사:** 최초 공개 이후 5–60분, 보조 4시간. 실제 장애 발생 후 공지가 늦을 수 있다. 문서상 “all incidents”는 **최근 50건**이지 전체 역사 보장이 아니다. 장애별 원문 업데이트를 축적해야 한다. 문서 속 2014년 예시 응답을 현재 장애로 해석하지 않는다.

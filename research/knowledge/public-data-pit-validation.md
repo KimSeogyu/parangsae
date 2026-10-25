@@ -6,6 +6,8 @@
 
 후속 [Funding·검색 관심도 경계](funding-attention-source-boundaries.md)는 현재 metadata와 과거 regime, Google Trends 제품별 접근·시점 차이를 별도 coverage와 함께 다룬다. 아래 세 사례의 기존 확인일·한계는 그대로 유지한다.
 
+2026-10-25 후속 [장애 자료의 출처/PIT 경계](outage-source-boundaries.md)는 거래소 사건 후보의 별도 입력 계약과 coverage다. 기존 세 사례의 검토일·한계를 변경하지 않는다.
+
 ## 1. Wikimedia: 공개 역사도 봇 재분류로 소급 수정된다
 
 **공식 운영자 설명:** [데이터 품질 사건 문서의 고정 revision 2462581][W01]은 다음을 기록한다.
