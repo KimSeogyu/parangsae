@@ -1,6 +1,7 @@
 //! Pure Astra feature inputs. Execution and money remain with the Backtest owner.
 
 pub mod range;
+pub mod shock;
 
 use parangsae_core::{BarInterval, ResampledBar};
 use parangsae_signals::{CausalWindow, SignalError};
