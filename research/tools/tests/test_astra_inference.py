@@ -231,6 +231,13 @@ class BoundaryTests(unittest.TestCase):
             with self.assertRaises(inference.InferenceError):
                 inference.parse_cash(inputs)
 
+    def test_out_of_range_start_is_typed_before_date_addition(self):
+        inputs, _ = fixture()
+        inputs["start_day"] = "9999-12-31"
+        with self.assertRaises(inference.InferenceError) as caught:
+            inference.parse_cash(inputs)
+        self.assertEqual(caught.exception.code, "INVALID_CALENDAR")
+
     def test_critical_df_probability_source_calendar_and_scope_are_bound(self):
         inputs, constants = fixture()
         cash = inference.parse_cash(inputs)
@@ -296,6 +303,18 @@ class CliTests(unittest.TestCase):
             self.assertEqual(json.loads(refused.stderr)["error"], "DIGEST_MISMATCH")
             self.assertFalse((root / "refused.json").exists())
             self.assertEqual({path: path.read_bytes() for path in (cash, critical)}, original)
+            malformed = deepcopy(inputs)
+            malformed["start_day"] = "9999-12-31"
+            bad_cash = root / "invalid-calendar.json"
+            bad_cash.write_text(json.dumps(malformed), encoding="utf-8")
+            bad = command.copy()
+            bad[bad.index("--cash") + 1] = str(bad_cash)
+            bad[bad.index("--expected-cash-sha256") + 1] = hashlib.sha256(bad_cash.read_bytes()).hexdigest()
+            bad[bad.index("--out") + 1] = str(root / "invalid-calendar-output.json")
+            refused = subprocess.run(bad, capture_output=True, text=True, check=False)
+            self.assertEqual(refused.returncode, 2)
+            self.assertEqual(json.loads(refused.stderr)["error"], "INVALID_CALENDAR")
+            self.assertFalse((root / "invalid-calendar-output.json").exists())
 
 
 if __name__ == "__main__":

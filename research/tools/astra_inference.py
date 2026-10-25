@@ -153,7 +153,9 @@ def parse_cash(value: object) -> CashEvidence:
             "INVALID_SCOPE", "cash scope differs")
     start = civil_day(obj["start_day"])
     days = integer(obj["days"], 1, MAX_DAYS, "calendar days")
-    require(FIRST_DAY <= start and start + timedelta(days=days) <= HOLDOUT,
+    require(FIRST_DAY <= start < HOLDOUT,
+            "INVALID_CALENDAR", "calendar start is outside allowed development bounds")
+    require(start + timedelta(days=days) <= HOLDOUT,
             "INVALID_CALENDAR", "calendar crosses allowed development bounds")
     c0 = integer(obj["c0_ticks"], 1, I64_MAX, "original C0 cash ticks")
     require(obj["invocation_status"] in ("COMPLETE", "TECHNICAL_HALT"),
