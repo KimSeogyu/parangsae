@@ -20,4 +20,14 @@ separate Rust crate under `rust/`. It sits outside existing workspace members;
 the root workspace excludes that exact crate path. Backtest's dependency and
 the resolved generated package identity are checked in the combined change.
 Generated source must come from the admitted producer and must not be edited
-by hand. This unit does not change the SDK pin or verification entrypoint.
+by hand. The application's readonly verifier checks this output without
+regenerating tracked files.
+
+After changing this model, regenerate explicitly from the application root:
+
+```sh
+node spec/sgd/node_modules/specification-guided-development/dist/cli.js build \
+  --project spec/sgd/report-custody/project.json \
+  --jar specs/tla/tla2tools.jar --out spec/sgd/generated/c1-report-custody
+npm --prefix spec/sgd run verify
+```
