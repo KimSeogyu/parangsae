@@ -254,6 +254,60 @@ pub enum UnsupportedEvidence {
     EndOfInput,
 }
 
+/// Current input predicates, distinct from session-sticky loss/margin latches.
+/// The notional predicate also includes the wide diagnostic on a short-circuited guard.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CarryRiskFlags {
+    pub loss: bool,
+    pub margin: bool,
+    pub net_quantity: bool,
+    pub unhedged_notional: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CarryAssessmentPoint {
+    Observation,
+    Fill(CarryOrderId),
+    Reconciliation(CarryOrderId),
+    Funding { key: u64 },
+}
+
+/// The actual state evaluated at the latch, including committed fill candidates.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CarryRiskAssessment {
+    pub point: CarryAssessmentPoint,
+    pub account: CarryAccountState,
+    pub spot: Price,
+    pub perp: Price,
+    pub equity: Cash,
+    pub session_loss_ticks: i128,
+    pub max_session_loss: Cash,
+    /// Not evaluated when there is no short; None is not a zero balance.
+    pub margin_balance_ticks: Option<i128>,
+    pub margin_required: Option<Cash>,
+    pub unhedged_qty: Qty,
+    /// Wide diagnostic value; it does not replace the original fallible money guard.
+    pub unhedged_notional_ticks: i128,
+    /// False when quantity already breached and the original narrow guard short-circuited.
+    pub notional_guard_evaluated: bool,
+    pub max_net_btc: Qty,
+    pub max_unhedged_notional: Cash,
+    pub flags: CarryRiskFlags,
+}
+
+/// Session-first evidence. Later halts, reconciliation and Resume never erase it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CarryHaltEvidence {
+    pub cause: HaltCause,
+    pub epoch: HaltEpoch,
+    /// Command input clocks; early admission failures have not admitted these clocks.
+    pub now: Mono,
+    pub decision: DecisionTime,
+    pub phase_before_refresh: CarryPhase,
+    /// None means no successful risk evaluation for this cause, never zero/stale values.
+    pub assessment: Option<CarryRiskAssessment>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CarrySnapshot {
     pub account: CarryAccountState,
@@ -265,6 +319,7 @@ pub struct CarrySnapshot {
     pub spot_quote_reserved: Cash,
     pub perp_collateral_reserved: Cash,
     pub halted: bool,
+    pub first_halt: Option<Box<CarryHaltEvidence>>,
     pub epoch: HaltEpoch,
     pub loss_latched: bool,
     pub margin_latched: bool,

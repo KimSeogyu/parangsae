@@ -472,7 +472,18 @@ impl<'a> C1Replay<'a> {
         }
         if halted && !self.mode("Stopped") {
             self.control_at(at, Event::Stop, NativeKeyCommit::Keep)?;
-            self.record(ActorRecord::RiskStop { at, loss, margin })?;
+            let first_halt = self
+                .snapshot()?
+                .first_halt
+                .as_deref()
+                .map(super::report::HaltEvidenceRecord::from)
+                .map(Box::new);
+            self.record(ActorRecord::RiskStop {
+                at,
+                loss,
+                margin,
+                first_halt,
+            })?;
         }
         if unpaid && !self.flag("fundingPending") {
             self.control_at(at, Event::RecordPendingFunding, NativeKeyCommit::Keep)?;

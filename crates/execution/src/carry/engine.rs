@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use parangsae_core::{DecisionTime, Observation, Price, Qty, Side, UtcMicros};
+use parangsae_core::{DecisionTime, Observation, Price, Qty, Side, UtcMicros, SCALE};
 use parangsae_sim::carry::{
     funding_credit, notional, AccountEvent, AccountFill, CarryAccountState, CarryLedger, FeeCharge,
     Market,
@@ -50,7 +50,16 @@ struct RiskPrior {
     latched: bool,
 }
 
+#[derive(Clone, Copy)]
+struct AssessmentContext {
+    now: Mono,
+    decision: DecisionTime,
+    phase: CarryPhase,
+    point: CarryAssessmentPoint,
+}
+
 struct RiskStamp {
+    first_halt: Option<Box<CarryHaltEvidence>>,
     loss: bool,
     margin: bool,
     delta: bool,
@@ -90,6 +99,7 @@ pub struct CarryEngine {
     exiting: bool,
     hedged_at: Option<DecisionTime>,
     halted: bool,
+    first_halt: Option<Box<CarryHaltEvidence>>,
     epoch: HaltEpoch,
     loss_latched: bool,
     margin_latched: bool,
@@ -122,6 +132,7 @@ impl CarryEngine {
             exiting: false,
             hedged_at: None,
             halted: false,
+            first_halt: None,
             epoch: HaltEpoch::ZERO,
             loss_latched: false,
             margin_latched: false,
@@ -135,7 +146,12 @@ impl CarryEngine {
         };
         let spot = *engine.session.initial_spot.value();
         let perp = *engine.session.initial_perp.value();
-        engine.observe(spot, perp)?;
+        engine.observe(
+            spot,
+            perp,
+            engine.session.initial_now,
+            engine.session.initial_decision,
+        )?;
         Ok(engine)
     }
 
@@ -160,6 +176,7 @@ impl CarryEngine {
             spot_quote_reserved: self.spot_reserved,
             perp_collateral_reserved: self.perp_reserved,
             halted: self.halted,
+            first_halt: self.first_halt.clone(),
             epoch: self.epoch,
             loss_latched: self.loss_latched,
             margin_latched: self.margin_latched,
@@ -172,7 +189,7 @@ impl CarryEngine {
     pub fn step(&mut self, command: &CarryCommand) -> Result<CarryOutcome, CarryError> {
         self.latched_this_step = false;
         if command.now < self.last_now || command.decision.micros() < self.last_decision.micros() {
-            self.latch(HaltCause::PayloadError)?;
+            self.latch(HaltCause::PayloadError, command)?;
             return Err(CarryError::ClockWentBackwards);
         }
         if let Err(error) = admitted(
@@ -187,12 +204,17 @@ impl CarryEngine {
                 self.session.limits.max_mark_age_us,
             )
         }) {
-            self.latch(HaltCause::PayloadError)?;
+            self.latch(HaltCause::PayloadError, command)?;
             return Err(error);
         }
         self.last_now = command.now;
         self.last_decision = command.decision;
-        if let Err(error) = self.observe(*command.spot.value(), *command.perp.value()) {
+        if let Err(error) = self.observe(
+            *command.spot.value(),
+            *command.perp.value(),
+            command.now,
+            command.decision,
+        ) {
             self.refresh_phase(command.decision);
             return Err(error);
         }
@@ -201,7 +223,7 @@ impl CarryEngine {
         });
         if deadline_expired && self.unsupported.is_none() {
             self.unsupported = Some(UnsupportedEvidence::LeggingDeadline);
-            self.latch(HaltCause::UnknownOrder)?;
+            self.latch(HaltCause::UnknownOrder, command)?;
         }
         if deadline_expired
             && !matches!(
@@ -223,7 +245,7 @@ impl CarryEngine {
                     | CarryError::FutureObservation
                     | CarryError::IncompleteCut
             ) {
-                self.latch(HaltCause::PayloadError)?;
+                self.latch(HaltCause::PayloadError, command)?;
             }
             if matches!(
                 error,
@@ -262,7 +284,7 @@ impl CarryEngine {
                 };
                 if let Some(evidence) = evidence {
                     self.unsupported.get_or_insert(evidence);
-                    self.latch(HaltCause::ReconMismatch)?;
+                    self.latch(HaltCause::ReconMismatch, command)?;
                 }
             }
         }
@@ -409,7 +431,7 @@ impl CarryEngine {
                     MissingExecution::MissingSource => {
                         self.unsupported
                             .get_or_insert(UnsupportedEvidence::MissingSource(*order));
-                        self.latch(HaltCause::ReconMismatch)?;
+                        self.latch(HaltCause::ReconMismatch, command)?;
                         Err(CarryError::UnsupportedFact)
                     }
                 }
@@ -420,12 +442,12 @@ impl CarryEngine {
                 } else {
                     self.unsupported
                         .get_or_insert(UnsupportedEvidence::EndOfInput);
-                    self.latch(HaltCause::ReconMismatch)?;
+                    self.latch(HaltCause::ReconMismatch, command)?;
                     Err(CarryError::Unresolved)
                 }
             }
             CarryAction::Halt(cause) => {
-                self.latch(*cause)?;
+                self.latch(*cause, command)?;
                 Ok(CarryOutcome::Halted(self.epoch))
             }
             CarryAction::Resume { expected_epoch } => {
@@ -466,7 +488,7 @@ impl CarryEngine {
                 if old == plan {
                     return Ok(CarryOutcome::Duplicate);
                 }
-                self.latch(HaltCause::PayloadError)?;
+                self.latch(HaltCause::PayloadError, command)?;
                 return Err(CarryError::ReceiptConflict);
             }
         }
@@ -649,7 +671,7 @@ impl CarryEngine {
             .ok_or(CarryError::ClockWentBackwards)?
             > self.session.execution.timing().max_approval_age().get()
         {
-            self.latch(HaltCause::RiskTrip)?;
+            self.latch(HaltCause::RiskTrip, command)?;
             return Err(CarryError::ApprovalExpired);
         }
         let state = self.ledger.snapshot();
@@ -791,7 +813,14 @@ impl CarryEngine {
         {
             return Err(CarryError::CapitalEnvelope);
         }
-        let stamp = assessed(&self.session, draft.snapshot(), command, prior)?;
+        let stamp = assessed(
+            &self.session,
+            draft.snapshot(),
+            command,
+            prior,
+            self.phase,
+            CarryAssessmentPoint::Fill(fill.order),
+        )?;
         let reserved = reservations(&self.session, draft.snapshot(), &projection)?;
         let recorded = CarryRecordedFill {
             source: source.clone(),
@@ -842,7 +871,7 @@ impl CarryEngine {
             None
         };
         if unknown {
-            self.latch(HaltCause::UnknownOrder)?;
+            self.latch(HaltCause::UnknownOrder, command)?;
         }
         let order = self.orders.get_mut(&id).expect("known order");
         order.progress = next;
@@ -964,7 +993,14 @@ impl CarryEngine {
         if draft.snapshot().perp_short.ticks() > draft.snapshot().spot_btc.ticks() {
             return Err(CarryError::CapitalEnvelope);
         }
-        let stamp = assessed(&self.session, draft.snapshot(), command, prior)?;
+        let stamp = assessed(
+            &self.session,
+            draft.snapshot(),
+            command,
+            prior,
+            self.phase,
+            CarryAssessmentPoint::Reconciliation(cut.order),
+        )?;
         let reserved = reservations(&self.session, draft.snapshot(), &projection)?;
         draft.commit();
         self.commit_guard(stamp);
@@ -1011,7 +1047,7 @@ impl CarryEngine {
         {
             self.unsupported
                 .get_or_insert(UnsupportedEvidence::FundingBoundary { key, effective });
-            self.latch(HaltCause::UnknownOrder)?;
+            self.latch(HaltCause::UnknownOrder, command)?;
             return Err(CarryError::AmbiguousFundingBoundary);
         }
         let short = self.ledger.snapshot().perp_short;
@@ -1059,7 +1095,14 @@ impl CarryEngine {
         let projection = self.projection(None, Some(value.key), false)?;
         let prior = self.risk_prior();
         let draft = self.ledger.prepare(&[AccountEvent::Funding(amount)])?;
-        let stamp = assessed(&self.session, draft.snapshot(), command, prior)?;
+        let stamp = assessed(
+            &self.session,
+            draft.snapshot(),
+            command,
+            prior,
+            self.phase,
+            CarryAssessmentPoint::Funding { key: value.key },
+        )?;
         let reserved = reservations(&self.session, draft.snapshot(), &projection)?;
         draft.commit();
         self.commit_guard(stamp);
@@ -1127,10 +1170,29 @@ impl CarryEngine {
         self.orders.values().any(|o| o.terminal.is_none())
     }
 
-    fn latch(&mut self, _cause: HaltCause) -> Result<(), CarryError> {
+    fn latch(&mut self, cause: HaltCause, command: &CarryCommand) -> Result<(), CarryError> {
+        self.latch_at(cause, command.now, command.decision)
+    }
+
+    fn latch_at(
+        &mut self,
+        cause: HaltCause,
+        now: Mono,
+        decision: DecisionTime,
+    ) -> Result<(), CarryError> {
         if !self.latched_this_step {
             self.epoch = self.epoch.checked_next().ok_or(CarryError::Overflow)?;
         }
+        self.first_halt.get_or_insert_with(|| {
+            Box::new(CarryHaltEvidence {
+                cause,
+                epoch: self.epoch,
+                now,
+                decision,
+                phase_before_refresh: self.phase,
+                assessment: None,
+            })
+        });
         self.latched_this_step = true;
         self.halted = true;
         self.reconciled_epoch = None;
@@ -1156,6 +1218,9 @@ impl CarryEngine {
         self.delta_latched = stamp.delta;
         self.epoch = stamp.epoch;
         if stamp.latch {
+            if self.first_halt.is_none() {
+                self.first_halt = stamp.first_halt;
+            }
             self.latched_this_step = true;
             self.halted = true;
             self.reconciled_epoch = None;
@@ -1165,9 +1230,27 @@ impl CarryEngine {
         }
     }
 
-    fn observe(&mut self, spot: Price, perp: Price) -> Result<(), CarryError> {
+    fn observe(
+        &mut self,
+        spot: Price,
+        perp: Price,
+        now: Mono,
+        decision: DecisionTime,
+    ) -> Result<(), CarryError> {
         let state = self.ledger.snapshot();
-        let result = assess_values(&self.session, &state, spot, perp, self.risk_prior());
+        let result = assess_values(
+            &self.session,
+            &state,
+            spot,
+            perp,
+            self.risk_prior(),
+            AssessmentContext {
+                now,
+                decision,
+                phase: self.phase,
+                point: CarryAssessmentPoint::Observation,
+            },
+        );
         match result {
             Ok(stamp) => {
                 self.commit_guard(stamp);
@@ -1176,7 +1259,7 @@ impl CarryEngine {
             Err(error) => {
                 self.unsupported
                     .get_or_insert(UnsupportedEvidence::Valuation);
-                self.latch(HaltCause::RiskTrip)?;
+                self.latch_at(HaltCause::RiskTrip, now, decision)?;
                 Err(error)
             }
         }
@@ -1320,6 +1403,8 @@ fn assessed(
     state: &CarryAccountState,
     command: &CarryCommand,
     prior: RiskPrior,
+    phase: CarryPhase,
+    point: CarryAssessmentPoint,
 ) -> Result<RiskStamp, CarryError> {
     assess_values(
         s,
@@ -1327,6 +1412,12 @@ fn assessed(
         *command.spot.value(),
         *command.perp.value(),
         prior,
+        AssessmentContext {
+            now: command.now,
+            decision: command.decision,
+            phase,
+            point,
+        },
     )
 }
 
@@ -1336,12 +1427,13 @@ fn assess_values(
     spot: Price,
     perp: Price,
     prior: RiskPrior,
+    context: AssessmentContext,
 ) -> Result<RiskStamp, CarryError> {
     let equity = state.equity(spot, perp)?;
-    let loss = i128::from(s.allocation.total.0) - i128::from(equity.0)
-        >= i128::from(s.limits.max_session_loss.0);
-    let margin = if state.perp_short.ticks() == 0 {
-        false
+    let session_loss_ticks = i128::from(s.allocation.total.0) - i128::from(equity.0);
+    let loss = session_loss_ticks >= i128::from(s.limits.max_session_loss.0);
+    let (margin, margin_balance_ticks, margin_required) = if state.perp_short.ticks() == 0 {
+        (false, None, None)
     } else {
         let balance = i128::from(state.perp_wallet.0) + i128::from(state.unrealized_perp(perp)?.0);
         let required = add(
@@ -1351,19 +1443,60 @@ fn assess_values(
             )?,
             add(s.margin.perp_close_buffer.0, s.margin.perp_funding_buffer.0)?,
         )?;
-        balance < i128::from(required)
+        (
+            balance < i128::from(required),
+            Some(balance),
+            Some(Cash(required)),
+        )
     };
     let delta = (i128::from(state.spot_btc.ticks()) - i128::from(state.perp_short.ticks())).abs();
     let delta = quantity(i64::try_from(delta).map_err(|_| CarryError::Overflow)?)?;
     let bound = delta.ticks() > s.limits.max_net_btc.ticks()
         || notional(spot.max(perp), delta, true)? > s.limits.max_unhedged_notional.0;
+    // Both operands are nonnegative i64 values; their product and rounded quotient fit i128.
+    // Keep the original short-circuit/fallible bound above as the authority decision.
+    let scaled_delta = i128::from(spot.max(perp).ticks()) * i128::from(delta.ticks());
+    let unhedged_notional_ticks = scaled_delta / SCALE + i128::from(scaled_delta % SCALE != 0);
     let latch = (loss && !prior.loss) || (margin && !prior.margin) || (bound && !prior.delta);
     let epoch = if latch && !prior.latched {
         prior.epoch.checked_next().ok_or(CarryError::Overflow)?
     } else {
         prior.epoch
     };
+    let first_halt = latch.then(|| {
+        Box::new(CarryHaltEvidence {
+            cause: HaltCause::RiskTrip,
+            epoch,
+            now: context.now,
+            decision: context.decision,
+            phase_before_refresh: context.phase,
+            assessment: Some(CarryRiskAssessment {
+                point: context.point,
+                account: state.clone(),
+                spot,
+                perp,
+                equity,
+                session_loss_ticks,
+                max_session_loss: s.limits.max_session_loss,
+                margin_balance_ticks,
+                margin_required,
+                unhedged_qty: delta,
+                unhedged_notional_ticks,
+                notional_guard_evaluated: delta.ticks() <= s.limits.max_net_btc.ticks(),
+                max_net_btc: s.limits.max_net_btc,
+                max_unhedged_notional: s.limits.max_unhedged_notional,
+                flags: CarryRiskFlags {
+                    loss,
+                    margin,
+                    net_quantity: delta.ticks() > s.limits.max_net_btc.ticks(),
+                    unhedged_notional: unhedged_notional_ticks
+                        > i128::from(s.limits.max_unhedged_notional.0),
+                },
+            }),
+        })
+    });
     Ok(RiskStamp {
+        first_halt,
         loss: prior.loss || loss,
         margin: prior.margin || margin,
         delta: bound,
@@ -1705,4 +1838,113 @@ fn terminal_progress(
         CarryTerminal::Filled => return Err(CarryError::IncompleteCut),
     };
     transition(&progress, &event, cx).map_err(CarryError::Transition)
+}
+
+#[cfg(test)]
+mod halt_diagnostic_tests {
+    use super::*;
+    use crate::{ApprovalTiming, ExecutionConfig, MaxAttempts, NotFoundAuthority, PositiveMicros};
+    use parangsae_core::{AvailableTs, EventTs, ReceivedTs, Timestamps};
+    use parangsae_sim::carry::Allocation;
+    use parangsae_sim::{FeeBps, SlippageBps};
+
+    #[test]
+    fn wide_diagnostic_does_not_add_a_narrow_notional_refusal_to_the_qty_short_circuit() {
+        let qty = |v| Qty::from_ticks(v).unwrap();
+        let price = |v| Price::from_ticks(v).unwrap();
+        let time = UtcMicros::from_micros(0);
+        let observation = |v| {
+            Observation::new(
+                Timestamps {
+                    event_ts: EventTs::from_micros(time),
+                    available_ts: AvailableTs::from_micros(time),
+                    received_ts: ReceivedTs::from_micros(time),
+                },
+                v,
+            )
+        };
+        let age = PositiveMicros::new(1_000).unwrap();
+        let s = CarrySession {
+            allocation: Allocation {
+                total: Cash(10_000),
+                spot_quote: Cash(4_000),
+                perp_collateral: Cash(5_000),
+                idle: Cash(1_000),
+            },
+            fees: CarryFees {
+                spot_bps: FeeBps(0),
+                spot_buy_asset: SpotFeeAsset::Usdt,
+                spot_sell_asset: SpotFeeAsset::Usdt,
+                perp_bps: FeeBps(0),
+                spot_slippage: SlippageBps(0),
+                perp_slippage: SlippageBps(0),
+            },
+            spot_grid: CarryGrid {
+                lot: qty(1),
+                min_notional: Cash(0),
+                provenance: RuleProvenance::AssumedResearch,
+            },
+            perp_grid: CarryGrid {
+                lot: qty(1),
+                min_notional: Cash(0),
+                provenance: RuleProvenance::AssumedResearch,
+            },
+            limits: CarryLimits {
+                max_net_btc: qty(100_000_000),
+                max_unhedged_notional: Cash(100),
+                max_session_loss: Cash(500),
+                max_mark_age_us: 1_000,
+                max_legging_us: 1_000,
+                max_orders: 4,
+                max_receipts: 4,
+                max_funding_events: 4,
+                max_batch_entries: 4,
+            },
+            margin: AssumedMarginPolicy {
+                initial_bps: 10_000,
+                maintenance_bps: 1,
+                spot_close_buffer: Cash(0),
+                perp_close_buffer: Cash(0),
+                perp_funding_buffer: Cash(0),
+            },
+            execution: ExecutionConfig::new(
+                ApprovalTiming::new(age, PositiveMicros::new(1).unwrap()).unwrap(),
+                NotFoundAuthority::new(5_000, 1_000).unwrap(),
+                MaxAttempts::new(1).unwrap(),
+                age,
+            )
+            .unwrap(),
+            initial_spot: observation(price(1)),
+            initial_perp: observation(price(1)),
+            initial_decision: DecisionTime::from_micros(time),
+            initial_now: Mono::from_micros(0),
+        };
+        let mut state = CarryLedger::new(s.allocation).unwrap().snapshot();
+        // Isolate the existing pure guard's extreme input; no plan/fill is fabricated.
+        state.spot_btc = qty(300_000_000);
+        assert!(notional(price(i64::MAX), state.spot_btc, true).is_err());
+        let prior = RiskPrior {
+            loss: false,
+            margin: false,
+            delta: false,
+            epoch: HaltEpoch::ZERO,
+            latched: false,
+        };
+        let context = AssessmentContext {
+            now: Mono::from_micros(0),
+            decision: s.initial_decision,
+            phase: CarryPhase::ClosingPerp,
+            point: CarryAssessmentPoint::Observation,
+        };
+        let stamp = assess_values(&s, &state, price(1), price(i64::MAX), prior, context).unwrap();
+        assert!(stamp.latch && stamp.delta);
+        let evidence = stamp.first_halt.unwrap();
+        let a = evidence.assessment.unwrap();
+        assert_eq!(a.unhedged_notional_ticks, 27_670_116_110_564_327_421);
+        assert!(a.flags.net_quantity && a.flags.unhedged_notional);
+        assert!(!a.notional_guard_evaluated);
+        assert!(!a.flags.loss && !a.flags.margin);
+        assert_eq!(a.margin_balance_ticks, None);
+        assert_eq!(a.margin_required, None);
+    }
 }

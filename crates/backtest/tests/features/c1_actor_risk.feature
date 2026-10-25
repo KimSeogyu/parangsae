@@ -18,3 +18,7 @@ Feature: C1 risk exits and selected cost paths retain the full synthetic account
   Scenario: A future liquid bar cannot repair an expired one-leg pair
     When the paid spot leg has no hedge liquidity until after the original 600 second deadline
     Then the replay stays technical with paid inventory and its undrained order instead of using the late valid bar
+
+  Scenario: The first observed halt survives later complete liquidation as diagnostic data
+    When a retained settlement is unpaid when a known loss stops the paired actor
+    Then the first halt assessment remains in the risk record and final liquidated diagnostic

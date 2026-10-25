@@ -194,7 +194,7 @@ fn assert_risk_before_payment(value: &ReplayResult) {
     assert_eq!(pair.exit_decision, Some(exit));
     assert_eq!(pair.closing_deadline, Some(exit + LEGGING));
     assert!(value.records.iter().any(|record| matches!(record,
-        ActorRecord::RiskStop { at, loss: true, margin: false } if *at == settlement)));
+        ActorRecord::RiskStop { at, loss: true, margin: false, .. } if *at == settlement)));
     let close_order = value.records.iter().find_map(|record| match record {
         ActorRecord::Order {
             at,
@@ -389,6 +389,7 @@ fn risk(world: &mut ActorRiskWorld) {
 #[then("the actual close order precedes the late payment and preserves its captured quantity and deadline")]
 fn risk_result(world: &mut ActorRiskWorld) {
     assert_risk_before_payment(world.risk.as_ref().unwrap());
+    assert_first_halt_report(world.risk.as_ref().unwrap());
 }
 
 #[when(regex = "^the affordable two-cycle actor runs the (headline|higher-fee|stress) cost path$")]
@@ -423,4 +424,93 @@ async fn c1_actor_risk_feature() {
             "/tests/features/c1_actor_risk.feature"
         ))
         .await;
+}
+
+#[test]
+fn first_halt_diagnostic_survives_the_actual_risk_exit_and_complete_liquidation() {
+    let value = run_risk();
+    assert_risk_before_payment(&value);
+    assert_eq!(value.snapshot.as_ref().unwrap().phase, CarryPhase::Closed);
+    assert_first_halt_report(&value);
+}
+
+fn assert_first_halt_report(value: &ReplayResult) {
+    let json = crate::c1::report::replay_diagnostic(value);
+    assert!(
+        json["engine"]["first_halt"].is_object(),
+        "a halted then fully liquidated account must retain its first halt diagnostic: {}",
+        json["engine"]
+    );
+    let evidence = &json["engine"]["first_halt"];
+    assert_eq!(evidence["cause"], "risk_trip");
+    assert_eq!(evidence["command_decision_us"], START + 2 * SLOT);
+    assert_eq!(evidence["phase_before_refresh"], "hedged");
+    let assessment = &evidence["assessment"];
+    assert_eq!(assessment["point"], "observation");
+    assert_eq!(assessment["loss_breached"], true);
+    assert_eq!(assessment["margin_breached"], false);
+    assert_eq!(assessment["net_quantity_breached"], false);
+    assert_eq!(assessment["unhedged_notional_breached"], false);
+    assert_eq!(assessment["account"]["spot_btc"], NET_QTY);
+    assert_eq!(assessment["account"]["perp_short"], NET_QTY);
+    assert_eq!(assessment["spot_mark_ticks"], 100 * UNIT);
+    assert_eq!(assessment["perp_mark_ticks"], 700 * UNIT);
+    assert!(
+        assessment["session_loss_ticks"]
+            .as_str()
+            .unwrap()
+            .parse::<i128>()
+            .unwrap()
+            >= 50_000 * i128::from(UNIT)
+    );
+    let stop = json["records"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|record| record["kind"] == "risk_stop")
+        .unwrap();
+    assert_eq!(&stop["first_halt"], evidence);
+    assert_eq!(stop["loss"], true);
+    assert_eq!(json["engine"]["phase"], "Closed");
+    let encoded = serde_json::to_vec(&json).unwrap();
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&encoded).unwrap(),
+        json
+    );
+}
+
+#[test]
+fn healthy_complete_actor_reports_no_invented_first_halt() {
+    let value = run_cost(oracle("headline"));
+    assert!(!value.snapshot.as_ref().unwrap().halted);
+    let json = crate::c1::report::replay_diagnostic(&value);
+    assert!(json["engine"]["first_halt"].is_null());
+    assert!(!value
+        .records
+        .iter()
+        .any(|record| matches!(record, ActorRecord::RiskStop { .. })));
+}
+
+#[then("the first halt assessment remains in the risk record and final liquidated diagnostic")]
+fn risk_diagnostic(world: &mut ActorRiskWorld) {
+    assert_first_halt_report(world.risk.as_ref().unwrap());
+}
+
+#[test]
+fn diagnostic_wide_values_serialize_as_exact_strings_without_becoming_commands() {
+    let value = run_risk();
+    let mut evidence = value.snapshot.unwrap().first_halt.unwrap();
+    let a = evidence.assessment.as_mut().unwrap();
+    a.unhedged_notional_ticks = 27_670_116_110_564_327_421;
+    a.session_loss_ticks = i128::MIN;
+    let record = crate::c1::report::HaltEvidenceRecord::from(evidence.as_ref());
+    let json = serde_json::to_value(record).unwrap();
+    assert_eq!(
+        json["assessment"]["unhedged_notional_ticks"],
+        "27670116110564327421"
+    );
+    assert_eq!(
+        json["assessment"]["session_loss_ticks"],
+        i128::MIN.to_string()
+    );
 }

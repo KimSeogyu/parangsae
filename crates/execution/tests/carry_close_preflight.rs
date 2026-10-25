@@ -253,6 +253,7 @@ fn assert_no_posting(t: &CloseTrace) {
         t.before.perp_collateral_reserved
     );
     assert_eq!(t.after.halted, t.before.halted);
+    assert_eq!(t.after.first_halt, t.before.first_halt);
     assert_eq!(t.after.loss_latched, t.before.loss_latched);
     assert_eq!(t.after.margin_latched, t.before.margin_latched);
     assert_eq!(t.after.epoch, t.before.epoch);
