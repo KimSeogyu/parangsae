@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "files": [
+    "artifact-format.json",
+    "automaton.json",
+    "binding.json",
+    "model.dot",
+    "rust/Cargo.toml",
+    "rust/README.md",
+    "rust/rustfmt.toml",
+    "rust/src/lib.rs",
+    "rust/src/machine.rs",
+    "tlc.log",
+    "verification.json"
+  ]
+}

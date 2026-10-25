@@ -1,0 +1,11 @@
+{
+  "profile": "finite-owned",
+  "className": "ReportCustody",
+  "operation": {
+    "kind": "retained-operation",
+    "start": "StartReport",
+    "success": "ReportSucceeded",
+    "failure": "ReportFailed",
+    "retainedVariable": "resident"
+  }
+}

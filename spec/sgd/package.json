@@ -12,6 +12,6 @@
     "fetch-tlc": "node verify.mjs fetch-tlc"
   },
   "devDependencies": {
-    "specification-guided-development": "github:KimSeogyu/specification-guided-development#fbca46f18ed02c1a15230b6211acb6d120549f73"
+    "specification-guided-development": "github:KimSeogyu/specification-guided-development#7b09a1b0138e26fee54885f3bcb22feb4f309be1"
   }
 }

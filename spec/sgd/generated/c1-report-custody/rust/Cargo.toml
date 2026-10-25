@@ -1,0 +1,10 @@
+[package]
+name = "sgd-owned-reportcustody-0089cad30e97"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+serde = { version = "=1.0.229", features = ["derive"] }

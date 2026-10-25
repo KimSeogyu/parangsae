@@ -1,0 +1,130 @@
+{
+  "version": 1,
+  "kind": "exact-finite",
+  "name": "ReportCustody",
+  "variables": [
+    {
+      "name": "phase",
+      "kind": "string"
+    },
+    {
+      "name": "ready",
+      "kind": "boolean"
+    },
+    {
+      "name": "resident",
+      "kind": "boolean"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "s0",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "Failed"
+        },
+        "ready": {
+          "kind": "boolean",
+          "value": true
+        },
+        "resident": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "s1",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "Ready"
+        },
+        "ready": {
+          "kind": "boolean",
+          "value": true
+        },
+        "resident": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "Reporting"
+        },
+        "ready": {
+          "kind": "boolean",
+          "value": true
+        },
+        "resident": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "values": {
+        "phase": {
+          "kind": "string",
+          "value": "Succeeded"
+        },
+        "ready": {
+          "kind": "boolean",
+          "value": true
+        },
+        "resident": {
+          "kind": "boolean",
+          "value": true
+        }
+      }
+    }
+  ],
+  "initial": [
+    "s1"
+  ],
+  "actions": [
+    "ReportFailed",
+    "ReportSucceeded",
+    "StartReport",
+    "Wait"
+  ],
+  "edges": [
+    {
+      "from": "s0",
+      "event": "Wait",
+      "to": "s0"
+    },
+    {
+      "from": "s1",
+      "event": "StartReport",
+      "to": "s2"
+    },
+    {
+      "from": "s2",
+      "event": "ReportFailed",
+      "to": "s0"
+    },
+    {
+      "from": "s2",
+      "event": "ReportSucceeded",
+      "to": "s3"
+    },
+    {
+      "from": "s3",
+      "event": "Wait",
+      "to": "s3"
+    }
+  ],
+  "source": {
+    "dotSha256": "8fcde862c6c58034079226ac693b973717a75b17a1ed7717946b34b8d64fa704",
+    "stateCount": 4,
+    "edgeCount": 5
+  }
+}
