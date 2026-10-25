@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "profile": "finite-owned",
+  "name": "ReportCustody",
+  "spec": "ReportCustody.tla",
+  "config": "ReportCustody.cfg",
+  "targets": [
+    "rust"
+  ],
+  "binding": {
+    "className": "ReportCustody",
+    "operation": {
+      "kind": "retained-operation",
+      "start": "StartReport",
+      "success": "ReportSucceeded",
+      "failure": "ReportFailed",
+      "retainedVariable": "resident"
+    }
+  }
+}
