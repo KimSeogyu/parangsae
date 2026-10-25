@@ -68,6 +68,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod astra;
 mod aux;
 pub mod c1;
 mod donchian;
