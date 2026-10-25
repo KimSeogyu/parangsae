@@ -321,8 +321,13 @@ pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
         Ok(source) => source,
         Err(error) => {
             let message = format!("source admission: {error:?}");
-            write_outputs(&admitted, &[], &[], None, Some(&message))?;
-            return Err(C1BatchError(message));
+            return finalize_batch(
+                &admitted,
+                Vec::new(),
+                Vec::new(),
+                None,
+                Some(C1BatchError(message)),
+            );
         }
     };
     let folds = schedule().map_err(|error| C1BatchError(error.to_string()))?;
@@ -363,8 +368,7 @@ pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
             {
                 Ok(value) => value,
                 Err(error) => {
-                    write_outputs(&admitted, &units, &selected, None, Some(&error.0))?;
-                    return Err(error);
+                    return finalize_batch(&admitted, units, selected, None, Some(error));
                 }
             };
             columns.push((
@@ -401,8 +405,7 @@ pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
             .ok_or_else(|| C1BatchError("missing policy unit".to_owned()))?
             .complete()
         {
-            write_outputs(&admitted, &units, &selected, None, Some(&error.0))?;
-            return Err(error);
+            return finalize_batch(&admitted, units, selected, None, Some(error));
         }
     }
     let headline = units[30].complete()?.0;
@@ -411,11 +414,33 @@ pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
         Ok(value) => value,
         Err(error) => {
             let message = error.to_string();
-            write_outputs(&admitted, &units, &selected, None, Some(&message))?;
-            return Err(C1BatchError(message));
+            return finalize_batch(
+                &admitted,
+                units,
+                selected,
+                None,
+                Some(C1BatchError(message)),
+            );
         }
     };
-    write_outputs(&admitted, &units, &selected, Some(&statistics), None)
+    finalize_batch(&admitted, units, selected, Some(statistics), None)
+}
+
+fn finalize_batch(
+    admitted: &AdmittedC1,
+    units: Vec<Unit>,
+    selected: Vec<Option<C1MaxHold>>,
+    statistics: Option<SelectionStatistics>,
+    fatal: Option<C1BatchError>,
+) -> Result<(), C1BatchError> {
+    write_outputs(
+        admitted,
+        &units,
+        &selected,
+        statistics.as_ref(),
+        fatal.as_ref().map(|error| error.0.as_str()),
+    )?;
+    fatal.map_or(Ok(()), Err)
 }
 
 fn select_hold(scores: [Option<i64>; 2]) -> Option<C1MaxHold> {
@@ -975,7 +1000,7 @@ mod tests {
         assert_eq!(std::str::from_utf8(&original).unwrap().lines().count(), 3);
     }
 
-    fn partial_report_artifact_bodies() -> std::collections::BTreeMap<String, String> {
+    fn synthetic_report_batch() -> (tempfile::TempDir, AdmittedC1, Unit) {
         use super::super::admission::{ArtifactRef, C1Inputs, Hash64};
         let directory = tempfile::tempdir().unwrap();
         let out = directory.path().join("output");
@@ -1032,6 +1057,12 @@ mod tests {
             }],
         )
         .unwrap();
+        (directory, admitted, unit)
+    }
+
+    fn partial_report_artifact_bodies() -> std::collections::BTreeMap<String, String> {
+        let (_directory, admitted, unit) = synthetic_report_batch();
+        let out = &admitted.out;
         write_outputs(
             &admitted,
             &[unit],
@@ -1085,6 +1116,34 @@ mod tests {
             })
             .collect();
         artifact_bodies
+    }
+
+    #[test]
+    fn owning_finalization_report_failure_retains_the_completed_unit_and_original_cause() {
+        let (_directory, admitted, unit) = synthetic_report_batch();
+        let original_ledger = std::fs::read(&admitted.ledger).unwrap();
+        let completed = unit.diagnostic();
+        assert_eq!(completed["status"], "COMPLETE");
+        assert_eq!(completed["metrics"]["calendar_days"], 1);
+        std::fs::create_dir(admitted.out.join("C1-diagnostics.json")).unwrap();
+        let error = finalize_batch(
+            &admitted,
+            vec![unit],
+            vec![Some(C1MaxHold::Hours168)],
+            None,
+            Some(C1BatchError(
+                "synthetic original execution cause".to_owned(),
+            )),
+        )
+        .unwrap_err();
+        assert_eq!(std::fs::read(&admitted.ledger).unwrap(), original_ledger);
+        assert!(!admitted.out.join("C1.json").exists());
+        println!("C1_OWNING_FINALIZATION_INPUT={completed}");
+        println!("C1_OWNING_FINALIZATION_RETURN={error:?}");
+        assert!(
+            error.to_string().contains("synthetic original execution cause"),
+            "report failure replaced the original execution cause and returned no owned result: {error:?}"
+        );
     }
 
     #[test]
