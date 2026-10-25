@@ -78,3 +78,7 @@ harness = false
 [[test]]
 name = "astra_shock_signal"
 harness = false
+
+[[test]]
+name = "astra_inference"
+harness = false
