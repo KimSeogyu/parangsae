@@ -1309,7 +1309,7 @@ mod tests {
             source_manifest: directory.path().join("unread-source-manifest.json"),
             out: out.clone(),
             ledger: ledger.clone(),
-            ledger_file,
+            _ledger_file: ledger_file,
         };
         let request = C1BatchRequest {
             inputs: directory.path().join("unread-inputs.json"),
