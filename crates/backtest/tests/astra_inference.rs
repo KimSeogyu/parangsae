@@ -172,6 +172,7 @@ fn result(world: &mut InferenceWorld) {
     assert_eq!(report["cdf_certificate_verified_here"], false);
     assert_eq!(report["runtime"]["isolated"], true);
     assert_eq!(report["runtime"]["bytecode_disabled"], true);
+    println!("Astra CLI runtime binding: {}", report["runtime"]);
     assert!(world
         .interpreter_version
         .starts_with(report["runtime"]["version"].as_str().unwrap()));
