@@ -82,3 +82,7 @@ harness = false
 [[test]]
 name = "astra_inference"
 harness = false
+
+[[test]]
+name = "astra_premium_source_gherkin"
+harness = false

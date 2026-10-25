@@ -15,6 +15,7 @@
 #![deny(clippy::float_arithmetic)]
 #![deny(clippy::cast_precision_loss)]
 
+pub mod astra_premium_source;
 mod bar;
 mod batch;
 mod c1;
