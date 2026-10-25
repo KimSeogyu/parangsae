@@ -1,4 +1,6 @@
 use std::ffi::OsString;
+use std::fs::File;
+use std::os::fd::AsFd;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -67,11 +69,22 @@ fn main() -> ExitCode {
     match run_c1_batch(&request) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            let mut stderr = std::io::stderr().lock();
-            match error.handoff(&mut stderr) {
-                Ok(_retained) => ExitCode::FAILURE,
-                // No flushed handoff was acknowledged. Process exit cannot preserve memory.
-                Err((_retained, _handoff_error)) => ExitCode::from(74),
+            let stderr = std::io::stderr();
+            let _lock = stderr.lock();
+            match stderr.as_fd().try_clone_to_owned() {
+                Ok(fd) => {
+                    // File preserves write errors that the standard stream can suppress.
+                    let mut sink = File::from(fd);
+                    match error.handoff(&mut sink) {
+                        Ok(_retained) => ExitCode::FAILURE,
+                        // Process exit cannot preserve an unacknowledged in-memory payload.
+                        Err((_retained, _handoff_error)) => ExitCode::from(74),
+                    }
+                }
+                Err(_handoff_error) => {
+                    let _retained = error;
+                    ExitCode::from(74)
+                }
             }
         }
     }

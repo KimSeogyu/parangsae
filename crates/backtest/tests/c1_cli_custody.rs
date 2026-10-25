@@ -1,6 +1,7 @@
 #![cfg(unix)]
 
 use std::ffi::OsString;
+use std::fs::{self, File};
 use std::os::fd::OwnedFd;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::net::UnixStream;
@@ -88,5 +89,24 @@ fn actual_cli_disconnected_stderr_returns_unacknowledged_exit_without_starting()
         .unwrap();
     assert_eq!(output.status.code(), Some(74));
     assert!(output.stdout.is_empty());
+    assert_no_start(root);
+}
+
+#[test]
+fn actual_cli_read_only_stderr_returns_unacknowledged_exit_without_changing_file() {
+    let directory = tempfile::tempdir().unwrap();
+    let root = directory.path();
+    let sink = root.join("read-only-stderr");
+    let original = b"retained stderr sentinel\n";
+    fs::write(&sink, original).unwrap();
+    let readonly = File::open(&sink).unwrap();
+    let output = command(root, &root.join("missing.json"))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::from(readonly))
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(74));
+    assert!(output.stdout.is_empty());
+    assert_eq!(fs::read(&sink).unwrap(), original);
     assert_no_start(root);
 }
