@@ -1,4 +1,7 @@
-use parangsae_execution::carry::{CarrySnapshot, CarryStage};
+use parangsae_execution::carry::{
+    CarryAssessmentPoint, CarryHaltEvidence, CarryPhase, CarrySnapshot, CarryStage,
+};
+use parangsae_execution::HaltCause;
 use parangsae_sim::carry::CarryAccountState;
 use serde::Serialize;
 
@@ -61,6 +64,111 @@ impl From<&CarryAccountState> for AccountRecord {
             perp_entry_cost_scaled: value.perp_entry_cost_scaled.to_string(),
             realized_perp_scaled: value.realized_perp_scaled.to_string(),
         }
+    }
+}
+
+/// Diagnostic data only; it cannot authorize a native command or restart.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub(super) struct HaltEvidenceRecord {
+    pub cause: &'static str,
+    pub epoch: u64,
+    pub command_now_us: u64,
+    pub command_decision_us: i64,
+    pub phase_before_refresh: &'static str,
+    pub assessment: Option<RiskAssessmentRecord>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub(super) struct RiskAssessmentRecord {
+    pub point: &'static str,
+    pub order_pair: Option<String>,
+    pub order_stage: Option<&'static str>,
+    pub order_attempt: Option<u8>,
+    pub funding_key: Option<u64>,
+    pub account: AccountRecord,
+    pub spot_mark_ticks: i64,
+    pub perp_mark_ticks: i64,
+    pub equity_ticks: i64,
+    pub session_loss_ticks: String,
+    pub max_session_loss_ticks: i64,
+    pub margin_balance_ticks: Option<String>,
+    pub margin_required_ticks: Option<i64>,
+    pub unhedged_qty_ticks: i64,
+    pub unhedged_notional_ticks: String,
+    pub notional_guard_evaluated: bool,
+    pub max_net_btc_ticks: i64,
+    pub max_unhedged_notional_ticks: i64,
+    pub loss_breached: bool,
+    pub margin_breached: bool,
+    pub net_quantity_breached: bool,
+    pub unhedged_notional_breached: bool,
+}
+
+impl From<&CarryHaltEvidence> for HaltEvidenceRecord {
+    fn from(value: &CarryHaltEvidence) -> Self {
+        let cause = match value.cause {
+            HaltCause::ReconMismatch => "recon_mismatch",
+            HaltCause::UnknownOrder => "unknown_order",
+            HaltCause::Kill => "kill",
+            HaltCause::Ban => "ban",
+            HaltCause::RiskTrip => "risk_trip",
+            HaltCause::IllegalTransition => "illegal_transition",
+            HaltCause::PayloadError => "payload_error",
+        };
+        Self {
+            cause,
+            epoch: value.epoch.get(),
+            command_now_us: value.now.micros(),
+            command_decision_us: value.decision.micros().micros(),
+            phase_before_refresh: phase(value.phase_before_refresh),
+            assessment: value.assessment.as_ref().map(|a| {
+                let (point, order, funding_key) = match a.point {
+                    CarryAssessmentPoint::Observation => ("observation", None, None),
+                    CarryAssessmentPoint::Fill(order) => ("fill", Some(order), None),
+                    CarryAssessmentPoint::Reconciliation(order) => {
+                        ("reconciliation", Some(order), None)
+                    }
+                    CarryAssessmentPoint::Funding { key } => ("funding", None, Some(key)),
+                };
+                RiskAssessmentRecord {
+                    point,
+                    order_pair: order.map(|id| id.pair.to_string()),
+                    order_stage: order.map(|id| stage(id.stage)),
+                    order_attempt: order.map(|id| id.attempt),
+                    funding_key,
+                    account: AccountRecord::from(&a.account),
+                    spot_mark_ticks: a.spot.ticks(),
+                    perp_mark_ticks: a.perp.ticks(),
+                    equity_ticks: a.equity.0,
+                    session_loss_ticks: a.session_loss_ticks.to_string(),
+                    max_session_loss_ticks: a.max_session_loss.0,
+                    margin_balance_ticks: a.margin_balance_ticks.map(|n| n.to_string()),
+                    margin_required_ticks: a.margin_required.map(|n| n.0),
+                    unhedged_qty_ticks: a.unhedged_qty.ticks(),
+                    unhedged_notional_ticks: a.unhedged_notional_ticks.to_string(),
+                    notional_guard_evaluated: a.notional_guard_evaluated,
+                    max_net_btc_ticks: a.max_net_btc.ticks(),
+                    max_unhedged_notional_ticks: a.max_unhedged_notional.0,
+                    loss_breached: a.flags.loss,
+                    margin_breached: a.flags.margin,
+                    net_quantity_breached: a.flags.net_quantity,
+                    unhedged_notional_breached: a.flags.unhedged_notional,
+                }
+            }),
+        }
+    }
+}
+
+fn phase(value: CarryPhase) -> &'static str {
+    match value {
+        CarryPhase::Flat => "flat",
+        CarryPhase::OpeningSpot => "opening_spot",
+        CarryPhase::OpeningHedge => "opening_hedge",
+        CarryPhase::Hedged => "hedged",
+        CarryPhase::ClosingPerp => "closing_perp",
+        CarryPhase::ClosingSpot => "closing_spot",
+        CarryPhase::Unresolved => "unresolved",
+        CarryPhase::Closed => "closed",
     }
 }
 
@@ -130,6 +238,7 @@ pub(super) enum ActorRecord {
         at: i64,
         loss: bool,
         margin: bool,
+        first_halt: Option<Box<HaltEvidenceRecord>>,
     },
     ZeroExposureBoundary {
         at: i64,
@@ -243,6 +352,7 @@ pub(super) fn replay_diagnostic(result: &ReplayResult) -> serde_json::Value {
         json!({"account":AccountRecord::from(&snapshot.account),"phase":format!("{:?}",snapshot.phase),
             "observed_quantity_flat":physical_flat,"halted":snapshot.halted,"loss_latched":snapshot.loss_latched,
             "margin_latched":snapshot.margin_latched,"halt_epoch":snapshot.epoch.get(),
+            "first_halt":snapshot.first_halt.as_deref().map(HaltEvidenceRecord::from),
             "spot_quote_reserved_ticks":snapshot.spot_quote_reserved.0,
             "perp_collateral_reserved_ticks":snapshot.perp_collateral_reserved.0,
             "unsupported_evidence_debug":snapshot.unsupported.as_ref().map(|value|format!("{value:?}")),

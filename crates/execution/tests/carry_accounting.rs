@@ -1,3 +1,6 @@
+#[path = "support/carry_halt_transition_cases.rs"]
+mod halt_transition_cases;
+
 #[path = "support/carry_cases.rs"]
 mod cases;
 
@@ -363,6 +366,12 @@ fn candidate_valuation_failure_retains_the_dispatched_fact_without_half_commit()
         after.unsupported,
         Some(UnsupportedEvidence::Fill(_))
     ));
+    let evidence = after.first_halt.as_ref().unwrap();
+    assert_eq!(evidence.cause, HaltCause::ReconMismatch);
+    assert!(
+        evidence.assessment.is_none(),
+        "uncommitted candidate valuation is not an applied risk assessment"
+    );
 }
 
 #[test]
@@ -1040,4 +1049,74 @@ fn pre_action_valuation_failure_exposes_unresolved_without_changing_economics() 
     assert_eq!(after.unsupported, Some(UnsupportedEvidence::Valuation));
     assert!(after.halted);
     assert_eq!(after.phase, CarryPhase::Unresolved);
+}
+
+#[test]
+fn an_unadmitted_mark_records_input_clocks_without_a_fabricated_assessment() {
+    let mut h = Harness::new();
+    let before = h.engine.snapshot();
+    let mut command = h.command(CarryAction::Observe, 1_000 * U, 1_000 * U);
+    let mut clocks = command.spot.timestamps();
+    clocks.received_ts = ReceivedTs::from_micros(time(2));
+    command.spot = parangsae_core::Observation::new(clocks, *command.spot.value());
+    assert_eq!(h.engine.step(&command), Err(CarryError::FutureObservation));
+    let after = h.engine.snapshot();
+    let first = after.first_halt.as_ref().unwrap();
+    assert_eq!(first.cause, HaltCause::PayloadError);
+    assert_eq!(first.now, command.now);
+    assert_eq!(first.decision, command.decision);
+    assert_eq!(first.phase_before_refresh, CarryPhase::Flat);
+    assert!(first.assessment.is_none());
+    assert_eq!(after.account, before.account);
+    assert_eq!(after.orders, before.orders);
+    assert_eq!(after.fills, before.fills);
+}
+
+#[test]
+fn explicit_resume_and_later_halts_keep_session_first_evidence() {
+    let mut h = Harness::new();
+    h.act(CarryAction::Halt(HaltCause::Kill)).unwrap();
+    let first = h.engine.snapshot().first_halt.unwrap();
+    let epoch = h.engine.snapshot().epoch;
+    h.act(CarryAction::ReconcilePortfolio(h.engine.snapshot().account))
+        .unwrap();
+    h.act(CarryAction::Resume {
+        expected_epoch: epoch.get(),
+    })
+    .unwrap();
+    assert!(!h.engine.snapshot().halted);
+    assert_eq!(h.engine.snapshot().first_halt.as_ref(), Some(&first));
+    h.act(CarryAction::Halt(HaltCause::Ban)).unwrap();
+    assert_eq!(h.engine.snapshot().first_halt.as_ref(), Some(&first));
+    assert_eq!(h.engine.snapshot().epoch.get(), epoch.get() + 1);
+}
+
+#[test]
+fn simultaneous_loss_and_margin_predicates_are_not_collapsed_into_one_category() {
+    let mut h = Harness::new();
+    h.hedged();
+    let before = h.engine.snapshot();
+    h.marked(CarryAction::Observe, 500 * U, 10_000 * U).unwrap();
+    let after = h.engine.snapshot();
+    assert_eq!(after.account, before.account);
+    let first = after.first_halt.as_ref().unwrap();
+    assert_eq!(first.cause, HaltCause::RiskTrip);
+    assert_eq!(first.phase_before_refresh, CarryPhase::Hedged);
+    let a = first.assessment.as_ref().unwrap();
+    assert_eq!(a.point, CarryAssessmentPoint::Observation);
+    assert_eq!(
+        a.flags,
+        CarryRiskFlags {
+            loss: true,
+            margin: true,
+            net_quantity: false,
+            unhedged_notional: false
+        }
+    );
+    assert!(a.session_loss_ticks >= i128::from(a.max_session_loss.0));
+    assert!(a.margin_balance_ticks.unwrap() < i128::from(a.margin_required.unwrap().0));
+    assert_eq!(after.epoch.get(), before.epoch.get() + 1);
+    h.act(CarryAction::Observe).unwrap();
+    assert_eq!(h.engine.snapshot().first_halt.as_ref(), Some(first));
+    assert!(h.engine.snapshot().loss_latched && h.engine.snapshot().margin_latched);
 }

@@ -54,6 +54,7 @@ fn snapshot(value: &AccountRecord) -> CarrySnapshot {
         spot_quote_reserved: Cash(0),
         perp_collateral_reserved: Cash(0),
         halted: false,
+        first_halt: None,
         epoch: HaltEpoch::ZERO,
         loss_latched: false,
         margin_latched: false,
