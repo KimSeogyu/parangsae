@@ -236,7 +236,7 @@ pub(super) struct AdmittedC1 {
     pub source_manifest: PathBuf,
     pub out: PathBuf,
     pub ledger: PathBuf,
-    pub ledger_file: File,
+    pub _ledger_file: File,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -947,7 +947,7 @@ pub(super) fn admit(request: &C1BatchRequest) -> Result<AdmittedC1> {
         source_manifest,
         out: request.out.clone(),
         ledger: request.ledger.clone(),
-        ledger_file,
+        _ledger_file: ledger_file,
     })
 }
 
@@ -1423,7 +1423,7 @@ mod tests {
         );
         assert_eq!(admitted.out, fixture.request.out);
         assert_eq!(admitted.ledger, fixture.request.ledger);
-        assert_eq!(admitted.ledger_file.metadata().unwrap().len(), 0);
+        assert_eq!(admitted._ledger_file.metadata().unwrap().len(), 0);
         assert_eq!(fs::read(&fixture.request.ledger).unwrap(), b"");
         assert_eq!(admit(&fixture.request).unwrap_err().code, "OUTPUT_EXISTS");
         assert!(fixture.request.out.is_dir());

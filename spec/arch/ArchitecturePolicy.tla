@@ -39,6 +39,7 @@ Modules == {
   "parangsae-sim",
   "parangsae-strategies",
   "sgd-owned-c1opportunitycontrol-50dd0338899d",
+  "sgd-owned-reportcustody-0089cad30e97",
   "sgd-symbolic-factwriteenvelope-281ebc3217c8",
   "xtask"
 }
@@ -67,6 +68,7 @@ AllowedDependencies == {
   <<"parangsae-backtest", "parangsae-sim">>,
   <<"parangsae-backtest", "parangsae-strategies">>,
   <<"parangsae-backtest", "sgd-owned-c1opportunitycontrol-50dd0338899d">>,
+  <<"parangsae-backtest", "sgd-owned-reportcustody-0089cad30e97">>,
   <<"parangsae-collector", "parangsae-core">>,
   <<"parangsae-collector", "sgd-symbolic-factwriteenvelope-281ebc3217c8">>,
   <<"parangsae-execution", "parangsae-core">>,

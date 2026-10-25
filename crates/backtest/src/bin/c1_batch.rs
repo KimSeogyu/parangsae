@@ -1,4 +1,6 @@
 use std::ffi::OsString;
+use std::fs::File;
+use std::os::fd::AsFd;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -57,13 +59,33 @@ fn main() -> ExitCode {
         println!("{USAGE}");
         return ExitCode::SUCCESS;
     }
-    match parse(args.into_iter())
-        .and_then(|request| run_c1_batch(&request).map_err(|error| error.to_string()))
-    {
-        Ok(()) => ExitCode::SUCCESS,
+    let request = match parse(args.into_iter()) {
+        Ok(request) => request,
         Err(error) => {
             eprintln!("{error}\n{USAGE}");
-            ExitCode::FAILURE
+            return ExitCode::FAILURE;
+        }
+    };
+    match run_c1_batch(&request) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            let stderr = std::io::stderr();
+            let _lock = stderr.lock();
+            match stderr.as_fd().try_clone_to_owned() {
+                Ok(fd) => {
+                    // File preserves write errors that the standard stream can suppress.
+                    let mut sink = File::from(fd);
+                    match error.handoff(&mut sink) {
+                        Ok(_retained) => ExitCode::FAILURE,
+                        // Process exit cannot preserve an unacknowledged in-memory payload.
+                        Err((_retained, _handoff_error)) => ExitCode::from(74),
+                    }
+                }
+                Err(_handoff_error) => {
+                    let _retained = error;
+                    ExitCode::from(74)
+                }
+            }
         }
     }
 }

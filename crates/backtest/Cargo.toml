@@ -16,6 +16,7 @@ parangsae-signals = { path = "../signals" }
 parangsae-sim = { path = "../sim" }
 parangsae-strategies = { path = "../strategies" }
 sgd-owned-c1opportunitycontrol-50dd0338899d = { path = "../../spec/sgd/generated/c1-control/rust" }
+c1_report_custody = { package = "sgd-owned-reportcustody-0089cad30e97", path = "../../spec/sgd/generated/c1-report-custody/rust" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sha2 = "0.11.1"

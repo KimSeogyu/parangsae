@@ -1,10 +1,10 @@
 
 ****** SANY2 Version 2.1 created 24 February 2014
 
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-7mqENE/models/SGDOracle0.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-7mqENE/models/FactWriteEnvelope.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-7mqENE/java-temp/Integers.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-7mqENE/java-temp/Naturals.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-SrIb6h/models/SGDOracle0.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-SrIb6h/models/FactWriteEnvelope.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-SrIb6h/java-temp/Integers.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-SrIb6h/java-temp/Naturals.tla
 Semantic processing of module Naturals
 Semantic processing of module Integers
 Semantic processing of module FactWriteEnvelope
@@ -13,29 +13,68 @@ Semantic processing of module Naturals
 Semantic processing of module Integers
 Semantic processing of module FactWriteEnvelope
 Semantic processing of module SGDOracle0
+@!@!@STARTMSG 2262:0 @!@!@
 TLC2 Version 2.19 of 08 August 2024 (rev: 5a47802)
-Running breadth-first search Model-Checking with fp 0 and seed 0 with 1 worker on 11 cores with 455MB heap and 64MB offheap memory [pid: 82328] (Mac OS X 26.6.2 aarch64, Amazon.com Inc. 17.0.9 x86_64, MSBDiskFPSet, DiskStateQueue).
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-7mqENE/models/SGDOracle0.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-7mqENE/models/FactWriteEnvelope.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-7mqENE/java-temp/Integers.tla
-Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-7mqENE/java-temp/Naturals.tla
+@!@!@ENDMSG 2262 @!@!@
+@!@!@STARTMSG 2187:0 @!@!@
+Running breadth-first search Model-Checking with fp 0 and seed 0 with 1 worker on 11 cores with 455MB heap and 64MB offheap memory [pid: 22838] (Mac OS X 26.6.2 aarch64, Amazon.com Inc. 17.0.9 x86_64, MSBDiskFPSet, DiskStateQueue).
+@!@!@ENDMSG 2187 @!@!@
+@!@!@STARTMSG 2220:0 @!@!@
+Starting SANY...
+@!@!@ENDMSG 2220 @!@!@
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-SrIb6h/models/SGDOracle0.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-SrIb6h/models/FactWriteEnvelope.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-SrIb6h/java-temp/Integers.tla
+Parsing file /private/var/folders/l9/ym2zn8z14vvbd14wl9v2002w0000gp/T/sgd-symbolic-SrIb6h/java-temp/Naturals.tla
 Semantic processing of module Naturals
 Semantic processing of module Integers
 Semantic processing of module FactWriteEnvelope
 Semantic processing of module SGDOracle0
-Starting... (2026-10-25 02:12:35)
+@!@!@STARTMSG 2219:0 @!@!@
+SANY finished.
+@!@!@ENDMSG 2219 @!@!@
+@!@!@STARTMSG 2185:0 @!@!@
+Starting... (2026-10-25 16:10:20)
+@!@!@ENDMSG 2185 @!@!@
+@!@!@STARTMSG 2189:0 @!@!@
 Computing initial states...
+@!@!@ENDMSG 2189 @!@!@
+@!@!@STARTMSG 2269:0 @!@!@
 Computed 2 initial states...
+@!@!@ENDMSG 2269 @!@!@
+@!@!@STARTMSG 2269:0 @!@!@
 Computed 4 initial states...
+@!@!@ENDMSG 2269 @!@!@
+@!@!@STARTMSG 2269:0 @!@!@
 Computed 8 initial states...
+@!@!@ENDMSG 2269 @!@!@
+@!@!@STARTMSG 2269:0 @!@!@
 Computed 16 initial states...
+@!@!@ENDMSG 2269 @!@!@
+@!@!@STARTMSG 2269:0 @!@!@
 Computed 32 initial states...
-Finished computing initial states: 52 distinct states generated at 2026-10-25 02:12:35.
+@!@!@ENDMSG 2269 @!@!@
+@!@!@STARTMSG 2190:0 @!@!@
+Finished computing initial states: 52 distinct states generated at 2026-10-25 16:10:20.
+@!@!@ENDMSG 2190 @!@!@
+@!@!@STARTMSG 2193:0 @!@!@
 Model checking completed. No error has been found.
   Estimates of the probability that TLC did not check all reachable states
   because two distinct states had the same fingerprint:
   calculated (optimistic):  val = 7.6E-17
+@!@!@ENDMSG 2193 @!@!@
+@!@!@STARTMSG 2200:0 @!@!@
+Progress(2) at 2026-10-25 16:10:20: 104 states generated (32,500 s/min), 88 distinct states found (27,500 ds/min), 0 states left on queue.
+@!@!@ENDMSG 2200 @!@!@
+@!@!@STARTMSG 2199:0 @!@!@
 104 states generated, 88 distinct states found, 0 states left on queue.
+@!@!@ENDMSG 2199 @!@!@
+@!@!@STARTMSG 2194:0 @!@!@
 The depth of the complete state graph search is 2.
+@!@!@ENDMSG 2194 @!@!@
+@!@!@STARTMSG 2268:0 @!@!@
 The average outdegree of the complete state graph is 0 (minimum is 0, the maximum 1 and the 95th percentile is 1).
-Finished in 00s at (2026-10-25 02:12:35)
+@!@!@ENDMSG 2268 @!@!@
+@!@!@STARTMSG 2186:0 @!@!@
+Finished in 195ms at (2026-10-25 16:10:20)
+@!@!@ENDMSG 2186 @!@!@

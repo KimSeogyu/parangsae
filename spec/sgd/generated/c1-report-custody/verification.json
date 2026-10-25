@@ -1,0 +1,24 @@
+{
+  "kind": "tlc-finite-completed",
+  "profile": "finite-owned-v1",
+  "rootModule": "ReportCustody",
+  "moduleClosure": [
+    {
+      "name": "ReportCustody.tla",
+      "sha256": "a0fd5513813e5c6926898233ddd3b82c8a76538690b68bdad3d51aae1818a302"
+    }
+  ],
+  "standardModules": [],
+  "configSha256": "537c6ea6b29617e3c69102e91142d2d6536e84ad83a8d7574e2aa5d71445080f",
+  "jarSha256": "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88",
+  "dotSha256": "8fcde862c6c58034079226ac693b973717a75b17a1ed7717946b34b8d64fa704",
+  "mode": {
+    "exploration": "breadth-first",
+    "workers": 1,
+    "fingerprint": 0,
+    "seed": 0,
+    "dump": "dot,actionlabels",
+    "source": "isolated-flat-module-snapshot"
+  },
+  "projectSha256": "5dde2f0af45944e149ba1165ca1a040fe5efb8eade22341fec6fad893942a82e"
+}

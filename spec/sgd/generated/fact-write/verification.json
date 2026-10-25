@@ -3,7 +3,7 @@
   "profile": "unbound-partition-v1",
   "generation": "closed-data-fold",
   "projectSha256": "323ac42180f48af7eddd5163cc9e40516a32efe67bdf9a96cd37e6cbc6178c0f",
-  "planSha256": "ec957fe27a922a06aa4f3607f822fe8f7622580848312576b4aebc23ec0315f5",
+  "planSha256": "02eb6cd7ca7a3047686cf34883be507809a8166170acadc4bc2508847d90ab9a",
   "references": {
     "rowProjectSha256": "883ab3644719df5fb0ea251cdb1600c998891fe9d6f33ab419014587c1c05081",
     "controlProjectSha256": "1cb923914b9fd52bd3ecd529f199a0bc1bf4c7b24c35cde162ee0835c56ba2df",
@@ -72,7 +72,7 @@
     },
     {
       "path": "Cargo.toml",
-      "sha256": "2d22e4362f4999b5cb07d7472bbca74ab147d158db7e3275af36a20101cff089"
+      "sha256": "538580e8db335effd31286f9884f545c3326e1e1b15ddb96829b71507da75f62"
     },
     {
       "path": "crates/collector/Cargo.toml",

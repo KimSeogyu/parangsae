@@ -1452,6 +1452,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sgd-owned-c1opportunitycontrol-50dd0338899d",
+ "sgd-owned-reportcustody-0089cad30e97",
  "sha2",
  "tempfile",
  "tokio",
@@ -2093,6 +2094,13 @@ dependencies = [
 
 [[package]]
 name = "sgd-owned-c1opportunitycontrol-50dd0338899d"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "sgd-owned-reportcustody-0089cad30e97"
 version = "0.1.0"
 dependencies = [
  "serde",

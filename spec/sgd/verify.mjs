@@ -101,6 +101,9 @@ async function main() {
     await step('Check generated C1 opportunity control', process.execPath,
       [cli, 'build', '--project', join(root, 'crates/risk/spec/c1/project.json'),
         '--jar', jar, '--out', join(root, 'spec/sgd/generated/c1-control'), '--check']);
+    await step('Check generated C1 report custody operation', process.execPath,
+      [cli, 'build', '--project', join(directory, 'report-custody/project.json'),
+        '--jar', jar, '--out', join(generated, 'c1-report-custody'), '--check']);
     await mkdir(join(root, '.runtime'), { recursive: true });
     const contracts = await mkdtemp(join(root, '.runtime/c1-contract-checks-'));
     await step('Check finite C1 adapter obligations', 'python3',
