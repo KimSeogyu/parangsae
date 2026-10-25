@@ -111,7 +111,7 @@ enum CaptureClock {
     Pending {
         reservation: Arc<()>,
         settlement: UtcMicros,
-        position: PositionQty,
+        captured_position: PositionQty,
     },
     Settled {
         settlement: UtcMicros,
@@ -272,7 +272,7 @@ impl Ledger {
         self.capture_clock = CaptureClock::Pending {
             reservation,
             settlement,
-            position: self.position,
+            captured_position: self.position,
         };
         Ok(capture)
     }
@@ -343,10 +343,10 @@ impl Ledger {
             CaptureClock::Pending {
                 reservation,
                 settlement,
-                position,
+                captured_position,
             } if Arc::ptr_eq(reservation, &capture.reservation)
                 && *settlement == capture.settlement
-                && *position == capture.position => {}
+                && *captured_position == capture.position => {}
             _ => return Err(CapturedFundingError::WrongCapture),
         }
         if at.micros() < capture.settlement {
