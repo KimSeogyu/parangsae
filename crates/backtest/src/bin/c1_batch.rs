@@ -57,13 +57,22 @@ fn main() -> ExitCode {
         println!("{USAGE}");
         return ExitCode::SUCCESS;
     }
-    match parse(args.into_iter())
-        .and_then(|request| run_c1_batch(&request).map_err(|error| error.to_string()))
-    {
-        Ok(()) => ExitCode::SUCCESS,
+    let request = match parse(args.into_iter()) {
+        Ok(request) => request,
         Err(error) => {
             eprintln!("{error}\n{USAGE}");
-            ExitCode::FAILURE
+            return ExitCode::FAILURE;
+        }
+    };
+    match run_c1_batch(&request) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            let mut stderr = std::io::stderr().lock();
+            match error.handoff(&mut stderr) {
+                Ok(_retained) => ExitCode::FAILURE,
+                // No flushed handoff was acknowledged. Process exit cannot preserve memory.
+                Err((_retained, _handoff_error)) => ExitCode::from(74),
+            }
         }
     }
 }

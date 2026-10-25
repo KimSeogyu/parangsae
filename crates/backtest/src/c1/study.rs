@@ -19,18 +19,122 @@ use serde::Serialize;
 use std::{
     fs::{File, OpenOptions},
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 #[derive(Debug)]
-pub struct C1BatchError(pub String);
+struct StudyFailure(String);
 
-impl std::fmt::Display for C1BatchError {
+impl std::fmt::Display for StudyFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
 }
+impl std::error::Error for StudyFailure {}
+
+type FinalizedBatch = c1_report_custody::Finalized<BatchEvidence, ReportAck, ReportFailure>;
+
+#[derive(Debug)]
+enum BatchFailure {
+    Entry {
+        request: Box<C1BatchRequest>,
+        error: StudyFailure,
+    },
+    Finalized(Box<FinalizedBatch>),
+}
+
+/// Owns every known unit result when execution or its report cannot complete.
+#[derive(Debug)]
+pub struct C1BatchError {
+    failure: BatchFailure,
+}
+
+impl C1BatchError {
+    /// Full diagnostic data, not restart authority or a claim of durable custody.
+    pub fn evidence(&self) -> Value {
+        use c1_report_custody::FinalizationStatus;
+        match &self.failure {
+            BatchFailure::Entry { request, error } => json!({
+                "schema":"parangsae-c1-failure-handoff-v1", "entry_error":error.to_string(),
+                "request":{"inputs":path_evidence(&request.inputs),"data_root":path_evidence(&request.data_root),
+                    "out":path_evidence(&request.out),"ledger":path_evidence(&request.ledger),"attempt":request.attempt},
+                "batch":null,"report_status":null,
+                "handoff_meaning":"write_and_flush_only_not_crash_durability",
+            }),
+            BatchFailure::Finalized(finalized) => {
+                let report_status = match finalized.status() {
+                    FinalizationStatus::Refused(error) => json!({
+                        "kind":"refused", "transition_error":format!("{error:?}"),
+                        "writer_invoked":false, "whole_report_acknowledged":false,
+                    }),
+                    FinalizationStatus::Completed(outcome) => report_outcome(outcome),
+                    FinalizationStatus::TransitionRejected { outcome, error } => json!({
+                        "kind":"transition_rejected", "observed_writer_result":report_outcome(outcome),
+                        "transition_error":format!("{error:?}"), "whole_report_acknowledged":false,
+                    }),
+                };
+                json!({
+                    "schema":"parangsae-c1-failure-handoff-v1",
+                    "batch":finalized.payload().diagnostic(),
+                    "report_status":report_status,"custody_snapshot":finalized.snapshot(),
+                    "handoff_meaning":"write_and_flush_only_not_crash_durability",
+                })
+            }
+        }
+    }
+
+    /// Returns the same owner after a flushed handoff, or with its unacknowledged IO error.
+    pub fn handoff(self, sink: &mut impl Write) -> Result<Self, (Self, std::io::Error)> {
+        let result = serde_json::to_vec(&self.evidence())
+            .map_err(std::io::Error::other)
+            .and_then(|mut bytes| {
+                bytes.push(b'\n');
+                sink.write_all(&bytes)?;
+                sink.flush()
+            });
+        match result {
+            Ok(()) => Ok(self),
+            Err(error) => Err((self, error)),
+        }
+    }
+}
+
+impl std::fmt::Display for C1BatchError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use c1_report_custody::FinalizationStatus;
+        match &self.failure {
+            BatchFailure::Entry { error, .. } => error.fmt(f),
+            BatchFailure::Finalized(finalized) => {
+                if let Some(error) = &finalized.payload().original_failure {
+                    write!(f, "execution: {error}; ")?;
+                }
+                match finalized.status() {
+                    FinalizationStatus::Refused(error) => {
+                        write!(f, "report admission refused: {error:?}")
+                    }
+                    FinalizationStatus::Completed(Ok(_)) => {
+                        f.write_str("report files acknowledged")
+                    }
+                    FinalizationStatus::Completed(Err(error)) => error.fmt(f),
+                    FinalizationStatus::TransitionRejected { error, .. } => {
+                        write!(f, "report transition rejected: {error:?}")
+                    }
+                }
+            }
+        }
+    }
+}
 impl std::error::Error for C1BatchError {}
+
+fn report_outcome(outcome: &Result<ReportAck, ReportFailure>) -> Value {
+    match outcome {
+        Ok(ack) => json!({"kind":"completed","writer_result":"ok","report_ack":ack.diagnostic(),
+            "completion_meaning":"report_callback_only_not_execution_or_ledger_success"}),
+        Err(error) => json!({"kind":"completed","writer_result":"error",
+            "report_failure":error.diagnostic(),
+            "completion_meaning":"report_callback_only_not_execution_or_ledger_success"}),
+    }
+}
 
 #[derive(Clone, Debug, Serialize)]
 struct Identity {
@@ -79,13 +183,13 @@ struct Unit {
 }
 
 impl Unit {
-    fn complete(&self) -> Result<(&ReplayResult, &SeriesMetrics), C1BatchError> {
+    fn complete(&self) -> Result<(&ReplayResult, &SeriesMetrics), StudyFailure> {
         match &self.persistence {
             Persistence::StartUncertain(error) | Persistence::TerminalUncertain(error) => {
-                return Err(C1BatchError(format!("ledger persistence: {error}")))
+                return Err(StudyFailure(format!("ledger persistence: {error}")))
             }
             Persistence::Aborted => {
-                return Err(C1BatchError(match &self.outcome {
+                return Err(StudyFailure(match &self.outcome {
                     Outcome::Technical { error, .. } => error.clone(),
                     _ => "unit has no acknowledged successful terminal".to_owned(),
                 }));
@@ -94,8 +198,8 @@ impl Unit {
         }
         match &self.outcome {
             Outcome::Complete { run, metrics } => Ok((run, metrics)),
-            Outcome::Technical { error, .. } => Err(C1BatchError(error.clone())),
-            Outcome::NotExecuted => Err(C1BatchError("unit execution was not started".to_owned())),
+            Outcome::Technical { error, .. } => Err(StudyFailure(error.clone())),
+            Outcome::NotExecuted => Err(StudyFailure("unit execution was not started".to_owned())),
         }
     }
     fn diagnostic(&self) -> Value {
@@ -211,18 +315,18 @@ fn run_unit(
     identity: Identity,
     actual: Scenario,
     policies: Vec<PolicyWindow>,
-) -> Result<Unit, C1BatchError> {
+) -> Result<Unit, StudyFailure> {
     let range = UtcRange {
         start: UtcMicros::from_micros(
             policies
                 .first()
-                .ok_or_else(|| C1BatchError("empty policy schedule".to_owned()))?
+                .ok_or_else(|| StudyFailure("empty policy schedule".to_owned()))?
                 .start,
         ),
         end: UtcMicros::from_micros(
             policies
                 .last()
-                .ok_or_else(|| C1BatchError("empty policy schedule".to_owned()))?
+                .ok_or_else(|| StudyFailure("empty policy schedule".to_owned()))?
                 .end,
         ),
     };
@@ -314,27 +418,71 @@ fn persist_execution(
     }
 }
 
-pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
-    let admitted = admit(request).map_err(|error| C1BatchError(error.to_string()))?;
-    let _exclusive_ledger = &admitted.ledger_file;
-    let source = match C1SourceView::load_exact(&admitted.source_manifest) {
-        Ok(source) => source,
-        Err(error) => {
-            let message = format!("source admission: {error:?}");
-            return finalize_batch(
-                &admitted,
-                Vec::new(),
-                Vec::new(),
-                None,
-                Some(C1BatchError(message)),
-            );
+#[derive(Debug)]
+struct BatchEvidence {
+    request: C1BatchRequest,
+    admitted: AdmittedC1,
+    units: Vec<Unit>,
+    selected: Vec<Option<C1MaxHold>>,
+    statistics: Option<SelectionStatistics>,
+    original_failure: Option<String>,
+}
+
+impl BatchEvidence {
+    fn new(admitted: AdmittedC1, request: C1BatchRequest) -> Self {
+        Self {
+            request,
+            admitted,
+            units: Vec::with_capacity(33),
+            selected: Vec::with_capacity(15),
+            statistics: None,
+            original_failure: None,
         }
-    };
-    let folds = schedule().map_err(|error| C1BatchError(error.to_string()))?;
+    }
+
+    fn diagnostic(&self) -> Value {
+        json!({
+            "request": {
+                "inputs": path_evidence(&self.request.inputs),
+                "data_root": path_evidence(&self.request.data_root),
+                "out": path_evidence(&self.request.out),
+                "ledger": path_evidence(&self.request.ledger),
+                "attempt": self.request.attempt,
+            },
+            "admitted_metadata": self.admitted.inputs,
+            "actual_pin": self.admitted.pin,
+            "prereg_identity": self.admitted.prereg_identity,
+            "source_manifest": path_evidence(&self.admitted.source_manifest),
+            "units": self.units.iter().map(Unit::diagnostic).collect::<Vec<_>>(),
+            "selection": self.selected.iter().map(|hold| hold.map(C1MaxHold::hours)).collect::<Vec<_>>(),
+            "statistics": self.statistics,
+            "original_failure": self.original_failure,
+            "snapshot_is_authority_or_restart_checkpoint": false,
+        })
+    }
+}
+
+pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
+    let admitted = admit(request).map_err(|error| C1BatchError {
+        failure: BatchFailure::Entry {
+            request: Box::new(request.clone()),
+            error: StudyFailure(error.to_string()),
+        },
+    })?;
+    let mut batch = BatchEvidence::new(admitted, request.clone());
+    batch.original_failure = execute_batch(&mut batch, request)
+        .err()
+        .map(|error| error.0);
+    finalize_batch(batch, write_outputs)
+}
+
+fn execute_batch(batch: &mut BatchEvidence, request: &C1BatchRequest) -> Result<(), StudyFailure> {
+    let admitted = &batch.admitted;
+    let source = C1SourceView::load_exact(&admitted.source_manifest)
+        .map_err(|error| StudyFailure(format!("source admission: {error:?}")))?;
+    let folds = schedule().map_err(|error| StudyFailure(error.to_string()))?;
     let log = TrialLog::new(&admitted.ledger);
-    let mut units = Vec::with_capacity(33);
     let mut training = Vec::with_capacity(15);
-    let mut selected = Vec::with_capacity(15);
     for fold in &folds {
         let mut columns = Vec::with_capacity(2);
         let mut scores = [None, None];
@@ -343,7 +491,7 @@ pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
             .enumerate()
         {
             let id = identity(
-                &admitted,
+                admitted,
                 request,
                 &admitted.inputs.roles[grid],
                 Some(fold.index),
@@ -360,17 +508,12 @@ pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
                     enabled: true,
                 }],
             )?;
-            units.push(unit);
-            let (run, metrics) = match units
+            batch.units.push(unit);
+            let (run, metrics) = batch
+                .units
                 .last()
-                .ok_or_else(|| C1BatchError("missing completed unit".to_owned()))?
-                .complete()
-            {
-                Ok(value) => value,
-                Err(error) => {
-                    return finalize_batch(&admitted, units, selected, None, Some(error));
-                }
-            };
+                .ok_or_else(|| StudyFailure("missing completed unit".to_owned()))?
+                .complete()?;
             columns.push((
                 fold.train.start.micros(),
                 run.daily.iter().map(|day| day.return_ticks).collect(),
@@ -378,13 +521,13 @@ pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
             scores[grid] = metrics.annual_sharpe_ticks;
         }
         training.push(columns);
-        selected.push(select_hold(scores));
+        batch.selected.push(select_hold(scores));
     }
     for role in &admitted.inputs.roles[2..] {
         let (actual, _, _) = scenario(role.role);
         let policies = folds
             .iter()
-            .zip(&selected)
+            .zip(&batch.selected)
             .map(|(fold, chosen)| PolicyWindow {
                 start: fold.test.start.micros(),
                 end: fold.test.end.micros(),
@@ -395,52 +538,41 @@ pub fn run_c1_batch(request: &C1BatchRequest) -> Result<(), C1BatchError> {
         let unit = run_unit(
             &source,
             &log,
-            identity(&admitted, request, role, None),
+            identity(admitted, request, role, None),
             actual,
             policies,
         )?;
-        units.push(unit);
-        if let Err(error) = units
+        batch.units.push(unit);
+        batch
+            .units
             .last()
-            .ok_or_else(|| C1BatchError("missing policy unit".to_owned()))?
-            .complete()
-        {
-            return finalize_batch(&admitted, units, selected, None, Some(error));
-        }
+            .ok_or_else(|| StudyFailure("missing policy unit".to_owned()))?
+            .complete()?;
     }
-    let headline = units[30].complete()?.0;
-    let higher = units[31].complete()?.0;
-    let statistics = match selection_statistics(&training, Ok(headline), Ok(higher), 202) {
-        Ok(value) => value,
-        Err(error) => {
-            let message = error.to_string();
-            return finalize_batch(
-                &admitted,
-                units,
-                selected,
-                None,
-                Some(C1BatchError(message)),
-            );
-        }
-    };
-    finalize_batch(&admitted, units, selected, Some(statistics), None)
+    let headline = batch.units[30].complete()?.0;
+    let higher = batch.units[31].complete()?.0;
+    batch.statistics = Some(
+        selection_statistics(&training, Ok(headline), Ok(higher), 202)
+            .map_err(|error| StudyFailure(error.to_string()))?,
+    );
+    Ok(())
 }
 
 fn finalize_batch(
-    admitted: &AdmittedC1,
-    units: Vec<Unit>,
-    selected: Vec<Option<C1MaxHold>>,
-    statistics: Option<SelectionStatistics>,
-    fatal: Option<C1BatchError>,
+    batch: BatchEvidence,
+    writer: impl FnOnce(&BatchEvidence) -> Result<ReportAck, ReportFailure>,
 ) -> Result<(), C1BatchError> {
-    write_outputs(
-        admitted,
-        &units,
-        &selected,
-        statistics.as_ref(),
-        fatal.as_ref().map(|error| error.0.as_str()),
-    )?;
-    fatal.map_or(Ok(()), Err)
+    use c1_report_custody::FinalizationStatus;
+    let finalized = c1_report_custody::finalize(batch, writer);
+    if finalized.payload().original_failure.is_none()
+        && matches!(finalized.status(), FinalizationStatus::Completed(Ok(_)))
+    {
+        Ok(())
+    } else {
+        Err(C1BatchError {
+            failure: BatchFailure::Finalized(Box::new(finalized)),
+        })
+    }
 }
 
 fn select_hold(scores: [Option<i64>; 2]) -> Option<C1MaxHold> {
@@ -458,28 +590,158 @@ fn select_hold(scores: [Option<i64>; 2]) -> Option<C1MaxHold> {
     selected.map(|(_, hold)| hold)
 }
 
-fn create_output(path: &Path, bytes: &[u8]) -> Result<(), C1BatchError> {
+#[derive(Clone, Debug, Default)]
+struct ReportAck {
+    synced_artifacts: Vec<PathBuf>,
+    directory_synced: bool,
+}
+
+impl ReportAck {
+    fn diagnostic(&self) -> Value {
+        json!({
+            "synced_artifacts": self.synced_artifacts.iter().map(|path| path_evidence(path)).collect::<Vec<_>>(),
+            "directory_synced": self.directory_synced,
+        })
+    }
+}
+
+fn path_evidence(path: &Path) -> Value {
+    use std::os::unix::ffi::OsStrExt;
+    match path.to_str() {
+        Some(text) => Value::String(text.to_owned()),
+        None => json!({"encoding":"unix_bytes","bytes":path.as_os_str().as_bytes()}),
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ReportStage {
+    Prepare,
+    Serialize,
+    Open,
+    Write,
+    FileSync,
+    DirectorySync,
+}
+
+#[derive(Debug)]
+enum ReportCause {
+    Preparation(StudyFailure),
+    Serialization(serde_json::Error),
+    Io(std::io::Error),
+}
+
+#[derive(Debug)]
+struct ReportFailure {
+    stage: ReportStage,
+    path: Option<PathBuf>,
+    cause: ReportCause,
+    acknowledged: ReportAck,
+}
+
+impl ReportFailure {
+    fn io(stage: ReportStage, path: &Path, error: std::io::Error, ack: &ReportAck) -> Self {
+        Self {
+            stage,
+            path: Some(path.to_owned()),
+            cause: ReportCause::Io(error),
+            acknowledged: ack.clone(),
+        }
+    }
+
+    fn serialization(path: &Path, error: serde_json::Error) -> Self {
+        Self {
+            stage: ReportStage::Serialize,
+            path: Some(path.to_owned()),
+            cause: ReportCause::Serialization(error),
+            acknowledged: ReportAck::default(),
+        }
+    }
+
+    fn diagnostic(&self) -> Value {
+        let (source, kind, code) = match &self.cause {
+            ReportCause::Preparation(error) => (error.to_string(), None, None),
+            ReportCause::Serialization(error) => (error.to_string(), None, None),
+            ReportCause::Io(error) => (
+                error.to_string(),
+                Some(format!("{:?}", error.kind())),
+                error.raw_os_error(),
+            ),
+        };
+        json!({
+            "stage": self.stage, "path": self.path.as_deref().map(path_evidence), "source": source,
+            "io_kind": kind, "os_error": code, "acknowledged": self.acknowledged.diagnostic(),
+            "whole_report_acknowledged": false,
+            "partial_current_artifact_is_acknowledged": false,
+        })
+    }
+}
+
+impl From<StudyFailure> for ReportFailure {
+    fn from(error: StudyFailure) -> Self {
+        Self {
+            stage: ReportStage::Prepare,
+            path: None,
+            cause: ReportCause::Preparation(error),
+            acknowledged: ReportAck::default(),
+        }
+    }
+}
+
+impl std::fmt::Display for ReportFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "report {:?} at {:?}: ", self.stage, self.path)?;
+        match &self.cause {
+            ReportCause::Preparation(error) => error.fmt(f),
+            ReportCause::Serialization(error) => error.fmt(f),
+            ReportCause::Io(error) => error.fmt(f),
+        }
+    }
+}
+
+fn create_output(path: &Path, bytes: &[u8], ack: &mut ReportAck) -> Result<(), ReportFailure> {
     let mut file = OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(path)
-        .map_err(|error| C1BatchError(error.to_string()))?;
-    file.write_all(bytes)
-        .and_then(|()| file.sync_all())
-        .map_err(|error| C1BatchError(error.to_string()))
+        .map_err(|error| ReportFailure::io(ReportStage::Open, path, error, ack))?;
+    write_artifact(path, bytes, ack, &mut file, |file| file.sync_all())
 }
 
-fn write_outputs(
-    admitted: &AdmittedC1,
-    units: &[Unit],
-    selected: &[Option<C1MaxHold>],
-    statistics: Option<&SelectionStatistics>,
-    fatal: Option<&str>,
-) -> Result<(), C1BatchError> {
+fn write_artifact<W: Write>(
+    path: &Path,
+    bytes: &[u8],
+    ack: &mut ReportAck,
+    file: &mut W,
+    sync: impl FnOnce(&mut W) -> std::io::Result<()>,
+) -> Result<(), ReportFailure> {
+    file.write_all(bytes)
+        .map_err(|error| ReportFailure::io(ReportStage::Write, path, error, ack))?;
+    sync(file).map_err(|error| ReportFailure::io(ReportStage::FileSync, path, error, ack))?;
+    ack.synced_artifacts.push(path.to_owned());
+    Ok(())
+}
+
+fn write_outputs(batch: &BatchEvidence) -> Result<ReportAck, ReportFailure> {
+    write_outputs_with(batch, create_output, |path| {
+        File::open(path).and_then(|file| file.sync_all())
+    })
+}
+
+fn write_outputs_with(
+    batch: &BatchEvidence,
+    mut artifact: impl FnMut(&Path, &[u8], &mut ReportAck) -> Result<(), ReportFailure>,
+    directory_sync: impl FnOnce(&Path) -> std::io::Result<()>,
+) -> Result<ReportAck, ReportFailure> {
+    let admitted = &batch.admitted;
+    let units = &batch.units;
+    let selected = &batch.selected;
+    let statistics = batch.statistics.as_ref();
+    let fatal = batch.original_failure.as_deref();
     let common = json!({"study_id":admitted.inputs.study_id.0,"attempt":4_u64,"pin":admitted.pin,"prereg":admitted.prereg_identity});
     let diagnostics: Vec<_> = units.iter().map(Unit::diagnostic).collect();
     let policy_windows = policy_windows(units)?;
-    let report_schedule = schedule().map_err(|error| C1BatchError(error.to_string()))?;
+    let report_schedule = schedule().map_err(|error| StudyFailure(error.to_string()))?;
     let failed_role = units.iter().rev().find_map(|unit| {
         unit.complete()
             .is_err()
@@ -496,10 +758,6 @@ fn write_outputs(
         "selection":selected.iter().map(|value|value.map(C1MaxHold::hours)).collect::<Vec<_>>(),
         "block_diagnostics_status":"DEFERRED_NOT_COMPUTED","trading_readiness_claim":false});
     let raw = json!({"schema":"parangsae-c1-diagnostics-v1","identity":common,"units":diagnostics});
-    create_output(
-        &admitted.out.join("C1-diagnostics.json"),
-        &serde_json::to_vec_pretty(&raw).map_err(|error| C1BatchError(error.to_string()))?,
-    )?;
     let mut table=String::from("study_id,run_id,config_id,trial_id,role_kind,semantic_role,scenario,fold,start_us,end_exclusive_us,calendar_days,net_return_ticks,annual_sharpe_ticks,daily_close_mdd_ticks,normal_round_trips,status,attempt,unit_kind,prereg_sha256,pinned_root\n");
     let mut daily=String::from("study_id,run_id,config_id,trial_id,role_kind,semantic_role,scenario,day_start_us,end_exclusive_us,known_at_us,equity_ticks,return_ticks,cash_only,report_fold,attempt,unit_kind,prereg_sha256,pinned_root\n");
     let mut run_log = String::new();
@@ -569,7 +827,7 @@ fn write_outputs(
                         })
                         .map(|fold| fold.index)
                         .ok_or_else(|| {
-                            C1BatchError("daily policy row has no owning fold".to_owned())
+                            StudyFailure("daily policy row has no owning fold".to_owned())
                         })?,
                 };
                 daily.push_str(&format!(
@@ -608,14 +866,14 @@ fn write_outputs(
         for (row, at) in stats.is_dates_us.iter().enumerate() {
             for (column, values) in stats.is_return_columns.iter().enumerate() {
                 let source_fold = u32::try_from(stats.is_source_folds[row])
-                    .map_err(|_| C1BatchError("IS source fold overflow".to_owned()))?;
+                    .map_err(|_| StudyFailure("IS source fold overflow".to_owned()))?;
                 let source_unit = units
                     .iter()
                     .find(|unit| {
                         unit.identity.fold == Some(source_fold)
                             && unit.identity.config_id == admitted.inputs.roles[column].config_id.0
                     })
-                    .ok_or_else(|| C1BatchError("IS source unit is absent".to_owned()))?;
+                    .ok_or_else(|| StudyFailure("IS source unit is absent".to_owned()))?;
                 let id = &source_unit.identity;
                 matrix.push_str(&format!(
                     "{},{},{},{},TrainingCandidate,{},{},{},{},{},{},{},{}\n",
@@ -635,26 +893,33 @@ fn write_outputs(
             }
         }
     }
+    let diagnostics_path = admitted.out.join("C1-diagnostics.json");
+    let summary_path = admitted.out.join("C1.json");
+    let raw_bytes = serde_json::to_vec_pretty(&raw)
+        .map_err(|error| ReportFailure::serialization(&diagnostics_path, error))?;
+    let summary_bytes = serde_json::to_vec_pretty(&summary)
+        .map_err(|error| ReportFailure::serialization(&summary_path, error))?;
+    let mut ack = ReportAck::default();
+    artifact(&diagnostics_path, &raw_bytes, &mut ack)?;
     for (name, value) in [
         ("table_C1.csv", table),
         ("fold_daily_returns.csv", daily),
         ("cscv_is_C1.csv", matrix),
         ("run_log.txt", run_log),
     ] {
-        create_output(&admitted.out.join(name), value.as_bytes())?;
+        artifact(&admitted.out.join(name), value.as_bytes(), &mut ack)?;
     }
-    create_output(
-        &admitted.out.join("C1.json"),
-        &serde_json::to_vec_pretty(&summary).map_err(|error| C1BatchError(error.to_string()))?,
-    )?;
-    File::open(&admitted.out)
-        .and_then(|file| file.sync_all())
-        .map_err(|error| C1BatchError(error.to_string()))
+    artifact(&summary_path, &summary_bytes, &mut ack)?;
+    directory_sync(&admitted.out).map_err(|error| {
+        ReportFailure::io(ReportStage::DirectorySync, &admitted.out, error, &ack)
+    })?;
+    ack.directory_synced = true;
+    Ok(ack)
 }
 
-fn policy_windows(units: &[Unit]) -> Result<Vec<Value>, C1BatchError> {
+fn policy_windows(units: &[Unit]) -> Result<Vec<Value>, StudyFailure> {
     use parangsae_sim::Cash;
-    let folds = schedule().map_err(|error| C1BatchError(error.to_string()))?;
+    let folds = schedule().map_err(|error| StudyFailure(error.to_string()))?;
     let mut rows = Vec::new();
     for unit in units
         .iter()
@@ -668,19 +933,19 @@ fn policy_windows(units: &[Unit]) -> Result<Vec<Value>, C1BatchError> {
                 (fold.test.start.micros() - unit.range.start.micros()) / 86_400_000_000_i64,
             )
             .map_err(|_| {
-                C1BatchError("policy report window starts before its continuous run".to_owned())
+                StudyFailure("policy report window starts before its continuous run".to_owned())
             })?;
             let count = usize::try_from(
                 (fold.test.end.micros() - fold.test.start.micros()) / 86_400_000_000_i64,
             )
-            .map_err(|_| C1BatchError("policy report window length".to_owned()))?;
+            .map_err(|_| StudyFailure("policy report window length".to_owned()))?;
             let end = from
                 .checked_add(count)
-                .ok_or_else(|| C1BatchError("policy report window overflow".to_owned()))?;
+                .ok_or_else(|| StudyFailure("policy report window overflow".to_owned()))?;
             let days = run
                 .daily
                 .get(from..end)
-                .ok_or_else(|| C1BatchError("policy report window is incomplete".to_owned()))?;
+                .ok_or_else(|| StudyFailure("policy report window is incomplete".to_owned()))?;
             let opening = if from == 0 {
                 100_000_000_000_000_i64
             } else {
@@ -688,23 +953,23 @@ fn policy_windows(units: &[Unit]) -> Result<Vec<Value>, C1BatchError> {
             };
             let final_equity = days
                 .last()
-                .ok_or_else(|| C1BatchError("empty policy report window".to_owned()))?
+                .ok_or_else(|| StudyFailure("empty policy report window".to_owned()))?
                 .equity;
             let returns: Vec<_> = days.iter().map(|day| day.return_ticks).collect();
             let annual = crate::metrics::sharpe_of_return_ticks(&returns)
-                .map_err(|error| C1BatchError(error.to_string()))?
+                .map_err(|error| StudyFailure(error.to_string()))?
                 .1;
             let window_return = crate::metrics::total_return(Cash(opening), Cash(final_equity))
-                .map_err(|error| C1BatchError(error.to_string()))?;
+                .map_err(|error| StudyFailure(error.to_string()))?;
             let mut equity = Vec::with_capacity(count + 1);
             equity.push(Cash(opening));
             equity.extend(days.iter().map(|day| Cash(day.equity)));
             let dd = crate::metrics::max_drawdown(&equity)
-                .map_err(|error| C1BatchError(error.to_string()))?;
+                .map_err(|error| StudyFailure(error.to_string()))?;
             rows.push(json!({"identity":unit.identity,"report_fold":fold.index,"is_new_run":false,
                 "start_us":fold.test.start.micros(),"end_exclusive_us":fold.test.end.micros(),
                 "calendar_days":count,"opening_equity_ticks":opening,"final_equity_ticks":final_equity,
-                "cash_delta_ticks":final_equity.checked_sub(opening).ok_or_else(||C1BatchError("window cash overflow".to_owned()))?,
+                "cash_delta_ticks":final_equity.checked_sub(opening).ok_or_else(||StudyFailure("window cash overflow".to_owned()))?,
                 "window_return_ticks":window_return.ticks(),"annual_sharpe_ticks":annual.map(|value|value.ticks()),
                 "daily_close_max_drawdown_ticks":dd.ticks(),"account_reset":false}));
         }
@@ -912,7 +1177,12 @@ mod tests {
         assert!(second.complete().is_err());
         let records = json!([first.diagnostic(), second.diagnostic()]);
         let output = directory.path().join("retained-unit-evidence.json");
-        create_output(&output, &serde_json::to_vec(&records).unwrap()).unwrap();
+        create_output(
+            &output,
+            &serde_json::to_vec(&records).unwrap(),
+            &mut ReportAck::default(),
+        )
+        .unwrap();
         assert_eq!(std::fs::read(retained).unwrap(), original);
         assert!(crate::trial_log::recorded_run_count(&ledger).is_err());
         serde_json::from_slice(&std::fs::read(output).unwrap()).unwrap()
@@ -976,7 +1246,12 @@ mod tests {
         assert!(second.complete().is_err());
         let records = json!([first.diagnostic(), second.diagnostic()]);
         let output = directory.path().join("retained-unit-evidence.json");
-        create_output(&output, &serde_json::to_vec(&records).unwrap()).unwrap();
+        create_output(
+            &output,
+            &serde_json::to_vec(&records).unwrap(),
+            &mut ReportAck::default(),
+        )
+        .unwrap();
         let recorded: Value = serde_json::from_slice(&std::fs::read(output).unwrap()).unwrap();
         assert_eq!(recorded[0]["status"], "COMPLETE");
         assert_eq!(recorded[1]["status"], "INCOMPLETE");
@@ -1000,7 +1275,8 @@ mod tests {
         assert_eq!(std::str::from_utf8(&original).unwrap().lines().count(), 3);
     }
 
-    fn synthetic_report_batch() -> (tempfile::TempDir, AdmittedC1, Unit) {
+    pub(super) fn synthetic_report_batch() -> (tempfile::TempDir, AdmittedC1, C1BatchRequest, Unit)
+    {
         use super::super::admission::{ArtifactRef, C1Inputs, Hash64};
         let directory = tempfile::tempdir().unwrap();
         let out = directory.path().join("output");
@@ -1057,20 +1333,19 @@ mod tests {
             }],
         )
         .unwrap();
-        (directory, admitted, unit)
+        (directory, admitted, request, unit)
     }
 
     fn partial_report_artifact_bodies() -> std::collections::BTreeMap<String, String> {
-        let (_directory, admitted, unit) = synthetic_report_batch();
-        let out = &admitted.out;
-        write_outputs(
-            &admitted,
-            &[unit],
-            &[],
-            None,
-            Some("synthetic partial report fixture"),
-        )
-        .unwrap();
+        let (_directory, admitted, request, unit) = synthetic_report_batch();
+        let out = admitted.out.clone();
+        let mut batch = BatchEvidence::new(admitted, request);
+        batch.units.push(unit);
+        batch.original_failure = Some("synthetic partial report fixture".to_owned());
+        let error = finalize_batch(batch, write_outputs).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("synthetic partial report fixture"));
         let names: std::collections::BTreeSet<_> = std::fs::read_dir(&out)
             .unwrap()
             .map(|entry| entry.unwrap().file_name().into_string().unwrap())
@@ -1120,30 +1395,36 @@ mod tests {
 
     #[test]
     fn owning_finalization_report_failure_retains_the_completed_unit_and_original_cause() {
-        let (_directory, admitted, unit) = synthetic_report_batch();
-        let original_ledger = std::fs::read(&admitted.ledger).unwrap();
+        let (_directory, admitted, request, unit) = synthetic_report_batch();
+        let ledger = admitted.ledger.clone();
+        let out = admitted.out.clone();
+        let original_ledger = std::fs::read(&ledger).unwrap();
         let completed = unit.diagnostic();
         assert_eq!(completed["status"], "COMPLETE");
         assert_eq!(completed["metrics"]["calendar_days"], 1);
-        std::fs::create_dir(admitted.out.join("C1-diagnostics.json")).unwrap();
-        let error = finalize_batch(
-            &admitted,
-            vec![unit],
-            vec![Some(C1MaxHold::Hours168)],
-            None,
-            Some(C1BatchError(
-                "synthetic original execution cause".to_owned(),
-            )),
-        )
-        .unwrap_err();
-        assert_eq!(std::fs::read(&admitted.ledger).unwrap(), original_ledger);
-        assert!(!admitted.out.join("C1.json").exists());
-        println!("C1_OWNING_FINALIZATION_INPUT={completed}");
-        println!("C1_OWNING_FINALIZATION_RETURN={error:?}");
-        assert!(
-            error.to_string().contains("synthetic original execution cause"),
-            "report failure replaced the original execution cause and returned no owned result: {error:?}"
+        std::fs::create_dir(out.join("C1-diagnostics.json")).unwrap();
+        let mut batch = BatchEvidence::new(admitted, request);
+        batch.units.push(unit);
+        batch.selected.push(Some(C1MaxHold::Hours168));
+        batch.original_failure = Some("synthetic original execution cause".to_owned());
+        let error = finalize_batch(batch, write_outputs).unwrap_err();
+        assert_eq!(std::fs::read(&ledger).unwrap(), original_ledger);
+        assert!(!out.join("C1.json").exists());
+        let BatchFailure::Finalized(owner) = error.failure else {
+            panic!("the owning report error must return the actual batch");
+        };
+        assert_eq!(owner.payload().units[0].diagnostic(), completed);
+        assert_eq!(
+            owner.payload().original_failure.as_deref(),
+            Some("synthetic original execution cause")
         );
+        assert_eq!(owner.payload().selected, vec![Some(C1MaxHold::Hours168)]);
+        let c1_report_custody::FinalizationStatus::Completed(Err(report)) = owner.status() else {
+            panic!("the actual failed writer result must remain separate");
+        };
+        assert_eq!(report.stage, ReportStage::Open);
+        assert!(report.acknowledged.synced_artifacts.is_empty());
+        assert!(!report.acknowledged.directory_synced);
     }
 
     #[test]
@@ -1322,3 +1603,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "study_custody_cases.rs"]
+mod custody_tests;
