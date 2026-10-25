@@ -70,3 +70,7 @@ test = true
 [[test]]
 name = "h4_admission_extra"
 harness = false
+
+[[test]]
+name = "astra_range_signal"
+harness = false
