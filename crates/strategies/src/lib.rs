@@ -68,8 +68,8 @@
 
 #![forbid(unsafe_code)]
 
-mod aux;
 pub mod astra;
+mod aux;
 pub mod c1;
 mod donchian;
 mod ensemble;
