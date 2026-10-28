@@ -27,3 +27,7 @@ unwrap_used = "deny"
 [[test]]
 name = "signals_v0"
 harness = false
+
+[[test]]
+name = "premium_input_gherkin"
+harness = false

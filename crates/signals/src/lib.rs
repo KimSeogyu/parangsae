@@ -14,6 +14,7 @@ mod feature;
 mod funding;
 mod funding_z;
 mod output;
+pub mod premium_input;
 mod rank;
 mod target;
 mod tsmom;
