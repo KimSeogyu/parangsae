@@ -1,0 +1,47 @@
+name: report-domain
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  report-domain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: spec/sgd/report-domain/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Select pinned Rust formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.92.0 --profile minimal --component rustfmt
+          rustup run 1.92.0 rustc --version
+          rustup run 1.92.0 rustfmt --version
+          echo "RUSTUP_TOOLCHAIN=1.92.0" >> "$GITHUB_ENV"
+      - name: Install pinned Lean
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 https://github.com/leanprover/lean4/releases/download/v4.35.0/lean-4.35.0-linux.tar.zst -o "$RUNNER_TEMP/lean.tar.zst"
+          echo "7289597a44543246c9227b8cae501767e095ce17f6d448b95fc4a8dc97268f6d  $RUNNER_TEMP/lean.tar.zst" | sha256sum --check
+          tar --zstd -xf "$RUNNER_TEMP/lean.tar.zst" -C "$RUNNER_TEMP"
+          echo "SGD_LEAN_BINARY=$RUNNER_TEMP/lean-4.35.0-linux/bin/lean" >> "$GITHUB_ENV"
+      - name: Fetch pinned TLC
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar -o specs/tla/tla2tools.jar
+          echo "936a262061c914694dfd669a543be24573c45d5aa0ff20a8b96b23d01e050e88  specs/tla/tla2tools.jar" | sha256sum --check
+      - name: Install independently pinned SDK
+        run: npm --prefix spec/sgd/report-domain ci
+      - name: Verify generated report domain
+        run: npm --prefix spec/sgd/report-domain run verify -- --jar specs/tla/tla2tools.jar

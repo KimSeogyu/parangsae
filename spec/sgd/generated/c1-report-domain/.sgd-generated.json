@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "files": [
+    "automaton.json",
+    "binding.json",
+    "model.dot",
+    "proof/DomainProof.lean",
+    "proof/DomainProtocol.lean",
+    "proof/RetainedProtocol.lean",
+    "proof/lean.log",
+    "proof/verification.json",
+    "rust/Cargo.toml",
+    "rust/README.md",
+    "rust/rustfmt.toml",
+    "rust/src/lib.rs",
+    "tlc.log",
+    "verification.json"
+  ]
+}

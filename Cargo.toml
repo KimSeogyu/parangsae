@@ -3,6 +3,7 @@ resolver = "2"
 exclude = [
     "spec/sgd/generated/c1-control/rust",
     "spec/sgd/generated/c1-report-custody/rust",
+    "spec/sgd/generated/c1-report-domain/rust",
 ]
 members = [
     "crates/core",
