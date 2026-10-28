@@ -1,0 +1,16 @@
+{
+  "name": "parangsae-report-domain-verification",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "verify": "node verify.mjs verify",
+    "update": "node verify.mjs update"
+  },
+  "devDependencies": {
+    "specification-guided-development": "https://github.com/KimSeogyu/specification-guided-development/releases/download/v0.3.0-alpha.2/specification-guided-development-0.3.0-alpha.2.tgz"
+  }
+}

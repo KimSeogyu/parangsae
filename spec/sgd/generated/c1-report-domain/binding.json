@@ -1,0 +1,18 @@
+{
+  "profile": "finite-owned",
+  "className": "ReportCustody",
+  "domain": {
+    "operations": [
+      {
+        "name": "report",
+        "port": "writer",
+        "start": "StartReport",
+        "success": "ReportSucceeded",
+        "failure": "ReportFailed"
+      }
+    ]
+  },
+  "rust": {
+    "retainedVariable": "resident"
+  }
+}

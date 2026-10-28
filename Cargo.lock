@@ -1451,6 +1451,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "sgd-domain-0089cad30e97",
  "sgd-owned-c1opportunitycontrol-50dd0338899d",
  "sgd-owned-reportcustody-0089cad30e97",
  "sha2",
@@ -2091,6 +2092,10 @@ dependencies = [
  "ryu",
  "serde",
 ]
+
+[[package]]
+name = "sgd-domain-0089cad30e97"
+version = "0.1.0"
 
 [[package]]
 name = "sgd-owned-c1opportunitycontrol-50dd0338899d"

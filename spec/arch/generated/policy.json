@@ -36,6 +36,10 @@
     ],
     [
       "parangsae-backtest",
+      "sgd-domain-0089cad30e97"
+    ],
+    [
+      "parangsae-backtest",
       "sgd-owned-c1opportunitycontrol-50dd0338899d"
     ],
     [
@@ -196,6 +200,7 @@
     "parangsae-signals",
     "parangsae-sim",
     "parangsae-strategies",
+    "sgd-domain-0089cad30e97",
     "sgd-owned-c1opportunitycontrol-50dd0338899d",
     "sgd-owned-reportcustody-0089cad30e97",
     "sgd-symbolic-factwriteenvelope-281ebc3217c8",
@@ -352,5 +357,5 @@
       "Ops/Release"
     ]
   ],
-  "spec_sha256": "cb810663f2019e8f820428f73f49c412a4b36ab923a93c28cd482d6915cef187"
+  "spec_sha256": "67a5f5da465ed4fa90ad29a9e42f02503d93309bb2b7592d50e074a47789c23e"
 }

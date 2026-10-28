@@ -1,0 +1,79 @@
+{
+  "schema": "sgd-domain-proof-v1",
+  "profile": "serial-port-outcomes-v1",
+  "leanVersion": "4.35.0",
+  "graphSha256": "3bccf24f282d87ec55707e5ff3d468b01f7ca9211c44b5ddf38a37cbc9e3d2d9",
+  "bindingSha256": "2178baa86d47c1858172bf139f26445419e1c2c359a513abc59b59d06f0adc93",
+  "protocolDataSha256": "3ce5b4becdc78b7ca77e209f17ba3f6dd294784ee87957d775c965ee5a417abe",
+  "trustedModuleSha256": "956c02f094b8b787b20020591ee18c669ae63b8c6caf817cc4e027d9f4693ff7",
+  "retainedProof": {
+    "variable": "resident",
+    "trustedModuleSha256": "8fdfaf7cac64fa9061aa28533822111deb2d2cc5ffcd6491c17fdefdb313b701",
+    "scope": "abstract-owner-token-and-graph-residency"
+  },
+  "projectProofSha256": "08096e2f91805de4f54cfc0aabe6259e412283691b19dd75479461f5e9d67290",
+  "axioms": [
+    "Quot.sound",
+    "propext"
+  ],
+  "limits": {
+    "threads": 1,
+    "memoryMiB": 1024,
+    "compilationTimeoutMs": 90000
+  },
+  "states": [
+    {
+      "index": 0,
+      "id": "s0"
+    },
+    {
+      "index": 1,
+      "id": "s1"
+    },
+    {
+      "index": 2,
+      "id": "s2"
+    },
+    {
+      "index": 3,
+      "id": "s3"
+    }
+  ],
+  "events": [
+    {
+      "index": 0,
+      "name": "ReportFailed"
+    },
+    {
+      "index": 1,
+      "name": "ReportSucceeded"
+    },
+    {
+      "index": 2,
+      "name": "StartReport"
+    },
+    {
+      "index": 3,
+      "name": "Wait"
+    }
+  ],
+  "operations": [
+    {
+      "index": 0,
+      "name": "report",
+      "port": "writer",
+      "start": 2,
+      "success": 1,
+      "failure": 0
+    }
+  ],
+  "scope": {
+    "input": "exact-finite-graph",
+    "graphProvenance": "controlled-TLC-required-by-build-caller",
+    "proved": "finite-serial-port-protocol",
+    "lifetime": "per-live-owner",
+    "nativeCompilerCorrespondence": "not-proved",
+    "externalEffectCorrectness": "not-proved",
+    "persistence": "not-proved"
+  }
+}

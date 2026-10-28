@@ -1,0 +1,27 @@
+{
+  "version": 2,
+  "profile": "finite-owned",
+  "name": "ReportCustody",
+  "spec": "../report-custody/ReportCustody.tla",
+  "config": "../report-custody/ReportCustody.cfg",
+  "targets": [
+    "rust"
+  ],
+  "binding": {
+    "className": "ReportCustody",
+    "domain": {
+      "operations": [
+        {
+          "name": "report",
+          "port": "writer",
+          "start": "StartReport",
+          "success": "ReportSucceeded",
+          "failure": "ReportFailed"
+        }
+      ]
+    },
+    "rust": {
+      "retainedVariable": "resident"
+    }
+  }
+}

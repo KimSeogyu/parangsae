@@ -32,7 +32,87 @@ impl std::fmt::Display for StudyFailure {
 }
 impl std::error::Error for StudyFailure {}
 
-type FinalizedBatch = c1_report_custody::Finalized<BatchEvidence, ReportAck, ReportFailure>;
+#[derive(Debug)]
+struct FinalizedBatch {
+    payload: BatchEvidence,
+    status: c1_report_custody::FinalizationStatus<ReportAck, ReportFailure>,
+    snapshot: c1_report_custody::Snapshot,
+}
+
+impl FinalizedBatch {
+    fn payload(&self) -> &BatchEvidence {
+        &self.payload
+    }
+    fn status(&self) -> &c1_report_custody::FinalizationStatus<ReportAck, ReportFailure> {
+        &self.status
+    }
+    fn snapshot(&self) -> &c1_report_custody::Snapshot {
+        &self.snapshot
+    }
+}
+
+struct ReportWriter<F>(Option<F>);
+
+impl<F: FnOnce(&BatchEvidence) -> Result<ReportAck, ReportFailure>> c1_report_domain::SyncPorts
+    for ReportWriter<F>
+{
+    type Payload = BatchEvidence;
+    type Port0Input = ();
+    type Port0Output = ReportAck;
+    type Port0Error = ReportFailure;
+
+    fn writer(&mut self, payload: &BatchEvidence, _: ()) -> Result<ReportAck, ReportFailure> {
+        self.0
+            .take()
+            .expect("report writer can be called only once")(payload)
+    }
+}
+
+fn custody_snapshot(snapshot: c1_report_domain::Snapshot) -> c1_report_custody::Snapshot {
+    let values = snapshot
+        .values
+        .iter()
+        .map(|(key, value)| {
+            let value = match value {
+                c1_report_domain::Value::String(value) => {
+                    c1_report_custody::FiniteValue::String((*value).to_owned())
+                }
+                c1_report_domain::Value::Boolean(value) => {
+                    c1_report_custody::FiniteValue::Boolean(*value)
+                }
+                c1_report_domain::Value::Integer(value) => {
+                    c1_report_custody::FiniteValue::Integer((*value).to_owned())
+                }
+            };
+            ((*key).to_owned(), value)
+        })
+        .collect();
+    c1_report_custody::Snapshot {
+        model: c1_report_domain::MODEL,
+        model_revision: c1_report_domain::MODEL_REVISION,
+        node_id: snapshot.node_id,
+        revision: snapshot.revision.to_string(),
+        values,
+    }
+}
+
+fn custody_error(
+    error: c1_report_domain::TransitionError,
+    snapshot: &c1_report_custody::Snapshot,
+) -> c1_report_custody::TransitionError {
+    let reason = match error {
+        c1_report_domain::TransitionError::Disabled => {
+            c1_report_custody::TransitionErrorReason::Disabled
+        }
+        c1_report_domain::TransitionError::RevisionExhausted => {
+            c1_report_custody::TransitionErrorReason::RevisionExhausted
+        }
+    };
+    c1_report_custody::TransitionError {
+        reason,
+        state: snapshot.clone(),
+    }
+}
 
 #[derive(Debug)]
 enum BatchFailure {
@@ -563,7 +643,31 @@ fn finalize_batch(
     writer: impl FnOnce(&BatchEvidence) -> Result<ReportAck, ReportFailure>,
 ) -> Result<(), C1BatchError> {
     use c1_report_custody::FinalizationStatus;
-    let finalized = c1_report_custody::finalize(batch, writer);
+    let mut owner =
+        c1_report_domain::ReportCustodySyncDomain::new(ReportWriter(Some(writer)), batch);
+    let operation = owner.report(());
+    let (status, _) = operation.into_parts();
+    let (payload, _, snapshot) = owner.into_parts();
+    let snapshot = custody_snapshot(snapshot);
+    let status = match status {
+        c1_report_domain::OperationResult::Refused(error) => {
+            FinalizationStatus::Refused(custody_error(error, &snapshot))
+        }
+        c1_report_domain::OperationResult::Completed { outcome, .. } => {
+            FinalizationStatus::Completed(outcome)
+        }
+        c1_report_domain::OperationResult::CompletionRejected { outcome, error, .. } => {
+            FinalizationStatus::TransitionRejected {
+                outcome,
+                error: custody_error(error, &snapshot),
+            }
+        }
+    };
+    let finalized = FinalizedBatch {
+        payload,
+        status,
+        snapshot,
+    };
     if finalized.payload().original_failure.is_none()
         && matches!(finalized.status(), FinalizationStatus::Completed(Ok(_)))
     {
@@ -1061,6 +1165,42 @@ pub(super) fn validate_runtime_settings(actual: &Value) -> Result<(), C1Admissio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn generated_report_domain_preserves_existing_custody_snapshot_and_outcome() {
+        struct Port(bool);
+        impl c1_report_domain::SyncPorts for Port {
+            type Payload = ();
+            type Port0Input = ();
+            type Port0Output = ();
+            type Port0Error = ();
+            fn writer(&mut self, _: &(), _: ()) -> Result<(), ()> {
+                if self.0 {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+        }
+        for succeeds in [true, false] {
+            let legacy =
+                c1_report_custody::finalize((), |_| if succeeds { Ok(()) } else { Err(()) });
+            let mut owner = c1_report_domain::ReportCustodySyncDomain::new(Port(succeeds), ());
+            let result = owner.report(());
+            let (status, _) = result.into_parts();
+            let (_, _, snapshot) = owner.into_parts();
+            assert_eq!(
+                serde_json::to_value(custody_snapshot(snapshot)).unwrap(),
+                serde_json::to_value(legacy.snapshot()).unwrap()
+            );
+            assert!(
+                matches!(status, c1_report_domain::OperationResult::Completed { outcome, .. } if outcome.is_ok() == succeeds)
+            );
+            assert!(
+                matches!(legacy.status(), c1_report_custody::FinalizationStatus::Completed(outcome) if outcome.is_ok() == succeeds)
+            );
+        }
+    }
 
     fn isolated_cash_unit(path: &Path) -> Unit {
         let source = C1SourceView::synthetic(Vec::new(), Vec::new(), Vec::new()).unwrap();
