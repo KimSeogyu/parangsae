@@ -6,7 +6,7 @@
 
 1. [개발 에이전트 전달 계약](developer-handoff.md): 무엇이 사실/가설/미검증인지, 무엇부터 검증할지.
 2. [선정 도서](books.md): Jiang, Quantitative Momentum, 금융의 연금술의 서지·공개 범위·적용 질문.
-3. [선정 논문](papers.md): Value and Momentum Everywhere / Empirical Asset Pricing via Machine Learning.
+3. [선정 논문](papers.md): Value and Momentum Everywhere / Empirical Asset Pricing via Machine Learning / BTC perpetual PIT 음성 결과 preprint(R01, 본문 검토·재현 미실시).
 4. [커뮤니티·원천 지도](community-map.md): 속보, 공식 거버넌스, 온체인 SQL, 매크로·공공데이터를 역할별로 분리.
 5. [대체 이벤트 신호](alternative-signals.md): 12개 후보의 접근·시점·검증 및 반증 설계. 어느 후보도 OOS 거래 엣지가 확인됐다는 주장이 아니다.
 6. [ML Factor 19장 가이드](mlfactor.md): 19장 본문·15개 공식 노트북 정적 검토와 개발 질문. 코드 실행·원표 재현과 구분.
