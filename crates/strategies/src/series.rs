@@ -167,6 +167,11 @@ impl Cursor {
                 });
             }
         }
+        // Admit the shared executable-price domain before consuming this key.
+        // A refused zero/inexact OHLC row must be correctable at the same time.
+        for price in [bar.open(), bar.high(), bar.low(), bar.close()] {
+            price_f64(price)?;
+        }
         self.last_open = Some(view.value().open_time().micros());
         Ok(view)
     }

@@ -21,6 +21,7 @@ mod c1;
 mod c1_source;
 mod canon;
 mod cash_view;
+pub mod catalog;
 mod date;
 mod engine;
 mod error;

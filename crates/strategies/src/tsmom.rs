@@ -86,6 +86,8 @@ impl TsmomSlow {
         row: &Observation<ResampledBar>,
         book: Option<DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
+        // Prepare external decision-book input before consuming the bar.
+        let prepared_weight = book.map(signed_weight).transpose()?;
         let Some(ready) = self.leg.push_row(row)? else {
             return Ok(None);
         };
@@ -98,10 +100,7 @@ impl TsmomSlow {
             }
             return Ok(Some(self.emit(&ready)));
         }
-        let current = match book {
-            Some(book) => signed_weight(book)?,
-            None => self.held.ticks(),
-        };
+        let current = prepared_weight.unwrap_or_else(|| self.held.ticks());
         if passes_deadband(current, ready.target.ticks(), self.deadband) {
             self.held = ready.target;
             self.accept = self.accept.checked_add(1).ok_or(StrategyError::Overflow)?;

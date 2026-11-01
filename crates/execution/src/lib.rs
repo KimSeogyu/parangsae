@@ -18,6 +18,7 @@ mod ids;
 mod lifecycle;
 mod paper;
 mod paper_event;
+pub mod planning;
 
 pub use authority::{Elapsed, Mono, NotFoundAuthority};
 pub use book::{Alert, BookError, HaltCause, HaltEpoch, HaltSink, OrderBook};

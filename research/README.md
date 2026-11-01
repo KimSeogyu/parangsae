@@ -9,3 +9,9 @@ Amendments:
 ## External research and independent review
 
 - [Quant knowledge hub](knowledge/README.md) — source-by-source notes, event-driven research, access/coverage limits, and handoff questions for the existing developer. This is research input, not a change to frozen experiments or trading authorization.
+
+## Offline strategy catalogue
+
+The [18-family catalogue](../docs/strategies/catalog18.md) documents typed research
+kernels, unsupported-market gates, synthetic checks and targeted legacy repairs.
+It does not register or authorize a study, consume trial budget, or demonstrate edge.

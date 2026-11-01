@@ -103,6 +103,8 @@ impl Ensemble {
         row: &Observation<ResampledBar>,
         book: Option<DecisionBook>,
     ) -> Result<Option<parangsae_signals::SignalOutput>, StrategyError> {
+        // Prepare external decision-book input before consuming the bar.
+        let prepared_weight = book.map(signed_weight).transpose()?;
         let Some(ready) = self.ingest(row)? else {
             return Ok(None);
         };
@@ -110,10 +112,7 @@ impl Ensemble {
             return Ok(None);
         }
         let blended = mean_target(&self.legs)?;
-        let current = match book {
-            Some(book) => signed_weight(book)?,
-            None => self.held.ticks(),
-        };
+        let current = prepared_weight.unwrap_or_else(|| self.held.ticks());
         if (i128::from(blended.ticks()) - i128::from(current)).abs() >= i128::from(self.deadband) {
             self.held = blended;
             self.accept = self.accept.checked_add(1).ok_or(StrategyError::Overflow)?;
