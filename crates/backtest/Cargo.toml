@@ -12,6 +12,7 @@ arrow-schema = { version = "60", default-features = false }
 parquet = { version = "60.0.0", default-features = false, features = ["arrow", "snap"] }
 parangsae-core = { path = "../core" }
 parangsae-execution = { path = "../execution" }
+parangsae-risk = { path = "../risk" }
 parangsae-signals = { path = "../signals" }
 parangsae-sim = { path = "../sim" }
 parangsae-strategies = { path = "../strategies" }
@@ -23,7 +24,6 @@ serde_json = "1.0.154"
 sha2 = "0.11.1"
 
 [dev-dependencies]
-parangsae-risk = { path = "../risk" }
 arrow-array = { version = "60", default-features = false }
 arrow-schema = { version = "60", default-features = false }
 cucumber = "=0.22.1"
@@ -82,4 +82,16 @@ harness = false
 
 [[test]]
 name = "astra_inference"
+harness = false
+
+[[test]]
+name = "catalog_price_panel"
+harness = false
+
+[[test]]
+name = "catalog_models"
+harness = false
+
+[[test]]
+name = "catalog_operations"
 harness = false

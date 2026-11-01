@@ -71,6 +71,7 @@
 pub mod astra;
 mod aux;
 pub mod c1;
+pub mod catalog;
 mod donchian;
 mod ensemble;
 mod er_gate;
